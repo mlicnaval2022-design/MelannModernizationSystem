@@ -6,6 +6,7 @@ import API from '../services/api'
 const NAV = [
   { path: '/', label: 'Dashboard', icon: '📊', section: 'Main' },
   { path: '/customers', label: 'Customers', icon: '👥', section: 'Operations' },
+  { path: '/credit-scoring', label: 'Credit Scoring', icon: '📋', section: 'Operations' },
   { path: '/loans', label: 'Loans', icon: '💰', section: 'Operations' },
   { path: '/payments', label: 'Payments', icon: '💳', section: 'Operations' },
   { path: '/collectors', label: 'Collectors', icon: '🚶', section: 'Operations' },
@@ -26,6 +27,12 @@ export default function Layout() {
   const [pwSaving, setPwSaving] = useState(false)
   const [pwError, setPwError] = useState('')
   const [pwSuccess, setPwSuccess] = useState('')
+  const [showNotif, setShowNotif] = useState(false)
+  const [notifications, setNotifications] = useState([
+    { id: 1, title: 'System Update', message: 'Your weekly collection report is ready to download.', time: '10 mins ago', color: '#3b82f6' },
+    { id: 2, title: 'Past Due Alert', message: '3 accounts have moved to past due status today.', time: '1 hour ago', color: '#ef4444' },
+    { id: 3, title: 'New Approval', message: 'Loan LN-000008 has been approved by the manager.', time: '2 hours ago', color: '#10b981' }
+  ])
 
   const today = new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
   const visibleNav = NAV.filter(n => !n.roles || hasRole(...n.roles))
@@ -95,10 +102,93 @@ export default function Layout() {
       </aside>
 
       <div className="main-content">
-        <div className="topbar">
-          <span className="topbar-title">{pageTitle}</span>
-          <span className="topbar-date">{today}</span>
-        </div>
+        {location.pathname !== '/' ? (
+          <div className="topbar">
+            <div className="topbar-title">{pageTitle}</div>
+            <div className="topbar-date">{today}</div>
+          </div>
+        ) : (
+          <div className="topbar-v2" style={{ padding: '0 24px', height: '70px', background: '#fff', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+            <div className="topbar-left">
+              <div className="topbar-title-wrapper">
+                📈 Dashboard Overview
+              </div>
+              <select className="topbar-branch-select" defaultValue="">
+                <option value="">All Branches</option>
+                <option value="1">Main Branch</option>
+                <option value="2">North Branch</option>
+              </select>
+              <div className="topbar-search">
+                <span className="icon">🔍</span>
+                <input 
+                  type="text" 
+                  placeholder="Quick Search Client..." 
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && e.target.value.trim()) {
+                      navigate(`/customers?search=${encodeURIComponent(e.target.value.trim())}`);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+              </div>
+            </div>
+            <div className="topbar-right">
+              <div className="topbar-date" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 24 }}>📅</span>
+                <div style={{ textAlign: 'left' }}>
+                  <strong>{today}</strong>
+                  <span style={{ fontSize: 10 }}>Current Collection Date</span>
+                </div>
+              </div>
+              <div className="topbar-notif" onClick={() => setShowNotif(!showNotif)} style={{ position: 'relative', cursor: 'pointer' }}>
+                🔔
+                {notifications.length > 0 && <span className="topbar-notif-badge">{notifications.length}</span>}
+                {showNotif && (
+                  <div className="notif-dropdown" style={{
+                    position: 'absolute', top: '100%', right: -10, marginTop: 15,
+                    width: 320, background: '#fff', borderRadius: 8,
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.1)', border: '1px solid #e2e8f0', zIndex: 100,
+                    color: '#1e293b', textAlign: 'left', cursor: 'default'
+                  }} onClick={e => e.stopPropagation()}>
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Notifications</span>
+                      {notifications.length > 0 && (
+                        <span style={{ fontSize: 11, color: '#3b82f6', cursor: 'pointer', fontWeight: 'normal' }} onClick={() => setNotifications([])}>Mark all as read</span>
+                      )}
+                    </div>
+                    <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                      {notifications.length === 0 ? (
+                        <div style={{ padding: '24px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                          No new notifications
+                        </div>
+                      ) : (
+                        notifications.map((n) => (
+                          <div key={n.id} style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background='#f8fafc'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                            <div style={{ fontWeight: 600, color: n.color, marginBottom: 4, fontSize: 13 }}>{n.title}</div>
+                            <div style={{ fontSize: 13 }}>{n.message}</div>
+                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>{n.time}</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div style={{ padding: '10px', textAlign: 'center', borderTop: '1px solid #e2e8f0', fontSize: 12, color: '#3b82f6', cursor: 'pointer', background: '#f8fafc', borderBottomLeftRadius: 8, borderBottomRightRadius: 8 }}>
+                      View All Notifications
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="sidebar-user" style={{ padding: 0, margin: 0 }}>
+                <div className="sidebar-user-avatar" style={{ background: '#cbd5e1', color: '#1e293b' }}>
+                  {user?.full_name?.charAt(0) || 'U'}
+                </div>
+                <div className="sidebar-user-info">
+                  <div className="sidebar-user-name" style={{ color: '#1e293b' }}>{user?.full_name}</div>
+                  <div className="sidebar-user-role" style={{ color: '#64748b' }}>{user?.role}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="page-content">
           <Outlet />
         </div>

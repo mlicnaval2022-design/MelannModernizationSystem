@@ -7,6 +7,7 @@ import Customers from './pages/Customers'
 import Loans from './pages/Loans'
 import Payments from './pages/Payments'
 import Collectors from './pages/Collectors'
+import CreditScoring from './pages/CreditScoring'
 import Deposits from './pages/Deposits'
 import Expenses from './pages/Expenses'
 import CashPosition from './pages/CashPosition'
@@ -28,6 +29,7 @@ export default function App() {
       <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route index element={<Dashboard />} />
         <Route path="customers" element={<Customers />} />
+        <Route path="credit-scoring" element={<CreditScoring />} />
         <Route path="loans" element={<Loans />} />
         <Route path="payments" element={<Payments />} />
         <Route path="collectors" element={<Collectors />} />

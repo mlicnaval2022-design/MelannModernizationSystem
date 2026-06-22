@@ -1,155 +1,497 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import './Payments.css'
 
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 const today = () => new Date().toISOString().split('T')[0]
-const EMPTY = { loan_id: '', or_number: '', date_paid: today(), amount_paid: '', collector_id: '', remarks: '' }
+const formatDateTime = date => {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return date;
+  return d.toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+const formatDate = date => {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return date;
+  return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+}
 
 export default function Payments() {
   const { hasRole } = useAuth()
-  const [rows, setRows] = useState([])
-  const [loans, setLoans] = useState([])
   const [collectors, setCollectors] = useState([])
-  const [search, setSearch] = useState('')
-  const [dateFrom, setDateFrom] = useState(today())
-  const [dateTo, setDateTo] = useState(today())
-  const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState(false)
-  const [form, setForm] = useState(EMPTY)
+  const [recentPayments, setRecentPayments] = useState([])
+  const [searchTable, setSearchTable] = useState('')
+  
+  const [selectedCollector, setSelectedCollector] = useState('')
+  const [scannerInput, setScannerInput] = useState('')
+  
   const [activeLoan, setActiveLoan] = useState(null)
+  
+  const [form, setForm] = useState({ amount_paid: '', date_paid: today(), remarks: '' })
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [warning, setWarning] = useState('')
+  const [notification, setNotification] = useState(null)
+  
+  const scannerRef = useRef(null)
 
-  const load = () => { setLoading(true); API.get('/payments', { params: { search, date_from: dateFrom, date_to: dateTo } }).then(r => setRows(r.data)).finally(() => setLoading(false)) }
-  useEffect(() => { load() }, [search, dateFrom, dateTo])
+  const [clientList, setClientList] = useState([])
+
   useEffect(() => {
-    API.get('/loans', { params: { status: 'active' } }).then(r => setLoans(r.data))
-    API.get('/collectors').then(r => setCollectors(r.data))
+    API.get('/collectors').then(r => setCollectors(r.data.filter(c => c.is_active)))
+    loadRecentPayments()
   }, [])
 
-  const handleLoanSelect = async (id) => {
-    setForm(f => ({ ...f, loan_id: id }))
-    if (id) { const r = await API.get(`/loans/${id}`); setActiveLoan(r.data) }
-    else setActiveLoan(null)
+  useEffect(() => {
+    if (selectedCollector) {
+      API.get('/loans/sheet/collection', { params: { collector_id: selectedCollector } })
+        .then(r => setClientList(r.data.loans || []))
+        .catch(console.error)
+    } else {
+      setClientList([])
+    }
+  }, [selectedCollector])
+
+  const loadRecentPayments = (search = '') => {
+    API.get('/payments', { params: { search } })
+      .then(r => setRecentPayments(r.data))
+      .catch(console.error)
   }
 
-  const handleSave = async (e) => {
-    e.preventDefault(); setError(''); setWarning(''); setSaving(true)
+  const handleScan = async (e, codeToScan = null) => {
+    if (e) e.preventDefault()
+    const targetCode = codeToScan || scannerInput.trim()
+    if (!targetCode) return
+    setNotification(null)
+    setActiveLoan(null)
+    setForm({ amount_paid: '', date_paid: today(), remarks: '' })
+    
+    if (!selectedCollector) {
+      setNotification({ type: 'warning', message: 'Please select a collector first.' })
+      return
+    }
+
     try {
-      const r = await API.post('/payments', form)
-      if (r.data.same_day_warning) setWarning('⚠️ There is already a payment for this loan today.')
-      setModal(false); setForm(EMPTY); setActiveLoan(null); load()
-    } catch (err) { setError(err.response?.data?.error || 'Error saving payment') }
-    finally { setSaving(false) }
+      const r = await API.get('/loans/lookup/client', { params: { code: targetCode } })
+      const loan = r.data
+      
+      if (String(loan.collector_id) !== String(selectedCollector)) {
+        setNotification({ type: 'warning', message: 'Client does not belong to the selected collector.' })
+      } else {
+        setActiveLoan(loan)
+        setForm({ amount_paid: loan.amortization || '', date_paid: today(), remarks: '' })
+        setNotification({ type: 'success', message: 'Customer Loaded Successfully' })
+      }
+    } catch (err) {
+      const msg = err.response?.data?.error || 'Customer code not found.'
+      setNotification({ type: 'danger', message: msg })
+    }
   }
 
-  const handleReverse = async (id) => {
-    if (!confirm('Reverse this payment? This will restore the loan balance.')) return
-    try { await API.post(`/reversals/payment/${id}`); load() }
-    catch (err) { alert(err.response?.data?.error || 'Error reversing') }
+  const handlePost = async (e, force_duplicate = false) => {
+    if (e) e.preventDefault()
+    if (!activeLoan) return
+    setNotification(null)
+    setSaving(true)
+    try {
+      const payload = {
+        loan_id: activeLoan.id,
+        or_number: 'N/A',
+        date_paid: form.date_paid,
+        amount_paid: form.amount_paid,
+        collector_id: selectedCollector,
+        remarks: form.remarks,
+        force_duplicate
+      }
+      const r = await API.post('/payments', payload)
+      
+      setActiveLoan(null)
+      setScannerInput('')
+      setForm({ amount_paid: '', date_paid: today(), remarks: '' })
+      loadRecentPayments()
+      
+      if (r.data.loan_status === 'fullpaid') {
+        setNotification({ type: 'success', message: 'Customer is now Fully Paid' })
+      } else {
+        setNotification({ type: 'success', message: 'Payment saved successfully.' })
+      }
+      
+      if (scannerRef.current) scannerRef.current.focus()
+    } catch (err) {
+      if (err.response?.status === 409 && err.response?.data?.is_duplicate) {
+        if (window.confirm(err.response.data.error + '\n\nDo you want to post it anyway?')) {
+          handlePost(null, true)
+        }
+      } else {
+        setNotification({ type: 'danger', message: err.response?.data?.error || 'Error posting payment' })
+      }
+    } finally {
+      if (!force_duplicate) setSaving(false)
+    }
+  }
+
+  const cancelEncoding = () => {
+    setActiveLoan(null)
+    setScannerInput('')
+    setForm({ amount_paid: '', date_paid: today(), remarks: '' })
+    setNotification(null)
+    if (scannerRef.current) scannerRef.current.focus()
+  }
+  
+  let numDays = 0;
+  if (activeLoan && activeLoan.date_released) {
+    const start = new Date(activeLoan.date_released);
+    const end = new Date();
+    if (start <= end) {
+      let days = 0;
+      let curr = new Date(start);
+      while (curr <= end) {
+        if (curr.getDay() !== 0) days++;
+        curr.setDate(curr.getDate() + 1);
+      }
+      numDays = days;
+    }
+  }
+
+  const handleTableSearch = (e) => {
+    if (e.key === 'Enter') {
+      loadRecentPayments(searchTable);
+    }
   }
 
   return (
-    <div>
-      {warning && <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 6, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: 'var(--accent-warning)' }}>{warning}</div>}
-      <div className="page-toolbar">
-        <div className="search-input-wrap">
-          <span className="search-icon">🔍</span>
-          <input id="payment-search" className="form-control" placeholder="Search name, OR#, loan#..." value={search} onChange={e => setSearch(e.target.value)} />
+    <div className="payments-container">
+      <div className="payments-header">
+        <div>
+          <h2 className="payments-title">
+            <span className="payments-title-icon">🧾</span>
+            Encode Payments
+          </h2>
+          <p className="payments-subtitle">Record payments for clients and automatically update their account balance.</p>
         </div>
-        <input type="date" className="form-control" style={{ width: 140 }} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-        <input type="date" className="form-control" style={{ width: 140 }} value={dateTo} onChange={e => setDateTo(e.target.value)} />
-        <button id="btn-new-payment" className="btn btn-primary" onClick={() => { setForm(EMPTY); setActiveLoan(null); setError(''); setModal(true) }}>+ Encode Payment</button>
-      </div>
-      <div className="card">
-        <div className="table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr><th>OR Number</th><th>Customer</th><th>Loan #</th><th>Date</th><th>Amount</th><th>Balance After</th><th>Collector</th><th>Actions</th></tr>
-            </thead>
-            <tbody>
-              {loading ? <tr className="loading-row"><td colSpan={8}>⏳ Loading...</td></tr>
-                : rows.length === 0 ? <tr><td colSpan={8} className="empty-state">No payments found</td></tr>
-                : rows.map(r => (
-                  <tr key={r.id}>
-                    <td><span className="mono">{r.or_number}</span></td>
-                    <td className="fw-600">{r.customer_name}</td>
-                    <td><span className="mono">{r.loan_code}</span></td>
-                    <td>{r.date_paid}</td>
-                    <td className="text-right text-success fw-bold">₱ {fmt(r.amount_paid)}</td>
-                    <td className="text-right">₱ {fmt(r.balance_after)}</td>
-                    <td>{r.collector_name || '—'}</td>
-                    <td>
-                      {hasRole('admin', 'manager') &&
-                        <button className="btn btn-danger btn-sm" onClick={() => handleReverse(r.id)}>Reverse</button>
-                      }
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-            {rows.length > 0 && (
-              <tfoot>
-                <tr>
-                  <td colSpan={4} className="fw-bold text-muted">TOTAL</td>
-                  <td className="text-right fw-bold text-success">₱ {fmt(rows.reduce((s, r) => s + r.amount_paid, 0))}</td>
-                  <td colSpan={3}></td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
+        <div className="payments-breadcrumb">
+          Dashboard <span style={{color: '#94a3b8'}}>/</span> Payments <span style={{color: '#94a3b8'}}>/</span> Encode Payments
         </div>
       </div>
 
-      {modal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
-          <div className="modal">
-            <div className="modal-header">
-              <span className="modal-title">💳 Encode Payment</span>
-              <button className="modal-close" onClick={() => setModal(false)}>✕</button>
+      {notification && (
+        <div className="payments-notification" style={{
+          background: notification.type === 'danger' ? '#fef2f2' : notification.type === 'warning' ? '#fffbeb' : '#f0fdf4',
+          borderColor: notification.type === 'danger' ? '#fca5a5' : notification.type === 'warning' ? '#fcd34d' : '#bbf7d0',
+          color: notification.type === 'danger' ? '#991b1b' : notification.type === 'warning' ? '#92400e' : '#166534'
+        }}>
+          {notification.type === 'success' && <span className="icon">✓</span>}
+          {notification.type === 'warning' && <span>⚠️</span>}
+          {notification.type === 'danger' && <span>❌</span>}
+          <span>NOTIFICATION: {notification.message}</span>
+        </div>
+      )}
+
+      <div className="payments-card">
+        <div className="payments-card-header">
+          <span className="icon">💳</span>
+          Payment Form
+        </div>
+        
+        <div className="payments-form-body">
+          <div className="p-row">
+            {/* LEFT COLUMN */}
+            <div className="p-col-6" style={{ paddingRight: '40px' }}>
+              
+              <div className="p-form-group" style={{ alignItems: 'center' }}>
+                <label className="p-label">Collector <span className="req">*</span></label>
+                <div className="p-input-wrapper">
+                  <select className="p-input" value={selectedCollector} onChange={e => {
+                    setSelectedCollector(e.target.value)
+                    setScannerInput('')
+                    setActiveLoan(null)
+                    setNotification(null)
+                  }} style={{ appearance: 'none' }}>
+                    <option value="">-- Select Collector --</option>
+                    {collectors.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+                  </select>
+                  <span className="p-icon-right">⌄</span>
+                </div>
+              </div>
+
+              <div className="p-form-group" style={{ alignItems: 'flex-start' }}>
+                <label className="p-label" style={{ marginTop: '8px' }}>Code <span className="req">*</span></label>
+                <div className="p-input-wrapper">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <input 
+                      ref={scannerRef}
+                      type="text" 
+                      className="p-input" 
+                      value={scannerInput}
+                      onChange={e => setScannerInput(e.target.value.replace(/\D/g, ''))}
+                      onKeyDown={e => { if (e.key === 'Enter') handleScan(e) }}
+                      placeholder="00234"
+                    />
+                    {activeLoan && <span className="badge-found" style={{ position: 'static', transform: 'none', whiteSpace: 'nowrap' }}>✓ Found</span>}
+                  </div>
+                  <span className="p-help-text">Enter customer code. Details will be loaded automatically.</span>
+                </div>
+              </div>
+
+              <div className="p-form-group">
+                <label className="p-label">Customer</label>
+                <div className="p-input-wrapper">
+                  <input type="text" className="p-input" readOnly value={activeLoan?.customer_name || ''} />
+                </div>
+              </div>
+
+              <div className="p-form-group">
+                <label className="p-label">Principal</label>
+                <div className="p-input-wrapper">
+                  <input type="text" className="p-input" readOnly value={activeLoan ? `₱ ${fmt(activeLoan.principal)}` : ''} />
+                </div>
+              </div>
+
+              <div className="p-form-group">
+                <label className="p-label">Amortization</label>
+                <div className="p-input-wrapper">
+                  <input type="text" className="p-input" readOnly value={activeLoan ? `₱ ${fmt(activeLoan.amortization)}` : ''} />
+                </div>
+              </div>
+
+              <div className="p-form-group">
+                <label className="p-label">Date Released</label>
+                <div className="p-input-wrapper">
+                  <input type="text" className="p-input" readOnly value={formatDate(activeLoan?.date_released)} />
+                  <span className="p-icon-right">📅</span>
+                </div>
+              </div>
+
+              <div className="p-form-group">
+                <label className="p-label">Maturity</label>
+                <div className="p-input-wrapper">
+                  <input type="text" className="p-input" readOnly value={formatDate(activeLoan?.date_maturity)} />
+                  <span className="p-icon-right">📅</span>
+                </div>
+              </div>
+
+              <div className="p-form-group" style={{ alignItems: 'flex-start' }}>
+                <label className="p-label" style={{ marginTop: '8px' }}>Notes</label>
+                <div className="p-input-wrapper">
+                  <textarea className="p-input" placeholder="Optional notes..." rows="3" style={{ resize: 'none' }} value={form.remarks} onChange={e => setForm({...form, remarks: e.target.value})} disabled={!activeLoan}></textarea>
+                </div>
+              </div>
+
             </div>
-            <div className="modal-body">
-              {error && <div className="login-error" style={{ marginBottom: 14 }}>⚠️ {error}</div>}
-              <form onSubmit={handleSave}>
-                <div className="form-grid">
-                  <div className="form-group span-2">
-                    <label className="form-label">Select Active Loan *</label>
-                    <select className="form-control" value={form.loan_id} onChange={e => handleLoanSelect(e.target.value)} required>
-                      <option value="">Search by customer or loan#...</option>
-                      {loans.map(l => <option key={l.id} value={l.id}>{l.customer_name} — {l.loan_code} (Bal: ₱{fmt(l.balance)})</option>)}
-                    </select>
-                  </div>
-                  {activeLoan && (
-                    <div className="form-group span-2" style={{ background: 'var(--bg-input)', borderRadius: 6, padding: '10px 12px' }}>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>LOAN DETAILS</div>
-                      <div style={{ display: 'flex', gap: 16 }}>
-                        <div><span className="text-muted" style={{ fontSize: 11 }}>Balance: </span><span className="fw-bold text-accent">₱ {fmt(activeLoan.balance)}</span></div>
-                        <div><span className="text-muted" style={{ fontSize: 11 }}>Monthly: </span><span className="fw-bold">₱ {fmt(activeLoan.amortization)}</span></div>
-                        <div><span className="text-muted" style={{ fontSize: 11 }}>Maturity: </span><span className="fw-bold">{activeLoan.date_maturity}</span></div>
-                      </div>
+
+            {/* RIGHT COLUMN */}
+            <div className="p-col-6">
+              <div className="p-row">
+                {/* Right Side - Column 1 */}
+                <div className="p-col-6">
+                  
+                  <div className="p-form-group" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <label className="p-label" style={{ marginBottom: '8px' }}>Date <span className="req">*</span></label>
+                    <div className="p-input-wrapper" style={{ width: '100%' }}>
+                      <input type="text" className="p-input" readOnly value={formatDateTime(new Date())} />
+                      <span className="p-icon-right">📅</span>
                     </div>
-                  )}
-                  <div className="form-group"><label className="form-label">OR Number *</label><input className="form-control" value={form.or_number} onChange={e => setForm(f => ({ ...f, or_number: e.target.value }))} required /></div>
-                  <div className="form-group"><label className="form-label">Date Paid *</label><input type="date" className="form-control" value={form.date_paid} onChange={e => setForm(f => ({ ...f, date_paid: e.target.value }))} required /></div>
-                  <div className="form-group"><label className="form-label">Amount Paid *</label><input type="number" className="form-control" placeholder="0.00" value={form.amount_paid} onChange={e => setForm(f => ({ ...f, amount_paid: e.target.value }))} required /></div>
-                  <div className="form-group"><label className="form-label">Collector</label>
-                    <select className="form-control" value={form.collector_id} onChange={e => setForm(f => ({ ...f, collector_id: e.target.value }))}>
-                      <option value="">Default collector</option>
-                      {collectors.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
-                    </select>
                   </div>
-                  <div className="form-group span-full"><label className="form-label">Remarks</label><input className="form-control" value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} /></div>
+
+                  <div className="info-card">
+                    <div className="info-card-title">
+                      <span className="icon">📄</span> Balance Info
+                    </div>
+                    <div className="info-row">
+                      <span className="lbl">Amortization</span>
+                      <span className="val">₱ {activeLoan ? fmt(activeLoan.amortization) : '0.00'}</span>
+                    </div>
+                    <div className="info-row">
+                      <span className="lbl">Payments made</span>
+                      <span className="val">₱ {activeLoan ? fmt(activeLoan.total_payments_made) : '0.00'}</span>
+                    </div>
+                    <div className="info-total">
+                      <span>Total Balance</span>
+                      <span>₱ {activeLoan ? fmt(activeLoan.balance) : '0.00'}</span>
+                    </div>
+                  </div>
+
+                  <div className="settlements-card">
+                    <div className="info-card-title">
+                      <span className="icon" style={{ borderColor: '#bbf7d0' }}>💳</span> Settlements
+                    </div>
+                    <div className="info-row">
+                      <span className="lbl">Outstanding Balance</span>
+                      <span className="val">₱ {activeLoan ? fmt(activeLoan.balance) : '0.00'}</span>
+                    </div>
+                    <div className="info-row">
+                      <span className="lbl">Less: Amount Paid <span className="req">*</span></span>
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        className="p-input" 
+                        style={{ width: '100px', padding: '4px 8px', textAlign: 'right', fontWeight: 'bold' }} 
+                        placeholder="₱ 0.00" 
+                        value={form.amount_paid} 
+                        onChange={e => setForm({...form, amount_paid: e.target.value})}
+                        disabled={!activeLoan}
+                      />
+                    </div>
+                    <div className="info-total">
+                      <span>Total Balance</span>
+                      <span>₱ {activeLoan ? fmt(Math.max(0, activeLoan.balance - (parseFloat(form.amount_paid) || 0))) : '0.00'}</span>
+                    </div>
+                  </div>
+
                 </div>
-                <div className="form-actions">
-                  <button type="button" className="btn btn-secondary" onClick={() => setModal(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : '💾 Save Payment'}</button>
+
+                {/* Right Side - Column 2 */}
+                <div className="p-col-6">
+                  
+                  <div style={{ height: '58px' }}></div> {/* Spacer to align with Date field */}
+
+                  <div className="clients-list-card" style={{ marginBottom: '16px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#1e3a8a', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Clients ({clientList.length})</span>
+                    </div>
+                    <div className="clients-list-container">
+                      {clientList.length === 0 ? (
+                        <div style={{ color: '#64748b', fontSize: '11px', padding: '20px', textAlign: 'center' }}>
+                          {selectedCollector ? 'No clients found.' : 'Select a collector first.'}
+                        </div>
+                      ) : (
+                        clientList.map(c => (
+                          <div 
+                            key={c.id} 
+                            className={`client-list-item ${c.customer_code === scannerInput ? 'active' : ''}`}
+                            onClick={() => {
+                              setScannerInput(c.customer_code)
+                              handleScan(null, c.customer_code)
+                            }}
+                          >
+                            <span className="c-code">{c.customer_code}</span>
+                            <span className="c-name">{c.customer_name}</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-form-group" style={{ flexDirection: 'column', alignItems: 'flex-start', marginTop: 'auto' }}>
+                    <label className="p-label" style={{ marginBottom: '8px' }}>Date Payment <span className="req">*</span></label>
+                    <div className="p-input-wrapper" style={{ width: '100%' }}>
+                      <input 
+                        type="date" 
+                        className="p-input" 
+                        value={form.date_paid} 
+                        onChange={e => setForm({...form, date_paid: e.target.value})} 
+                        disabled={!activeLoan}
+                      />
+                    </div>
+                  </div>
+
                 </div>
-              </form>
+              </div>
             </div>
           </div>
         </div>
-      )}
+
+        {/* Command Prompt */}
+        <div className="cmd-prompt">
+          <div className="cmd-left">
+            <div className="cmd-icon">&gt;_</div>
+            <div>
+              <div className="cmd-title">Command Prompt</div>
+              <div className="cmd-desc">Enter customer code and press <span style={{ fontWeight: 'bold' }}>Enter ↵</span> to load details automatically.<br/>Example: 00234</div>
+            </div>
+          </div>
+          <div style={{ fontSize: '12px', color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            Press <span style={{ background: '#fff', border: '1px solid #bfdbfe', borderRadius: '4px', padding: '4px 8px', color: '#3b82f6' }}>Enter ↵</span>
+          </div>
+        </div>
+
+        {/* Search Area */}
+        <div className="search-area">
+          <div style={{ fontSize: '12px', fontWeight: '700', color: '#0f172a' }}>Search Here</div>
+          <div className="search-input-wrapper">
+            <span className="icon">🔍</span>
+            <input 
+              type="text" 
+              className="search-input" 
+              placeholder="Search by code, customer name, or date..." 
+              value={searchTable}
+              onChange={e => setSearchTable(e.target.value)}
+              onKeyDown={handleTableSearch}
+            />
+          </div>
+          <div style={{ fontSize: '11px', color: '#64748b' }}>
+            Search using customer code, customer name or encoded date.
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="p-table-wrapper">
+          <table className="p-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Code</th>
+                <th>Customer</th>
+                <th>Total Balance</th>
+                <th>Date Released</th>
+                <th>Date Payment</th>
+                <th>Principal</th>
+                <th>Amortization</th>
+                <th>Other Charges</th>
+                <th>Amount Paid</th>
+                <th>Date Encoded</th>
+                <th>Collector</th>
+                <th>Fully Paid</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentPayments.map((p, i) => (
+                <tr key={p.id}>
+                  <td>{i + 1}</td>
+                  <td>{p.customer_code}</td>
+                  <td className="fw-bold">{p.customer_name}</td>
+                  <td className="fw-bold">₱ {fmt(p.balance_after)}</td>
+                  <td>{formatDate(p.date_released)}</td>
+                  <td>{formatDate(p.date_paid)}</td>
+                  <td>₱ {fmt(p.principal)}</td>
+                  <td>₱ {fmt(p.amortization)}</td>
+                  <td>₱ 0.00</td>
+                  <td className="fw-bold" style={{ color: '#1e3a8a' }}>₱ {fmt(p.amount_paid)}</td>
+                  <td>{formatDateTime(p.created_at)}</td>
+                  <td>{p.collector_name}</td>
+                  <td>
+                    {p.loan_status === 'fullpaid' || p.balance_after <= 0 
+                      ? <span className="badge-no">Yes</span>
+                      : <span style={{ color: '#ef4444', fontWeight: '600', background: '#fef2f2', padding: '4px 8px', borderRadius: '4px' }}>No</span>}
+                  </td>
+                </tr>
+              ))}
+              {recentPayments.length === 0 && (
+                <tr>
+                  <td colSpan="13" style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>No recent payments found.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="p-footer">
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button className="p-btn p-btn-primary" onClick={handlePost} disabled={!activeLoan || saving}>
+              💾 Save Payment
+            </button>
+            <button className="p-btn p-btn-secondary" onClick={cancelEncoding}>
+              ✕ Cancel
+            </button>
+          </div>
+          <div className="p-note">
+            <span style={{ border: '1px solid #2563eb', borderRadius: '50%', width: '14px', height: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px' }}>i</span>
+            NOTE: Code must only be used by numbers.
+          </div>
+        </div>
+
+      </div>
     </div>
   )
 }

@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { search, status, customer_id, collector_id } = req.query;
-    let q = `SELECT l.*, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name, b.branch_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id LEFT JOIN tblBranch b ON l.branch_id = b.id WHERE 1=1`;
+    let q = `SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name, b.branch_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id LEFT JOIN tblBranch b ON l.branch_id = b.id WHERE 1=1`;
     const p = [];
     if (search) { q += ` AND (c.full_name LIKE ? OR l.loan_code LIKE ? OR c.customer_code LIKE ?)`; p.push(`%${search}%`, `%${search}%`, `%${search}%`); }
     if (status) { q += ` AND l.status = ?`; p.push(status); }
@@ -17,10 +17,63 @@ router.get('/', authenticateToken, async (req, res) => {
     res.json(await dbAll(q, p));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+router.get('/sheet/collection', authenticateToken, async (req, res) => {
+  try {
+    const { collector_id, date } = req.query;
+    if (!collector_id) return res.status(400).json({ error: 'collector_id required' });
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    
+    const loans = await dbAll(`
+      SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code,
+             (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status='active') as collected_today
+      FROM tblLoan l
+      JOIN tblCustomer c ON l.customer_id = c.id
+      WHERE l.collector_id = ? AND l.status IN ('active', 'pastdue')
+      ORDER BY c.full_name ASC
+    `, [targetDate, collector_id]);
+    
+    const summary = {
+      total_clients: loans.length,
+      total_due: loans.reduce((s, l) => s + l.amortization, 0),
+      total_collected: loans.reduce((s, l) => s + l.collected_today, 0),
+    };
+    
+    res.json({ loans, summary });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/lookup/client', authenticateToken, async (req, res) => {
+  try {
+    const { code } = req.query;
+    if (!code) return res.status(400).json({ error: 'code required' });
+    
+    // First, check if customer exists
+    const customer = await dbGet(`SELECT id, full_name as customer_name, customer_code FROM tblCustomer WHERE customer_code = ?`, [code]);
+    if (!customer) return res.status(404).json({ error: 'Customer code not found.', is_missing_customer: true });
+
+    // Get latest loan
+    const loan = await dbGet(`
+      SELECT l.*, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name,
+      COALESCE((SELECT SUM(amount_paid) FROM tblPayment WHERE loan_id = l.id AND status != 'reversed'), 0) as total_payments_made
+      FROM tblLoan l 
+      JOIN tblCustomer c ON l.customer_id = c.id 
+      LEFT JOIN tblCollector co ON l.collector_id = co.id
+      WHERE c.customer_code = ?
+      ORDER BY l.created_at DESC
+      LIMIT 1
+    `, [code]);
+    
+    if (!loan) return res.status(404).json({ error: 'This customer has no loans.' });
+    if (loan.status === 'fullpaid') return res.status(400).json({ error: 'This account is already fully paid.', is_fully_paid: true });
+    if (loan.status !== 'active' && loan.status !== 'pastdue') return res.status(400).json({ error: 'This account is inactive and cannot accept payments.', is_inactive: true });
+
+    res.json(loan);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
-    const loan = await dbGet(`SELECT l.*, c.full_name as customer_name, c.customer_code, c.address as customer_address, co.first_name || ' ' || co.last_name as collector_name, b.branch_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id LEFT JOIN tblBranch b ON l.branch_id = b.id WHERE l.id = ?`, [req.params.id]);
+    const loan = await dbGet(`SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, c.address as customer_address, co.first_name || ' ' || co.last_name as collector_name, b.branch_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id LEFT JOIN tblBranch b ON l.branch_id = b.id WHERE l.id = ?`, [req.params.id]);
     if (!loan) return res.status(404).json({ error: 'Loan not found' });
     const schedule = await dbAll('SELECT * FROM tblAmortizationSchedule WHERE loan_id = ? ORDER BY period_number', [req.params.id]);
     const payments = await dbAll(`SELECT * FROM tblPayment WHERE loan_id = ? AND status = 'active' ORDER BY date_paid DESC`, [req.params.id]);
@@ -30,28 +83,105 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { customer_id, collector_id, branch_id, loan_type, principal, interest_rate, loan_period, date_released, service_fee_pct, insurance, notarial_fee, filing_fee, or_number, remarks } = req.body;
+    const { customer_id, collector_id, branch_id, loan_type, principal, interest_rate, date_released, remarks } = req.body;
     if (!customer_id || !principal || !date_released) return res.status(400).json({ error: 'customer_id, principal, date_released required' });
-    const { interest_amount, total_amortization, amortization } = computeAmortization(principal, interest_rate || 0, loan_period || 1);
-    const date_maturity = computeMaturityDate(date_released, loan_period || 1);
-    const { service_fee, total_deductions, net_proceeds } = computeNetProceeds(principal, service_fee_pct || 0, insurance || 0, notarial_fee || 0, filing_fee || 0);
+    const { interest_amount, total_amortization, amortization } = computeAmortization(principal, interest_rate || 0, 45);
+    const date_maturity = computeMaturityDate(date_released, 45);
+    const { service_fee, total_deductions, net_proceeds } = computeNetProceeds(principal, 0, 0, 0, 0);
     const count = (await dbGet('SELECT COUNT(*) as c FROM tblLoan')).c;
     const loan_code = `LN-${String(count + 1).padStart(6, '0')}`;
-    const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, service_fee, insurance, notarial_fee, filing_fee, total_deductions, net_proceeds, balance, or_number, remarks, created_by, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'active')`,
-      [loan_code, customer_id, collector_id, branch_id || null, loan_type || 'regular', principal, interest_rate || 0, interest_amount, loan_period || 1, date_released, date_maturity, amortization, total_amortization, service_fee, insurance || 0, notarial_fee || 0, filing_fee || 0, total_deductions, net_proceeds, total_amortization, or_number, remarks, req.user.id]);
-    const schedule = generateAmortizationSchedule(result.lastID, date_released, loan_period || 1, amortization);
-    for (const s of schedule) {
-      await dbRun(`INSERT INTO tblAmortizationSchedule (loan_id, period_number, due_date, amount_due, status) VALUES (?,?,?,?,?)`, [s.loan_id, s.period_number, s.due_date, s.amount_due, s.status]);
-    }
-    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'LOAN', result.lastID, `New loan: ${loan_code}`]);
+    const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, service_fee, insurance, notarial_fee, filing_fee, total_deductions, net_proceeds, balance, or_number, remarks, created_by, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending')`,
+      [loan_code, customer_id, collector_id, branch_id || null, loan_type || 'New', principal, interest_rate || 0, interest_amount, 45, date_released, date_maturity, amortization, total_amortization, 0, 0, 0, 0, 0, net_proceeds, total_amortization, '', remarks, req.user.id]);
+    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'LOAN', result.lastID, `New loan (pending CI): ${loan_code}`]);
     res.status(201).json({ id: result.lastID, loan_code, amortization, total_amortization, date_maturity, net_proceeds });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.put('/:id/status', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   try {
-    await dbRun(`UPDATE tblLoan SET status=?, updated_at=datetime('now') WHERE id=?`, [req.body.status, req.params.id]);
+    const { status } = req.body;
+    await dbRun(`UPDATE tblLoan SET status=?, updated_at=datetime('now') WHERE id=?`, [status, req.params.id]);
+    
+    // If loan is reversed, mark all unpaid amortization schedules as reversed too
+    if (status === 'reversed') {
+      await dbRun(`UPDATE tblAmortizationSchedule SET status='reversed' WHERE loan_id=? AND status='unpaid'`, [req.params.id]);
+    }
+    
     res.json({ message: 'Loan status updated' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/:id/ci', authenticateToken, async (req, res) => {
+  try {
+    const ci = await dbGet(`SELECT * FROM tblCreditInvestigation WHERE loan_id = ?`, [req.params.id]);
+    res.json(ci || {});
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/:id/ci', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const loan_id = req.params.id;
+    const loan = await dbGet('SELECT * FROM tblLoan WHERE id = ?', [loan_id]);
+    if (!loan) return res.status(404).json({ error: 'Loan not found' });
+    if (loan.status !== 'pending') return res.status(400).json({ error: 'Loan is not pending' });
+
+    const {
+      daily_sales, daily_expenses, other_income, other_loans,
+      exp_electricity, exp_water, exp_internet, exp_transport, exp_rental, exp_food, exp_appliances, exp_allowance, exp_tuition, exp_misc,
+      check_location, check_activity, check_residency, check_borrowing, check_understanding, check_permit, check_purpose, check_source, check_consent, check_escalate,
+      ci_notes, endorsement
+    } = req.body;
+
+    // Check if CI already exists
+    const existing = await dbGet('SELECT id FROM tblCreditInvestigation WHERE loan_id = ?', [loan_id]);
+    if (existing) {
+      await dbRun(`UPDATE tblCreditInvestigation SET 
+        daily_sales=?, daily_expenses=?, other_income=?, other_loans=?,
+        exp_electricity=?, exp_water=?, exp_internet=?, exp_transport=?, exp_rental=?, exp_food=?, exp_appliances=?, exp_allowance=?, exp_tuition=?, exp_misc=?,
+        check_location=?, check_activity=?, check_residency=?, check_borrowing=?, check_understanding=?, check_permit=?, check_purpose=?, check_source=?, check_consent=?, check_escalate=?,
+        ci_notes=?, endorsement=?, encoded_by=? WHERE id=?`,
+        [daily_sales, daily_expenses, other_income, other_loans, exp_electricity, exp_water, exp_internet, exp_transport, exp_rental, exp_food, exp_appliances, exp_allowance, exp_tuition, exp_misc,
+         check_location, check_activity, check_residency, check_borrowing, check_understanding, check_permit, check_purpose, check_source, check_consent, check_escalate, ci_notes, endorsement, req.user.id, existing.id]);
+    } else {
+      await dbRun(`INSERT INTO tblCreditInvestigation (
+        loan_id, daily_sales, daily_expenses, other_income, other_loans,
+        exp_electricity, exp_water, exp_internet, exp_transport, exp_rental, exp_food, exp_appliances, exp_allowance, exp_tuition, exp_misc,
+        check_location, check_activity, check_residency, check_borrowing, check_understanding, check_permit, check_purpose, check_source, check_consent, check_escalate,
+        ci_notes, endorsement, encoded_by
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [loan_id, daily_sales, daily_expenses, other_income, other_loans, exp_electricity, exp_water, exp_internet, exp_transport, exp_rental, exp_food, exp_appliances, exp_allowance, exp_tuition, exp_misc,
+         check_location, check_activity, check_residency, check_borrowing, check_understanding, check_permit, check_purpose, check_source, check_consent, check_escalate, ci_notes, endorsement, req.user.id]);
+    }
+
+    if (endorsement === 'approve' || endorsement === 'Approve') {
+      await dbRun(`UPDATE tblLoan SET status='approved', updated_at=datetime('now') WHERE id=?`, [loan_id]);
+      await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'APPROVE', 'LOAN', loan_id, `CI Approved (Waiting for Release)`]);
+    } else if (endorsement === 'reject' || endorsement === 'Reject') {
+      await dbRun(`UPDATE tblLoan SET status='rejected', updated_at=datetime('now') WHERE id=?`, [loan_id]);
+      await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REJECT', 'LOAN', loan_id, `Loan Rejected via CI`]);
+    }
+
+    res.json({ message: 'CI Form saved successfully' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/:id/release', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const loan = await dbGet(`SELECT * FROM tblLoan WHERE id=?`, [req.params.id]);
+    if (!loan) return res.status(404).json({ error: 'Loan not found' });
+    if (loan.status !== 'approved') return res.status(400).json({ error: 'Only approved loans can be released' });
+
+    const date_released = req.body.date_released || loan.date_released;
+    const date_maturity = computeMaturityDate(date_released, 45);
+
+    // Mark active and generate schedule
+    await dbRun(`UPDATE tblLoan SET status='active', date_released=?, date_maturity=?, updated_at=datetime('now') WHERE id=?`, [date_released, date_maturity, req.params.id]);
+    const schedule = generateAmortizationSchedule(loan.id, date_released, loan.loan_period, loan.amortization);
+    for (const s of schedule) {
+      await dbRun(`INSERT INTO tblAmortizationSchedule (loan_id, period_number, due_date, amount_due, status) VALUES (?,?,?,?,?)`, [s.loan_id, s.period_number, s.due_date, s.amount_due, s.status]);
+    }
+    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'RELEASE', 'LOAN', loan.id, `Loan Released`]);
+    res.json({ message: 'Loan released successfully' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

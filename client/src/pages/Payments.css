@@ -1,0 +1,470 @@
+/* Payments.css */
+.payments-container {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  padding: 0;
+  max-width: 1400px;
+  margin: 0 auto;
+  color: #334155;
+  background: #fff;
+}
+
+.payments-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.payments-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 22px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.payments-title-icon {
+  color: #2563eb;
+  font-size: 24px;
+}
+
+.payments-subtitle {
+  margin: 4px 0 0 36px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.payments-breadcrumb {
+  font-size: 12px;
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+.payments-notification {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  padding: 12px 20px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.payments-notification .icon {
+  background: #22c55e;
+  color: white;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+
+.payments-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  overflow: hidden;
+}
+
+.payments-card-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.payments-card-header .icon {
+  color: #2563eb;
+  font-size: 18px;
+}
+
+.payments-form-body {
+  padding: 24px;
+}
+
+.p-row { display: flex; flex-wrap: wrap; margin-right: -15px; margin-left: -15px; }
+.p-col-6 { flex: 0 0 50%; max-width: 50%; padding-right: 15px; padding-left: 15px; }
+
+.p-form-group {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.p-label {
+  width: 140px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.p-label .req {
+  color: #ef4444;
+}
+
+.p-input-wrapper {
+  flex: 1;
+  position: relative;
+}
+
+.p-input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+  color: #0f172a;
+  transition: all 0.2s;
+}
+
+.p-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.p-input[readonly], .p-input:disabled {
+  background: #f8fafc;
+  color: #334155;
+  border-color: #e2e8f0;
+}
+
+.p-help-text {
+  font-size: 10px;
+  color: #64748b;
+  margin-top: 4px;
+  display: block;
+}
+
+.badge-found {
+  position: absolute;
+  right: -65px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #dcfce7;
+  color: #166534;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.p-icon-right {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+  pointer-events: none;
+  font-size: 14px;
+}
+
+/* Right Side Cards */
+.info-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.info-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+  margin-bottom: 12px;
+}
+
+.info-card-title .icon {
+  background: #fff;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+  font-size: 12px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.info-row .lbl { color: #475569; }
+.info-row .val { color: #0f172a; font-weight: 600; }
+
+.info-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1d4ed8;
+  padding-top: 12px;
+  margin-top: 4px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.settlements-card {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.settlements-card .info-card-title {
+  color: #16a34a;
+}
+.settlements-card .info-card-title .icon {
+  border-color: #bbf7d0;
+}
+.settlements-card .info-total {
+  color: #15803d;
+  border-top-color: #bbf7d0;
+}
+
+.days-card {
+  background: #fef9c3;
+  border-radius: 6px;
+  padding: 16px;
+  text-align: center;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.days-val {
+  background: #fef08a;
+  color: #b45309;
+  font-size: 24px;
+  font-weight: 800;
+  padding: 20px;
+  border-radius: 6px;
+  margin-top: auto;
+}
+
+/* Command Prompt */
+.cmd-prompt {
+  background: #eff6ff;
+  border-top: 1px solid #bfdbfe;
+  border-bottom: 1px solid #bfdbfe;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cmd-left { display: flex; align-items: center; gap: 16px; }
+.cmd-icon {
+  background: #dbeafe;
+  color: #2563eb;
+  width: 32px; height: 32px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: bold; font-family: monospace;
+}
+.cmd-title { font-size: 13px; font-weight: 700; color: #1e3a8a; margin-bottom: 2px; }
+.cmd-desc { font-size: 11px; color: #3b82f6; }
+
+/* Search Area */
+.search-area {
+  padding: 20px 24px 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.search-input-wrapper {
+  position: relative;
+  width: 300px;
+}
+
+.search-input-wrapper .icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 8px 12px 8px 30px;
+  font-size: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+}
+
+/* Table */
+.p-table-wrapper {
+  padding: 16px 24px 24px;
+  overflow-x: auto;
+}
+
+.p-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.p-table th {
+  padding: 10px;
+  text-align: left;
+  font-weight: 700;
+  color: #2563eb;
+  border-bottom: 2px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.p-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.p-table .fw-bold { font-weight: 600; color: #0f172a; }
+
+.badge-no {
+  background: #fef2f2;
+  color: #ef4444;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+/* Footer */
+.p-footer {
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.p-btn {
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+}
+
+.p-btn-primary {
+  background: #1e3a8a;
+  color: #fff;
+}
+
+.p-btn-secondary {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+}
+
+.p-note {
+  font-size: 11px;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Clients List */
+.clients-list-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.clients-list-container {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  background: #fff;
+  max-height: 200px;
+}
+
+.client-list-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 11px;
+}
+
+.client-list-item:last-child {
+  border-bottom: none;
+}
+
+.client-list-item:hover {
+  background: #f0fdf4;
+}
+
+.client-list-item.active {
+  background: #dcfce7;
+  border-left: 3px solid #16a34a;
+}
+
+.c-code {
+  font-weight: 700;
+  color: #2563eb;
+  min-width: 50px;
+}
+
+.c-name {
+  color: #334155;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  text-align: right;
+}
+
+/* Remove spin buttons from number input */
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}

@@ -2,51 +2,43 @@
 
 /* ===================== DESIGN TOKENS ===================== */
 :root {
-  /* Blue palette: light #9CC7E6 · mid #2F5D8A · dark #123A63 */
-  --blue-light: #9CC7E6;
-  --blue-mid:   #2F5D8A;
-  --blue-dark:  #123A63;
+  /* Blue palette */
+  --blue-light: #eff6ff;
+  --blue-mid:   #3b82f6;
+  --blue-dark:  #0d1421; /* Dark navy for sidebar */
 
-  /* Backgrounds — clean light with subtle blue tint */
-  --bg-primary:    #f4f7fb;
+  /* Backgrounds */
+  --bg-primary:    #f4f7fc;
   --bg-secondary:  #ffffff;
   --bg-card:       #ffffff;
-  --bg-card-hover: #f0f4f9;
-  --bg-input:      #f7f9fc;
+  --bg-input:      #ffffff;
 
   /* Borders */
-  --border:        #dfe6ef;
-  --border-focus:  #9CC7E6;
+  --border:        #e2e8f0;
+  --border-focus:  #3b82f6;
 
-  /* Primary accent = dark blue */
-  --accent:        #123A63;
-  --accent-hover:  #0e2b49;
-  --accent-glow:   rgba(18, 58, 99, 0.10);
+  /* Primary accent */
+  --accent:        #2563eb;
+  --accent-hover:  #1d4ed8;
 
-  /* Mid blue for secondary highlights */
-  --accent-mid:    #2F5D8A;
-
-  /* Light blue for tints */
-  --accent-light:  #9CC7E6;
-
-  /* Status colors */
-  --accent-2:       #0ab39c;
-  --accent-warning: #e6930a;
-  --accent-danger:  #e04040;
-  --accent-success: #0ea572;
+  /* Status colors matching image */
+  --accent-2:       #8b5cf6; /* purple */
+  --accent-warning: #f59e0b; /* orange */
+  --accent-danger:  #ef4444; /* red */
+  --accent-success: #10b981; /* green */
 
   /* Typography */
-  --text-primary:   #1a2b3f;
-  --text-secondary: #2F5D8A;
-  --text-muted:     #7a8da4;
+  --text-primary:   #1e293b;
+  --text-secondary: #475569;
+  --text-muted:     #64748b;
 
   /* Layout */
-  --sidebar-w:   240px;
-  --topbar-h:    60px;
-  --radius:      10px;
+  --sidebar-w:   260px;
+  --topbar-h:    70px;
+  --radius:      12px;
   --radius-sm:   6px;
-  --shadow:      0 4px 24px rgba(18,58,99,0.08);
-  --shadow-card: 0 2px 12px rgba(18,58,99,0.06);
+  --shadow:      0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.03);
   --transition:  all 0.2s ease;
 }
 
@@ -78,98 +70,99 @@ table { border-collapse: collapse; width: 100%; }
 /* SIDEBAR */
 .sidebar {
   width: var(--sidebar-w);
-  background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 60%, #f0f4f9 100%);
-  border-right: 1px solid var(--border);
+  background: var(--blue-dark);
+  border-right: none;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   overflow-y: auto;
+  color: #fff;
 }
 .sidebar-brand {
-  padding: 20px 16px;
-  border-bottom: 1px solid var(--border);
-  background: linear-gradient(135deg, rgba(18,58,99,0.04) 0%, transparent 100%);
+  padding: 24px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  background: transparent;
 }
 .sidebar-brand h1 {
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 800;
-  color: var(--blue-dark);
+  color: #fff;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .sidebar-brand p {
-  font-size: 10px;
-  color: var(--text-muted);
-  margin-top: 2px;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
 }
-.sidebar-nav { padding: 12px 8px; flex: 1; }
+.sidebar-nav { padding: 12px 0; flex: 1; }
 .nav-section-label {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
-  color: var(--text-muted);
+  color: #64748b;
   letter-spacing: 1.2px;
   text-transform: uppercase;
-  padding: 12px 8px 4px;
+  padding: 16px 20px 8px;
 }
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  border-radius: var(--radius-sm);
-  color: var(--blue-mid);
+  gap: 12px;
+  padding: 10px 20px;
+  color: #cbd5e1;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: var(--transition);
-  margin-bottom: 2px;
   text-decoration: none;
+  border-radius: 0;
 }
-.nav-item:hover { background: rgba(18,58,99,0.06); color: var(--blue-dark); }
+.nav-item:hover { background: rgba(255,255,255,0.05); color: #fff; }
 .nav-item.active {
-  background: rgba(18,58,99,0.08);
-  color: var(--blue-dark);
-  border: 1px solid rgba(18,58,99,0.12);
-  box-shadow: inset 0 0 12px rgba(18,58,99,0.03);
+  background: var(--accent);
+  color: #fff;
   font-weight: 600;
+  border-top-right-radius: 20px;
+  border-bottom-right-radius: 20px;
+  margin-right: 16px;
 }
 .nav-item .nav-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
 .sidebar-footer {
-  padding: 12px 8px;
-  border-top: 1px solid var(--border);
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255,255,255,0.05);
 }
 .sidebar-user {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
 }
 .sidebar-user-avatar {
   width: 32px; height: 32px;
   border-radius: 50%;
-  background: rgba(18,58,99,0.08);
-  border: 1px solid var(--blue-light);
+  background: var(--bg-secondary);
   display: flex; align-items: center; justify-content: center;
   font-size: 12px; font-weight: 700; color: var(--blue-dark);
   flex-shrink: 0;
 }
 .sidebar-user-info { flex: 1; min-width: 0; }
-.sidebar-user-name { font-size: 12px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sidebar-user-role { font-size: 10px; color: var(--text-muted); text-transform: capitalize; }
+.sidebar-user-name { font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-user-role { font-size: 10px; color: #94a3b8; text-transform: capitalize; }
 .btn-logout {
-  padding: 4px 8px;
-  background: transparent;
-  border: 1px solid var(--border);
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.05);
+  border: none;
   border-radius: var(--radius-sm);
-  color: var(--text-muted);
+  color: #cbd5e1;
   font-size: 11px;
   transition: var(--transition);
-  margin-top: 6px;
   width: 100%;
+  text-align: left;
 }
-.btn-logout:hover { border-color: var(--accent-danger); color: var(--accent-danger); }
+.btn-logout:hover { background: rgba(255,255,255,0.1); color: #fff; }
 
 /* MAIN CONTENT */
 .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -180,13 +173,11 @@ table { border-collapse: collapse; width: 100%; }
   display: flex;
   align-items: center;
   padding: 0 24px;
-  gap: 16px;
+  gap: 20px;
   flex-shrink: 0;
-  box-shadow: 0 1px 3px rgba(18,58,99,0.04);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
-.topbar-title { font-size: 16px; font-weight: 700; color: var(--text-primary); flex: 1; }
-.topbar-date { font-size: 12px; color: var(--text-muted); }
-.page-content { flex: 1; overflow-y: auto; padding: 20px 24px; }
+.page-content { flex: 1; overflow-y: auto; padding: 24px; }
 
 /* ===================== CARDS ===================== */
 .card {
@@ -301,6 +292,7 @@ select.form-control option { background: var(--bg-secondary); }
   text-transform: capitalize;
 }
 .badge-active    { background: rgba(14,165,114,0.10); color: var(--accent-success); }
+.badge-pending   { background: rgba(47,93,138,0.10); color: var(--blue-mid); }
 .badge-pastdue   { background: rgba(224,64,64,0.10);  color: var(--accent-danger); }
 .badge-fullpaid  { background: rgba(10,179,156,0.10); color: var(--accent-2); }
 .badge-reversed  { background: rgba(230,147,10,0.10); color: var(--accent-warning); }
@@ -441,9 +433,10 @@ select.form-control option { background: var(--bg-secondary); }
 
 /* ===================== PRINT ===================== */
 @media print {
-  .sidebar, .topbar, .page-toolbar, .btn, .modal-overlay { display: none !important; }
-  .page-content { padding: 0; }
-  body { background: white; color: black; }
-  .card { border: 1px solid #ddd; box-shadow: none; }
-  .data-table th, .data-table td { border: 1px solid #ddd; color: black; }
+  body * { visibility: hidden; }
+  #printable-area, #printable-area * { visibility: visible; }
+  #printable-area { position: absolute; left: 0; top: 0; width: 100%; }
+  .btn, .modal-close, .search-input-wrap, select { display: none !important; }
+  .data-table th, .data-table td { border: 1px solid #ddd; color: black; padding: 6px; }
+  .badge { border: 1px solid #aaa; color: black !important; background: transparent !important; }
 }

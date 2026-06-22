@@ -7,56 +7,63 @@
  * Compute loan amortization (flat/add-on interest)
  */
 function computeAmortization(principal, interestRate, loanPeriod) {
-  const interest = principal * (interestRate / 100) * loanPeriod;
-  const totalAmount = principal + interest;
-  const amortization = totalAmount / loanPeriod;
+  const p = parseFloat(principal);
+  const r = parseFloat(interestRate);
+  // interestRate is expected to be either 0 or 15
+  const interest = p * (r / 100);
+  const totalAmount = p + interest;
+  // 39 payments (45 days excluding Sundays)
+  const amortization = Math.round(totalAmount / 39);
   return {
     interest_amount: parseFloat(interest.toFixed(2)),
     total_amortization: parseFloat(totalAmount.toFixed(2)),
-    amortization: parseFloat(amortization.toFixed(2)),
+    amortization: amortization,
   };
 }
 
 /**
- * Compute maturity date from release date and period (months)
+ * Compute maturity date from release date (45 calendar days)
  */
 function computeMaturityDate(dateReleased, loanPeriodMonths) {
   const date = new Date(dateReleased);
-  date.setMonth(date.getMonth() + parseInt(loanPeriodMonths));
+  date.setDate(date.getDate() + 45);
   return date.toISOString().split('T')[0];
 }
 
 /**
- * Generate amortization schedule (monthly)
+ * Generate amortization schedule (39 daily payments excluding Sundays)
  */
 function generateAmortizationSchedule(loanId, dateReleased, loanPeriod, amortizationAmount) {
   const schedule = [];
-  for (let i = 1; i <= loanPeriod; i++) {
-    const dueDate = new Date(dateReleased);
-    dueDate.setMonth(dueDate.getMonth() + i);
-    schedule.push({
-      loan_id: loanId,
-      period_number: i,
-      due_date: dueDate.toISOString().split('T')[0],
-      amount_due: parseFloat(amortizationAmount.toFixed(2)),
-      amount_paid: 0,
-      status: 'unpaid',
-    });
+  let currentDate = new Date(dateReleased);
+  let paymentsGenerated = 0;
+  
+  while (paymentsGenerated < 39) {
+    currentDate.setDate(currentDate.getDate() + 1);
+    // 0 is Sunday
+    if (currentDate.getDay() !== 0) {
+      paymentsGenerated++;
+      schedule.push({
+        loan_id: loanId,
+        period_number: paymentsGenerated,
+        due_date: currentDate.toISOString().split('T')[0],
+        amount_due: parseFloat(amortizationAmount.toFixed(2)),
+        amount_paid: 0,
+        status: 'unpaid',
+      });
+    }
   }
   return schedule;
 }
 
 /**
- * Compute net proceeds after deductions
+ * Compute net proceeds (Removed all deductions)
  */
 function computeNetProceeds(principal, serviceFeePct, insurance, notarialFee, filingFee) {
-  const serviceFee = principal * (serviceFeePct / 100);
-  const totalDeductions = serviceFee + insurance + notarialFee + filingFee;
-  const netProceeds = principal - totalDeductions;
   return {
-    service_fee: parseFloat(serviceFee.toFixed(2)),
-    total_deductions: parseFloat(totalDeductions.toFixed(2)),
-    net_proceeds: parseFloat(netProceeds.toFixed(2)),
+    service_fee: 0,
+    total_deductions: 0,
+    net_proceeds: parseFloat(principal),
   };
 }
 
