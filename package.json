@@ -1,0 +1,12 @@
+{
+  "name": "melann-lending-system-v2",
+  "version": "2.0.0",
+  "description": "Modernized Melann Lending System V2 – React + Node.js + SQLite",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install --prefix server && npm install --prefix client",
+    "server": "npm run dev --prefix server",
+    "client": "npm run dev --prefix client",
+    "dev": "start \"Melann Server\" cmd /k \"cd server && npm run dev\" && start \"Melann Client\" cmd /k \"cd client && npm run dev\""
+  }
+}
