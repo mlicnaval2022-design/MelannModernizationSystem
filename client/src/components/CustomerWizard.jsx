@@ -146,18 +146,18 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
               <p>Enter the current residential address of the customer.</p>
             </div>
           </div>
-          <div className="form-group"><label>House No. / Street *</label><input className="form-control" value={form.address} onChange={e => setForm({...form, address: e.target.value})} /></div>
+          <div className="form-group"><label>House No. / Street *</label><input className="form-control" value={form.address} onChange={handleUpper('address')} /></div>
           <div className="form-grid">
-            <div className="form-group"><label>Sitio</label><input className="form-control" value={form.sitio} onChange={e => setForm({...form, sitio: e.target.value})} /></div>
-            <div className="form-group"><label>Purok</label><input className="form-control" value={form.purok} onChange={e => setForm({...form, purok: e.target.value})} /></div>
+            <div className="form-group"><label>Sitio</label><input className="form-control" value={form.sitio} onChange={handleUpper('sitio')} /></div>
+            <div className="form-group"><label>Purok</label><input className="form-control" value={form.purok} onChange={handleUpper('purok')} /></div>
           </div>
           <div className="form-grid">
-            <div className="form-group"><label>Barangay *</label><input className="form-control" value={form.brgy} onChange={e => setForm({...form, brgy: e.target.value})} /></div>
-            <div className="form-group"><label>Municipality / City *</label><input className="form-control" value={form.city} onChange={e => setForm({...form, city: e.target.value})} /></div>
+            <div className="form-group"><label>Barangay *</label><input className="form-control" value={form.brgy} onChange={handleUpper('brgy')} /></div>
+            <div className="form-group"><label>Municipality / City *</label><input className="form-control" value={form.city} onChange={handleUpper('city')} /></div>
           </div>
           <div className="form-grid">
-            <div className="form-group"><label>Province *</label><input className="form-control" value={form.province} onChange={e => setForm({...form, province: e.target.value})} /></div>
-            <div className="form-group"><label>Zip Code</label><input className="form-control" value={form.zip_code} onChange={e => setForm({...form, zip_code: e.target.value})} /></div>
+            <div className="form-group"><label>Province *</label><input className="form-control" value={form.province} onChange={handleUpper('province')} /></div>
+            <div className="form-group"><label>Zip Code</label><input className="form-control" value={form.zip_code} onChange={handleUpper('zip_code')} /></div>
           </div>
 
           <label className="section-label">Home Status *</label>
@@ -186,7 +186,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
                 <span style={{color: '#64748b'}}>Years</span>
               </div>
             </div>
-            <div className="form-group"><label>Previous Address (if less than 2 years)</label><input className="form-control" value={form.previous_address} onChange={e => setForm({...form, previous_address: e.target.value})} /></div>
+            <div className="form-group"><label>Previous Address (if less than 2 years)</label><input className="form-control" value={form.previous_address} onChange={handleUpper('previous_address')} /></div>
           </div>
         </div>
       );
@@ -200,16 +200,16 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
             </div>
           </div>
           <div className="form-grid">
-            <div className="form-group"><label>Main Number *</label><input className="form-control" value={form.contact} onChange={e => setForm({...form, contact: e.target.value})} /></div>
-            <div className="form-group"><label>Secondary Number</label><input className="form-control" value={form.secondary_contact} onChange={e => setForm({...form, secondary_contact: e.target.value})} /></div>
+            <div className="form-group"><label>Main Number *</label><input className="form-control" value={form.contact} onChange={handleUpper('contact')} /></div>
+            <div className="form-group"><label>Secondary Number</label><input className="form-control" value={form.secondary_contact} onChange={handleUpper('secondary_contact')} /></div>
           </div>
           <div className="form-grid">
             <div className="form-group"><label>Email Address *</label><input type="email" className="form-control" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
             <div className="form-group"><label>Confirm Email Address *</label><input type="email" className="form-control" value={form.confirm_email} onChange={e => setForm({...form, confirm_email: e.target.value})} /></div>
           </div>
           <div className="form-grid">
-            <div className="form-group"><label>Facebook Account</label><input className="form-control" value={form.fb_account} onChange={e => setForm({...form, fb_account: e.target.value})} /></div>
-            <div className="form-group"><label>Messenger (Optional)</label><input className="form-control" value={form.messenger_account} onChange={e => setForm({...form, messenger_account: e.target.value})} /></div>
+            <div className="form-group"><label>Facebook Account</label><input className="form-control" value={form.fb_account} onChange={handleUpper('fb_account')} /></div>
+            <div className="form-group"><label>Messenger (Optional)</label><input className="form-control" value={form.messenger_account} onChange={handleUpper('messenger_account')} /></div>
           </div>
 
           <label className="section-label">Preferred Contact Method *</label>
@@ -235,7 +235,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
           </div>
           <div className="form-group">
             <label>Additional Notes (Optional)</label>
-            <textarea className="form-control" rows="3" value={form.contact_notes} onChange={e => setForm({...form, contact_notes: e.target.value})}></textarea>
+            <textarea className="form-control" rows="3" value={form.contact_notes} onChange={handleUpper('contact_notes')}></textarea>
           </div>
         </div>
       );
@@ -249,11 +249,11 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
             </div>
           </div>
           <div className="form-grid">
-            <div className="form-group"><label>Business Type *</label><input className="form-control" value={form.business_type} onChange={e => setForm({...form, business_type: e.target.value})} /></div>
-            <div className="form-group"><label>Nature of Business *</label><input className="form-control" value={form.occupation} onChange={e => setForm({...form, occupation: e.target.value})} /></div>
+            <div className="form-group"><label>Business Type *</label><input className="form-control" value={form.business_type} onChange={handleUpper('business_type')} /></div>
+            <div className="form-group"><label>Nature of Business *</label><input className="form-control" value={form.occupation} onChange={handleUpper('occupation')} /></div>
           </div>
           <div className="form-group"><label>Business Name *</label><input className="form-control" value={form.business_name} onChange={handleUpper('business_name')} /></div>
-          <div className="form-group"><label>Complete Business Address *</label><input className="form-control" value={form.business_address} onChange={e => setForm({...form, business_address: e.target.value})} /></div>
+          <div className="form-group"><label>Complete Business Address *</label><input className="form-control" value={form.business_address} onChange={handleUpper('business_address')} /></div>
           
           <div className="form-grid">
             <div className="form-group"><label>Years in Business *</label><input type="number" className="form-control" value={form.business_years} onChange={e => setForm({...form, business_years: e.target.value})} /></div>
@@ -278,8 +278,8 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
           {form.business_permit === 'Yes' && (
             <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
               <div className="form-group"><label>Date Issued *</label><input type="date" className="form-control" value={form.permit_date_issued} onChange={e => setForm({...form, permit_date_issued: e.target.value})} /></div>
-              <div className="form-group"><label>Place Issued *</label><input className="form-control" value={form.permit_place_issued} onChange={e => setForm({...form, permit_place_issued: e.target.value})} /></div>
-              <div className="form-group"><label>Permit No.</label><input className="form-control" value={form.permit_no} onChange={e => setForm({...form, permit_no: e.target.value})} /></div>
+              <div className="form-group"><label>Place Issued *</label><input className="form-control" value={form.permit_place_issued} onChange={handleUpper('permit_place_issued')} /></div>
+              <div className="form-group"><label>Permit No.</label><input className="form-control" value={form.permit_no} onChange={handleUpper('permit_no')} /></div>
             </div>
           )}
         </div>
@@ -304,23 +304,23 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
                 <option value="Others">Others</option>
               </select>
             </div>
-            <div className="form-group"><label>ID Number *</label><input className="form-control" value={form.id_number} onChange={e => setForm({...form, id_number: e.target.value})} /></div>
+            <div className="form-group"><label>ID Number *</label><input className="form-control" value={form.id_number} onChange={handleUpper('id_number')} /></div>
           </div>
           <div className="form-grid">
             <div className="form-group"><label>Issue Date *</label><input type="date" className="form-control" value={form.id_issue_date} onChange={e => setForm({...form, id_issue_date: e.target.value})} /></div>
             <div className="form-group"><label>Expiry Date *</label><input type="date" className="form-control" value={form.id_expiry_date} onChange={e => setForm({...form, id_expiry_date: e.target.value})} /></div>
           </div>
           <div className="form-group"><label>Issued By *</label><input className="form-control" value={form.id_issued_by} onChange={e => setForm({...form, id_issued_by: e.target.value})} /></div>
-          <div className="form-group"><label>Place of Issue</label><input className="form-control" value={form.id_place_of_issue} onChange={e => setForm({...form, id_place_of_issue: e.target.value})} /></div>
+          <div className="form-group"><label>Place of Issue</label><input className="form-control" value={form.id_place_of_issue} onChange={handleUpper('id_place_of_issue')} /></div>
           
           <label className="section-label">Additional Information (Optional)</label>
           <div className="form-grid">
-            <div className="form-group"><label>TIN (If available)</label><input className="form-control" value={form.tin_number} onChange={e => setForm({...form, tin_number: e.target.value})} /></div>
-            <div className="form-group"><label>SSS Number (If available)</label><input className="form-control" value={form.sss_number} onChange={e => setForm({...form, sss_number: e.target.value})} /></div>
+            <div className="form-group"><label>TIN (If available)</label><input className="form-control" value={form.tin_number} onChange={handleUpper('tin_number')} /></div>
+            <div className="form-group"><label>SSS Number (If available)</label><input className="form-control" value={form.sss_number} onChange={handleUpper('sss_number')} /></div>
           </div>
           <div className="form-group">
             <label>Notes (Optional)</label>
-            <textarea className="form-control" rows="3" value={form.id_notes} onChange={e => setForm({...form, id_notes: e.target.value})}></textarea>
+            <textarea className="form-control" rows="3" value={form.id_notes} onChange={handleUpper('id_notes')}></textarea>
           </div>
         </div>
       );
@@ -349,7 +349,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
             <input type="number" className="form-control" value={form.proposed_principal} onChange={e => setForm({...form, proposed_principal: e.target.value})} />
           </div>
           <div className="form-group"><label>Loan Purpose *</label>
-            <textarea className="form-control" rows="3" value={form.loan_purpose} onChange={e => setForm({...form, loan_purpose: e.target.value})}></textarea>
+            <textarea className="form-control" rows="3" value={form.loan_purpose} onChange={handleUpper('loan_purpose')}></textarea>
           </div>
           {error && <div className="login-error" style={{marginTop: 20}}>⚠️ {error}</div>}
         </div>
