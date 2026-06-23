@@ -1,24 +1,27 @@
-async function test() {
+const app = require('./src/index');
+const http = require('http');
+
+const server = http.createServer(app);
+server.listen(0, async () => {
+  const port = server.address().port;
+  console.log('Server started on port ' + port);
+  
   try {
-    const loginRes = await fetch('http://localhost:5001/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'admin', password: 'admin123' })
-    });
-    const loginData = await loginRes.json();
-    const token = loginData.token;
+    const jwt = require('jsonwebtoken');
+    const token = jwt.sign({ id: 1, role: 'admin' }, process.env.JWT_SECRET || 'melann_lending_secret_key_2026', { expiresIn: '1h' });
     
-    const dashRes = await fetch('http://localhost:5001/api/reports/dashboard', {
-      headers: { Authorization: `Bearer ${token}` }
+    console.log("Fetching dashboard data...");
+    const res = await fetch(`http://localhost:${port}/api/reports/dashboard`, {
+      headers: { 'Authorization': `Bearer ${token}` }
     });
-    const dashData = await dashRes.json();
-    if (!dashRes.ok) {
-      console.error("ERROR 500 DETAILS:", dashData);
-    } else {
-      console.log("SUCCESS:", Object.keys(dashData));
-    }
+    
+    console.log('Status Code:', res.status);
+    const text = await res.text();
+    console.log('Response Body:', text.substring(0, 500) + (text.length > 500 ? '...' : ''));
   } catch (err) {
-    console.error("ERROR:", err.message);
+    console.error('Error:', err);
+  } finally {
+    server.close();
+    process.exit(0);
   }
-}
-test();
+});

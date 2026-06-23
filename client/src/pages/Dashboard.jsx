@@ -11,27 +11,32 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [errorMsg, setErrorMsg] = useState('')
 
   const fetchDashboardData = () => {
     API.get('/reports/dashboard')
       .then(r => {
         setData(r.data)
         setLoading(false)
+        setErrorMsg('')
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("Dashboard error:", err);
+        setErrorMsg(err.response?.data?.error || err.message || "Unknown error")
         setLoading(false)
       })
   }
 
   useEffect(() => {
     fetchDashboardData()
-    // Poll every 5 seconds for real-time updates
-    const interval = setInterval(fetchDashboardData, 5000)
+    // Poll every 30 seconds for real-time updates to avoid overloading DB
+    const interval = setInterval(fetchDashboardData, 30000)
     return () => clearInterval(interval)
   }, [])
 
   if (loading) return <div className="empty-state"><p>⏳ Loading dashboard...</p></div>
-  if (!data) return <div className="empty-state"><p>Could not load dashboard.</p></div>
+  if (errorMsg) return <div className="empty-state"><p>Could not load dashboard: {errorMsg}</p></div>
+  if (!data) return <div className="empty-state"><p>Could not load dashboard data.</p></div>
 
   return (
     <div className="dashboard-v2">
@@ -415,6 +420,22 @@ export default function Dashboard() {
 
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: '20px' }}>
+        <div className="card-header">
+          <div>
+            <div className="card-title">🚀 System Updates</div>
+            <div className="card-subtitle">Recent changes to the platform</div>
+          </div>
+        </div>
+        <div className="card-body" style={{ padding: '20px' }}>
+          <ul style={{ listStyleType: 'disc', paddingLeft: '20px', color: '#475569', fontSize: '14px', lineHeight: '1.6' }}>
+            <li><strong>Encode Payments:</strong> Redesigned workflow with Command Prompt, auto-calculation, and collector validation.</li>
+            <li><strong>UI Enhancements:</strong> Upgraded dashboard metrics, color palette, and layout styling.</li>
+            <li><strong>Credit Scoring:</strong> Restructured pending loans and applications into a dedicated module.</li>
+          </ul>
         </div>
       </div>
     </div>

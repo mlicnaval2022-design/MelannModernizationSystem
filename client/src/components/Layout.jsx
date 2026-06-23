@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import API from '../services/api'
 
@@ -22,6 +22,7 @@ const NAV = [
 export default function Layout() {
   const { user, logout, hasRole } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
   const [changePwModal, setChangePwModal] = useState(false)
   const [pwForm, setPwForm] = useState({ current_password: '', new_password: '', confirm_password: '' })
   const [pwSaving, setPwSaving] = useState(false)
