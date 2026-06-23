@@ -34,6 +34,7 @@ export default function Payments() {
   const [notification, setNotification] = useState(null)
   
   const scannerRef = useRef(null)
+  const amountInputRef = useRef(null)
 
   const [clientList, setClientList] = useState([])
 
@@ -79,8 +80,14 @@ export default function Payments() {
         setNotification({ type: 'warning', message: 'Client does not belong to the selected collector.' })
       } else {
         setActiveLoan(loan)
-        setForm({ amount_paid: loan.amortization || '', date_paid: today(), remarks: '' })
+        setForm({ amount_paid: 0, date_paid: today(), remarks: '' })
         setNotification({ type: 'success', message: 'Customer Loaded Successfully' })
+        setTimeout(() => {
+          if (amountInputRef.current) {
+            amountInputRef.current.focus()
+            amountInputRef.current.select()
+          }
+        }, 50)
       }
     } catch (err) {
       const msg = err.response?.data?.error || 'Customer code not found.'
@@ -327,8 +334,15 @@ export default function Payments() {
                         className="p-input" 
                         style={{ width: '100px', padding: '4px 8px', textAlign: 'right', fontWeight: 'bold' }} 
                         placeholder="₱ 0.00" 
+                        ref={amountInputRef}
                         value={form.amount_paid} 
                         onChange={e => setForm({...form, amount_paid: e.target.value})}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (activeLoan && !saving) handlePost(e);
+                          }
+                        }}
                         disabled={!activeLoan}
                       />
                     </div>

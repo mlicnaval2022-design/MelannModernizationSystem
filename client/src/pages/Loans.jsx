@@ -184,7 +184,11 @@ export default function Loans() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '25px 20px', borderBottom: '1px solid #f1f5f9', paddingBottom: 20, marginBottom: 20 }}>
                 {/* Customer */}
                 <div style={{ display: 'flex', gap: 15 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 10, background: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>👤</div>
+                  {detailLoan.photo_id_front ? (
+                    <img src={`http://localhost:5001${detailLoan.photo_id_front}`} style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} alt="Avatar" />
+                  ) : (
+                    <div style={{ width: 44, height: 44, borderRadius: 10, background: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>👤</div>
+                  )}
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 0.5 }}>CUSTOMER</div>
                     <div style={{ fontWeight: 800, fontSize: 14, color: '#0f172a', marginTop: 4, lineHeight: 1.2 }}>{detailLoan.customer_name}</div>
@@ -276,8 +280,8 @@ export default function Loans() {
                       <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>OR#</th>
                       <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>DATE</th>
                       <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>AMOUNT</th>
-                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>BALANCE BEFORE</th>
-                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>BALANCE AFTER</th>
+                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>RUNNING BALANCE</th>
+                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>STATUS</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -288,8 +292,19 @@ export default function Loans() {
                           <td style={{ padding: '16px 20px', color: '#334155' }}>{p.or_number}</td>
                           <td style={{ padding: '16px 20px', color: '#334155' }}>{p.date_paid}</td>
                           <td style={{ padding: '16px 20px', color: '#0f172a', fontWeight: 800 }}>₱ {fmt(p.amount_paid)}</td>
-                          <td style={{ padding: '16px 20px', color: '#475569' }}>₱ {fmt(p.balance_before)}</td>
                           <td style={{ padding: '16px 20px', color: '#475569' }}>₱ {fmt(p.balance_after)}</td>
+                          <td style={{ padding: '16px 20px' }}>
+                            <span style={{ 
+                              padding: '4px 10px', 
+                              borderRadius: 12, 
+                              fontSize: 12, 
+                              fontWeight: 700, 
+                              background: p.status === 'active' ? '#dcfce7' : '#fee2e2', 
+                              color: p.status === 'active' ? '#16a34a' : '#ef4444' 
+                            }}>
+                              {p.status === 'active' ? 'Good' : 'Reversed'}
+                            </span>
+                          </td>
                         </tr>
                       ))}
                   </tbody>

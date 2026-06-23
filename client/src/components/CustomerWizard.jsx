@@ -446,7 +446,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
   };
 
   return (
-    <div className="modal-overlay wizard-overlay" onMouseDown={e => e.target === e.currentTarget && onClose()}>
+    <div className="modal-overlay wizard-overlay">
       <div className="wizard-modal">
         <div className="wizard-header">
           <div className="wizard-title">

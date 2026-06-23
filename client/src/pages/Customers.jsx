@@ -40,6 +40,8 @@ export default function Customers() {
   const [soaData, setSoaData] = useState(null)
   const [previewImage, setPreviewImage] = useState(null)
   const [soaLoading, setSoaLoading] = useState(false)
+  const [viewAllLoans, setViewAllLoans] = useState(false)
+  const [viewAllPayments, setViewAllPayments] = useState(false)
   const [confirmModal, setConfirmModal] = useState({ open: false, type: '', customer: null, message: '' })
 
   const load = () => {
@@ -84,6 +86,8 @@ export default function Customers() {
     setSoaModal(true);
     setSoaLoading(true);
     setSoaData(null);
+    setViewAllLoans(false);
+    setViewAllPayments(false);
     try {
       const r = await API.get(`/customers/${id}`);
       setSoaData(r.data);
@@ -347,22 +351,33 @@ export default function Customers() {
                 const memberSince = soaData.created_at ? new Date(soaData.created_at).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '—';
 
                 return (
-                  <div>
+                  <div className="printable-soa-wrapper">
                     <div className="soa-top-header">
-                      <div>
-                        <h2 className="soa-brand-name">MELANN LENDING</h2>
-                        <p className="soa-subtitle">Statement of Account</p>
+                      <div className="print-brand-container">
+                        <div className="print-logo-m">M</div>
+                        <div>
+                          <h2 className="soa-brand-name">MELANN LENDING</h2>
+                          <p className="soa-subtitle">STATEMENT OF ACCOUNT</p>
+                        </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div className="soa-date">Date: <span>{new Date().toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'})}</span></div>
-                        <div style={{ display: 'flex', gap: 10, marginTop: 10, justifyContent: 'flex-end' }}>
+                        <div className="soa-date screen-only">Date: <span>{new Date().toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'})}</span></div>
+                        <div className="print-only print-date-box">
+                          <span className="print-date-icon">🗓️</span>
+                          <div>
+                            <div className="lbl">DATE ISSUED:</div>
+                            <div className="val">{new Date().toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'})}</div>
+                          </div>
+                        </div>
+                        <div className="screen-only" style={{ display: 'flex', gap: 10, marginTop: 10, justifyContent: 'flex-end' }}>
                           <button className="soa-print-btn" style={{ background: '#64748b' }} onClick={() => setSoaModal(false)}>✕ Close</button>
                           <button className="soa-print-btn" onClick={() => window.print()}>🖨️ Print</button>
                         </div>
                       </div>
                     </div>
 
-                    <div className="soa-card soa-info-wrapper">
+                    <div className="soa-card soa-info-wrapper print-card">
+                      <div className="print-tab print-tab-dark">CUSTOMER INFORMATION</div>
                       <div className="soa-info-left">
                         {soaData.photo_id_front ? (
                           <img src={`http://localhost:5001${soaData.photo_id_front}`} className="soa-avatar" alt="Customer Avatar" style={{ objectFit: 'cover' }} />
@@ -384,8 +399,14 @@ export default function Customers() {
                             <div>
                               <div className="soa-info-label">Customer Code</div>
                               <div className="soa-info-val">{soaData.customer_code}</div>
-                              <div className="soa-info-label" style={{ marginTop: 10 }}>Loan Status</div>
-                              <div className="soa-badge-active">✓ Active</div>
+                              <div className="soa-info-label" style={{ marginTop: 10 }}>Customer Status</div>
+                              {soaData.status === 'inactive' ? (
+                                <div className="soa-badge-inactive" style={{ background: '#f1f5f9', color: '#64748b', padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  ⏸ Inactive
+                                </div>
+                              ) : (
+                                <div className="soa-badge-active">✓ Active</div>
+                              )}
                             </div>
                           </div>
                           <div className="soa-info-item">
@@ -420,8 +441,9 @@ export default function Customers() {
                     </div>
 
                     <div className="soa-summary-row">
-                      <div className="soa-card soa-summary-card">
-                        <div className="soa-summary-header">💳 LOAN SUMMARY</div>
+                      <div className="soa-card soa-summary-card print-card">
+                        <div className="print-tab print-tab-green">LOAN SUMMARY</div>
+                        <div className="soa-summary-header screen-only">💳 LOAN SUMMARY</div>
                         <div className="soa-summary-grid">
                           <div>
                             <div className="soa-summary-label">Total Loan Amount</div>
@@ -437,8 +459,9 @@ export default function Customers() {
                           </div>
                         </div>
                       </div>
-                      <div className="soa-card soa-summary-card">
-                        <div className="soa-summary-header">📅 PAYMENT SUMMARY</div>
+                      <div className="soa-card soa-summary-card print-card">
+                        <div className="print-tab print-tab-blue">PAYMENT SUMMARY</div>
+                        <div className="soa-summary-header screen-only">📅 PAYMENT SUMMARY</div>
                         <div className="soa-summary-grid">
                           <div>
                             <div className="soa-summary-label">Total Payments</div>
@@ -456,16 +479,19 @@ export default function Customers() {
                       </div>
                     </div>
 
-                    <div className="soa-card">
+                    <div className="soa-card print-card">
+                      <div className="print-tab print-tab-dark">LOAN HISTORY</div>
                       <div className="soa-list-card-header">
                         <div className="soa-list-title">📚 Loan History</div>
-                        <span className="soa-view-all">View All</span>
+                        {!viewAllLoans && soaData.loans && soaData.loans.length > 1 && (
+                          <span className="soa-view-all" onClick={() => setViewAllLoans(true)}>View All</span>
+                        )}
                       </div>
                       {soaData.loans && soaData.loans.length > 0 ? (
                         <table className="data-table" style={{ fontSize: 13 }}>
                           <thead><tr><th>Loan Code</th><th>Date Released</th><th>Principal</th><th>Balance</th><th>Status</th></tr></thead>
                           <tbody>
-                            {soaData.loans.map(l => (
+                            {(viewAllLoans ? soaData.loans : soaData.loans.slice(0, 1)).map(l => (
                               <tr key={l.id}>
                                 <td className="mono">{l.loan_code}</td>
                                 <td>{l.date_released}</td>
@@ -485,19 +511,21 @@ export default function Customers() {
                       )}
                     </div>
 
-                    <div className="soa-card">
+                    <div className="soa-card print-card">
+                      <div className="print-tab print-tab-dark">PAYMENT LEDGER</div>
                       <div className="soa-list-card-header">
                         <div className="soa-list-title">🧾 Payment Ledger</div>
-                        <span className="soa-view-all">View All</span>
+                        {!viewAllPayments && sortedPayments.length > 1 && (
+                          <span className="soa-view-all" onClick={() => setViewAllPayments(true)}>View All</span>
+                        )}
                       </div>
                       {soaData.payments && soaData.payments.length > 0 ? (
                         <table className="data-table" style={{ fontSize: 13 }}>
-                          <thead><tr><th>Date</th><th>OR Number</th><th>Loan Ref</th><th>Amount Paid</th></tr></thead>
+                          <thead><tr><th>Date</th><th>Loan Ref</th><th>Amount Paid</th></tr></thead>
                           <tbody>
-                            {sortedPayments.map(p => (
+                            {(viewAllPayments ? sortedPayments : sortedPayments.slice(0, 1)).map(p => (
                               <tr key={p.id}>
                                 <td>{p.date_paid}</td>
-                                <td className="mono">{p.or_number}</td>
                                 <td className="mono">{p.loan_code}</td>
                                 <td className="fw-600 text-success">₱{Number(p.amount_paid).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
                               </tr>
@@ -512,6 +540,25 @@ export default function Customers() {
                         </div>
                       )}
                     </div>
+                    
+                    {/* Print Footer */}
+                    <div className="print-footer print-only">
+                      <div className="print-footer-col">
+                        <span className="print-footer-shield">🛡️</span>
+                        <p>We are committed to provide reliable and responsible lending solutions for your financial growth.</p>
+                      </div>
+                      <div className="print-footer-col center-col">
+                        <div>📞 09171131000</div>
+                        <div>✉️ melann.lic2016@gmail.com</div>
+                        <div>🌐 facebook.com/MelannLendingInvestorCorp</div>
+                      </div>
+                      <div className="print-footer-col right-col">
+                        <div style={{ color: '#1e3a8a', fontStyle: 'italic', fontSize: 16 }}>Thank you for choosing</div>
+                        <div className="print-footer-brand">MELANN LENDING!</div>
+                      </div>
+                      <div className="print-footer-wave"></div>
+                    </div>
+
                   </div>
                 );
               })() : <div className="text-danger text-center">Failed to load data.</div>}

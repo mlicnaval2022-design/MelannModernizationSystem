@@ -145,10 +145,10 @@ export default function Reports() {
         <div className="card" style={{ padding: '12px 8px', height: 'fit-content' }}>
           <div className="nav-section-label">Report Types</div>
           {REPORT_TYPES.map(r => (
-            <div key={r.key} className={`nav-item${active === r.key ? ' active' : ''}`} onClick={() => handleSelect(r.key)}>
+            <div key={r.key} className={`report-nav-item${active === r.key ? ' active' : ''}`} onClick={() => handleSelect(r.key)}>
               <div>
-                <div style={{ fontSize: 12, fontWeight: 600 }}>{r.label}</div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>{r.desc}</div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{r.label}</div>
+                <div className="report-desc" style={{ fontSize: 11, marginTop: 2 }}>{r.desc}</div>
               </div>
             </div>
           ))}

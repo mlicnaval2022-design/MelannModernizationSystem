@@ -44,6 +44,20 @@ router.post('/', authenticateToken, async (req, res) => {
     const result = await dbRun(`INSERT INTO tblPayment (loan_id, customer_id, collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, status, remarks, encoded_by) VALUES (?,?,?,?,?,?,?,?,'active',?,?)`, [loan_id, loan.customer_id, collector_id || loan.collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, remarks, req.user.id]);
     const newStatus = balance_after <= 0 ? 'fullpaid' : 'active';
     await dbRun(`UPDATE tblLoan SET balance=?, total_paid=total_paid+?, status=?, updated_at=datetime('now') WHERE id=?`, [balance_after, amount_paid, newStatus, loan_id]);
+    
+    // Distribute payment across amortization schedule
+    let remaining = amount_paid;
+    const unpaidSchedules = await dbAll(`SELECT * FROM tblAmortizationSchedule WHERE loan_id = ? AND status != 'paid' ORDER BY period_number ASC`, [loan_id]);
+    for (const sched of unpaidSchedules) {
+      if (remaining <= 0) break;
+      const amountToPay = Math.min(remaining, sched.amount_due - sched.amount_paid);
+      if (amountToPay <= 0) continue;
+      const newPaid = sched.amount_paid + amountToPay;
+      const schedStatus = (newPaid >= sched.amount_due) ? 'paid' : 'partial';
+      await dbRun(`UPDATE tblAmortizationSchedule SET amount_paid = ?, date_paid = ?, status = ? WHERE id = ?`, [newPaid, date_paid, schedStatus, sched.id]);
+      remaining -= amountToPay;
+    }
+
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'PAYMENT', result.lastID, `OR#${or_number} Amt:${amount_paid} Col:${collector_id || loan.collector_id}`]);
     res.status(201).json({ id: result.lastID, balance_before, balance_after, loan_status: newStatus });
   } catch (err) { res.status(500).json({ error: err.message }); }
