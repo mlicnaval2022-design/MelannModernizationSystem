@@ -6,13 +6,6 @@ import '../soa.css'
 import '../customers.css'
 import CustomerWizard from '../components/CustomerWizard'
 
-const EMPTY = { 
-  first_name: '', last_name: '', middle_name: '', address: '', contact: '', birth_date: '', civil_status: '', occupation: '', branch_id: '', collector_id: '', status: 'active',
-  sitio: '', purok: '', brgy: '', city: '', gender: '', secondary_contact: '', email: '', income_per_month: '', expenses_per_month: '',
-  loan_purpose: '', collateral: '', id_type: '', id_number: '', id_issue_date: '', id_expiry_date: '', id_issued_by: '', fb_account: '', nationality: 'FILIPINO',
-  home_status: '', business_address: '', business_location: '', business_years: '', business_months: '', business_ownership: '', business_permit: ''
-}
-
 export default function Customers() {
   const { hasRole } = useAuth()
   const [searchParams] = useSearchParams()
@@ -32,14 +25,12 @@ export default function Customers() {
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState(EMPTY)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
 
   const [soaModal, setSoaModal] = useState(false)
   const [soaData, setSoaData] = useState(null)
   const [previewImage, setPreviewImage] = useState(null)
   const [soaLoading, setSoaLoading] = useState(false)
+  const [soaTab, setSoaTab] = useState('summary')
   const [viewAllLoans, setViewAllLoans] = useState(false)
   const [viewAllPayments, setViewAllPayments] = useState(false)
   const [confirmModal, setConfirmModal] = useState({ open: false, type: '', customer: null, message: '' })
@@ -62,58 +53,32 @@ export default function Customers() {
     }).finally(() => setLoading(false))
   }
 
-  const calculateAge = (birthDate) => {
-    if (!birthDate) return '';
-    const today = new Date();
-    const birth = new Date(birthDate);
-    let age = today.getFullYear() - birth.getFullYear();
-    const m = today.getMonth() - birth.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
-      age--;
-    }
-    return age;
-  };
-
-  const handleUpper = (field) => (e) => {
-    const val = e.target.value.toUpperCase();
-    setForm(f => ({ ...f, [field]: val }));
-  };
-
   useEffect(() => { load() }, [search, status])
   useEffect(() => {
     API.get('/branches').then(r => setBranches(r.data))
     API.get('/collectors').then(r => setCollectors(r.data))
   }, [])
 
-  const openNew = () => { setEditing(null); setForm(EMPTY); setError(''); setModal(true) }
-  const openEdit = (row) => { setEditing(row); setForm({ ...row }); setError(''); setModal(true) }
+  const openNew = () => { setEditing(null); setModal(true) }
+  const openEdit = (row) => { setEditing(row); setModal(true) }
   const closeModal = () => { setModal(false); setEditing(null) }
 
   const openSoa = async (id) => {
     setSoaModal(true);
     setSoaLoading(true);
     setSoaData(null);
+    setSoaTab('summary');
     setViewAllLoans(false);
     setViewAllPayments(false);
     try {
       const r = await API.get(`/customers/${id}`);
       setSoaData(r.data);
-    } catch (err) {
+    } catch {
       alert('Failed to load SOA data');
       setSoaModal(false);
     } finally {
       setSoaLoading(false);
     }
-  }
-
-  const handleSave = async (e) => {
-    e.preventDefault(); setError(''); setSaving(true)
-    try {
-      if (editing) await API.put(`/customers/${editing.id}`, form)
-      else await API.post('/customers', form)
-      closeModal(); load()
-    } catch (err) { setError(err.response?.data?.error || 'Error saving') }
-    finally { setSaving(false) }
   }
 
   const handleRelax = async (customer) => {
@@ -359,12 +324,98 @@ export default function Customers() {
                 const lastPayment = sortedPayments.length > 0 ? new Date(sortedPayments[0].date_paid).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '—';
                 const nextDueDate = activeLoans.length > 0 && activeLoans[0].date_maturity ? new Date(activeLoans[0].date_maturity).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '—';
                 const memberSince = soaData.created_at ? new Date(soaData.created_at).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '—';
+                const profileSections = [
+                  {
+                    title: 'Personal Information',
+                    fields: [
+                      ['Customer Code', soaData.customer_code],
+                      ['Classification', soaData.customer_classification],
+                      ['Full Name', soaData.full_name],
+                      ['First Name', soaData.first_name],
+                      ['Middle Name', soaData.middle_name],
+                      ['Last Name', soaData.last_name],
+                      ['Gender', soaData.gender],
+                      ['Birth Date', soaData.birth_date],
+                      ['Civil Status', soaData.civil_status],
+                      ['Nationality', soaData.nationality],
+                      ['Status', soaData.status],
+                      ['Risk Category', soaData.risk_category],
+                    ],
+                  },
+                  {
+                    title: 'Address Information',
+                    fields: [
+                      ['Address', soaData.address],
+                      ['Sitio', soaData.sitio],
+                      ['Purok', soaData.purok],
+                      ['Barangay', soaData.brgy],
+                      ['City', soaData.city],
+                      ['Province', soaData.province],
+                      ['Zip Code', soaData.zip_code],
+                      ['Home Status', soaData.home_status],
+                      ['Length of Stay', soaData.length_of_stay ? `${soaData.length_of_stay} year(s)` : ''],
+                      ['Previous Address', soaData.previous_address],
+                    ],
+                  },
+                  {
+                    title: 'Contact Information',
+                    fields: [
+                      ['Main Contact', soaData.contact],
+                      ['Secondary Contact', soaData.secondary_contact],
+                      ['Email', soaData.email],
+                      ['Facebook', soaData.fb_account],
+                      ['Messenger', soaData.messenger_account],
+                      ['Preferred Method', soaData.preferred_contact_method],
+                      ['Preferred Time From', soaData.preferred_contact_time_from],
+                      ['Preferred Time To', soaData.preferred_contact_time_to],
+                      ['Contact Notes', soaData.contact_notes],
+                    ],
+                  },
+                  {
+                    title: 'Business Information',
+                    fields: [
+                      ['Business Type', soaData.business_type],
+                      ['Occupation', soaData.occupation],
+                      ['Business Name', soaData.business_name],
+                      ['Business Address', soaData.business_address],
+                      ['Business Location', soaData.business_location],
+                      ['Business Years', soaData.business_years],
+                      ['Business Months', soaData.business_months],
+                      ['Monthly Income', soaData.income_per_month ? `PHP ${Number(soaData.income_per_month).toLocaleString(undefined, {minimumFractionDigits:2})}` : ''],
+                      ['Monthly Expenses', soaData.expenses_per_month ? `PHP ${Number(soaData.expenses_per_month).toLocaleString(undefined, {minimumFractionDigits:2})}` : ''],
+                      ['Employees', soaData.business_employees],
+                      ['Ownership', soaData.business_ownership],
+                      ['Business Permit', soaData.business_permit],
+                      ['Permit No.', soaData.permit_no],
+                      ['Permit Date Issued', soaData.permit_date_issued],
+                      ['Permit Place Issued', soaData.permit_place_issued],
+                    ],
+                  },
+                  {
+                    title: 'Identification and Loan Assignment',
+                    fields: [
+                      ['ID Type', soaData.id_type],
+                      ['ID Number', soaData.id_number],
+                      ['ID Issue Date', soaData.id_issue_date],
+                      ['ID Expiry Date', soaData.id_expiry_date],
+                      ['ID Issued By', soaData.id_issued_by],
+                      ['ID Place of Issue', soaData.id_place_of_issue],
+                      ['TIN', soaData.tin_number],
+                      ['SSS', soaData.sss_number],
+                      ['ID Notes', soaData.id_notes],
+                      ['Loan Purpose', soaData.loan_purpose],
+                      ['Collateral', soaData.collateral],
+                      ['Branch', soaData.branch_name],
+                      ['Collector', soaData.collector_name],
+                      ['CIC Verification', soaData.cic_verification],
+                    ],
+                  },
+                ];
 
                 return (
                   <div className="printable-soa-wrapper">
                     <div className="soa-top-header">
                       <div className="print-brand-container">
-                        <div className="print-logo-m">M</div>
                         <div>
                           <h2 className="soa-brand-name">MELANN LENDING</h2>
                           <p className="soa-subtitle">STATEMENT OF ACCOUNT</p>
@@ -386,7 +437,26 @@ export default function Customers() {
                       </div>
                     </div>
 
-                    <div className="soa-card soa-info-wrapper print-card">
+                    <div className="soa-tabs screen-only">
+                      {[
+                        ['summary', 'Summary'],
+                        ['profile', 'Profile'],
+                        ['history', 'Loans & Payments History'],
+                      ].map(([id, label]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          className={`soa-tab ${soaTab === id ? 'active' : ''}`}
+                          onClick={() => setSoaTab(id)}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {soaTab === 'summary' && (
+                    <>
+                      <div className="soa-card soa-info-wrapper print-card">
                       <div className="print-tab print-tab-dark">CUSTOMER INFORMATION</div>
                       <div className="soa-info-left">
                         {soaData.photo_client || soaData.photo_id_front ? (
@@ -448,9 +518,9 @@ export default function Customers() {
                           <div className="soa-gauge-sub">As of {new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})}</div>
                         </div>
                       </div>
-                    </div>
+                      </div>
 
-                    <div className="soa-summary-row">
+                      <div className="soa-summary-row">
                       <div className="soa-card soa-summary-card print-card">
                         <div className="print-tab print-tab-green">LOAN SUMMARY</div>
                         <div className="soa-summary-header screen-only">💳 LOAN SUMMARY</div>
@@ -487,9 +557,9 @@ export default function Customers() {
                           </div>
                         </div>
                       </div>
-                    </div>
+                      </div>
 
-                    <div className="soa-card print-card">
+                      <div className="soa-card print-card">
                       <div className="print-tab print-tab-dark">LOAN HISTORY</div>
                       <div className="soa-list-card-header">
                         <div className="soa-list-title">📚 Loan History</div>
@@ -519,9 +589,9 @@ export default function Customers() {
                           <div className="soa-empty-sub">There are no loan records associated with this account.</div>
                         </div>
                       )}
-                    </div>
+                      </div>
 
-                    <div className="soa-card print-card">
+                      <div className="soa-card print-card">
                       <div className="print-tab print-tab-dark">PAYMENT LEDGER</div>
                       <div className="soa-list-card-header">
                         <div className="soa-list-title">🧾 Payment Ledger</div>
@@ -549,8 +619,92 @@ export default function Customers() {
                           <div className="soa-empty-sub">There are no payment records associated with this account.</div>
                         </div>
                       )}
-                    </div>
-                    
+                      </div>
+                    </>
+                    )}
+
+                    {soaTab === 'profile' && (
+                      <div className="soa-card">
+                        <div className="soa-list-card-header">
+                          <div className="soa-list-title">Profile</div>
+                        </div>
+                        <div className="soa-profile-grid">
+                          {profileSections.map(section => (
+                            <section className="soa-profile-section" key={section.title}>
+                              <h4>{section.title}</h4>
+                              <div className="soa-profile-fields">
+                                {section.fields.map(([label, value]) => (
+                                  <div className="soa-profile-field" key={label}>
+                                    <span>{label}</span>
+                                    <strong>{value || '—'}</strong>
+                                  </div>
+                                ))}
+                              </div>
+                            </section>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {soaTab === 'history' && (
+                      <div className="soa-card">
+                        <div className="soa-list-card-header">
+                          <div className="soa-list-title">Loans & Payments History</div>
+                        </div>
+                        {soaData.loans && soaData.loans.length > 0 ? (
+                          <table className="data-table" style={{ fontSize: 13 }}>
+                            <thead><tr><th>Loan Code</th><th>Type</th><th>Date Released</th><th>Maturity</th><th>Principal</th><th>Amortization</th><th>Balance</th><th>Status</th></tr></thead>
+                            <tbody>
+                              {soaData.loans.map(l => (
+                                <tr key={l.id}>
+                                  <td className="mono">{l.loan_code}</td>
+                                  <td>{l.loan_type || '—'}</td>
+                                  <td>{l.date_released || '—'}</td>
+                                  <td>{l.date_maturity || '—'}</td>
+                                  <td>PHP {Number(l.principal || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                                  <td>PHP {Number(l.amortization || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                                  <td>PHP {Number(l.balance || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                                  <td><span className={`badge badge-${l.status}`}>{l.status}</span></td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <div className="soa-empty-state">
+                            <div className="soa-empty-title">No loans found.</div>
+                            <div className="soa-empty-sub">There are no loan records associated with this account.</div>
+                          </div>
+                        )}
+
+                        <div className="soa-list-card-header" style={{ marginTop: 24 }}>
+                          <div className="soa-list-title">Payment Ledger</div>
+                        </div>
+                        {sortedPayments.length > 0 ? (
+                          <table className="data-table" style={{ fontSize: 13 }}>
+                            <thead><tr><th>Date Paid</th><th>Loan Ref</th><th>OR No.</th><th>Amount Paid</th><th>Balance After</th><th>Status</th><th>Remarks</th></tr></thead>
+                            <tbody>
+                              {sortedPayments.map(p => (
+                                <tr key={p.id}>
+                                  <td>{p.date_paid || '—'}</td>
+                                  <td className="mono">{p.loan_code || '—'}</td>
+                                  <td>{p.or_number || '—'}</td>
+                                  <td className="fw-600 text-success">PHP {Number(p.amount_paid || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                                  <td>PHP {Number(p.balance_after || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                                  <td><span className={`badge badge-${p.status}`}>{p.status || '—'}</span></td>
+                                  <td>{p.remarks || '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <div className="soa-empty-state">
+                            <div className="soa-empty-title">No payments found.</div>
+                            <div className="soa-empty-sub">There are no payment records associated with this account.</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                     
                     {/* Print Footer */}
                     <div className="print-footer print-only">
                       <div className="print-footer-col">

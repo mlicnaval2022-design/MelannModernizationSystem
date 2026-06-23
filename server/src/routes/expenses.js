@@ -24,6 +24,15 @@ router.post('/', authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+router.put('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { branch_id, expense_date, amount, category, description, payee } = req.body;
+    await dbRun(`UPDATE tblExpense SET branch_id=?, expense_date=?, amount=?, category=?, description=?, payee=? WHERE id=?`, 
+      [branch_id, expense_date, amount, category, description, payee, req.params.id]);
+    res.json({ message: 'Expense updated' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     await dbRun(`UPDATE tblExpense SET status='voided' WHERE id=?`, [req.params.id]);

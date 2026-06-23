@@ -20,11 +20,6 @@ export default function AuditTrail() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState({ module: '', user_id: '', date_from: today(), date_to: today(), limit: 200 })
-
-  if (!hasRole('admin', 'manager')) return (
-    <div className="empty-state"><div className="empty-icon">🔐</div><p>Access restricted to Admins and Managers.</p></div>
-  )
-
   const load = () => {
     setLoading(true)
     API.get('/audit', { params: filters }).then(r => setRows(r.data)).finally(() => setLoading(false))
@@ -39,6 +34,10 @@ export default function AuditTrail() {
   const handleFilter = (e) => {
     e.preventDefault(); load()
   }
+
+  if (!hasRole('admin', 'manager')) return (
+    <div className="empty-state"><div className="empty-icon">🔐</div><p>Access restricted to Admins and Managers.</p></div>
+  )
 
   return (
     <div>

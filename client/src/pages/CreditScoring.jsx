@@ -155,9 +155,9 @@ export default function CreditScoring() {
     else if (ciForm.endorsement === 'reduce') score += 7;
     else if (ciForm.endorsement === 'defer') score += 3;
 
-    let level = '';
-    let recommendation = '';
-    let color = '';
+    let level;
+    let recommendation;
+    let color;
 
     if (score >= 90) { level = '🟢 Excellent Borrower'; recommendation = 'APPROVE'; color = 'var(--accent-success)'; }
     else if (score >= 80) { level = '🟢 Low Risk'; recommendation = 'APPROVE'; color = 'var(--accent-success)'; }

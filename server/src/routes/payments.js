@@ -45,6 +45,17 @@ router.post('/', authenticateToken, async (req, res) => {
     const newStatus = balance_after <= 0 ? 'fullpaid' : 'active';
     await dbRun(`UPDATE tblLoan SET balance=?, total_paid=total_paid+?, status=?, updated_at=datetime('now') WHERE id=?`, [balance_after, amount_paid, newStatus, loan_id]);
     
+    if (newStatus === 'fullpaid') {
+      const activeLoansCount = await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE customer_id = ? AND status IN ('active', 'pending', 'approved', 'for_approval')`, [loan.customer_id]);
+      if (activeLoansCount.c === 0) {
+        const cust = await dbGet(`SELECT status FROM tblCustomer WHERE id = ?`, [loan.customer_id]);
+        if (cust && cust.status !== 'FULLY PAID') {
+          await dbRun(`UPDATE tblCustomer SET status='FULLY PAID' WHERE id=?`, [loan.customer_id]);
+          await dbRun(`INSERT INTO tblCustomerStatusHistory (customer_id, previous_status, new_status, changed_by, remarks) VALUES (?, ?, 'FULLY PAID', ?, 'Auto-transition: Loan fully paid')`, [loan.customer_id, cust.status, req.user.id]);
+        }
+      }
+    }
+    
     // Distribute payment across amortization schedule
     let remaining = amount_paid;
     const unpaidSchedules = await dbAll(`SELECT * FROM tblAmortizationSchedule WHERE loan_id = ? AND status != 'paid' ORDER BY period_number ASC`, [loan_id]);

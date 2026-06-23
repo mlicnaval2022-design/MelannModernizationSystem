@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import API from '../services/api';
 import dayjs from 'dayjs';
 
@@ -8,7 +8,7 @@ export default function DailyCashReport() {
   const [loading, setLoading] = useState(false);
   
   // Denominations - kept for closing the day, though hidden from print view
-  const [denom, setDenom] = useState({
+  const [, setDenom] = useState({
     count_1000: 0, count_500: 0, count_200: 0, count_100: 0,
     count_50: 0, count_20: 0, count_coins: 0
   });
@@ -38,8 +38,6 @@ export default function DailyCashReport() {
 
   if (!data && loading) return <div style={{padding: 20}}>Loading Daily Cash Report...</div>;
   if (!data) return null;
-
-  const isClosed = !!data.dcr;
 
   // Group collections by collector for "4. COLLECTIONS"
   const collByCollector = data.collections.reduce((acc, c) => {
