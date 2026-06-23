@@ -250,8 +250,29 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
             </div>
           </div>
           <div className="form-grid">
-            <div className="form-group"><label>Business Type *</label><input className="form-control" value={form.business_type} onChange={handleUpper('business_type')} /></div>
-            <div className="form-group"><label>Nature of Business *</label><input className="form-control" value={form.occupation} onChange={handleUpper('occupation')} /></div>
+            <div className="form-group">
+              <label>Business Type *</label>
+              <select className="form-control" value={form.business_type} onChange={e => setForm({...form, business_type: e.target.value})}>
+                <option value="SARI-SARI STORE">SARI-SARI STORE</option>
+                <option value="EATERY/CARENDERIA">EATERY/CARENDERIA</option>
+                <option value="MARKET VENDOR">MARKET VENDOR</option>
+                <option value="ONLINE SELLER">ONLINE SELLER</option>
+                <option value="TRICYCLE DRIVER">TRICYCLE DRIVER</option>
+                <option value="SALARY/EMPLOYED">SALARY/EMPLOYED</option>
+                <option value="OTHERS">OTHERS</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Nature of Business *</label>
+              <select className="form-control" value={form.occupation} onChange={e => setForm({...form, occupation: e.target.value})}>
+                <option value="RETAIL">RETAIL</option>
+                <option value="FOOD & BEVERAGE">FOOD & BEVERAGE</option>
+                <option value="SERVICES">SERVICES</option>
+                <option value="TRANSPORTATION">TRANSPORTATION</option>
+                <option value="WHOLESALE">WHOLESALE</option>
+                <option value="OTHERS">OTHERS</option>
+              </select>
+            </div>
           </div>
           <div className="form-group"><label>Business Name *</label><input className="form-control" value={form.business_name} onChange={handleUpper('business_name')} /></div>
           <div className="form-group"><label>Complete Business Address *</label><input className="form-control" value={form.business_address} onChange={handleUpper('business_address')} /></div>
