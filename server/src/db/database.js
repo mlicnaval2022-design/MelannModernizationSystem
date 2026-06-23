@@ -116,6 +116,15 @@ async function initializeDatabase() {
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS tblCustomerStatusHistory (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      previous_status TEXT,
+      new_status TEXT NOT NULL,
+      changed_by INTEGER,
+      remarks TEXT,
+      created_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
     CREATE TABLE IF NOT EXISTS tblChartOfAccounts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       account_code TEXT NOT NULL UNIQUE,

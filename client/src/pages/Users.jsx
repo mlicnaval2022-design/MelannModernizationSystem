@@ -14,9 +14,6 @@ export default function Users() {
   const [form, setForm] = useState({ username: '', password: '', full_name: '', role: 'teller', branch_id: '', is_active: 1 })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-
-  if (!hasRole('admin')) return <div className="empty-state"><div className="empty-icon">🔐</div><p>Access restricted to administrators only.</p></div>
-
   const load = () => { setLoading(true); API.get('/users').then(r => setRows(r.data)).finally(() => setLoading(false)) }
   useEffect(() => { load(); API.get('/branches').then(r => setBranches(r.data)) }, [])
 
@@ -32,6 +29,8 @@ export default function Users() {
     } catch (err) { setError(err.response?.data?.error || 'Error saving') }
     finally { setSaving(false) }
   }
+
+  if (!hasRole('admin')) return <div className="empty-state"><div className="empty-icon">🔐</div><p>Access restricted to administrators only.</p></div>
 
   return (
     <div>

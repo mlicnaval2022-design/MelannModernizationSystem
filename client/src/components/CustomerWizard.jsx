@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import API from '../services/api';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
 
@@ -91,7 +91,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
     try {
       const res = await API.post('/customers/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' }});
       setForm(f => ({ ...f, [field]: res.data.url }));
-    } catch (err) {
+    } catch {
       alert('File upload failed');
     }
   };

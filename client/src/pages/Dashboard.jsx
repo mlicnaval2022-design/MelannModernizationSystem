@@ -7,7 +7,7 @@ import '../dashboard.css'
 function fmt(n) { return Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }
 
 export default function Dashboard() {
-  const { user } = useAuth()
+  useAuth()
   const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -107,7 +107,33 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <h4 style={{ margin: '25px 0 10px 0', color: '#334155' }}>Loan Processing Queue</h4>
+      <div style={{ background: '#f8fafc', padding: '12px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: 25, display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 'bold', color: '#334155', fontSize: 14 }}>Fully Paid & Evaluated:</span>
+        <div style={{ display: 'flex', gap: 20, fontSize: 14 }}>
+          <div style={{ cursor: 'pointer', color: '#047857', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => navigate('/loans')}>
+            <div style={{ background: '#dcfce7', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold' }}>{data.fully_paid_today || 0}</div> 
+            <span>Fully Paid</span>
+          </div>
+          <div style={{ cursor: 'pointer', color: '#1d4ed8', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => navigate('/loans')}>
+            <div style={{ background: '#dbeafe', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold' }}>{data.eligible_for_reloan || 0}</div> 
+            <span>Eligible for Reloan</span>
+          </div>
+          <div style={{ cursor: 'pointer', color: '#6d28d9', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => navigate('/customers')}>
+            <div style={{ background: '#ede9fe', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold' }}>{data.recon_count || 0}</div> 
+            <span>Recon</span>
+          </div>
+          <div style={{ cursor: 'pointer', color: '#b45309', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => navigate('/customers')}>
+            <div style={{ background: '#fef3c7', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold' }}>{data.relax_count || 0}</div> 
+            <span>Relax</span>
+          </div>
+          <div style={{ cursor: 'pointer', color: '#b91c1c', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => navigate('/customers')}>
+            <div style={{ background: '#fee2e2', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold' }}>{data.hold_count || 0}</div> 
+            <span>Hold</span>
+          </div>
+        </div>
+      </div>
+
+      <h4 style={{ margin: '0 0 10px 0', color: '#334155' }}>Loan Processing Queue</h4>
       <div className="metrics-top-row" style={{ marginBottom: 20 }}>
         <div className="metric-card-v2" onClick={() => navigate('/credit-scoring')} style={{ cursor: 'pointer', borderTop: '4px solid #f59e0b' }}>
           <div className="header">
@@ -136,6 +162,38 @@ export default function Dashboard() {
             <h3 style={{ color: '#dc2626' }}>{data.rejected_today || 0}</h3>
           </div>
           <div className="metric-icon-circle" style={{ background: '#fef2f2', color: '#ef4444', fontSize: 24 }}>❌</div>
+        </div>
+      </div>
+
+      <h4 style={{ margin: '0 0 10px 0', color: '#334155', marginTop: 20 }}>Reloan Processing</h4>
+      <div className="metrics-top-row" style={{ marginBottom: 20 }}>
+        <div className="metric-card-v2" onClick={() => navigate('/loans')} style={{ cursor: 'pointer', borderTop: '4px solid #10b981' }}>
+          <div className="header">
+            <span style={{ fontWeight: 'bold', color: '#047857' }}>Eligible for Reloan</span>
+            <h3 style={{ color: '#059669' }}>{data.eligible_for_reloan || 0} <span style={{fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)'}}>Clients</span></h3>
+          </div>
+          <div className="metric-icon-circle" style={{ background: '#ecfdf5', color: '#10b981', fontSize: 24 }}>🟢</div>
+        </div>
+        <div className="metric-card-v2" onClick={() => navigate('/loans')} style={{ cursor: 'pointer', borderTop: '4px solid #eab308' }}>
+          <div className="header">
+            <span style={{ fontWeight: 'bold', color: '#a16207' }}>Pending Reloan Approval</span>
+            <h3 style={{ color: '#ca8a04' }}>{data.pending_reloan_count || 0} <span style={{fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)'}}>Applications</span></h3>
+          </div>
+          <div className="metric-icon-circle" style={{ background: '#fefce8', color: '#eab308', fontSize: 24 }}>🟡</div>
+        </div>
+        <div className="metric-card-v2" style={{ borderTop: '4px solid #3b82f6' }}>
+          <div className="header">
+            <span style={{ fontWeight: 'bold', color: '#1d4ed8' }}>Approved Reloans</span>
+            <h3 style={{ color: '#2563eb' }}>{data.approved_reloan_count || 0}</h3>
+          </div>
+          <div className="metric-icon-circle" style={{ background: '#eff6ff', color: '#3b82f6', fontSize: 24 }}>🔵</div>
+        </div>
+        <div className="metric-card-v2" style={{ borderTop: '4px solid #ef4444' }}>
+          <div className="header">
+            <span style={{ fontWeight: 'bold', color: '#b91c1c' }}>Rejected Reloans</span>
+            <h3 style={{ color: '#dc2626' }}>{data.rejected_reloan_count || 0}</h3>
+          </div>
+          <div className="metric-icon-circle" style={{ background: '#fef2f2', color: '#ef4444', fontSize: 24 }}>🔴</div>
         </div>
       </div>
 

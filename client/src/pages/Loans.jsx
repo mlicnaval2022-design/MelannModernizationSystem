@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import FullyPaid from './FullyPaid'
 
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 
@@ -61,6 +62,25 @@ export default function Loans() {
     catch (err) { alert(err.response?.data?.error || 'Error reversing loan') }
   }
 
+  const handleApproveReloan = async (id) => {
+    if (!confirm('Are you sure you want to approve this Reloan Application?')) return;
+    try {
+      await API.post(`/loans/${id}/approve-reloan`);
+      alert('Reloan approved successfully!');
+      load();
+    } catch (err) { alert(err.response?.data?.error || 'Error approving reloan') }
+  }
+
+  const handleRejectReloan = async (id) => {
+    const remarks = prompt('Please enter the reason for rejection:');
+    if (!remarks) return;
+    try {
+      await API.post(`/loans/${id}/reject-reloan`, { remarks });
+      alert('Reloan rejected successfully!');
+      load();
+    } catch (err) { alert(err.response?.data?.error || 'Error rejecting reloan') }
+  }
+
   const viewDetail = (id) => {
     setDetailTab('payments')
     setDetailModal(true)
@@ -76,23 +96,48 @@ export default function Loans() {
           <span className="search-icon">🔍</span>
           <input id="loan-search" className="form-control" placeholder="Search name, code, loan#..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <select id="loan-status-filter" className="form-control" style={{ width: 150 }} value={status} onChange={e => setStatus(e.target.value)}>
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="pastdue">Past Due</option>
-          <option value="fullpaid">Full Paid</option>
-          <option value="reversed">Reversed</option>
-          <option value="approved">Approved (Not Released)</option>
-        </select>
         <button id="btn-release-loan" className="btn btn-primary" onClick={openReleaseModal}>🚀 Release Approved Loan</button>
       </div>
 
-      <div className="card">
-        <div className="table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr><th>Loan #</th><th>Customer</th><th>Type</th><th>Principal</th><th>Balance</th><th>Released</th><th>Maturity</th><th>Collector</th><th>Status</th><th>Actions</th></tr>
-            </thead>
+      <div className="custom-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '15px', overflowX: 'auto', paddingBottom: '5px' }}>
+        {[
+          { value: '', label: 'All Status' },
+          { value: 'active', label: 'Active' },
+          { value: 'pastdue', label: 'Past Due' },
+          { value: 'fullpaid', label: 'Full Paid' },
+          { value: 'reloan_pending', label: 'Pending Reloans' },
+          { value: 'approved', label: 'Approved (Not Released)' },
+          { value: 'reversed', label: 'Reversed' }
+        ].map(tab => (
+          <div 
+            key={tab.value}
+            onClick={() => setStatus(tab.value)}
+            style={{ 
+              padding: '6px 14px', 
+              cursor: 'pointer', 
+              fontWeight: '600', 
+              fontSize: '13px',
+              borderRadius: '20px',
+              background: status === tab.value ? '#3b82f6' : '#f1f5f9',
+              color: status === tab.value ? 'white' : '#475569',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.2s ease'
+            }}>
+            {tab.label}
+          </div>
+        ))}
+      </div>
+
+      {status === 'fullpaid' ? (
+        <FullyPaid search={search} />
+      ) : (
+        <>
+          <div className="card">
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr><th>Loan #</th><th>Customer</th><th>Type</th><th>Principal</th><th>Balance</th><th>Released</th><th>Maturity</th><th>Collector</th><th>Status</th><th>Actions</th></tr>
+              </thead>
             <tbody>
               {loading ? <tr className="loading-row"><td colSpan={10}>⏳ Loading...</td></tr>
                 : rows.length === 0 ? <tr><td colSpan={10} className="empty-state">No loans found</td></tr>
@@ -118,6 +163,12 @@ export default function Loans() {
                         {hasRole('admin', 'manager') && r.status === 'active' &&
                           <button className="btn btn-danger btn-sm" onClick={() => handleReverse(r.id)}>Reverse</button>
                         }
+                        {hasRole('admin', 'manager') && r.status === 'reloan_pending' && (
+                          <>
+                            <button className="btn btn-success btn-sm" onClick={() => handleApproveReloan(r.id)}>Approve</button>
+                            <button className="btn btn-danger btn-sm" onClick={() => handleRejectReloan(r.id)}>Reject</button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -293,7 +344,7 @@ export default function Loans() {
                   <tbody>
                     {(detailLoan.payments || []).length === 0
                       ? <tr><td colSpan={4} style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>No payments yet</td></tr>
-                      : detailLoan.payments.map((p, i) => (
+                      : detailLoan.payments.map(p => (
                         <tr key={p.id} style={{ borderTop: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '16px 20px', color: '#334155' }}>{p.date_paid}</td>
                           <td style={{ padding: '16px 20px', color: '#0f172a', fontWeight: 800 }}>₱ {fmt(p.amount_paid)}</td>
@@ -358,6 +409,8 @@ export default function Loans() {
           </div>
         </div>
       )}
+      </>
+    )}
     </div>
   )
 }

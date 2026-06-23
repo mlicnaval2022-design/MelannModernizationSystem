@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react'
 import API from '../services/api'
-import { useAuth } from '../context/AuthContext'
 
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 const today = () => new Date().toISOString().split('T')[0]
 
 export default function CashPosition() {
-  const { hasRole } = useAuth()
   const [tab, setTab] = useState('hand')
   const [handRows, setHandRows] = useState([])
   const [bankRows, setBankRows] = useState([])

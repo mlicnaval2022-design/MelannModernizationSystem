@@ -19,7 +19,7 @@ const formatDate = date => {
 }
 
 export default function Payments() {
-  const { hasRole } = useAuth()
+  useAuth()
   const [collectors, setCollectors] = useState([])
   const [recentPayments, setRecentPayments] = useState([])
   const [searchTable, setSearchTable] = useState('')
@@ -145,21 +145,6 @@ export default function Payments() {
     if (scannerRef.current) scannerRef.current.focus()
   }
   
-  let numDays = 0;
-  if (activeLoan && activeLoan.date_released) {
-    const start = new Date(activeLoan.date_released);
-    const end = new Date();
-    if (start <= end) {
-      let days = 0;
-      let curr = new Date(start);
-      while (curr <= end) {
-        if (curr.getDay() !== 0) days++;
-        curr.setDate(curr.getDate() + 1);
-      }
-      numDays = days;
-    }
-  }
-
   const handleTableSearch = (e) => {
     if (e.key === 'Enter') {
       loadRecentPayments(searchTable);
