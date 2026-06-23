@@ -1,5 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import API from '../services/api';
+import { regions, provinces, cities, barangays } from 'select-philippines-address';
 
 const STEPS = [
   { id: 1, title: 'Personal Information', sub: 'Basic personal details', icon: '👤' },
@@ -20,11 +21,52 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
     business_type: 'Sari-Sari Store', occupation: 'Retail', business_name: '', business_address: '', business_years: '', business_months: '', income_per_month: '', business_employees: '', business_ownership: 'Sole Proprietorship', business_permit: 'Yes', permit_date_issued: '', permit_place_issued: '', permit_no: '',
     id_type: 'Philippine Identification (PhilID)', id_number: '', id_issue_date: '', id_expiry_date: '', id_issued_by: 'PSA', id_place_of_issue: '', tin_number: '', sss_number: '', id_notes: '',
     proposed_principal: '', loan_purpose: '', branch_id: '', collector_id: '',
-    photo_id_front: null, photo_id_back: null, photo_business_proof: null
+    photo_id_front: null, photo_id_back: null, photo_business_proof: null, photo_client: null
   });
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const [regionData, setRegionData] = useState([]);
+  const [provinceData, setProvinceData] = useState([]);
+  const [cityData, setCityData] = useState([]);
+  const [brgyData, setBrgyData] = useState([]);
+
+  const [regionCode, setRegionCode] = useState('');
+  const [provinceCode, setProvinceCode] = useState('');
+  const [cityCode, setCityCode] = useState('');
+
+  useEffect(() => {
+    regions().then(setRegionData);
+  }, []);
+
+  const handleRegion = (e) => {
+    const code = e.target.value;
+    setRegionCode(code); setProvinceCode(''); setCityCode('');
+    setProvinceData([]); setCityData([]); setBrgyData([]);
+    if (code) provinces(code).then(setProvinceData);
+  };
+  const handleProvince = (e) => {
+    const code = e.target.value;
+    setProvinceCode(code); setCityCode('');
+    setCityData([]); setBrgyData([]);
+    if (code) cities(code).then(setCityData);
+    const name = provinceData.find(p => p.province_code === code)?.province_name;
+    setForm(f => ({...f, province: name || '', city: '', brgy: ''}));
+  };
+  const handleCity = (e) => {
+    const code = e.target.value;
+    setCityCode(code); setBrgyData([]);
+    if (code) barangays(code).then(setBrgyData);
+    const name = cityData.find(p => p.city_code === code)?.city_name;
+    setForm(f => ({...f, city: name || '', brgy: ''}));
+  };
+  const handleBrgy = (e) => {
+    const code = e.target.value;
+    const name = brgyData.find(p => p.brgy_code === code)?.brgy_name;
+    setForm(f => ({...f, brgy: name || ''}));
+  };
+
 
   const calculateAge = (dob) => {
     if (!dob) return '';
@@ -34,6 +76,13 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
 
   const handleUpper = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value.toUpperCase() }));
   const handleLower = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value.toLowerCase() }));
+
+  const getImageUrl = (path) => {
+    if (!path) return '';
+    if (path.startsWith('http')) return path;
+    const baseUrl = API.defaults.baseURL.replace('/api', '');
+    return `${baseUrl}${path}`;
+  };
   
   const handleFileUpload = async (file, field) => {
     if (!file) return;
@@ -153,12 +202,40 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
             <div className="form-group"><label>Purok</label><input className="form-control" value={form.purok} onChange={handleUpper('purok')} /></div>
           </div>
           <div className="form-grid">
-            <div className="form-group"><label>Barangay *</label><input className="form-control" value={form.brgy} onChange={handleUpper('brgy')} /></div>
-            <div className="form-group"><label>Municipality / City *</label><input className="form-control" value={form.city} onChange={handleUpper('city')} /></div>
+            <div className="form-group">
+              <label>Region</label>
+              <select className="form-control" value={regionCode} onChange={handleRegion}>
+                <option value="">Select Region</option>
+                {regionData.map(r => <option key={r.region_code} value={r.region_code}>{r.region_name}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Province * {form.province && !provinceCode && `(Currently: ${form.province})`}</label>
+              <select className="form-control" value={provinceCode} onChange={handleProvince} disabled={!regionCode}>
+                <option value="">Select Province</option>
+                {provinceData.map(p => <option key={p.province_code} value={p.province_code}>{p.province_name}</option>)}
+              </select>
+            </div>
           </div>
           <div className="form-grid">
-            <div className="form-group"><label>Province *</label><input className="form-control" value={form.province} onChange={handleUpper('province')} /></div>
+            <div className="form-group">
+              <label>Municipality / City * {form.city && !cityCode && `(Currently: ${form.city})`}</label>
+              <select className="form-control" value={cityCode} onChange={handleCity} disabled={!provinceCode}>
+                <option value="">Select City</option>
+                {cityData.map(c => <option key={c.city_code} value={c.city_code}>{c.city_name}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Barangay * {form.brgy && !brgyData.find(b=>b.brgy_name===form.brgy) && `(Currently: ${form.brgy})`}</label>
+              <select className="form-control" value={brgyData.find(b=>b.brgy_name===form.brgy)?.brgy_code || ''} onChange={handleBrgy} disabled={!cityCode}>
+                <option value="">Select Barangay</option>
+                {brgyData.map(b => <option key={b.brgy_code} value={b.brgy_code}>{b.brgy_name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="form-grid">
             <div className="form-group"><label>Zip Code</label><input className="form-control" value={form.zip_code} onChange={handleUpper('zip_code')} /></div>
+            <div></div>
           </div>
 
           <label className="section-label">Home Status *</label>
@@ -389,13 +466,13 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
           </div>
         </div>
 
-        {step === 4 ? (
+        {step === 1 && (
           <div className="wizard-sidebar-card">
-            <div className="wsc-header"><span className="icon">🪪</span> Upload Business Proof (Optional)</div>
+            <div className="wsc-header"><span className="icon">📷</span> Upload Picture</div>
             <div className="wsc-body">
               <label className="upload-dropzone">
-                <input type="file" style={{display:'none'}} onChange={e => handleFileUpload(e.target.files[0], 'photo_business_proof')} />
-                {form.photo_business_proof ? <img src={`http://localhost:5000${form.photo_business_proof}`} alt="Proof" style={{width:'100%', borderRadius: 8}}/> : (
+                <input type="file" style={{display:'none'}} onChange={e => handleFileUpload(e.target.files[0], 'photo_client')} />
+                {form.photo_client ? <img src={getImageUrl(form.photo_client)} alt="Profile" style={{width:'100%', borderRadius: 8}}/> : (
                   <>
                     <div className="icon">☁️</div>
                     <strong>Click to upload</strong>
@@ -405,14 +482,34 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
               </label>
             </div>
           </div>
-        ) : (
+        )}
+
+        {step === 4 && (
+          <div className="wizard-sidebar-card">
+            <div className="wsc-header"><span className="icon">🪪</span> Upload Business Proof (Optional)</div>
+            <div className="wsc-body">
+              <label className="upload-dropzone">
+                <input type="file" style={{display:'none'}} onChange={e => handleFileUpload(e.target.files[0], 'photo_business_proof')} />
+                {form.photo_business_proof ? <img src={getImageUrl(form.photo_business_proof)} alt="Proof" style={{width:'100%', borderRadius: 8}}/> : (
+                  <>
+                    <div className="icon">☁️</div>
+                    <strong>Click to upload</strong>
+                    <span>or drag and drop<br/><small>JPG, PNG up to 5MB</small></span>
+                  </>
+                )}
+              </label>
+            </div>
+          </div>
+        )}
+        
+        {step === 5 && (
           <>
             <div className="wizard-sidebar-card">
               <div className="wsc-header"><span className="icon">🪪</span> Upload ID (Front)</div>
               <div className="wsc-body">
                 <label className="upload-dropzone">
                   <input type="file" style={{display:'none'}} onChange={e => handleFileUpload(e.target.files[0], 'photo_id_front')} />
-                  {form.photo_id_front ? <img src={`http://localhost:5000${form.photo_id_front}`} alt="ID Front" style={{width:'100%', borderRadius: 8}}/> : (
+                  {form.photo_id_front ? <img src={getImageUrl(form.photo_id_front)} alt="ID Front" style={{width:'100%', borderRadius: 8}}/> : (
                     <>
                       <div className="icon">☁️</div>
                       <strong>Click to upload</strong>
@@ -422,23 +519,21 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
                 </label>
               </div>
             </div>
-            {step >= 5 && (
-              <div className="wizard-sidebar-card">
-                <div className="wsc-header"><span className="icon">🪪</span> Upload ID (Back) (Optional)</div>
-                <div className="wsc-body">
-                  <label className="upload-dropzone">
-                    <input type="file" style={{display:'none'}} onChange={e => handleFileUpload(e.target.files[0], 'photo_id_back')} />
-                    {form.photo_id_back ? <img src={`http://localhost:5000${form.photo_id_back}`} alt="ID Back" style={{width:'100%', borderRadius: 8}}/> : (
-                      <>
-                        <div className="icon">☁️</div>
-                        <strong>Click to upload</strong>
-                        <span>or drag and drop<br/><small>JPG, PNG up to 5MB</small></span>
-                      </>
-                    )}
-                  </label>
-                </div>
+            <div className="wizard-sidebar-card">
+              <div className="wsc-header"><span className="icon">🪪</span> Upload ID (Back) (Optional)</div>
+              <div className="wsc-body">
+                <label className="upload-dropzone">
+                  <input type="file" style={{display:'none'}} onChange={e => handleFileUpload(e.target.files[0], 'photo_id_back')} />
+                  {form.photo_id_back ? <img src={getImageUrl(form.photo_id_back)} alt="ID Back" style={{width:'100%', borderRadius: 8}}/> : (
+                    <>
+                      <div className="icon">☁️</div>
+                      <strong>Click to upload</strong>
+                      <span>or drag and drop<br/><small>JPG, PNG up to 5MB</small></span>
+                    </>
+                  )}
+                </label>
               </div>
-            )}
+            </div>
           </>
         )}
       </div>

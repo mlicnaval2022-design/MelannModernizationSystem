@@ -25,6 +25,13 @@ export default function Loans() {
   const load = () => { setLoading(true); API.get('/loans', { params: { search, status } }).then(r => setRows(r.data)).finally(() => setLoading(false)) }
   useEffect(() => { load() }, [search, status])
 
+  const getImageUrl = (path) => {
+    if (!path) return '';
+    if (path.startsWith('http')) return path;
+    const baseUrl = API.defaults.baseURL.replace('/api', '');
+    return `${baseUrl}${path}`;
+  };
+
   const openReleaseModal = async () => {
     setError('')
     setReleaseForm({ id: '', date_released: new Date().toISOString().split('T')[0] })
@@ -184,8 +191,8 @@ export default function Loans() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '25px 20px', borderBottom: '1px solid #f1f5f9', paddingBottom: 20, marginBottom: 20 }}>
                 {/* Customer */}
                 <div style={{ display: 'flex', gap: 15 }}>
-                  {detailLoan.photo_id_front ? (
-                    <img src={`http://localhost:5001${detailLoan.photo_id_front}`} style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} alt="Avatar" />
+                  {detailLoan.photo_client || detailLoan.photo_id_front ? (
+                    <img src={getImageUrl(detailLoan.photo_client || detailLoan.photo_id_front)} style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'contain', background: '#f8fafc', border: '1px solid #e2e8f0', flexShrink: 0 }} alt="Avatar" />
                   ) : (
                     <div style={{ width: 44, height: 44, borderRadius: 10, background: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>👤</div>
                   )}
@@ -277,7 +284,6 @@ export default function Loans() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <thead style={{ background: '#f8fafc' }}>
                     <tr>
-                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>OR#</th>
                       <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>DATE</th>
                       <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>AMOUNT</th>
                       <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>RUNNING BALANCE</th>
@@ -286,10 +292,9 @@ export default function Loans() {
                   </thead>
                   <tbody>
                     {(detailLoan.payments || []).length === 0
-                      ? <tr><td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>No payments yet</td></tr>
+                      ? <tr><td colSpan={4} style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>No payments yet</td></tr>
                       : detailLoan.payments.map((p, i) => (
                         <tr key={p.id} style={{ borderTop: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '16px 20px', color: '#334155' }}>{p.or_number}</td>
                           <td style={{ padding: '16px 20px', color: '#334155' }}>{p.date_paid}</td>
                           <td style={{ padding: '16px 20px', color: '#0f172a', fontWeight: 800 }}>₱ {fmt(p.amount_paid)}</td>
                           <td style={{ padding: '16px 20px', color: '#475569' }}>₱ {fmt(p.balance_after)}</td>

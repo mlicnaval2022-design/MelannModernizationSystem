@@ -157,6 +157,7 @@ async function initializeDatabase() {
       or_number TEXT,
       remarks TEXT,
       created_by INTEGER,
+      dcr_id INTEGER,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -186,6 +187,7 @@ async function initializeDatabase() {
       reversed_by INTEGER,
       remarks TEXT,
       encoded_by INTEGER,
+      dcr_id INTEGER,
       created_at TEXT DEFAULT (datetime('now'))
     );
     CREATE TABLE IF NOT EXISTS tblCreditInvestigation (
@@ -250,6 +252,7 @@ async function initializeDatabase() {
       payee TEXT,
       status TEXT DEFAULT 'active',
       created_by INTEGER,
+      dcr_id INTEGER,
       created_at TEXT DEFAULT (datetime('now'))
     );
     CREATE TABLE IF NOT EXISTS tblCashOnHand (
@@ -263,6 +266,32 @@ async function initializeDatabase() {
       closing_balance REAL DEFAULT 0,
       created_by INTEGER,
       created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS tblDailyCashReport (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      dcr_number TEXT UNIQUE NOT NULL,
+      branch_id INTEGER,
+      report_date TEXT NOT NULL,
+      beginning_cash REAL DEFAULT 0,
+      total_collections REAL DEFAULT 0,
+      total_releases REAL DEFAULT 0,
+      total_expenses REAL DEFAULT 0,
+      other_income REAL DEFAULT 0,
+      other_disbursements REAL DEFAULT 0,
+      expected_ending_cash REAL DEFAULT 0,
+      count_1000 INTEGER DEFAULT 0,
+      count_500 INTEGER DEFAULT 0,
+      count_200 INTEGER DEFAULT 0,
+      count_100 INTEGER DEFAULT 0,
+      count_50 INTEGER DEFAULT 0,
+      count_20 INTEGER DEFAULT 0,
+      count_coins REAL DEFAULT 0,
+      actual_cash_count REAL DEFAULT 0,
+      variance REAL DEFAULT 0,
+      status TEXT DEFAULT 'CLOSED',
+      closed_by INTEGER,
+      closed_at TEXT DEFAULT (datetime('now')),
+      remarks TEXT
     );
     CREATE TABLE IF NOT EXISTS tblCashOnBank (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

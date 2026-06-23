@@ -1,0 +1,456 @@
+import React, { useState, useEffect } from 'react';
+import API from '../services/api';
+import dayjs from 'dayjs';
+
+export default function DailyCashReport() {
+  const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  
+  // Denominations - kept for closing the day, though hidden from print view
+  const [denom, setDenom] = useState({
+    count_1000: 0, count_500: 0, count_200: 0, count_100: 0,
+    count_50: 0, count_20: 0, count_coins: 0
+  });
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const res = await API.get(`/dcr/summary?date=${date}`);
+      setData(res.data);
+      if (res.data.dcr) {
+        setDenom({
+          count_1000: res.data.dcr.count_1000, count_500: res.data.dcr.count_500,
+          count_200: res.data.dcr.count_200, count_100: res.data.dcr.count_100,
+          count_50: res.data.dcr.count_50, count_20: res.data.dcr.count_20,
+          count_coins: res.data.dcr.count_coins
+        });
+      } else {
+        setDenom({ count_1000: 0, count_500: 0, count_200: 0, count_100: 0, count_50: 0, count_20: 0, count_coins: 0 });
+      }
+    } catch (err) { console.error(err); } 
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { loadData(); }, [date]);
+
+  const fmt = (num) => Number(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  if (!data && loading) return <div style={{padding: 20}}>Loading Daily Cash Report...</div>;
+  if (!data) return null;
+
+  const isClosed = !!data.dcr;
+
+  // Group collections by collector for "4. COLLECTIONS"
+  const collByCollector = data.collections.reduce((acc, c) => {
+    const name = c.collector_name || 'Unassigned';
+    acc[name] = (acc[name] || 0) + c.amount_paid;
+    return acc;
+  }, {});
+
+  const bankCharges = []; // Mock data since not in db
+  const interest = []; // Mock data
+  const withdrawal = []; // Mock data
+  const deposit = []; // Mock data
+  const adjustments = []; // Mock data
+
+  const handleExportExcel = () => {
+    // Basic CSV Export
+    let csv = `DAILY CASH REPORT\nDate: ${date}\nDCR No: ${data.dcr ? data.dcr.dcr_number : `DCR-${dayjs(date).format('YYYYMMDD')}-0001`}\n\n`;
+    
+    // 1. LOAN RELEASES
+    csv += `1. LOAN RELEASES\nNo.,Code,Customer,Collector,Type of Loan,Amount\n`;
+    data.releases.forEach((r, i) => {
+      csv += `${i + 1},${r.loan_code.replace('LN-','')},"${r.last_name}, ${r.first_name}",${r.collector_name || 'Unassigned'},${r.loan_type || 'NEW'},${(r.net_proceeds || 0).toFixed(2)}\n`;
+    });
+    csv += `TOTAL LOAN RELEASES,,,,,,${data.total_releases.toFixed(2)}\n\n`;
+
+    // 2. EXPENSES
+    csv += `2. EXPENSES\nParticulars,Amount\n`;
+    data.expenses.forEach(e => {
+      csv += `"${e.category}",${(e.amount || 0).toFixed(2)}\n`;
+    });
+    csv += `TOTAL EXPENSES,,${data.total_expenses.toFixed(2)}\n\n`;
+
+    // 4. COLLECTIONS
+    csv += `4. COLLECTIONS\nCollector,Amount\n`;
+    Object.entries(collByCollector).forEach(([name, amount]) => {
+      csv += `"${name}",${amount.toFixed(2)}\n`;
+    });
+    csv += `TOTAL COLLECTIONS,,${data.total_collections.toFixed(2)}\n\n`;
+
+    // Summary
+    csv += `CASH SUMMARY\n`;
+    csv += `Beginning Cash,${data.beginning_cash.toFixed(2)}\n`;
+    csv += `Total Collections,${data.total_collections.toFixed(2)}\n`;
+    csv += `Total Loan Releases,-${data.total_releases.toFixed(2)}\n`;
+    csv += `Total Expenses,-${data.total_expenses.toFixed(2)}\n`;
+    csv += `EXPECTED ENDING CASH,${data.expected_ending_cash.toFixed(2)}\n`;
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `DCR_${dayjs(date).format('YYYYMMDD')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="dcr-container">
+      <style>{`
+        .dcr-container { max-width: 1200px; margin: 0 auto; background: #fff; padding: 20px; color: #000; font-family: 'Inter', sans-serif; }
+        .dcr-header { display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: center; margin-bottom: 20px; }
+        .dcr-header h1 { font-size: 24px; color: #1e3a8a; margin: 0; font-weight: 800; }
+        .dcr-header .title { text-align: center; font-size: 24px; font-weight: 800; color: #1e293b; margin: 0; }
+        .dcr-header .date-subtitle { text-align: center; color: #64748b; font-size: 14px; font-weight: 600; margin-top: 5px; }
+        .dcr-header .dcr-no { text-align: right; background: #f8fafc; padding: 10px 15px; border-radius: 8px; border: 1px solid #e2e8f0; }
+        
+        .dcr-controls { display: flex; justify-content: space-between; margin-bottom: 20px; background: #fff; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; }
+        .dcr-controls select, .dcr-controls input { border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 6px; outline: none; margin-right: 10px; }
+        .dcr-actions button { padding: 6px 12px; border: 1px solid #e2e8f0; background: #fff; border-radius: 6px; font-weight: 600; cursor: pointer; color: #1d4ed8; margin-left: 10px; display: inline-flex; alignItems: center; gap: 5px; }
+        .dcr-actions button.btn-export { color: #ef4444; border-color: #fca5a5; }
+        .dcr-actions button.btn-excel { color: #10b981; border-color: #6ee7b7; }
+        
+        .dcr-summary-cards { display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; margin-bottom: 20px; }
+        .dcr-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px 10px; display: flex; gap: 10px; align-items: center; }
+        .dcr-card .icon { width: 40px; height: 40px; display: flex; justify-content: center; align-items: center; border-radius: 8px; font-size: 20px; }
+        .dcr-card .details h4 { margin: 0; font-size: 10px; text-transform: uppercase; color: #1d4ed8; font-weight: 800; }
+        .dcr-card .details .val { font-size: 18px; font-weight: 800; color: #0f172a; margin: 4px 0 2px 0; }
+        .dcr-card .details .sub { font-size: 10px; color: #64748b; }
+
+        .dcr-main-grid { display: grid; grid-template-columns: 2.5fr 1fr; gap: 20px; align-items: start; }
+        
+        .dcr-section { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 15px; }
+        .dcr-section-title { font-size: 13px; font-weight: 800; color: #1d4ed8; padding: 10px 15px; border-bottom: 1px solid #e2e8f0; background: #fff; margin: 0; text-transform: uppercase; }
+        
+        table.dcr-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        table.dcr-table th { padding: 8px 10px; text-align: left; background: #fff; color: #0f172a; font-weight: 700; border-bottom: 2px solid #e2e8f0; }
+        table.dcr-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+        table.dcr-table tr:last-child td { border-bottom: none; }
+        table.dcr-table .text-right { text-align: right; }
+        
+        .badge-type { padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; }
+        .type-new { background: #dcfce7; color: #16a34a; }
+        .type-reloan { background: #dbeafe; color: #2563eb; }
+        .type-recon { background: #ffedd5; color: #ea580c; }
+        
+        .dcr-footer-row { font-weight: 800; font-size: 11px; color: #1d4ed8; text-transform: uppercase; }
+        .dcr-footer-row td { padding: 10px; background: #f8fafc; border-top: 2px solid #e2e8f0; }
+        
+        .cash-summary-row { display: flex; justify-content: space-between; font-size: 11px; padding: 6px 15px; color: #0f172a; }
+        .cash-summary-row.bold { font-weight: 800; font-size: 12px; }
+        .cash-summary-row.total { background: #1e3a8a; color: #fff; padding: 15px; font-size: 13px; font-weight: 800; margin: 10px; border-radius: 6px; }
+
+        .dcr-signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 40px; text-align: center; }
+        .dcr-sign-box { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100px; }
+        .dcr-sign-name { font-weight: 800; font-size: 12px; border-top: 1px solid #cbd5e1; padding-top: 5px; width: 200px; margin-top: 40px; color: #0f172a; }
+        .dcr-sign-title { font-size: 11px; color: #64748b; }
+        .dcr-sign-date { font-size: 10px; color: #94a3b8; margin-top: 5px; }
+
+        @media print {
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff; }
+          .page-toolbar, .sidebar, .navbar, .dcr-controls { display: none !important; }
+          .dcr-container { padding: 0; width: 100%; max-width: 100%; margin: 0; }
+        }
+      `}</style>
+
+      {/* HEADER */}
+      <div className="dcr-header">
+        <div>
+          <h1>MELANN LENDING INVESTOR CORP.</h1>
+          <div style={{ color: '#64748b', fontSize: 13, marginTop: 5 }}>Ormoc City</div>
+        </div>
+        <div>
+          <h2 className="title">DAILY CASH REPORT</h2>
+          <div className="date-subtitle">📅 {dayjs(date).format('dddd, MMMM D, YYYY')}</div>
+        </div>
+        <div className="dcr-no">
+          <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a' }}>
+            {data.dcr ? data.dcr.dcr_number : `DCR-${dayjs(date).format('YYYYMMDD')}-0001`}
+          </div>
+          <div style={{ fontSize: 11, color: '#64748b', marginTop: 5 }}>Daily Cash Report No.</div>
+        </div>
+      </div>
+
+      {/* CONTROLS */}
+      <div className="dcr-controls">
+        <div>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} />
+          <select><option>All Collectors</option></select>
+          <select><option>All Branches</option></select>
+        </div>
+        <div className="dcr-actions">
+          <button onClick={() => loadData()}>🔄 Refresh</button>
+          <button className="btn-export" onClick={() => window.print()}>📄 Export PDF</button>
+          <button className="btn-excel" onClick={handleExportExcel}>📊 Export Excel</button>
+          <button onClick={() => window.print()}>🖨️ Print</button>
+        </div>
+      </div>
+
+      {/* SUMMARY CARDS */}
+      <div className="dcr-summary-cards">
+        <div className="dcr-card" style={{ borderColor: '#bfdbfe' }}>
+          <div className="icon" style={{ background: '#eff6ff', color: '#2563eb' }}>💼</div>
+          <div className="details">
+            <h4>TOTAL COLLECTIONS</h4>
+            <div className="val">₱{fmt(data.total_collections)}</div>
+            <div className="sub">From {Object.keys(collByCollector).length} Collector(s)</div>
+          </div>
+        </div>
+        <div className="dcr-card" style={{ borderColor: '#bbf7d0' }}>
+          <div className="icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>💸</div>
+          <div className="details">
+            <h4 style={{ color: '#16a34a' }}>TOTAL LOAN RELEASES</h4>
+            <div className="val">₱{fmt(data.total_releases)}</div>
+            <div className="sub">{data.releases.length} Loan(s)</div>
+          </div>
+        </div>
+        <div className="dcr-card" style={{ borderColor: '#fed7aa' }}>
+          <div className="icon" style={{ background: '#fff7ed', color: '#ea580c' }}>🧾</div>
+          <div className="details">
+            <h4 style={{ color: '#ea580c' }}>TOTAL EXPENSES</h4>
+            <div className="val">₱{fmt(data.total_expenses)}</div>
+            <div className="sub">{data.expenses.length} Transaction(s)</div>
+          </div>
+        </div>
+        <div className="dcr-card" style={{ borderColor: '#e9d5ff' }}>
+          <div className="icon" style={{ background: '#faf5ff', color: '#9333ea' }}>🏦</div>
+          <div className="details">
+            <h4 style={{ color: '#9333ea' }}>TOTAL CASH IN BANK</h4>
+            <div className="val">₱0.00</div>
+            <div className="sub">0 Transaction(s)</div>
+          </div>
+        </div>
+        <div className="dcr-card" style={{ borderColor: '#bbf7d0' }}>
+          <div className="icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>💵</div>
+          <div className="details">
+            <h4 style={{ color: '#16a34a' }}>CASH ON HAND</h4>
+            <div className="val">₱{fmt(data.total_collections)}</div>
+            <div className="sub">As of End of Day</div>
+          </div>
+        </div>
+        <div className="dcr-card" style={{ borderColor: '#bfdbfe' }}>
+          <div className="icon" style={{ background: '#eff6ff', color: '#2563eb' }}>📊</div>
+          <div className="details">
+            <h4>TOTAL CASH POSITION</h4>
+            <div className="val">₱{fmt(data.total_collections)}</div>
+            <div className="sub">Cash on Hand & In Bank</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="dcr-main-grid">
+        {/* LEFT COLUMN */}
+        <div>
+          {/* 1. LOAN RELEASES */}
+          <div className="dcr-section">
+            <h3 className="dcr-section-title">1. LOAN RELEASES</h3>
+            <table className="dcr-table">
+              <thead>
+                <tr>
+                  <th>No.</th><th>Code</th><th>Customer</th><th>Collector</th>
+                  <th style={{textAlign:'center'}}>Type of Loan</th>
+                  <th className="text-right">Amount</th>
+                  <th className="text-right">Service Fee</th>
+                  <th className="text-right">Insurance</th>
+                  <th className="text-right">Penalty</th>
+                  <th className="text-right">Passbook</th>
+                  <th className="text-right">Collection</th>
+                  <th className="text-right">Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.releases.map((r, i) => (
+                  <tr key={i}>
+                    <td>{i + 1}</td>
+                    <td>{r.loan_code.replace('LN-','')}</td>
+                    <td style={{fontWeight: 600}}>{r.last_name}, {r.first_name}</td>
+                    <td>{r.collector_name || 'Unassigned'}</td>
+                    <td style={{textAlign:'center'}}>
+                      <span className={`badge-type type-${(r.loan_type || 'new').toLowerCase()}`}>{r.loan_type || 'NEW'}</span>
+                    </td>
+                    <td className="text-right">{(r.net_proceeds || 0).toFixed(2)}</td>
+                    <td className="text-right">0.00</td>
+                    <td className="text-right">0.00</td>
+                    <td className="text-right">0.00</td>
+                    <td className="text-right">0.00</td>
+                    <td className="text-right">0.00</td>
+                    <td className="text-right">0.00</td>
+                  </tr>
+                ))}
+                {data.releases.length === 0 && <tr><td colSpan={12} style={{textAlign:'center', padding: 20}}>No loan releases.</td></tr>}
+                <tr className="dcr-footer-row">
+                  <td colSpan={5}>TOTAL LOAN RELEASES</td>
+                  <td className="text-right">₱{fmt(data.total_releases)}</td>
+                  <td className="text-right">0.00</td>
+                  <td className="text-right">0.00</td>
+                  <td className="text-right">0.00</td>
+                  <td className="text-right">0.00</td>
+                  <td className="text-right">0.00</td>
+                  <td className="text-right">0.00</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15 }}>
+            {/* 2. EXPENSES */}
+            <div className="dcr-section">
+              <h3 className="dcr-section-title" style={{color: '#ea580c'}}>2. EXPENSES</h3>
+              <table className="dcr-table">
+                <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
+                <tbody>
+                  {data.expenses.map((e, i) => (
+                    <tr key={i}><td>{e.category}</td><td className="text-right">{(e.amount || 0).toFixed(2)}</td></tr>
+                  ))}
+                  {data.expenses.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No expenses recorded.</td></tr>}
+                  <tr className="dcr-footer-row"><td style={{color: '#ea580c'}}>TOTAL EXPENSES</td><td className="text-right" style={{color: '#ea580c'}}>₱{fmt(data.total_expenses)}</td></tr>
+                </tbody>
+              </table>
+            </div>
+            
+            {/* 3. ADJUSTMENTS */}
+            <div className="dcr-section">
+              <h3 className="dcr-section-title" style={{color: '#ea580c'}}>3. ADJUSTMENTS</h3>
+              <table className="dcr-table">
+                <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
+                <tbody>
+                  {adjustments.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No adjustments recorded.</td></tr>}
+                  <tr className="dcr-footer-row"><td style={{color: '#ea580c'}}>TOTAL ADJUSTMENTS</td><td className="text-right" style={{color: '#ea580c'}}>₱0.00</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* 5. WITHDRAWAL */}
+            <div className="dcr-section">
+              <h3 className="dcr-section-title" style={{color: '#9333ea'}}>5. WITHDRAWAL</h3>
+              <table className="dcr-table">
+                <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
+                <tbody>
+                  {withdrawal.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No withdrawal recorded.</td></tr>}
+                  <tr className="dcr-footer-row"><td style={{color: '#9333ea'}}>TOTAL WITHDRAWAL</td><td className="text-right" style={{color: '#9333ea'}}>₱0.00</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* 6. DEPOSIT */}
+            <div className="dcr-section">
+              <h3 className="dcr-section-title" style={{color: '#1d4ed8'}}>6. DEPOSIT</h3>
+              <table className="dcr-table">
+                <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
+                <tbody>
+                  {deposit.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No deposit recorded.</td></tr>}
+                  <tr className="dcr-footer-row"><td>TOTAL DEPOSIT</td><td className="text-right">₱0.00</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* 7. BANK CHARGES */}
+            <div className="dcr-section">
+              <h3 className="dcr-section-title" style={{color: '#ef4444'}}>7. BANK CHARGES</h3>
+              <table className="dcr-table">
+                <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
+                <tbody>
+                  {bankCharges.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No bank charges recorded.</td></tr>}
+                  <tr className="dcr-footer-row"><td style={{color:'#ef4444'}}>TOTAL BANK CHARGES</td><td className="text-right" style={{color:'#ef4444'}}>₱0.00</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* 8. INTEREST */}
+            <div className="dcr-section">
+              <h3 className="dcr-section-title" style={{color: '#16a34a'}}>8. INTEREST</h3>
+              <table className="dcr-table">
+                <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
+                <tbody>
+                  {interest.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No interest recorded.</td></tr>}
+                  <tr className="dcr-footer-row"><td style={{color:'#16a34a'}}>TOTAL INTEREST</td><td className="text-right" style={{color:'#16a34a'}}>₱0.00</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN */}
+        <div>
+          {/* 4. COLLECTIONS */}
+          <div className="dcr-section" style={{marginBottom: 15}}>
+            <h3 className="dcr-section-title" style={{color: '#16a34a'}}>4. COLLECTIONS</h3>
+            <table className="dcr-table">
+              <thead><tr><th>Collector</th><th className="text-right">Amount</th></tr></thead>
+              <tbody>
+                {Object.entries(collByCollector).map(([name, amount], i) => (
+                  <tr key={i}><td>{name}</td><td className="text-right">{amount.toFixed(2)}</td></tr>
+                ))}
+                {Object.keys(collByCollector).length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No collections recorded.</td></tr>}
+                <tr className="dcr-footer-row"><td style={{color: '#16a34a'}}>TOTAL COLLECTIONS</td><td className="text-right" style={{color: '#16a34a'}}>₱{fmt(data.total_collections)}</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* 9. CASH SUMMARY */}
+          <div className="dcr-section">
+            <h3 className="dcr-section-title">9. CASH SUMMARY</h3>
+            <div style={{ padding: '10px 0' }}>
+              <div style={{ padding: '0 15px', fontWeight: 800, color: '#1d4ed8', fontSize: 11, marginBottom: 5 }}>CASH IN BANK</div>
+              <div className="cash-summary-row"><span>Beginning Bank Balance</span><span>₱0.00</span></div>
+              <div className="cash-summary-row"><span>Total Bank Charges</span><span>- ₱0.00</span></div>
+              <div className="cash-summary-row"><span>Total Deposit</span><span>+ ₱0.00</span></div>
+              <div className="cash-summary-row"><span>Total Interest</span><span>+ ₱0.00</span></div>
+              <div className="cash-summary-row"><span>Total Withdrawal</span><span>- ₱0.00</span></div>
+              <div className="cash-summary-row bold" style={{ color: '#1d4ed8', marginTop: 5, paddingBottom: 15 }}><span>TOTAL CASH IN BANK</span><span>₱0.00</span></div>
+              
+              <div style={{ borderTop: '1px solid #e2e8f0', margin: '0 15px' }}></div>
+              
+              <div style={{ padding: '15px 15px 5px 15px', fontWeight: 800, color: '#16a34a', fontSize: 11 }}>CASH ON HAND</div>
+              <div className="cash-summary-row"><span>Beginning Cash on Hand</span><span>₱{fmt(data.beginning_cash)}</span></div>
+              <div className="cash-summary-row"><span>Total Adjustments</span><span>₱0.00</span></div>
+              <div className="cash-summary-row"><span>Total Collections</span><span>₱{fmt(data.total_collections)}</span></div>
+              
+              <div className="cash-summary-row bold" style={{ marginTop: 10 }}><span>CASH AVAILABLE</span><span>₱{fmt(data.beginning_cash + data.total_collections)}</span></div>
+              <div style={{ padding: '5px 15px', fontSize: 11, fontWeight: 800, color: '#0f172a' }}>LESS:</div>
+              <div className="cash-summary-row"><span style={{paddingLeft: 10}}>Total Loan Releases</span><span>₱{fmt(data.total_releases)}</span></div>
+              <div className="cash-summary-row"><span style={{paddingLeft: 10}}>Total Expenses</span><span>₱{fmt(data.total_expenses)}</span></div>
+              <div className="cash-summary-row bold" style={{ marginTop: 10, color: '#ef4444' }}><span>CASH ON HAND (END OF DAY)</span><span>₱{fmt(data.expected_ending_cash)}</span></div>
+              
+              <div className="cash-summary-row total">
+                <span>TOTAL CASH ON HAND & IN BANK</span>
+                <span>₱{fmt(data.expected_ending_cash)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="dcr-section" style={{ background: '#f8fafc', padding: 15 }}>
+            <div style={{ fontWeight: 800, color: '#1d4ed8', fontSize: 11, marginBottom: 10 }}>NOTES</div>
+            <ul style={{ margin: 0, paddingLeft: 15, fontSize: 10, color: '#334155', lineHeight: 1.6 }}>
+              <li>All amounts are in Philippine Peso (PHP).</li>
+              <li>This report is system-generated and does not require manual computation.</li>
+              <li>Please review all figures before closing the day.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div className="dcr-signatures">
+        <div className="dcr-sign-box">
+          <div className="dcr-sign-name">MARILYN O. RELOBA</div>
+          <div className="dcr-sign-title">Cashier</div>
+          <div className="dcr-sign-date">{dayjs(date).format('MMMM D, YYYY')} {dayjs().format('h:mm A')}</div>
+        </div>
+        <div className="dcr-sign-box">
+          <div className="dcr-sign-name">VICTORIO L. RELOBA JR.</div>
+          <div className="dcr-sign-title">Operations Manager</div>
+          <div className="dcr-sign-date">{dayjs(date).format('MMMM D, YYYY')} {dayjs().format('h:mm A')}</div>
+        </div>
+        <div className="dcr-sign-box">
+          <div className="dcr-sign-name">ANNA LIZA R. RODRIGUEZ</div>
+          <div className="dcr-sign-title">Operations Manager</div>
+          <div className="dcr-sign-date">{dayjs(date).format('MMMM D, YYYY')} {dayjs().format('h:mm A')}</div>
+        </div>
+      </div>
+
+    </div>
+  );
+}

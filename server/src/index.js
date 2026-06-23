@@ -15,6 +15,7 @@ const reportRoutes = require('./routes/reports');
 const cashRoutes = require('./routes/cash');
 const reversalRoutes = require('./routes/reversals');
 const auditRoutes = require('./routes/audit');
+const dcrRoutes = require('./routes/dcr');
 
 const { initializeDatabase } = require('./db/database');
 const { startPastDueScheduler } = require('./services/pastDueUpdater');
@@ -43,6 +44,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/cash', cashRoutes);
 app.use('/api/reversals', reversalRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/dcr', dcrRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', system: 'Melann Lending System V2', timestamp: new Date().toISOString() });

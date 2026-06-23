@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { search, status, customer_id, collector_id } = req.query;
-    let q = `SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, c.photo_id_front, co.first_name || ' ' || co.last_name as collector_name, b.branch_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id LEFT JOIN tblBranch b ON l.branch_id = b.id WHERE 1=1`;
+    let q = `SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, c.photo_client, c.photo_id_front, co.first_name || ' ' || co.last_name as collector_name, b.branch_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id LEFT JOIN tblBranch b ON l.branch_id = b.id WHERE 1=1`;
     const p = [];
     if (search) { q += ` AND (c.full_name LIKE ? OR l.loan_code LIKE ? OR c.customer_code LIKE ?)`; p.push(`%${search}%`, `%${search}%`, `%${search}%`); }
     if (status) { q += ` AND l.status = ?`; p.push(status); }
@@ -24,7 +24,7 @@ router.get('/sheet/collection', authenticateToken, async (req, res) => {
     const targetDate = date || new Date().toISOString().split('T')[0];
     
     const loans = await dbAll(`
-      SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, c.photo_id_front,
+      SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, c.photo_client, c.photo_id_front,
              (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status='active') as collected_today
       FROM tblLoan l
       JOIN tblCustomer c ON l.customer_id = c.id
@@ -53,7 +53,7 @@ router.get('/lookup/client', authenticateToken, async (req, res) => {
 
     // Get latest loan
     const loan = await dbGet(`
-      SELECT l.*, c.full_name as customer_name, c.customer_code, c.photo_id_front, co.first_name || ' ' || co.last_name as collector_name,
+      SELECT l.*, c.full_name as customer_name, c.customer_code, c.photo_client, c.photo_id_front, co.first_name || ' ' || co.last_name as collector_name,
       COALESCE((SELECT SUM(amount_paid) FROM tblPayment WHERE loan_id = l.id AND status != 'reversed'), 0) as total_payments_made
       FROM tblLoan l 
       JOIN tblCustomer c ON l.customer_id = c.id 
@@ -80,7 +80,7 @@ router.get('/lookup/client', authenticateToken, async (req, res) => {
 
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
-    const loan = await dbGet(`SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, c.photo_id_front, c.address as customer_address, co.first_name || ' ' || co.last_name as collector_name, b.branch_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id LEFT JOIN tblBranch b ON l.branch_id = b.id WHERE l.id = ?`, [req.params.id]);
+    const loan = await dbGet(`SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, c.photo_client, c.photo_id_front, c.address as customer_address, co.first_name || ' ' || co.last_name as collector_name, b.branch_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id LEFT JOIN tblBranch b ON l.branch_id = b.id WHERE l.id = ?`, [req.params.id]);
     if (!loan) return res.status(404).json({ error: 'Loan not found' });
     const schedule = await dbAll('SELECT * FROM tblAmortizationSchedule WHERE loan_id = ? ORDER BY period_number', [req.params.id]);
     const payments = await dbAll(`SELECT * FROM tblPayment WHERE loan_id = ? AND status = 'active' ORDER BY date_paid DESC`, [req.params.id]);
@@ -90,16 +90,17 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { customer_id, collector_id, branch_id, loan_type, principal, interest_rate, date_released, remarks } = req.body;
+    const { customer_id, collector_id, branch_id, loan_type, principal, interest_rate, date_released, remarks, status } = req.body;
     if (!customer_id || !principal || !date_released) return res.status(400).json({ error: 'customer_id, principal, date_released required' });
     const { interest_amount, total_amortization, amortization } = computeAmortization(principal, interest_rate || 0, 45);
     const date_maturity = computeMaturityDate(date_released, 45);
     const { service_fee, total_deductions, net_proceeds } = computeNetProceeds(principal, 0, 0, 0, 0);
     const count = (await dbGet('SELECT COUNT(*) as c FROM tblLoan')).c;
     const loan_code = `LN-${String(count + 1).padStart(6, '0')}`;
-    const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, service_fee, insurance, notarial_fee, filing_fee, total_deductions, net_proceeds, balance, or_number, remarks, created_by, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending')`,
-      [loan_code, customer_id, collector_id, branch_id || null, loan_type || 'New', principal, interest_rate || 0, interest_amount, 45, date_released, date_maturity, amortization, total_amortization, 0, 0, 0, 0, 0, net_proceeds, total_amortization, '', remarks, req.user.id]);
-    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'LOAN', result.lastID, `New loan (pending CI): ${loan_code}`]);
+    const loan_status = status || 'pending';
+    const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, service_fee, insurance, notarial_fee, filing_fee, total_deductions, net_proceeds, balance, or_number, remarks, created_by, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [loan_code, customer_id, collector_id, branch_id || null, loan_type || 'New', principal, interest_rate || 0, interest_amount, 45, date_released, date_maturity, amortization, total_amortization, 0, 0, 0, 0, 0, net_proceeds, total_amortization, '', remarks, req.user.id, loan_status]);
+    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'LOAN', result.lastID, `New loan created (${loan_status}): ${loan_code}`]);
     res.status(201).json({ id: result.lastID, loan_code, amortization, total_amortization, date_maturity, net_proceeds });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -190,6 +191,7 @@ router.post('/:id/manager-decision', authenticateToken, requireRole('admin', 'ma
     } else if (decision === 'reject') {
       if (!remarks) return res.status(400).json({ error: 'Remarks are required for rejection' });
       await dbRun(`UPDATE tblLoan SET status='rejected', remarks=?, updated_at=datetime('now') WHERE id=?`, [remarks, loan_id]);
+      await dbRun(`UPDATE tblCustomer SET status='hold' WHERE id=?`, [loan.customer_id]);
       await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REJECT', 'LOAN', loan_id, `Manager Rejected Loan: ${remarks}`]);
     } else if (decision === 'reduce') {
       if (!remarks || !approved_amount) return res.status(400).json({ error: 'Approved amount and remarks are required' });

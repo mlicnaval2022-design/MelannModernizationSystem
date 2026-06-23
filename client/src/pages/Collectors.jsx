@@ -37,14 +37,13 @@ export default function Collectors() {
       <div className="card">
         <div className="table-wrapper">
           <table className="data-table">
-            <thead><tr><th>Code</th><th>Name</th><th>Branch</th><th>Active Loans</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Code</th><th>Name</th><th>Active Loans</th><th>Actions</th></tr></thead>
             <tbody>
               {loading ? <tr className="loading-row"><td colSpan={5}>⏳ Loading...</td></tr>
-                : rows.map(r => (
+                : [...rows].sort((a,b) => a.id - b.id).map(r => (
                   <tr key={r.id}>
                     <td><span className="mono">{r.collector_code}</span></td>
                     <td className="fw-600">{r.first_name} {r.last_name}</td>
-                    <td>{r.branch_name || '—'}</td>
                     <td>{r.active_loans}</td>
                     <td>{hasRole('admin', 'manager') && <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Edit</button>}</td>
                   </tr>

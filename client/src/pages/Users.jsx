@@ -41,7 +41,7 @@ export default function Users() {
       <div className="card">
         <div className="table-wrapper">
           <table className="data-table">
-            <thead><tr><th>Username</th><th>Full Name</th><th>Role</th><th>Branch</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Username</th><th>Full Name</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {loading ? <tr className="loading-row"><td colSpan={6}>⏳ Loading...</td></tr>
                 : rows.map(r => (
@@ -49,7 +49,6 @@ export default function Users() {
                     <td><span className="mono">{r.username}</span></td>
                     <td className="fw-600">{r.full_name}</td>
                     <td><span className={`badge badge-${r.role}`}>{r.role}</span></td>
-                    <td>{r.branch_name || '—'}</td>
                     <td><span className={`badge badge-${r.is_active ? 'active' : 'inactive'}`}>{r.is_active ? 'Active' : 'Inactive'}</span></td>
                     <td><button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Edit</button></td>
                   </tr>

@@ -13,7 +13,7 @@ function computeAmortization(principal, interestRate, loanPeriod) {
   const interest = p * (r / 100);
   const totalAmount = p + interest;
   // 39 payments (45 days excluding Sundays)
-  const amortization = Math.round(totalAmount / 39);
+  const amortization = Math.ceil(totalAmount / 39);
   return {
     interest_amount: parseFloat(interest.toFixed(2)),
     total_amortization: parseFloat(totalAmount.toFixed(2)),

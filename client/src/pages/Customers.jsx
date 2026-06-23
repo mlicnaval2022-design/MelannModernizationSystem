@@ -44,6 +44,13 @@ export default function Customers() {
   const [viewAllPayments, setViewAllPayments] = useState(false)
   const [confirmModal, setConfirmModal] = useState({ open: false, type: '', customer: null, message: '' })
 
+  const getImageUrl = (path) => {
+    if (!path) return '';
+    if (path.startsWith('http')) return path;
+    const baseUrl = API.defaults.baseURL.replace('/api', '');
+    return `${baseUrl}${path}`;
+  };
+
   const load = () => {
     setLoading(true)
     Promise.all([
@@ -219,6 +226,7 @@ export default function Customers() {
             <option value="">Status: All</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
+            <option value="hold">Hold</option>
             <option value="reversed">Reversed</option>
           </select>
           <button className="toolbar-btn-secondary">⚙️ More Filters</button>
@@ -276,6 +284,8 @@ export default function Customers() {
                   <td>
                     {r.status === 'active' ? (
                       <span className="status-badge status-active"><div className="status-dot"></div> Active</span>
+                    ) : r.status === 'hold' ? (
+                      <span className="status-badge" style={{ background: '#fef2f2', color: '#ef4444', borderColor: '#fca5a5' }}><div className="status-dot" style={{ background: '#ef4444' }}></div> Hold</span>
                     ) : (
                       <span className="status-badge status-inactive"><div className="status-dot"></div> {r.status}</span>
                     )}
@@ -379,8 +389,8 @@ export default function Customers() {
                     <div className="soa-card soa-info-wrapper print-card">
                       <div className="print-tab print-tab-dark">CUSTOMER INFORMATION</div>
                       <div className="soa-info-left">
-                        {soaData.photo_id_front ? (
-                          <img src={`http://localhost:5001${soaData.photo_id_front}`} className="soa-avatar" alt="Customer Avatar" style={{ objectFit: 'cover' }} />
+                        {soaData.photo_client || soaData.photo_id_front ? (
+                          <img src={getImageUrl(soaData.photo_client || soaData.photo_id_front)} className="soa-avatar" alt="Customer Avatar" style={{ objectFit: 'contain', background: '#f8fafc', border: '1px solid #e2e8f0' }} />
                         ) : (
                           <div className="soa-avatar">👤</div>
                         )}
@@ -423,8 +433,8 @@ export default function Customers() {
                               <div className="soa-info-item-icon">🏪</div>
                               <div>
                                 <div className="soa-info-label">Store / Business Photo</div>
-                                <div style={{ cursor: 'pointer' }} onClick={() => setPreviewImage(`http://localhost:5001${soaData.photo_business_proof}`)}>
-                                  <img src={`http://localhost:5001${soaData.photo_business_proof}`} alt="Store" style={{ height: 60, borderRadius: 6, marginTop: 4, border: '1px solid #e2e8f0', objectFit: 'cover' }} />
+                                <div style={{ cursor: 'pointer' }} onClick={() => setPreviewImage(getImageUrl(soaData.photo_business_proof))}>
+                                  <img src={getImageUrl(soaData.photo_business_proof)} alt="Store" style={{ height: 60, borderRadius: 6, marginTop: 4, border: '1px solid #e2e8f0', objectFit: 'cover' }} />
                                 </div>
                               </div>
                             </div>
