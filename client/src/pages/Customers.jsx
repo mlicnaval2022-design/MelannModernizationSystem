@@ -38,6 +38,7 @@ export default function Customers() {
 
   const [soaModal, setSoaModal] = useState(false)
   const [soaData, setSoaData] = useState(null)
+  const [previewImage, setPreviewImage] = useState(null)
   const [soaLoading, setSoaLoading] = useState(false)
   const [confirmModal, setConfirmModal] = useState({ open: false, type: '', customer: null, message: '' })
 
@@ -363,8 +364,12 @@ export default function Customers() {
 
                     <div className="soa-card soa-info-wrapper">
                       <div className="soa-info-left">
-                        <div className="soa-avatar">👤</div>
-                        <div className="soa-info-grid">
+                        {soaData.photo_id_front ? (
+                          <img src={`http://localhost:5001${soaData.photo_id_front}`} className="soa-avatar" alt="Customer Avatar" style={{ objectFit: 'cover' }} />
+                        ) : (
+                          <div className="soa-avatar">👤</div>
+                        )}
+                        <div className="soa-info-grid" style={{ gridTemplateColumns: soaData.photo_business_proof ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)' }}>
                           <div className="soa-info-item">
                             <div className="soa-info-item-icon"></div>
                             <div>
@@ -392,6 +397,17 @@ export default function Customers() {
                               <div className="soa-info-val">{memberSince}</div>
                             </div>
                           </div>
+                          {soaData.photo_business_proof && (
+                            <div className="soa-info-item">
+                              <div className="soa-info-item-icon">🏪</div>
+                              <div>
+                                <div className="soa-info-label">Store / Business Photo</div>
+                                <div style={{ cursor: 'pointer' }} onClick={() => setPreviewImage(`http://localhost:5001${soaData.photo_business_proof}`)}>
+                                  <img src={`http://localhost:5001${soaData.photo_business_proof}`} alt="Store" style={{ height: 60, borderRadius: 6, marginTop: 4, border: '1px solid #e2e8f0', objectFit: 'cover' }} />
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="soa-gauge-wrapper">
@@ -519,6 +535,31 @@ export default function Customers() {
                 <button className="btn btn-primary" onClick={confirmAction}>Yes, Continue</button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <div className="modal-overlay" style={{ zIndex: 100000, background: 'rgba(0,0,0,0.85)' }} onClick={() => setPreviewImage(null)}>
+          <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <button 
+              onClick={() => setPreviewImage(null)}
+              style={{
+                position: 'absolute', top: 20, left: 20, background: 'rgba(255,255,255,0.2)', 
+                border: 'none', color: '#fff', fontSize: '16px', padding: '10px 20px', 
+                borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+                fontWeight: 600
+              }}
+            >
+              <span>←</span> Back
+            </button>
+            <img 
+              src={previewImage} 
+              alt="Preview" 
+              style={{ maxWidth: '90%', maxHeight: '90%', borderRadius: '8px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }} 
+              onClick={e => e.stopPropagation()}
+            />
           </div>
         </div>
       )}
