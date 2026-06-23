@@ -33,6 +33,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
   };
 
   const handleUpper = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value.toUpperCase() }));
+  const handleLower = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value.toLowerCase() }));
   
   const handleFileUpload = async (file, field) => {
     if (!file) return;
@@ -204,8 +205,8 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
             <div className="form-group"><label>Secondary Number</label><input className="form-control" value={form.secondary_contact} onChange={handleUpper('secondary_contact')} /></div>
           </div>
           <div className="form-grid">
-            <div className="form-group"><label>Email Address *</label><input type="email" className="form-control" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
-            <div className="form-group"><label>Confirm Email Address *</label><input type="email" className="form-control" value={form.confirm_email} onChange={e => setForm({...form, confirm_email: e.target.value})} /></div>
+            <div className="form-group"><label>Email Address *</label><input type="email" className="form-control" value={form.email} onChange={handleLower('email')} /></div>
+            <div className="form-group"><label>Confirm Email Address *</label><input type="email" className="form-control" value={form.confirm_email} onChange={handleLower('confirm_email')} /></div>
           </div>
           <div className="form-grid">
             <div className="form-group"><label>Facebook Account</label><input className="form-control" value={form.fb_account} onChange={handleUpper('fb_account')} /></div>
