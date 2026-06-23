@@ -119,22 +119,6 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
             ))}
           </div>
 
-          <label className="section-label">Risk Category (For Reference)</label>
-          <div className="radio-cards risk-cards">
-            {[
-              { val: 'Low Risk', sub: 'Good payment history', col: '#10b981', bg: '#d1fae5' },
-              { val: 'Medium Risk', sub: 'Average payment history', col: '#f59e0b', bg: '#fef3c7' },
-              { val: 'High Risk', sub: 'Poor payment history', col: '#ef4444', bg: '#fee2e2' }
-            ].map(r => (
-              <div key={r.val} className={`radio-card risk-card ${form.risk_category === r.val ? 'active' : ''}`} style={{ borderColor: form.risk_category === r.val ? r.col : '#e2e8f0', background: form.risk_category === r.val ? r.bg : '#fff' }} onClick={() => setForm({...form, risk_category: r.val})}>
-                <div className="radio-content">
-                  <strong style={{color: r.col}}>{r.val}</strong>
-                  <span>{r.sub}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
           <label className="section-label">CIC Verification (For Reference)</label>
           <div className="radio-cards">
             {[
