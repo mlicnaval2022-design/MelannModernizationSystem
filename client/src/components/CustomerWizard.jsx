@@ -1,0 +1,520 @@
+import React, { useState, useRef } from 'react';
+import API from '../services/api';
+
+const STEPS = [
+  { id: 1, title: 'Personal Information', sub: 'Basic personal details', icon: '👤' },
+  { id: 2, title: 'Address Information', sub: 'Current address details', icon: '📍' },
+  { id: 3, title: 'Contact Information', sub: 'Contact & online details', icon: '📞' },
+  { id: 4, title: 'Business Information', sub: 'Business & employment', icon: '🏪' },
+  { id: 5, title: 'Identification', sub: 'ID and document details', icon: '🪪' },
+  { id: 6, title: 'Proposed Loan', sub: 'Loan details & assignment', icon: '📄' }
+];
+
+export default function CustomerWizard({ initialData, onClose, onSaved, collectors, branches }) {
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState(initialData || {
+    customer_classification: 'New Client', risk_category: 'Medium Risk', cic_verification: 'Verified',
+    first_name: '', last_name: '', middle_name: '', gender: 'Male', birth_date: '', civil_status: 'Single', nationality: 'Filipino',
+    address: '', sitio: '', purok: '', brgy: '', city: '', province: '', zip_code: '', home_status: 'Owned', length_of_stay: '', previous_address: '',
+    contact: '', secondary_contact: '', email: '', confirm_email: '', fb_account: '', messenger_account: '', preferred_contact_method: 'Call / SMS', preferred_contact_time_from: '', preferred_contact_time_to: '', contact_notes: '',
+    business_type: 'Sari-Sari Store', occupation: 'Retail', business_name: '', business_address: '', business_years: '', business_months: '', income_per_month: '', business_employees: '', business_ownership: 'Sole Proprietorship', business_permit: 'Yes', permit_date_issued: '', permit_place_issued: '', permit_no: '',
+    id_type: 'Philippine Identification (PhilID)', id_number: '', id_issue_date: '', id_expiry_date: '', id_issued_by: 'PSA', id_place_of_issue: '', tin_number: '', sss_number: '', id_notes: '',
+    proposed_principal: '', loan_purpose: '', branch_id: '', collector_id: '',
+    photo_id_front: null, photo_id_back: null, photo_business_proof: null
+  });
+
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const calculateAge = (dob) => {
+    if (!dob) return '';
+    const diff = Date.now() - new Date(dob).getTime();
+    return Math.abs(new Date(diff).getUTCFullYear() - 1970);
+  };
+
+  const handleUpper = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value.toUpperCase() }));
+  
+  const handleFileUpload = async (file, field) => {
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await API.post('/customers/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' }});
+      setForm(f => ({ ...f, [field]: res.data.url }));
+    } catch (err) {
+      alert('File upload failed');
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError('');
+      if (initialData?.id) {
+        await API.put(`/customers/${initialData.id}`, form);
+      } else {
+        await API.post('/customers', form);
+      }
+      onSaved();
+    } catch (err) {
+      setError(err.response?.data?.error || 'An error occurred while saving.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const nextStep = () => { if (step < 6) setStep(step + 1); };
+  const prevStep = () => { if (step > 1) setStep(step - 1); };
+
+  const renderStepContent = () => {
+    switch(step) {
+      case 1: return (
+        <div className="wizard-step-content">
+          <div className="wizard-section-header">
+            <span className="icon">👤</span>
+            <div>
+              <h3>Personal Information</h3>
+              <p>Basic personal details of the customer.</p>
+            </div>
+          </div>
+          <div className="form-grid">
+            <div className="form-group"><label>Last Name *</label><input className="form-control" value={form.last_name} onChange={handleUpper('last_name')} /></div>
+            <div className="form-group"><label>First Name *</label><input className="form-control" value={form.first_name} onChange={handleUpper('first_name')} /></div>
+            <div className="form-group"><label>Middle Name</label><input className="form-control" value={form.middle_name} onChange={handleUpper('middle_name')} /></div>
+          </div>
+          <div className="form-grid" style={{ gridTemplateColumns: '1fr 1.5fr 1fr' }}>
+            <div className="form-group"><label>Gender *</label>
+              <select className="form-control" value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}>
+                <option value="Male">Male</option><option value="Female">Female</option>
+              </select>
+            </div>
+            <div className="form-group"><label>Birth Date *</label><input type="date" className="form-control" value={form.birth_date} onChange={e => setForm({...form, birth_date: e.target.value})} /></div>
+            <div className="form-group"><label>Age</label>
+              <div style={{position:'relative'}}><input className="form-control" value={calculateAge(form.birth_date)} disabled /><span style={{position:'absolute', right:10, top:8, fontSize:12, color:'#10b981', background:'#d1fae5', padding:'2px 6px', borderRadius:4}}>Auto</span></div>
+            </div>
+          </div>
+          <div className="form-grid">
+            <div className="form-group"><label>Civil Status *</label>
+              <select className="form-control" value={form.civil_status} onChange={e => setForm({...form, civil_status: e.target.value})}>
+                <option value="Single">Single</option><option value="Married">Married</option><option value="Widowed">Widowed</option><option value="Separated">Separated</option>
+              </select>
+            </div>
+            <div className="form-group"><label>Nationality *</label>
+              <select className="form-control" value={form.nationality} onChange={e => setForm({...form, nationality: e.target.value})}>
+                <option value="Filipino">Filipino</option><option value="Foreigner">Foreigner</option>
+              </select>
+            </div>
+          </div>
+
+          <label className="section-label">Customer Classification *</label>
+          <div className="radio-cards">
+            {['New Client', 'Re-Loan', 'Returning Client'].map(type => (
+              <div key={type} className={`radio-card ${form.customer_classification === type ? 'active' : ''}`} onClick={() => setForm({...form, customer_classification: type})}>
+                <input type="radio" checked={form.customer_classification === type} readOnly />
+                <div className="radio-content">
+                  <strong>{type}</strong>
+                  <span>{type === 'New Client' ? 'First time borrower' : type === 'Re-Loan' ? 'Existing client' : 'Inactive client'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <label className="section-label">Risk Category (For Reference)</label>
+          <div className="radio-cards risk-cards">
+            {[
+              { val: 'Low Risk', sub: 'Good payment history', col: '#10b981', bg: '#d1fae5' },
+              { val: 'Medium Risk', sub: 'Average payment history', col: '#f59e0b', bg: '#fef3c7' },
+              { val: 'High Risk', sub: 'Poor payment history', col: '#ef4444', bg: '#fee2e2' }
+            ].map(r => (
+              <div key={r.val} className={`radio-card risk-card ${form.risk_category === r.val ? 'active' : ''}`} style={{ borderColor: form.risk_category === r.val ? r.col : '#e2e8f0', background: form.risk_category === r.val ? r.bg : '#fff' }} onClick={() => setForm({...form, risk_category: r.val})}>
+                <div className="radio-content">
+                  <strong style={{color: r.col}}>{r.val}</strong>
+                  <span>{r.sub}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <label className="section-label">CIC Verification (For Reference)</label>
+          <div className="radio-cards">
+            {[
+              { val: 'Verified', sub: 'No adverse record' },
+              { val: 'With Existing Loan', sub: 'Currently has loan' },
+              { val: 'With Delinquent Record', sub: 'Has past due record' }
+            ].map(c => (
+              <div key={c.val} className={`radio-card checkbox-card ${form.cic_verification === c.val ? 'active' : ''}`} onClick={() => setForm({...form, cic_verification: c.val})}>
+                <input type="checkbox" checked={form.cic_verification === c.val} readOnly />
+                <div className="radio-content">
+                  <strong>{c.val}</strong>
+                  <span>{c.sub}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+      case 2: return (
+        <div className="wizard-step-content">
+          <div className="wizard-section-header">
+            <span className="icon">📍</span>
+            <div>
+              <h3>Address Information</h3>
+              <p>Enter the current residential address of the customer.</p>
+            </div>
+          </div>
+          <div className="form-group"><label>House No. / Street *</label><input className="form-control" value={form.address} onChange={e => setForm({...form, address: e.target.value})} /></div>
+          <div className="form-grid">
+            <div className="form-group"><label>Sitio</label><input className="form-control" value={form.sitio} onChange={e => setForm({...form, sitio: e.target.value})} /></div>
+            <div className="form-group"><label>Purok</label><input className="form-control" value={form.purok} onChange={e => setForm({...form, purok: e.target.value})} /></div>
+          </div>
+          <div className="form-grid">
+            <div className="form-group"><label>Barangay *</label><input className="form-control" value={form.brgy} onChange={e => setForm({...form, brgy: e.target.value})} /></div>
+            <div className="form-group"><label>Municipality / City *</label><input className="form-control" value={form.city} onChange={e => setForm({...form, city: e.target.value})} /></div>
+          </div>
+          <div className="form-grid">
+            <div className="form-group"><label>Province *</label><input className="form-control" value={form.province} onChange={e => setForm({...form, province: e.target.value})} /></div>
+            <div className="form-group"><label>Zip Code</label><input className="form-control" value={form.zip_code} onChange={e => setForm({...form, zip_code: e.target.value})} /></div>
+          </div>
+
+          <label className="section-label">Home Status *</label>
+          <div className="radio-cards">
+            {[
+              { val: 'Owned', sub: 'Owned house and lot', icon: '🏠' },
+              { val: 'Living with Family', sub: 'Living with relatives', icon: '👨‍👩‍👧' },
+              { val: 'Rented', sub: 'Renting a property', icon: '🔑' },
+              { val: 'Others', sub: 'Others', icon: '🛖' }
+            ].map(h => (
+              <div key={h.val} className={`radio-card ${form.home_status === h.val ? 'active' : ''}`} onClick={() => setForm({...form, home_status: h.val})}>
+                <input type="radio" checked={form.home_status === h.val} readOnly />
+                <span style={{fontSize: 20}}>{h.icon}</span>
+                <div className="radio-content" style={{marginLeft: 10}}>
+                  <strong>{h.val}</strong>
+                  <span>{h.sub}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="form-grid" style={{ gridTemplateColumns: '1fr 2fr' }}>
+            <div className="form-group"><label>Length of Stay *</label>
+              <div style={{display:'flex', gap:10, alignItems:'center'}}>
+                <input type="number" className="form-control" value={form.length_of_stay} onChange={e => setForm({...form, length_of_stay: e.target.value})} />
+                <span style={{color: '#64748b'}}>Years</span>
+              </div>
+            </div>
+            <div className="form-group"><label>Previous Address (if less than 2 years)</label><input className="form-control" value={form.previous_address} onChange={e => setForm({...form, previous_address: e.target.value})} /></div>
+          </div>
+        </div>
+      );
+      case 3: return (
+        <div className="wizard-step-content">
+          <div className="wizard-section-header">
+            <span className="icon">📞</span>
+            <div>
+              <h3>Contact Information</h3>
+              <p>Enter the customer's contact and online information.</p>
+            </div>
+          </div>
+          <div className="form-grid">
+            <div className="form-group"><label>Main Number *</label><input className="form-control" value={form.contact} onChange={e => setForm({...form, contact: e.target.value})} /></div>
+            <div className="form-group"><label>Secondary Number</label><input className="form-control" value={form.secondary_contact} onChange={e => setForm({...form, secondary_contact: e.target.value})} /></div>
+          </div>
+          <div className="form-grid">
+            <div className="form-group"><label>Email Address *</label><input type="email" className="form-control" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
+            <div className="form-group"><label>Confirm Email Address *</label><input type="email" className="form-control" value={form.confirm_email} onChange={e => setForm({...form, confirm_email: e.target.value})} /></div>
+          </div>
+          <div className="form-grid">
+            <div className="form-group"><label>Facebook Account</label><input className="form-control" value={form.fb_account} onChange={e => setForm({...form, fb_account: e.target.value})} /></div>
+            <div className="form-group"><label>Messenger (Optional)</label><input className="form-control" value={form.messenger_account} onChange={e => setForm({...form, messenger_account: e.target.value})} /></div>
+          </div>
+
+          <label className="section-label">Preferred Contact Method *</label>
+          <div className="radio-cards" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+            {['Call / SMS', 'Email', 'Messenger', 'Any'].map(m => (
+              <div key={m} className={`radio-card ${form.preferred_contact_method === m ? 'active' : ''}`} onClick={() => setForm({...form, preferred_contact_method: m})} style={{padding: '10px 15px'}}>
+                <input type="radio" checked={form.preferred_contact_method === m} readOnly />
+                <strong style={{marginLeft: 8}}>{m}</strong>
+              </div>
+            ))}
+          </div>
+
+          <label className="section-label">Preferred Contact Time</label>
+          <div className="form-grid">
+            <div className="form-group" style={{display:'flex', alignItems:'center', gap: 10}}>
+              <span style={{color: '#64748b', fontSize: 13, width: 40}}>From</span>
+              <input type="time" className="form-control" value={form.preferred_contact_time_from} onChange={e => setForm({...form, preferred_contact_time_from: e.target.value})} />
+            </div>
+            <div className="form-group" style={{display:'flex', alignItems:'center', gap: 10}}>
+              <span style={{color: '#64748b', fontSize: 13, width: 40}}>To</span>
+              <input type="time" className="form-control" value={form.preferred_contact_time_to} onChange={e => setForm({...form, preferred_contact_time_to: e.target.value})} />
+            </div>
+          </div>
+          <div className="form-group">
+            <label>Additional Notes (Optional)</label>
+            <textarea className="form-control" rows="3" value={form.contact_notes} onChange={e => setForm({...form, contact_notes: e.target.value})}></textarea>
+          </div>
+        </div>
+      );
+      case 4: return (
+        <div className="wizard-step-content">
+          <div className="wizard-section-header">
+            <span className="icon">🏪</span>
+            <div>
+              <h3>Business Information</h3>
+              <p>Enter the customer's business and employment details.</p>
+            </div>
+          </div>
+          <div className="form-grid">
+            <div className="form-group"><label>Business Type *</label><input className="form-control" value={form.business_type} onChange={e => setForm({...form, business_type: e.target.value})} /></div>
+            <div className="form-group"><label>Nature of Business *</label><input className="form-control" value={form.occupation} onChange={e => setForm({...form, occupation: e.target.value})} /></div>
+          </div>
+          <div className="form-group"><label>Business Name *</label><input className="form-control" value={form.business_name} onChange={handleUpper('business_name')} /></div>
+          <div className="form-group"><label>Complete Business Address *</label><input className="form-control" value={form.business_address} onChange={e => setForm({...form, business_address: e.target.value})} /></div>
+          
+          <div className="form-grid">
+            <div className="form-group"><label>Years in Business *</label><input type="number" className="form-control" value={form.business_years} onChange={e => setForm({...form, business_years: e.target.value})} /></div>
+            <div className="form-group"><label>Months in Business *</label><input type="number" className="form-control" value={form.business_months} onChange={e => setForm({...form, business_months: e.target.value})} /></div>
+          </div>
+          <div className="form-grid">
+            <div className="form-group"><label>Average Monthly Gross Income *</label><input type="number" className="form-control" value={form.income_per_month} onChange={e => setForm({...form, income_per_month: e.target.value})} /></div>
+            <div className="form-group"><label>Number of Employees (including owner)</label><input type="number" className="form-control" value={form.business_employees} onChange={e => setForm({...form, business_employees: e.target.value})} /></div>
+          </div>
+          <div className="form-grid">
+            <div className="form-group"><label>Business Ownership *</label>
+              <select className="form-control" value={form.business_ownership} onChange={e => setForm({...form, business_ownership: e.target.value})}>
+                <option value="Sole Proprietorship">Sole Proprietorship</option><option value="Partnership">Partnership</option><option value="Corporation">Corporation</option>
+              </select>
+            </div>
+            <div className="form-group"><label>Business Permit Issued *</label>
+              <select className="form-control" value={form.business_permit} onChange={e => setForm({...form, business_permit: e.target.value})}>
+                <option value="Yes">Yes</option><option value="No">No</option>
+              </select>
+            </div>
+          </div>
+          {form.business_permit === 'Yes' && (
+            <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+              <div className="form-group"><label>Date Issued *</label><input type="date" className="form-control" value={form.permit_date_issued} onChange={e => setForm({...form, permit_date_issued: e.target.value})} /></div>
+              <div className="form-group"><label>Place Issued *</label><input className="form-control" value={form.permit_place_issued} onChange={e => setForm({...form, permit_place_issued: e.target.value})} /></div>
+              <div className="form-group"><label>Permit No.</label><input className="form-control" value={form.permit_no} onChange={e => setForm({...form, permit_no: e.target.value})} /></div>
+            </div>
+          )}
+        </div>
+      );
+      case 5: return (
+        <div className="wizard-step-content">
+          <div className="wizard-section-header">
+            <span className="icon">🪪</span>
+            <div>
+              <h3>Identification Information</h3>
+              <p>Enter the customer's identification details.</p>
+            </div>
+          </div>
+          <div className="form-grid">
+            <div className="form-group"><label>Type of ID *</label>
+              <select className="form-control" value={form.id_type} onChange={e => setForm({...form, id_type: e.target.value})}>
+                <option value="Philippine Identification (PhilID)">Philippine Identification (PhilID)</option>
+                <option value="Driver's License">Driver's License</option>
+                <option value="Passport">Passport</option>
+                <option value="UMID">UMID</option>
+                <option value="Voter's ID">Voter's ID</option>
+                <option value="Others">Others</option>
+              </select>
+            </div>
+            <div className="form-group"><label>ID Number *</label><input className="form-control" value={form.id_number} onChange={e => setForm({...form, id_number: e.target.value})} /></div>
+          </div>
+          <div className="form-grid">
+            <div className="form-group"><label>Issue Date *</label><input type="date" className="form-control" value={form.id_issue_date} onChange={e => setForm({...form, id_issue_date: e.target.value})} /></div>
+            <div className="form-group"><label>Expiry Date *</label><input type="date" className="form-control" value={form.id_expiry_date} onChange={e => setForm({...form, id_expiry_date: e.target.value})} /></div>
+          </div>
+          <div className="form-group"><label>Issued By *</label><input className="form-control" value={form.id_issued_by} onChange={e => setForm({...form, id_issued_by: e.target.value})} /></div>
+          <div className="form-group"><label>Place of Issue</label><input className="form-control" value={form.id_place_of_issue} onChange={e => setForm({...form, id_place_of_issue: e.target.value})} /></div>
+          
+          <label className="section-label">Additional Information (Optional)</label>
+          <div className="form-grid">
+            <div className="form-group"><label>TIN (If available)</label><input className="form-control" value={form.tin_number} onChange={e => setForm({...form, tin_number: e.target.value})} /></div>
+            <div className="form-group"><label>SSS Number (If available)</label><input className="form-control" value={form.sss_number} onChange={e => setForm({...form, sss_number: e.target.value})} /></div>
+          </div>
+          <div className="form-group">
+            <label>Notes (Optional)</label>
+            <textarea className="form-control" rows="3" value={form.id_notes} onChange={e => setForm({...form, id_notes: e.target.value})}></textarea>
+          </div>
+        </div>
+      );
+      case 6: return (
+        <div className="wizard-step-content">
+          <div className="wizard-section-header">
+            <span className="icon">📄</span>
+            <div>
+              <h3>Proposed Loan</h3>
+              <p>Enter the requested loan details and branch assignment.</p>
+            </div>
+          </div>
+          <div className="form-group"><label>Branch *</label>
+            <select className="form-control" value={form.branch_id} onChange={e => setForm({...form, branch_id: e.target.value})}>
+              <option value="">Select Branch</option>
+              {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+            </select>
+          </div>
+          <div className="form-group"><label>Collector *</label>
+            <select className="form-control" value={form.collector_id} onChange={e => setForm({...form, collector_id: e.target.value})}>
+              <option value="">Select Collector</option>
+              {collectors.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+            </select>
+          </div>
+          <div className="form-group"><label>Proposed Principal Amount *</label>
+            <input type="number" className="form-control" value={form.proposed_principal} onChange={e => setForm({...form, proposed_principal: e.target.value})} />
+          </div>
+          <div className="form-group"><label>Loan Purpose *</label>
+            <textarea className="form-control" rows="3" value={form.loan_purpose} onChange={e => setForm({...form, loan_purpose: e.target.value})}></textarea>
+          </div>
+          {error && <div className="login-error" style={{marginTop: 20}}>⚠️ {error}</div>}
+        </div>
+      );
+    }
+  };
+
+  const renderSidebarContent = () => {
+    return (
+      <div className="wizard-right-sidebar">
+        <div className="wizard-sidebar-card">
+          <div className="wsc-header"><span className="icon">👤</span> Customer Code</div>
+          <div className="wsc-body" style={{textAlign: 'center', fontSize: 24, fontWeight: 800, color: '#1d4ed8', background: '#eff6ff', padding: '15px', borderRadius: 8, marginTop: 10}}>
+            {initialData?.customer_code || 'Auto-generated'}
+          </div>
+        </div>
+
+        {step === 4 ? (
+          <div className="wizard-sidebar-card">
+            <div className="wsc-header"><span className="icon">🪪</span> Upload Business Proof (Optional)</div>
+            <div className="wsc-body">
+              <label className="upload-dropzone">
+                <input type="file" style={{display:'none'}} onChange={e => handleFileUpload(e.target.files[0], 'photo_business_proof')} />
+                {form.photo_business_proof ? <img src={`http://localhost:5000${form.photo_business_proof}`} alt="Proof" style={{width:'100%', borderRadius: 8}}/> : (
+                  <>
+                    <div className="icon">☁️</div>
+                    <strong>Click to upload</strong>
+                    <span>or drag and drop<br/><small>JPG, PNG up to 5MB</small></span>
+                  </>
+                )}
+              </label>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="wizard-sidebar-card">
+              <div className="wsc-header"><span className="icon">🪪</span> Upload ID (Front)</div>
+              <div className="wsc-body">
+                <label className="upload-dropzone">
+                  <input type="file" style={{display:'none'}} onChange={e => handleFileUpload(e.target.files[0], 'photo_id_front')} />
+                  {form.photo_id_front ? <img src={`http://localhost:5000${form.photo_id_front}`} alt="ID Front" style={{width:'100%', borderRadius: 8}}/> : (
+                    <>
+                      <div className="icon">☁️</div>
+                      <strong>Click to upload</strong>
+                      <span>or drag and drop<br/><small>JPG, PNG up to 5MB</small></span>
+                    </>
+                  )}
+                </label>
+              </div>
+            </div>
+            {step >= 5 && (
+              <div className="wizard-sidebar-card">
+                <div className="wsc-header"><span className="icon">🪪</span> Upload ID (Back) (Optional)</div>
+                <div className="wsc-body">
+                  <label className="upload-dropzone">
+                    <input type="file" style={{display:'none'}} onChange={e => handleFileUpload(e.target.files[0], 'photo_id_back')} />
+                    {form.photo_id_back ? <img src={`http://localhost:5000${form.photo_id_back}`} alt="ID Back" style={{width:'100%', borderRadius: 8}}/> : (
+                      <>
+                        <div className="icon">☁️</div>
+                        <strong>Click to upload</strong>
+                        <span>or drag and drop<br/><small>JPG, PNG up to 5MB</small></span>
+                      </>
+                    )}
+                  </label>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="modal-overlay wizard-overlay" onMouseDown={e => e.target === e.currentTarget && onClose()}>
+      <div className="wizard-modal">
+        <div className="wizard-header">
+          <div className="wizard-title">
+            <div className="icon-wrapper">👤+</div>
+            <div>
+              <h2>{initialData ? 'Edit Customer Registration' : 'New Customer Registration'}</h2>
+              <p>Create a new customer profile and proceed to credit investigation.</p>
+            </div>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="wizard-progress-bar">
+          {STEPS.map((s, i) => (
+            <React.Fragment key={s.id}>
+              <div className={`wp-step ${step >= s.id ? 'active' : ''} ${step > s.id ? 'completed' : ''}`} onClick={() => setStep(s.id)}>
+                <div className="wp-circle">{step > s.id ? '✓' : s.id}</div>
+                <div className="wp-text">
+                  <strong>{s.title}</strong>
+                </div>
+              </div>
+              {i < STEPS.length - 1 && <div className={`wp-line ${step > s.id ? 'active' : ''}`}></div>}
+            </React.Fragment>
+          ))}
+        </div>
+
+        <div className="wizard-body">
+          <div className="wizard-left-sidebar">
+            <div className="step-indicator">STEP {step} OF 6</div>
+            <div className="step-progress-track">
+              <div className="step-progress-fill" style={{ width: `${(step/6)*100}%` }}></div>
+            </div>
+            
+            <div className="wizard-nav-list">
+              {STEPS.map(s => (
+                <div key={s.id} className={`wn-item ${step === s.id ? 'active' : ''} ${step > s.id ? 'completed' : ''}`} onClick={() => setStep(s.id)}>
+                  <div className="wn-icon">{step > s.id ? '✓' : s.icon}</div>
+                  <div>
+                    <strong>{s.title}</strong>
+                    <span>{s.sub}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="wizard-tip">
+              <span className="icon">💡</span>
+              <div>
+                <strong>Quick Tip</strong>
+                <p style={{margin:0, marginTop:5, color:'#1d4ed8'}}>Please complete all required fields marked with * to continue.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="wizard-center">
+            {renderStepContent()}
+          </div>
+
+          <div className="wizard-right">
+            {renderSidebarContent()}
+          </div>
+        </div>
+
+        <div className="wizard-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {step > 1 && <button className="btn btn-secondary" onClick={prevStep}>&lt; Back</button>}
+            {step < 6 ? 
+              <button className="btn btn-primary" onClick={nextStep} style={{background:'#1d4ed8', color:'#fff', padding:'10px 24px', border:'none', borderRadius:8}}>Next &gt;</button> : 
+              <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{background:'#1d4ed8', color:'#fff', padding:'10px 24px', border:'none', borderRadius:8}}>{saving ? 'Saving...' : 'Save Registration'}</button>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import API from '../services/api'
+import logoImg from '../assets/logo.png'
 
 const NAV = [
   { path: '/', label: 'Dashboard', icon: '📊', section: 'Main' },
@@ -58,9 +59,8 @@ export default function Layout() {
   return (
     <div className="app-layout">
       <aside className="sidebar">
-        <div className="sidebar-brand">
-          <h1>🏦 Melann Lending</h1>
-          <p>System V2 — Modernized</p>
+        <div className="sidebar-brand" style={{ display: 'flex', justifyContent: 'center', padding: '15px 20px', borderBottom: '1px solid #1e293b' }}>
+          <img src={logoImg} alt="Melann Lending" style={{ maxWidth: '80%', height: 'auto' }} />
         </div>
         <nav className="sidebar-nav">
           {sections.map(section => (

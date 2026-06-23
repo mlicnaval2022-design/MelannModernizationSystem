@@ -437,6 +437,118 @@ select.form-control option { background: var(--bg-secondary); }
   #printable-area, #printable-area * { visibility: visible; }
   #printable-area { position: absolute; left: 0; top: 0; width: 100%; }
   .btn, .modal-close, .search-input-wrap, select { display: none !important; }
-  .data-table th, .data-table td { border: 1px solid #ddd; color: black; padding: 6px; }
   .badge { border: 1px solid #aaa; color: black !important; background: transparent !important; }
+}
+
+/* ===================== WIZARD ===================== */
+.wizard-overlay { padding: 40px; }
+.wizard-modal {
+  max-width: 1200px; max-height: 95vh;
+  display: flex; flex-direction: column; overflow: hidden;
+  background: #f8fafc; /* light gray background like mockup */
+}
+.wizard-header {
+  background: #fff; padding: 20px 30px;
+  display: flex; justify-content: space-between; align-items: flex-start;
+  border-bottom: 1px solid #e2e8f0;
+}
+.wizard-title { display: flex; gap: 15px; align-items: center; }
+.wizard-title .icon-wrapper {
+  background: #eff6ff; color: #1d4ed8; width: 48px; height: 48px;
+  border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: bold;
+}
+.wizard-title h2 { font-size: 20px; font-weight: 800; color: #0f172a; margin: 0 0 4px 0; }
+.wizard-title p { font-size: 13px; color: #64748b; margin: 0; }
+
+.wizard-progress-bar {
+  background: #fff; padding: 15px 30px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid #e2e8f0;
+}
+.wp-step { display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative; z-index: 2; cursor: pointer; }
+.wp-circle {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: #f1f5f9; color: #94a3b8; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid #e2e8f0; transition: all 0.2s;
+}
+.wp-step.active .wp-circle { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
+.wp-step.completed .wp-circle { background: #fff; color: #1d4ed8; border-color: #1d4ed8; }
+.wp-text strong { font-size: 11px; color: #94a3b8; font-weight: 700; }
+.wp-step.active .wp-text strong { color: #0f172a; }
+.wp-line { flex: 1; height: 2px; background: #e2e8f0; margin: -20px 10px 0 10px; z-index: 1; }
+.wp-line.active { background: #1d4ed8; }
+
+.wizard-body {
+  display: grid; grid-template-columns: 240px 1fr 280px;
+  flex: 1; overflow: hidden;
+}
+.wizard-left-sidebar {
+  background: #f8fafc; padding: 25px;
+  border-right: 1px solid #e2e8f0; overflow-y: auto;
+}
+.step-indicator { font-size: 10px; font-weight: 800; color: #64748b; margin-bottom: 8px; }
+.step-progress-track { background: #e2e8f0; height: 6px; border-radius: 3px; margin-bottom: 25px; overflow: hidden; }
+.step-progress-fill { background: #1d4ed8; height: 100%; transition: width 0.3s ease; }
+
+.wizard-nav-list { display: flex; flex-direction: column; gap: 5px; margin-bottom: 30px; }
+.wn-item {
+  display: flex; align-items: center; gap: 12px; padding: 12px;
+  border-radius: 8px; cursor: pointer; transition: all 0.2s;
+}
+.wn-item.active { background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.wn-item .wn-icon {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: #f1f5f9; display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+.wn-item.active .wn-icon { background: #eff6ff; color: #1d4ed8; }
+.wn-item.completed .wn-icon { background: #10b981; color: #fff; }
+.wn-item strong { display: block; font-size: 13px; color: #0f172a; font-weight: 700; }
+.wn-item span { display: block; font-size: 11px; color: #64748b; }
+
+.wizard-tip { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 15px; display: flex; gap: 10px; }
+
+.wizard-center {
+  background: #fff; padding: 30px; overflow-y: auto;
+}
+.wizard-section-header { display: flex; gap: 12px; align-items: center; margin-bottom: 25px; }
+.wizard-section-header .icon {
+  width: 40px; height: 40px; border-radius: 8px; background: #eff6ff;
+  display: flex; align-items: center; justify-content: center; font-size: 20px;
+}
+.wizard-section-header h3 { margin: 0; font-size: 18px; color: #1d4ed8; font-weight: 800; }
+.wizard-section-header p { margin: 0; font-size: 13px; color: #64748b; }
+.section-label { display: block; font-size: 13px; font-weight: 700; color: #334155; margin: 25px 0 10px 0; }
+
+.radio-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 15px; }
+.radio-card {
+  border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px;
+  display: flex; gap: 12px; cursor: pointer; transition: all 0.2s; background: #fff;
+}
+.radio-card:hover { border-color: #cbd5e1; }
+.radio-card.active { border-color: #3b82f6; background: #eff6ff; }
+.radio-content strong { display: block; font-size: 13px; color: #0f172a; margin-bottom: 4px; }
+.radio-content span { display: block; font-size: 11px; color: #64748b; }
+.risk-card.active { border-width: 2px; }
+
+.wizard-right { background: #f8fafc; border-left: 1px solid #e2e8f0; padding: 25px; overflow-y: auto; }
+.wizard-sidebar-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 20px; overflow: hidden; }
+.wsc-header { background: #f8fafc; padding: 12px 15px; font-size: 13px; font-weight: 700; color: #0f172a; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 8px; }
+.wsc-body { padding: 15px; }
+
+.upload-dropzone {
+  border: 2px dashed #cbd5e1; border-radius: 8px; padding: 25px 15px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; cursor: pointer; transition: all 0.2s; background: #f8fafc;
+}
+.upload-dropzone:hover { border-color: #3b82f6; background: #eff6ff; }
+.upload-dropzone .icon { font-size: 32px; color: #3b82f6; margin-bottom: 10px; }
+.upload-dropzone strong { font-size: 13px; color: #1d4ed8; }
+.upload-dropzone span { font-size: 11px; color: #64748b; margin-top: 4px; }
+
+.wizard-footer {
+  background: #fff; padding: 20px 30px; border-top: 1px solid #e2e8f0;
+  display: flex; justify-content: space-between; align-items: center;
 }

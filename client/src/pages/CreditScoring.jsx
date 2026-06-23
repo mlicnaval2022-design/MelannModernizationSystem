@@ -13,6 +13,7 @@ export default function CreditScoring() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('pending') // Default to pending CI
   const [loading, setLoading] = useState(true)
+  const [counts, setCounts] = useState({ pending: 0, for_approval: 0 })
   
   const [appModal, setAppModal] = useState(false)
   const [form, setForm] = useState(EMPTY)
@@ -26,7 +27,44 @@ export default function CreditScoring() {
   
   const hc = (f) => (e) => setCiForm(prev => ({...prev, [f]: e.target.type === 'checkbox' ? (e.target.checked ? 1 : 0) : e.target.value}))
 
-  const load = () => { setLoading(true); API.get('/loans', { params: { search, status } }).then(r => setRows(r.data)).finally(() => setLoading(false)) }
+  const [managerModal, setManagerModal] = useState(false)
+  const [managerForm, setManagerForm] = useState({ decision: '', remarks: '', approved_amount: '' })
+  const [managerSaving, setManagerSaving] = useState(false)
+
+  const openManagerReview = async (loan) => {
+    setCiLoan(loan);
+    setCiForm({});
+    setManagerForm({ decision: '', remarks: '', approved_amount: loan.principal || '' });
+    setManagerModal(true);
+    try {
+      const res = await API.get(`/loans/${loan.id}/ci`);
+      if (res.data && res.data.id) setCiForm(res.data);
+    } catch (e) { console.error(e); }
+  }
+
+  const handleManagerSubmit = async (e) => {
+    e.preventDefault();
+    setManagerSaving(true);
+    try {
+      await API.post(`/loans/${ciLoan.id}/manager-decision`, managerForm);
+      setManagerModal(false);
+      load();
+    } catch (err) { alert(err.response?.data?.error || 'Error saving manager decision'); }
+    finally { setManagerSaving(false); }
+  }
+
+  const fetchCounts = async () => {
+    try {
+      const res = await API.get('/reports/dashboard');
+      setCounts({ pending: res.data.pending_ci_count || 0, for_approval: res.data.for_approval_count || 0 });
+    } catch(e) { console.error(e) }
+  }
+
+  const load = () => { 
+    setLoading(true); 
+    API.get('/loans', { params: { search, status } }).then(r => setRows(r.data)).finally(() => setLoading(false)) 
+    fetchCounts();
+  }
   useEffect(() => { load() }, [search, status])
   useEffect(() => {
     API.get('/customers', { params: { status: 'active' } }).then(r => setCustomers(r.data))
@@ -156,52 +194,144 @@ export default function CreditScoring() {
 
   return (
     <div>
-      <div className="page-toolbar">
-        <div className="search-input-wrap">
-          <span className="search-icon">🔍</span>
-          <input id="ci-search" className="form-control" placeholder="Search name, code..." value={search} onChange={e => setSearch(e.target.value)} />
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 8, background: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
+            📋
+          </div>
+          <h2 style={{ margin: 0, fontSize: 24, color: '#0f172a', fontWeight: 800 }}>
+            Credit Scoring
+          </h2>
+          <div style={{ color: '#64748b', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, marginLeft: 15 }}>
+            <span style={{ fontSize: 16 }}>📅</span> {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+          </div>
         </div>
-        <select id="ci-status-filter" className="form-control" style={{ width: 150 }} value={status} onChange={e => setStatus(e.target.value)}>
-          <option value="">All Applications</option>
-          <option value="pending">Pending CI</option>
-          <option value="approved">Approved CI</option>
-          <option value="rejected">Rejected</option>
-        </select>
-        <button id="btn-new-ci" className="btn btn-primary" onClick={() => { setForm(EMPTY); setError(''); setAppModal(true) }}>+ New CI Application</button>
+        <button onClick={load} style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
+          ↻
+        </button>
       </div>
 
-      <div className="card">
-        <div className="table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr><th>App #</th><th>Customer</th><th>Type</th><th>Proposed Amount</th><th>Applied Date</th><th>Status</th><th>Actions</th></tr>
-            </thead>
-            <tbody>
-              {loading ? <tr className="loading-row"><td colSpan={7}>⏳ Loading...</td></tr>
-                : rows.length === 0 ? <tr><td colSpan={7} className="empty-state">No applications found</td></tr>
-                : rows.map(r => (
-                  <tr key={r.id}>
-                    <td><span className="mono">{r.loan_code}</span></td>
-                    <td className="fw-600">{r.customer_name}</td>
-                    <td><span className="tag">{r.loan_type}</span></td>
-                    <td className="text-right fw-bold text-primary">₱ {fmt(r.principal)}</td>
-                    <td>{r.date_released}</td>
-                    <td>
-                      {r.status === 'approved' ? <span className="badge badge-active">Approved</span> :
-                       r.status === 'rejected' ? <span className="badge badge-danger">Rejected</span> :
-                       <span className="badge badge-warning">Pending CI</span>}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button className="btn btn-primary btn-sm" onClick={() => openCI(r)}>
-                          {r.status === 'pending' ? 'Conduct CI' : 'View CI'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
+      {/* Search and Action Bar */}
+      <div style={{ display: 'flex', gap: 15, marginBottom: 25 }}>
+        <div style={{ flex: 1, position: 'relative', maxWidth: 400 }}>
+          <span style={{ position: 'absolute', left: 15, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>🔍</span>
+          <input 
+            className="form-control" 
+            style={{ paddingLeft: 40, width: '100%', borderRadius: 8, border: '1px solid #e2e8f0', padding: '12px 12px 12px 40px', outline: 'none' }} 
+            placeholder="Search name, code, application #..." 
+            value={search} 
+            onChange={e => setSearch(e.target.value)} 
+          />
+        </div>
+
+      </div>
+
+      {/* Tabs / Metric Cards */}
+      <div style={{ display: 'flex', gap: 20, marginBottom: 25 }}>
+        <div 
+          onClick={() => setStatus('pending')} 
+          style={{ flex: 1, background: '#fff', border: status === 'pending' ? '2px solid #3b82f6' : '1px solid #e2e8f0', borderRadius: 8, padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, cursor: 'pointer', boxShadow: status === 'pending' ? '0 4px 6px -1px rgba(59, 130, 246, 0.1)' : 'none', transition: 'all 0.2s' }}>
+          <span style={{ fontSize: 22 }}>📋</span>
+          <span style={{ fontSize: 18, fontWeight: 700, color: status === 'pending' ? '#1d4ed8' : '#334155' }}>For CI</span>
+          <span style={{ background: status === 'pending' ? '#eff6ff' : '#f8fafc', color: status === 'pending' ? '#3b82f6' : '#94a3b8', padding: '4px 12px', borderRadius: 20, fontSize: 14, fontWeight: 800 }}>{counts.pending}</span>
+        </div>
+        <div 
+          onClick={() => setStatus('for_approval')} 
+          style={{ flex: 1, background: '#fff', border: status === 'for_approval' ? '2px solid #10b981' : '1px solid #e2e8f0', borderRadius: 8, padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, cursor: 'pointer', boxShadow: status === 'for_approval' ? '0 4px 6px -1px rgba(16, 185, 129, 0.1)' : 'none', transition: 'all 0.2s' }}>
+          <span style={{ fontSize: 22 }}>✅</span>
+          <span style={{ fontSize: 18, fontWeight: 700, color: status === 'for_approval' ? '#047857' : '#334155' }}>For Approval</span>
+          <span style={{ background: status === 'for_approval' ? '#ecfdf5' : '#f8fafc', color: status === 'for_approval' ? '#10b981' : '#94a3b8', padding: '4px 12px', borderRadius: 20, fontSize: 14, fontWeight: 800 }}>{counts.for_approval}</span>
+        </div>
+      </div>
+
+      {/* Table Card */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+        {/* Table Toolbar */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '15px 20px', gap: 10 }}>
+          <button style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#334155', fontWeight: 600, cursor: 'pointer' }}>
+            <span style={{ transform: 'rotate(90deg)' }}>⚲</span> Filter
+          </button>
+          <button style={{ width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#334155', cursor: 'pointer' }}>
+            ◫
+          </button>
+        </div>
+
+        {/* Table */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          <thead style={{ background: '#f8fafc' }}>
+            <tr>
+              <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>App #</th>
+              <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Customer</th>
+              <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', textAlign: 'center' }}>Type</th>
+              <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', textAlign: 'center' }}>Proposed Amount</th>
+              <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', textAlign: 'center' }}>Applied Date</th>
+              <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', textAlign: 'center' }}>Status</th>
+              <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', textAlign: 'center' }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? <tr><td colSpan={7} style={{ padding: 50, textAlign: 'center', color: '#64748b' }}>⏳ Loading...</td></tr>
+              : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: '80px 20px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 64, marginBottom: 20, color: '#cbd5e1' }}>📬</div>
+                    <h3 style={{ margin: 0, fontSize: 18, color: '#0f172a', fontWeight: 700, marginBottom: 10 }}>No applications found</h3>
+                    <p style={{ margin: 0, color: '#64748b', fontSize: 14, marginBottom: 25 }}>There are currently no applications for Credit Investigation.</p>
+
+                  </td>
+                </tr>
+              )
+              : rows.map(r => (
+                <tr key={r.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                  <td style={{ padding: '16px 20px', color: '#3b82f6', fontWeight: 600 }}>{r.loan_code}</td>
+                  <td style={{ padding: '16px 20px', color: '#0f172a', fontWeight: 700 }}>{r.customer_name}</td>
+                  <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                    <span style={{ padding: '4px 10px', background: '#f1f5f9', color: '#475569', borderRadius: 4, fontSize: 12, fontWeight: 600 }}>{r.loan_type}</span>
+                  </td>
+                  <td style={{ padding: '16px 20px', color: '#0f172a', fontWeight: 800, textAlign: 'center' }}>₱ {fmt(r.principal)}</td>
+                  <td style={{ padding: '16px 20px', color: '#475569', textAlign: 'center' }}>{r.date_released}</td>
+                  <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                    {r.status === 'approved' ? <span style={{ padding: '4px 12px', background: '#dcfce7', color: '#16a34a', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>Approved</span> :
+                     r.status === 'for_approval' ? <span style={{ padding: '4px 12px', background: '#dbeafe', color: '#1d4ed8', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>For Approval</span> :
+                     r.status === 'rejected' ? <span style={{ padding: '4px 12px', background: '#fee2e2', color: '#ef4444', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>Rejected</span> :
+                     <span style={{ padding: '4px 12px', background: '#fef3c7', color: '#d97706', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>Pending CI</span>}
+                  </td>
+                  <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                      {r.status === 'pending' ? (
+                        <button style={{ padding: '6px 12px', background: '#eff6ff', color: '#3b82f6', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }} onClick={() => openCI(r)}>Conduct CI</button>
+                      ) : r.status === 'for_approval' ? (
+                        <button style={{ padding: '6px 12px', background: '#ecfdf5', color: '#10b981', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }} onClick={() => openManagerReview(r)}>Review App</button>
+                      ) : (
+                        <button style={{ padding: '6px 12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }} onClick={() => openCI(r)}>View CI</button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+
+        {/* Pagination Footer */}
+        <div style={{ padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', background: '#fff' }}>
+          <div style={{ color: '#64748b', fontSize: 13 }}>
+            Showing {rows.length > 0 ? 1 : 0} to {rows.length} of {rows.length} entries
+          </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {['«', '‹', '1', '›', '»'].map((b, i) => (
+                <button key={i} style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: b === '1' ? 'none' : '1px solid #e2e8f0', background: b === '1' ? '#2563eb' : '#fff', color: b === '1' ? '#fff' : '#64748b', fontWeight: b === '1' ? 700 : 400, cursor: 'pointer' }}>
+                  {b}
+                </button>
+              ))}
+            </div>
+            <select style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #e2e8f0', color: '#334155', background: '#fff', outline: 'none', cursor: 'pointer' }}>
+              <option>10 / page</option>
+              <option>20 / page</option>
+              <option>50 / page</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -459,14 +589,96 @@ export default function CreditScoring() {
                   <input className="form-control" style={{ flex: 1, border: 'none', borderBottom: '1px solid #000', borderRadius: 0, background: 'transparent' }} value={ciForm.ci_notes || ''} onChange={hc('ci_notes')} disabled={ciLoan.status !== 'pending'} />
                 </div>
 
-                {ciLoan.status === 'pending' && hasRole('admin', 'manager') && (
+                {ciLoan.status === 'pending' && (
                   <div style={{ display: 'flex', justifyContent: 'center', gap: 15, marginTop: 25, borderTop: '1px solid #eee', paddingTop: 20 }}>
-                    <button className="btn btn-danger" onClick={() => handleCISave('reject')} style={{ width: 150 }}>Declined</button>
-
-                    <button className="btn btn-secondary" onClick={() => handleCISave('reduce')} style={{ width: 150 }}>Reduce Loan</button>
-                    <button className="btn btn-success" onClick={() => handleCISave('approve')} style={{ width: 150 }}>Approved</button>
+                    <button className="btn btn-success" onClick={() => handleCISave('for_approval')} style={{ width: 200, padding: '12px', fontSize: '16px' }}>✅ For Approval</button>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== Manager Review Modal ===================== */}
+      {managerModal && ciLoan && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setManagerModal(false)}>
+          <div className="modal" style={{ maxWidth: 900 }}>
+            <div className="modal-header">
+              <span className="modal-title">MANAGER REVIEW - {ciLoan.customer_name}</span>
+              <button className="modal-close" onClick={() => setManagerModal(false)}>✕</button>
+            </div>
+            <div className="modal-body" style={{ background: '#fff' }}>
+              {(() => {
+                const assessment = getCreditAssessment();
+                return (
+                  <div style={{ marginBottom: 20, padding: 15, borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', gap: 20 }}>
+                    <div style={{ flex: 1 }}>
+                      <div className="text-muted fw-bold" style={{ fontSize: 12 }}>CREDIT SCORE</div>
+                      <div style={{ fontSize: 42, fontWeight: 800, color: assessment.color, lineHeight: 1 }}>{assessment.score}</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: assessment.color }}>{assessment.level}</div>
+                    </div>
+                    <div style={{ flex: 2 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div>
+                          <div className="text-muted" style={{ fontSize: 12 }}>Recommended Action</div>
+                          <div className="fw-bold" style={{ color: assessment.color }}>{assessment.recommendation}</div>
+                        </div>
+                        <div>
+                          <div className="text-muted" style={{ fontSize: 12 }}>Disposable Income</div>
+                          <div className="fw-bold">₱ {fmt(assessment.disposableIncome)}</div>
+                        </div>
+                        <div>
+                          <div className="text-muted" style={{ fontSize: 12 }}>Proposed Loan Amount</div>
+                          <div className="fw-bold text-primary">₱ {fmt(ciLoan.principal)}</div>
+                        </div>
+                        <div>
+                          <div className="text-muted" style={{ fontSize: 12 }}>Supervisor Notes</div>
+                          <div className="fw-bold">{ciForm.ci_notes || 'N/A'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <h5 style={{ background: '#dce8f5', padding: '8px 12px', border: '1px solid #123A63', margin: 0, color: '#123A63' }}>MANAGER DECISION</h5>
+              <div style={{ border: '1px solid #123A63', borderTop: 'none', padding: 15, background: '#f8fafc' }}>
+                <form onSubmit={handleManagerSubmit}>
+                  {managerForm.decision === 'reduce' && (
+                    <div className="form-group mb-3">
+                      <label className="form-label fw-bold">Approved Loan Amount (Reduced) *</label>
+                      <input type="number" className="form-control" style={{ maxWidth: 200, fontSize: 18, fontWeight: 'bold', color: 'var(--primary)' }} value={managerForm.approved_amount} onChange={e => setManagerForm(f => ({ ...f, approved_amount: e.target.value }))} required />
+                    </div>
+                  )}
+                  {managerForm.decision && (
+                    <div className="form-group mb-3">
+                      <label className="form-label fw-bold">Manager Remarks {managerForm.decision !== 'approve' && '*'}</label>
+                      <textarea className="form-control" rows="3" value={managerForm.remarks} onChange={e => setManagerForm(f => ({ ...f, remarks: e.target.value }))} required={managerForm.decision !== 'approve'}></textarea>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 15, marginTop: 20 }}>
+                    {hasRole('admin', 'manager') ? (
+                      managerForm.decision ? (
+                        <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+                          <button type="button" className="btn btn-secondary" onClick={() => setManagerForm(f => ({ ...f, decision: '' }))} style={{ flex: 1 }}>← Back</button>
+                          <button type="submit" className="btn btn-primary" style={{ flex: 2 }} disabled={managerSaving}>
+                            {managerSaving ? 'Processing...' : `Confirm ${managerForm.decision.toUpperCase()}`}
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 15, width: '100%', justifyContent: 'center' }}>
+                          <button type="button" className="btn btn-danger" onClick={() => setManagerForm(f => ({ ...f, decision: 'reject' }))} style={{ width: 150 }}>❌ Reject</button>
+                          <button type="button" className="btn btn-warning" onClick={() => setManagerForm(f => ({ ...f, decision: 'reduce' }))} style={{ width: 150, color: '#fff', background: '#eab308' }}>⚠ Reduce Loan</button>
+                          <button type="button" className="btn btn-success" onClick={() => setManagerForm(f => ({ ...f, decision: 'approve' }))} style={{ width: 150 }}>✅ Approve</button>
+                        </div>
+                      )
+                    ) : (
+                      <div className="text-danger fw-bold">You do not have permission to approve loans.</div>
+                    )}
+                  </div>
+                </form>
               </div>
             </div>
           </div>

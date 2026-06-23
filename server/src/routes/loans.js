@@ -59,7 +59,14 @@ router.get('/lookup/client', authenticateToken, async (req, res) => {
       JOIN tblCustomer c ON l.customer_id = c.id 
       LEFT JOIN tblCollector co ON l.collector_id = co.id
       WHERE c.customer_code = ?
-      ORDER BY l.created_at DESC
+      ORDER BY 
+        CASE 
+          WHEN l.status IN ('active', 'pastdue') THEN 1 
+          WHEN l.status = 'approved' THEN 2
+          WHEN l.status IN ('pending', 'for_approval') THEN 3
+          ELSE 4
+        END ASC,
+        l.created_at DESC
       LIMIT 1
     `, [code]);
     
@@ -153,7 +160,10 @@ router.post('/:id/ci', authenticateToken, requireRole('admin', 'manager'), async
          check_location, check_activity, check_residency, check_borrowing, check_understanding, check_permit, check_purpose, check_source, check_consent, check_escalate, ci_notes, endorsement, req.user.id]);
     }
 
-    if (endorsement === 'approve' || endorsement === 'Approve') {
+    if (endorsement === 'for_approval') {
+      await dbRun(`UPDATE tblLoan SET status='for_approval', updated_at=datetime('now') WHERE id=?`, [loan_id]);
+      await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'FOR_APPROVAL', 'LOAN', loan_id, `CI Submitted for Manager Approval`]);
+    } else if (endorsement === 'approve' || endorsement === 'Approve') {
       await dbRun(`UPDATE tblLoan SET status='approved', updated_at=datetime('now') WHERE id=?`, [loan_id]);
       await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'APPROVE', 'LOAN', loan_id, `CI Approved (Waiting for Release)`]);
     } else if (endorsement === 'reject' || endorsement === 'Reject') {
@@ -162,6 +172,41 @@ router.post('/:id/ci', authenticateToken, requireRole('admin', 'manager'), async
     }
 
     res.json({ message: 'CI Form saved successfully' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/:id/manager-decision', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const loan_id = req.params.id;
+    const loan = await dbGet('SELECT * FROM tblLoan WHERE id = ?', [loan_id]);
+    if (!loan) return res.status(404).json({ error: 'Loan not found' });
+    if (loan.status !== 'for_approval') return res.status(400).json({ error: 'Loan is not awaiting manager approval' });
+
+    const { decision, remarks, approved_amount } = req.body;
+
+    if (decision === 'approve') {
+      await dbRun(`UPDATE tblLoan SET status='approved', updated_at=datetime('now') WHERE id=?`, [loan_id]);
+      await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'APPROVE', 'LOAN', loan_id, `Manager Approved Loan`]);
+    } else if (decision === 'reject') {
+      if (!remarks) return res.status(400).json({ error: 'Remarks are required for rejection' });
+      await dbRun(`UPDATE tblLoan SET status='rejected', remarks=?, updated_at=datetime('now') WHERE id=?`, [remarks, loan_id]);
+      await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REJECT', 'LOAN', loan_id, `Manager Rejected Loan: ${remarks}`]);
+    } else if (decision === 'reduce') {
+      if (!remarks || !approved_amount) return res.status(400).json({ error: 'Approved amount and remarks are required' });
+      const newPrincipal = Number(approved_amount);
+      const { interest_amount, total_amortization, amortization } = computeAmortization(newPrincipal, loan.interest_rate || 0, loan.loan_period || 45);
+      const { net_proceeds } = computeNetProceeds(newPrincipal, 0, 0, 0, 0);
+      
+      const newRemarks = loan.remarks ? `${loan.remarks} | Reduced: ${remarks}` : `Reduced: ${remarks}`;
+      
+      await dbRun(`UPDATE tblLoan SET principal=?, interest_amount=?, amortization=?, total_amortization=?, balance=?, net_proceeds=?, remarks=?, status='approved', updated_at=datetime('now') WHERE id=?`, 
+        [newPrincipal, interest_amount, amortization, total_amortization, total_amortization, net_proceeds, newRemarks, loan_id]);
+      await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REDUCE', 'LOAN', loan_id, `Manager Reduced Loan to ${newPrincipal}: ${remarks}`]);
+    } else {
+      return res.status(400).json({ error: 'Invalid decision' });
+    }
+
+    res.json({ message: 'Manager decision recorded successfully' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

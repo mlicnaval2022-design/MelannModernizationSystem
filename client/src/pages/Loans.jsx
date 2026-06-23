@@ -161,52 +161,143 @@ export default function Loans() {
 
       {/* ===================== Loan Detail Modal ===================== */}
       {detailModal && detailLoan && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setDetailModal(false)}>
-          <div className="modal" style={{ maxWidth: 820 }}>
-            <div className="modal-header">
-              <span className="modal-title">📄 {detailLoan.loan_code} — {detailLoan.customer_name}</span>
-              <button className="modal-close" onClick={() => setDetailModal(false)}>✕</button>
+        <div className="modal-overlay" style={{ background: 'rgba(0,0,0,0.4)', padding: 20 }} onClick={e => e.target === e.currentTarget && setDetailModal(false)}>
+          <div className="modal" style={{ maxWidth: 950, borderRadius: 16, padding: '30px', background: '#fff', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)' }}>
+            
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 8, background: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
+                  📄
+                </div>
+                <h2 style={{ margin: 0, fontSize: 22, color: '#0f172a', fontWeight: 700 }}>
+                  {detailLoan.loan_code} — {detailLoan.customer_name}
+                </h2>
+              </div>
+              <button onClick={() => setDetailModal(false)} style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: '#f1f5f9', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
+                ✕
+              </button>
             </div>
-            <div className="modal-body">
-              {/* Summary Info */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 }}>
-                {[['Customer', detailLoan.customer_name], ['Type', detailLoan.loan_type], ['Principal', '₱ ' + fmt(detailLoan.principal)], ['Balance', '₱ ' + fmt(detailLoan.balance)], ['Released', detailLoan.date_released], ['Maturity', detailLoan.date_maturity], ['Daily Amort.', '₱ ' + fmt(detailLoan.amortization)], ['Status', detailLoan.status]].map(([l, v]) => (
-                  <div key={l} style={{ padding: '8px 10px', background: 'var(--bg-input)', borderRadius: 6 }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{l}</div>
-                    <div style={{ fontWeight: 600, fontSize: 12 }}>{v}</div>
+
+            {/* Grid Details */}
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: '20px 25px', marginBottom: 25 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '25px 20px', borderBottom: '1px solid #f1f5f9', paddingBottom: 20, marginBottom: 20 }}>
+                {/* Customer */}
+                <div style={{ display: 'flex', gap: 15 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>👤</div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 0.5 }}>CUSTOMER</div>
+                    <div style={{ fontWeight: 800, fontSize: 14, color: '#0f172a', marginTop: 4, lineHeight: 1.2 }}>{detailLoan.customer_name}</div>
                   </div>
-                ))}
+                </div>
+                {/* Type */}
+                <div style={{ display: 'flex', gap: 15 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: '#ecfdf5', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>✔️</div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 0.5 }}>TYPE</div>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', marginTop: 4 }}>{detailLoan.loan_type}</div>
+                  </div>
+                </div>
+                {/* Principal */}
+                <div style={{ display: 'flex', gap: 15 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: '#f3e8ff', color: '#a855f7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>👝</div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 0.5 }}>PRINCIPAL</div>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', marginTop: 4 }}>₱ {fmt(detailLoan.principal)}</div>
+                  </div>
+                </div>
+                {/* Balance */}
+                <div style={{ display: 'flex', gap: 15 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>👝</div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 0.5 }}>BALANCE</div>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', marginTop: 4 }}>₱ {fmt(detailLoan.balance)}</div>
+                  </div>
+                </div>
               </div>
 
-              {/* Tabs */}
-              <div style={{ display: 'flex', gap: 6, marginBottom: 12, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-                {[['payments', '💳 Payments'], ['schedule', '📅 Amortization Schedule']].map(([t, l]) => (
-                  <button key={t} className={`btn btn-sm ${detailTab === t ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setDetailTab(t)}>{l}</button>
-                ))}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '25px 20px' }}>
+                {/* Released */}
+                <div style={{ display: 'flex', gap: 15 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>📅</div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 0.5 }}>RELEASED</div>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', marginTop: 4 }}>{detailLoan.date_released}</div>
+                  </div>
+                </div>
+                {/* Maturity */}
+                <div style={{ display: 'flex', gap: 15 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: '#f3e8ff', color: '#a855f7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>📅</div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 0.5 }}>MATURITY</div>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', marginTop: 4 }}>{detailLoan.date_maturity}</div>
+                  </div>
+                </div>
+                {/* Daily Amort */}
+                <div style={{ display: 'flex', gap: 15 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>🪙</div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 0.5 }}>DAILY AMORT.</div>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', marginTop: 4 }}>₱ {fmt(detailLoan.amortization)}</div>
+                  </div>
+                </div>
+                {/* Status */}
+                <div style={{ display: 'flex', gap: 15 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: '#ecfdf5', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>✔️</div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: 0.5 }}>STATUS</div>
+                    <div style={{ marginTop: 4 }}>
+                      <span style={{ display: 'inline-block', padding: '4px 10px', background: '#dcfce7', color: '#16a34a', borderRadius: 4, fontSize: 12, fontWeight: 800 }}>
+                        {detailLoan.status.charAt(0).toUpperCase() + detailLoan.status.slice(1)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
+            </div>
 
+            {/* Tabs */}
+            <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+              <button onClick={() => setDetailTab('payments')} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px', borderRadius: 8, border: detailTab === 'payments' ? 'none' : '1px solid #e2e8f0', background: detailTab === 'payments' ? '#0f172a' : '#fff', color: detailTab === 'payments' ? '#fff' : '#3b82f6', fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'all 0.2s' }}>
+                <span style={{ fontSize: 16 }}>💳</span> Payments
+              </button>
+              <button onClick={() => setDetailTab('schedule')} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px', borderRadius: 8, border: detailTab === 'schedule' ? 'none' : '1px solid #e2e8f0', background: detailTab === 'schedule' ? '#0f172a' : '#fff', color: detailTab === 'schedule' ? '#fff' : '#3b82f6', fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'all 0.2s' }}>
+                <span style={{ fontSize: 16 }}>📅</span> Amortization Schedule
+              </button>
+            </div>
+
+            {/* Tables Container */}
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden' }}>
               {/* Payments Tab */}
               {detailTab === 'payments' && (
-                <table className="data-table">
-                  <thead><tr><th>OR#</th><th>Date</th><th>Amount</th><th>Balance Before</th><th>Balance After</th></tr></thead>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead style={{ background: '#f8fafc' }}>
+                    <tr>
+                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>OR#</th>
+                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>DATE</th>
+                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>AMOUNT</th>
+                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>BALANCE BEFORE</th>
+                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>BALANCE AFTER</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {(detailLoan.payments || []).length === 0
-                      ? <tr><td colSpan={5} className="empty-state">No payments yet</td></tr>
-                      : detailLoan.payments.map(p => (
-                        <tr key={p.id}>
-                          <td className="mono">{p.or_number}</td>
-                          <td>{p.date_paid}</td>
-                          <td className="text-right text-success fw-bold">₱ {fmt(p.amount_paid)}</td>
-                          <td className="text-right">₱ {fmt(p.balance_before)}</td>
-                          <td className="text-right">₱ {fmt(p.balance_after)}</td>
+                      ? <tr><td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>No payments yet</td></tr>
+                      : detailLoan.payments.map((p, i) => (
+                        <tr key={p.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '16px 20px', color: '#334155' }}>{p.or_number}</td>
+                          <td style={{ padding: '16px 20px', color: '#334155' }}>{p.date_paid}</td>
+                          <td style={{ padding: '16px 20px', color: '#0f172a', fontWeight: 800 }}>₱ {fmt(p.amount_paid)}</td>
+                          <td style={{ padding: '16px 20px', color: '#475569' }}>₱ {fmt(p.balance_before)}</td>
+                          <td style={{ padding: '16px 20px', color: '#475569' }}>₱ {fmt(p.balance_after)}</td>
                         </tr>
                       ))}
                   </tbody>
                   {(detailLoan.payments || []).length > 0 && (
-                    <tfoot>
+                    <tfoot style={{ background: '#f8fafc', borderTop: '1px solid #f1f5f9' }}>
                       <tr>
-                        <td colSpan={2} className="fw-bold text-muted">TOTAL PAID</td>
-                        <td className="text-right fw-bold text-success">₱ {fmt(detailLoan.payments.reduce((s, p) => s + p.amount_paid, 0))}</td>
+                        <td colSpan={2} style={{ padding: '20px', color: '#1d4ed8', fontSize: 14, fontWeight: 800 }}>TOTAL PAID</td>
+                        <td style={{ padding: '20px', color: '#1d4ed8', fontSize: 15, fontWeight: 800 }}>₱ {fmt(detailLoan.payments.reduce((s, p) => s + p.amount_paid, 0))}</td>
                         <td colSpan={2}></td>
                       </tr>
                     </tfoot>
@@ -216,19 +307,28 @@ export default function Loans() {
 
               {/* Amortization Schedule Tab */}
               {detailTab === 'schedule' && (
-                <table className="data-table">
-                  <thead><tr><th>#</th><th>Due Date</th><th>Amount Due</th><th>Amount Paid</th><th>Date Paid</th><th>Status</th></tr></thead>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead style={{ background: '#f8fafc' }}>
+                    <tr>
+                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800, textAlign: 'center' }}>#</th>
+                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>DUE DATE</th>
+                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800, textAlign: 'right' }}>AMOUNT DUE</th>
+                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800, textAlign: 'right' }}>AMOUNT PAID</th>
+                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>DATE PAID</th>
+                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>STATUS</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {(detailLoan.schedule || []).length === 0
-                      ? <tr><td colSpan={6} className="empty-state">No schedule generated</td></tr>
+                      ? <tr><td colSpan={6} style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>No schedule generated</td></tr>
                       : detailLoan.schedule.map(s => (
-                        <tr key={s.id}>
-                          <td className="text-center fw-bold">{s.period_number}</td>
-                          <td>{s.due_date}</td>
-                          <td className="text-right">₱ {fmt(s.amount_due)}</td>
-                          <td className="text-right text-success">{s.amount_paid > 0 ? '₱ ' + fmt(s.amount_paid) : '—'}</td>
-                          <td>{s.date_paid || '—'}</td>
-                          <td><span className={`badge ${schColor(s.status)}`}>{s.status}</span></td>
+                        <tr key={s.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 800, color: '#64748b' }}>{s.period_number}</td>
+                          <td style={{ padding: '16px 20px', color: '#334155' }}>{s.due_date}</td>
+                          <td style={{ padding: '16px 20px', textAlign: 'right', fontWeight: 700, color: '#334155' }}>₱ {fmt(s.amount_due)}</td>
+                          <td style={{ padding: '16px 20px', textAlign: 'right', fontWeight: 700, color: '#10b981' }}>{s.amount_paid > 0 ? '₱ ' + fmt(s.amount_paid) : '—'}</td>
+                          <td style={{ padding: '16px 20px', color: '#475569' }}>{s.date_paid || '—'}</td>
+                          <td style={{ padding: '16px 20px' }}><span className={`badge ${schColor(s.status)}`}>{s.status}</span></td>
                         </tr>
                       ))}
                   </tbody>

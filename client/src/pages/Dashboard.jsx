@@ -107,6 +107,38 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <h4 style={{ margin: '25px 0 10px 0', color: '#334155' }}>Loan Processing Queue</h4>
+      <div className="metrics-top-row" style={{ marginBottom: 20 }}>
+        <div className="metric-card-v2" onClick={() => navigate('/credit-scoring')} style={{ cursor: 'pointer', borderTop: '4px solid #f59e0b' }}>
+          <div className="header">
+            <span style={{ fontWeight: 'bold', color: '#b45309' }}>For CI</span>
+            <h3 style={{ color: '#d97706' }}>{data.pending_ci_count || 0} <span style={{fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)'}}>Applications</span></h3>
+          </div>
+          <div className="metric-icon-circle" style={{ background: '#fffbeb', color: '#f59e0b', fontSize: 24 }}>📋</div>
+        </div>
+        <div className="metric-card-v2" onClick={() => navigate('/credit-scoring')} style={{ cursor: 'pointer', borderTop: '4px solid #3b82f6' }}>
+          <div className="header">
+            <span style={{ fontWeight: 'bold', color: '#1d4ed8' }}>For Approval</span>
+            <h3 style={{ color: '#2563eb' }}>{data.for_approval_count || 0} <span style={{fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)'}}>Applications</span></h3>
+          </div>
+          <div className="metric-icon-circle" style={{ background: '#eff6ff', color: '#3b82f6', fontSize: 24 }}>✅</div>
+        </div>
+        <div className="metric-card-v2" style={{ borderTop: '4px solid #10b981' }}>
+          <div className="header">
+            <span style={{ fontWeight: 'bold', color: '#047857' }}>Approved Today</span>
+            <h3 style={{ color: '#059669' }}>{data.approved_today || 0}</h3>
+          </div>
+          <div className="metric-icon-circle" style={{ background: '#ecfdf5', color: '#10b981', fontSize: 24 }}>🎉</div>
+        </div>
+        <div className="metric-card-v2" style={{ borderTop: '4px solid #ef4444' }}>
+          <div className="header">
+            <span style={{ fontWeight: 'bold', color: '#b91c1c' }}>Rejected Today</span>
+            <h3 style={{ color: '#dc2626' }}>{data.rejected_today || 0}</h3>
+          </div>
+          <div className="metric-icon-circle" style={{ background: '#fef2f2', color: '#ef4444', fontSize: 24 }}>❌</div>
+        </div>
+      </div>
+
       <div className="dashboard-main-grid">
         {/* LEFT COLUMN */}
         <div className="dashboard-left-col">

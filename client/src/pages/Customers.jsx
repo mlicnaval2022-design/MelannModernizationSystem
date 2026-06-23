@@ -4,11 +4,12 @@ import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import '../soa.css'
 import '../customers.css'
+import CustomerWizard from '../components/CustomerWizard'
 
 const EMPTY = { 
   first_name: '', last_name: '', middle_name: '', address: '', contact: '', birth_date: '', civil_status: '', occupation: '', branch_id: '', collector_id: '', status: 'active',
   sitio: '', purok: '', brgy: '', city: '', gender: '', secondary_contact: '', email: '', income_per_month: '', expenses_per_month: '',
-  loan_purpose: '', collateral: '', id_type: '', id_number: '', id_issue_date: '', id_expiry_date: '', id_issued_by: '', fb_account: '', nationality: '',
+  loan_purpose: '', collateral: '', id_type: '', id_number: '', id_issue_date: '', id_expiry_date: '', id_issued_by: '', fb_account: '', nationality: 'FILIPINO',
   home_status: '', business_address: '', business_location: '', business_years: '', business_months: '', business_ownership: '', business_permit: ''
 }
 
@@ -38,6 +39,7 @@ export default function Customers() {
   const [soaModal, setSoaModal] = useState(false)
   const [soaData, setSoaData] = useState(null)
   const [soaLoading, setSoaLoading] = useState(false)
+  const [confirmModal, setConfirmModal] = useState({ open: false, type: '', customer: null, message: '' })
 
   const load = () => {
     setLoading(true)
@@ -102,9 +104,46 @@ export default function Customers() {
     finally { setSaving(false) }
   }
 
-  const handleDeactivate = async (id) => {
-    if (!confirm('Deactivate this customer?')) return
-    await API.delete(`/customers/${id}`); load()
+  const handleRelax = async (customer) => {
+    if (!confirm('Are you sure you want to relax this client?')) return
+    try {
+      await API.put(`/customers/${customer.id}/relax`)
+      load()
+      alert('Customer successfully relaxed and moved to Inactive list.')
+    } catch (err) {
+      alert(err.response?.data?.error || 'An error occurred while relaxing.')
+    }
+  }
+
+  const triggerReloan = (customer) => {
+    setConfirmModal({
+      open: true, type: 'reloan', customer,
+      message: 'Are you sure you want to create a new loan application for this client and send it directly for approval?'
+    })
+  }
+
+  const triggerReCI = (customer) => {
+    setConfirmModal({
+      open: true, type: 'reci', customer,
+      message: 'Are you sure you want to send this client for a new Credit Investigation?'
+    })
+  }
+
+  const confirmAction = async () => {
+    const { type, customer } = confirmModal;
+    setConfirmModal({ open: false, type: '', customer: null, message: '' });
+    try {
+      if (type === 'reloan') {
+        await API.post(`/customers/${customer.id}/reloan`);
+        alert('Re-Loan application created and sent to For Approval queue.');
+      } else if (type === 'reci') {
+        await API.post(`/customers/${customer.id}/reci`);
+        alert('Re-CI application created and sent to For CI queue.');
+      }
+      load();
+    } catch (err) {
+      alert(err.response?.data?.error || 'An error occurred');
+    }
   }
 
   const itemsPerPage = 10;
@@ -214,19 +253,19 @@ export default function Customers() {
                   </td>
                   <td>
                     <div className="contact-cell">
-                      <div>📞 {r.contact || '—'}</div>
-                      <div style={{fontSize: 11, marginTop: 4}}>✉️ {r.email || '—'}</div>
+                      <div>{r.contact || '—'}</div>
+                      <div style={{fontSize: 11, marginTop: 4}}>{r.email || '—'}</div>
                     </div>
                   </td>
                   <td>
                     <div className="address-cell">
-                      <div>📍 {[r.address, r.sitio, r.purok, r.brgy].filter(Boolean).join(', ') || '—'}</div>
+                      <div>{[r.address, r.sitio, r.purok, r.brgy].filter(Boolean).join(', ') || '—'}</div>
                       <div style={{fontSize: 11, marginTop: 4}}>{r.city || '—'}</div>
                     </div>
                   </td>
                   <td>
                     <div style={{ fontSize: 13, color: '#475569' }}>
-                      🚶 {r.collector_name || 'Unassigned'}
+                      {r.collector_name || 'Unassigned'}
                     </div>
                   </td>
                   <td>
@@ -241,8 +280,14 @@ export default function Customers() {
                       <button className="action-btn action-soa" onClick={() => openSoa(r.id)}>SOA</button>
                       <button className="action-btn" onClick={() => openEdit(r)}>Edit</button>
                       {hasRole('admin', 'manager') && r.status === 'active' &&
-                        <button className="action-btn" style={{color: '#ef4444', borderColor: '#fee2e2'}} onClick={() => handleDeactivate(r.id)}>...</button>
+                        <button className="action-btn" style={{color: '#f59e0b', borderColor: '#fef3c7'}} onClick={() => handleRelax(r)}>Relax</button>
                       }
+                      {hasRole('admin', 'manager') && r.status === 'inactive' && (
+                        <>
+                          <button className="action-btn" style={{color: '#3b82f6', borderColor: '#dbeafe'}} onClick={() => triggerReloan(r)}>Re-Loan</button>
+                          <button className="action-btn" style={{color: '#10b981', borderColor: '#d1fae5'}} onClick={() => triggerReCI(r)}>Re-CI</button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -270,155 +315,16 @@ export default function Customers() {
       </div>
 
       {modal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && closeModal()}>
-          <div className="modal">
-            <div className="modal-header">
-              <span className="modal-title">{editing ? 'Edit Customer' : 'New Customer'}</span>
-              <button className="modal-close" onClick={closeModal}>✕</button>
-            </div>
-            <div className="modal-body">
-              {error && <div className="login-error" style={{ marginBottom: 14 }}>⚠️ {error}</div>}
-              <form onSubmit={handleSave}>
-                <h4 style={{marginTop: 0, marginBottom: 10, borderBottom: '1px solid #334155', paddingBottom: 5}}>Personal Information</h4>
-                <div className="form-grid">
-                  <div className="form-group"><label className="form-label">Last Name *</label><input className="form-control" value={form.last_name} onChange={handleUpper('last_name')} required /></div>
-                  <div className="form-group"><label className="form-label">First Name *</label><input className="form-control" value={form.first_name} onChange={handleUpper('first_name')} required /></div>
-                  <div className="form-group"><label className="form-label">Middle Name</label><input className="form-control" value={form.middle_name || ''} onChange={handleUpper('middle_name')} /></div>
-                  <div className="form-group"><label className="form-label">Gender</label>
-                    <select className="form-control" value={form.gender || ''} onChange={e => setForm(f => ({ ...f, gender: e.target.value }))}>
-                      <option value="">Select...</option>
-                      <option>Male</option><option>Female</option><option>Other</option>
-                    </select>
-                  </div>
-                  <div className="form-group"><label className="form-label">Birth Date</label><input type="date" className="form-control" value={form.birth_date || ''} onChange={e => setForm(f => ({ ...f, birth_date: e.target.value }))} /></div>
-                  <div className="form-group"><label className="form-label">Age</label><input className="form-control" value={calculateAge(form.birth_date)} disabled /></div>
-                  <div className="form-group"><label className="form-label">Nationality</label><input className="form-control" value={form.nationality || ''} onChange={handleUpper('nationality')} /></div>
-                  <div className="form-group"><label className="form-label">Civil Status</label>
-                    <select className="form-control" value={form.civil_status || ''} onChange={e => setForm(f => ({ ...f, civil_status: e.target.value }))}>
-                      <option value="">Select...</option>
-                      <option>Single</option><option>Married</option><option>Widowed</option><option>Separated</option>
-                    </select>
-                  </div>
-                </div>
-
-                <h4 style={{marginTop: 15, marginBottom: 10, borderBottom: '1px solid #334155', paddingBottom: 5}}>Address</h4>
-                <div className="form-grid">
-                  <div className="form-group span-2"><label className="form-label">Address / Street</label><input className="form-control" value={form.address || ''} onChange={handleUpper('address')} /></div>
-                  <div className="form-group"><label className="form-label">Sitio</label><input className="form-control" value={form.sitio || ''} onChange={handleUpper('sitio')} /></div>
-                  <div className="form-group"><label className="form-label">Purok</label><input className="form-control" value={form.purok || ''} onChange={handleUpper('purok')} /></div>
-                  <div className="form-group"><label className="form-label">Brgy.</label><input className="form-control" value={form.brgy || ''} onChange={handleUpper('brgy')} /></div>
-                  <div className="form-group"><label className="form-label">Municipality/City</label><input className="form-control" value={form.city || ''} onChange={handleUpper('city')} /></div>
-                  <div className="form-group"><label className="form-label">Home Status</label>
-                    <select className="form-control" value={form.home_status || ''} onChange={e => setForm(f => ({ ...f, home_status: e.target.value }))}>
-                      <option value="">Select...</option>
-                      <option value="Owned">Owned</option>
-                      <option value="Rented">Rented</option>
-                      <option value="Family/Relatives">Family/Relatives</option>
-                    </select>
-                  </div>
-                </div>
-
-                <h4 style={{marginTop: 15, marginBottom: 10, borderBottom: '1px solid #334155', paddingBottom: 5}}>Contact & Business</h4>
-                <div className="form-grid">
-                  <div className="form-group"><label className="form-label">Main Number</label><input className="form-control" value={form.contact || ''} onChange={handleUpper('contact')} /></div>
-                  <div className="form-group"><label className="form-label">Secondary Number</label><input className="form-control" value={form.secondary_contact || ''} onChange={handleUpper('secondary_contact')} /></div>
-                  <div className="form-group"><label className="form-label">Email Address</label><input type="email" className="form-control" value={form.email || ''} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
-                  <div className="form-group"><label className="form-label">FB Account</label><input className="form-control" value={form.fb_account || ''} onChange={handleUpper('fb_account')} /></div>
-                  <div className="form-group span-2"><label className="form-label">Business</label>
-                    <select className="form-control" value={form.occupation || ''} onChange={e => setForm(f => ({ ...f, occupation: e.target.value }))}>
-                      <option value="">Select Business...</option>
-                      <option value="Sari-sari Store">Sari-sari Store</option>
-                      <option value="Eatery/Carenderia">Eatery/Carenderia</option>
-                      <option value="Market Vendor">Market Vendor</option>
-                      <option value="Online Seller">Online Seller</option>
-                      <option value="Tricycle Driver">Tricycle Driver</option>
-                      <option value="Salary/Employed">Salary/Employed</option>
-                      <option value="Others">Others</option>
-                    </select>
-                  </div>
-                  <div className="form-group span-2"><label className="form-label">Complete Business Address</label><input className="form-control" value={form.business_address || ''} onChange={handleUpper('business_address')} /></div>
-
-                  <div className="form-group"><label className="form-label">Years in Business</label><input type="number" className="form-control" value={form.business_years || ''} onChange={e => setForm(f => ({ ...f, business_years: e.target.value }))} /></div>
-                  <div className="form-group"><label className="form-label">Months in Business</label><input type="number" className="form-control" value={form.business_months || ''} onChange={e => setForm(f => ({ ...f, business_months: e.target.value }))} /></div>
-                  <div className="form-group"><label className="form-label">Business Ownership</label>
-                    <select className="form-control" value={form.business_ownership || ''} onChange={e => setForm(f => ({ ...f, business_ownership: e.target.value }))}>
-                      <option value="">Select...</option>
-                      <option value="Sole">Sole</option>
-                      <option value="Family">Family</option>
-                      <option value="Partners">Partners</option>
-                    </select>
-                  </div>
-                  <div className="form-group"><label className="form-label">Business Permit Issued</label>
-                    <select className="form-control" value={form.business_permit || ''} onChange={e => setForm(f => ({ ...f, business_permit: e.target.value }))}>
-                      <option value="">Select...</option>
-                      <option value="LGU">LGU</option>
-                      <option value="Brgy.">Brgy.</option>
-                      <option value="None">None</option>
-                    </select>
-                  </div>
-                </div>
-
-                <h4 style={{marginTop: 15, marginBottom: 10, borderBottom: '1px solid #334155', paddingBottom: 5}}>ID Information</h4>
-                <div className="form-grid">
-                  <div className="form-group"><label className="form-label">Type of ID</label>
-                    <select className="form-control" value={form.id_type || ''} onChange={e => setForm(f => ({ ...f, id_type: e.target.value }))}>
-                      <option value="">Select ID...</option>
-                      <option value="UMID">UMID</option>
-                      <option value="Driver's License">Driver's License</option>
-                      <option value="Passport">Passport</option>
-                      <option value="SSS ID">SSS ID</option>
-                      <option value="GSIS ID">GSIS ID</option>
-                      <option value="PhilHealth ID">PhilHealth ID</option>
-                      <option value="TIN ID">TIN ID</option>
-                      <option value="Postal ID">Postal ID</option>
-                      <option value="Voter's ID">Voter's ID</option>
-                      <option value="National ID (Philsys)">National ID (Philsys)</option>
-                      <option value="PRC ID">PRC ID</option>
-                      <option value="Senior Citizen ID">Senior Citizen ID</option>
-                      <option value="Others">Others</option>
-                    </select>
-                  </div>
-                  <div className="form-group"><label className="form-label">ID Number</label><input className="form-control" value={form.id_number || ''} onChange={handleUpper('id_number')} /></div>
-                  <div className="form-group"><label className="form-label">Issue Date</label><input type="date" className="form-control" value={form.id_issue_date || ''} onChange={e => setForm(f => ({ ...f, id_issue_date: e.target.value }))} /></div>
-                  <div className="form-group"><label className="form-label">Expiry Date</label><input type="date" className="form-control" value={form.id_expiry_date || ''} onChange={e => setForm(f => ({ ...f, id_expiry_date: e.target.value }))} /></div>
-                  <div className="form-group"><label className="form-label">Issued By</label><input className="form-control" value={form.id_issued_by || ''} onChange={handleUpper('id_issued_by')} /></div>
-                </div>
-
-                <h4 style={{marginTop: 15, marginBottom: 10, borderBottom: '1px solid #334155', paddingBottom: 5}}>Financial Details & Assignment</h4>
-                <div className="form-grid">
-                  <div className="form-group"><label className="form-label">Income per month</label><input type="number" className="form-control" value={form.income_per_month || ''} onChange={e => setForm(f => ({ ...f, income_per_month: e.target.value }))} /></div>
-                  <div className="form-group"><label className="form-label">Expenses per month</label><input type="number" className="form-control" value={form.expenses_per_month || ''} onChange={e => setForm(f => ({ ...f, expenses_per_month: e.target.value }))} /></div>
-                  <div className="form-group"><label className="form-label">Loan Purpose</label><input className="form-control" value={form.loan_purpose || ''} onChange={handleUpper('loan_purpose')} /></div>
-                  <div className="form-group"><label className="form-label">Collateral</label><input className="form-control" value={form.collateral || ''} onChange={handleUpper('collateral')} /></div>
-                  <div className="form-group"><label className="form-label">Branch</label>
-                    <select className="form-control" value={form.branch_id || ''} onChange={e => setForm(f => ({ ...f, branch_id: e.target.value }))}>
-                      <option value="">Select Branch...</option>
-                      {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group"><label className="form-label">Collector</label>
-                    <select className="form-control" value={form.collector_id || ''} onChange={e => setForm(f => ({ ...f, collector_id: e.target.value }))}>
-                      <option value="">Select Collector...</option>
-                      {collectors.map(c => <option key={c.id} value={c.id}>{c.collector_code} - {c.first_name} {c.last_name}</option>)}
-                    </select>
-                  </div>
-                  {editing && <div className="form-group"><label className="form-label">Status</label>
-                    <select className="form-control" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                      <option value="active">Active</option><option value="inactive">Inactive</option>
-                    </select>
-                  </div>}
-                </div>
-                <div className="form-actions" style={{marginTop: 20}}>
-                  <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : editing ? 'Save Changes' : 'Create Customer'}</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
+        <CustomerWizard 
+          initialData={editing} 
+          onClose={closeModal} 
+          onSaved={() => { closeModal(); load(); }} 
+          collectors={collectors} 
+          branches={branches} 
+        />
       )}
       {soaModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setSoaModal(false)}>
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setSoaModal(false)}>
           <div className="soa-modal">
             <div className="soa-modal-header">
               <div className="soa-modal-title-wrapper">
@@ -597,6 +503,26 @@ export default function Customers() {
           </div>
         </div>
       )}
+
+      {/* Confirmation Modal */}
+      {confirmModal.open && (
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setConfirmModal({ ...confirmModal, open: false })}>
+          <div className="modal" style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <span className="modal-title">{confirmModal.type === 'reloan' ? 'Confirm Re-Loan' : 'Confirm Re-CI'}</span>
+              <button className="modal-close" onClick={() => setConfirmModal({ ...confirmModal, open: false })}>✕</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginTop: 0, marginBottom: '20px', lineHeight: '1.5' }}>{confirmModal.message}</p>
+              <div className="form-actions" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button className="btn btn-secondary" onClick={() => setConfirmModal({ ...confirmModal, open: false })}>Cancel</button>
+                <button className="btn btn-primary" onClick={confirmAction}>Yes, Continue</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
