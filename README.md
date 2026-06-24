@@ -45,6 +45,32 @@ Then open your browser at: **http://localhost:5173**
 
 ---
 
+## JCash Good Status Import
+
+The Access source database is opened read-only. The importer filters loans to Good / Good Status, maturity from `2016-01-01` to `2026-06-24`, positive existing loan balance, and excludes `Fully Paid`, `Paid`, `Reversed`, and `Reversing`. Payments are imported only when their payment status is Good / Good Status and they belong to one of the matched loans.
+
+Dry run:
+
+```powershell
+$env:JCASH_MDB_PASSWORD='your-access-password'
+npm.cmd run import:jcash --prefix server -- --dry-run
+```
+
+Import:
+
+```powershell
+$env:JCASH_MDB_PASSWORD='your-access-password'
+npm.cmd run import:jcash --prefix server
+```
+
+Optional path/date overrides:
+
+```powershell
+npm.cmd run import:jcash --prefix server -- --source "\\SERVERPC\LendingV2Melan\db\jcashdb.mdb" --from 2016-01-01 --to 2026-06-24
+```
+
+---
+
 ## 📁 Project Structure
 
 ```

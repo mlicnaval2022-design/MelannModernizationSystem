@@ -1,7 +1,13 @@
 import { useState } from 'react'
 import API from '../services/api'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 const today = () => new Date().toISOString().split('T')[0]
+const yesterday = () => {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return d.toISOString().split('T')[0]
+}
 
 const REPORT_TYPES = [
   { key: 'daily-collection', label: '📅 Daily Collection', desc: 'All collections in a date range' },
@@ -17,7 +23,7 @@ const REPORT_TYPES = [
 
 export default function Reports() {
   const [active, setActive] = useState('daily-collection')
-  const [params, setParams] = useState({ date_from: today(), date_to: today(), year: new Date().getFullYear(), month: new Date().getMonth() + 1, days_ahead: 30, collector_id: '' })
+  const [params, setParams] = useState({ date_from: yesterday(), date_to: yesterday(), year: new Date().getFullYear(), month: new Date().getMonth() + 1, days_ahead: 30, collector_id: '' })
   const [collectors, setCollectors] = useState([])
   const [collectorsLoaded, setCollectorsLoaded] = useState(false)
   const [data, setData] = useState(null)
@@ -79,9 +85,45 @@ export default function Reports() {
 
     if (active === 'daily-collection') {
       const { payments = [], total } = data
-      return <><div style={{ marginBottom: 12 }} className="fw-bold text-success">Total Collections: ₱ {fmt(total)}</div>
-        <table className="data-table"><thead><tr><th>OR#</th><th>Customer</th><th>Loan#</th><th>Date</th><th>Collector</th><th>Amount</th><th>Bal. After</th></tr></thead>
-        <tbody>{payments.length === 0 ? <tr><td colSpan={7} className="empty-state">No records</td></tr> : payments.map(p => <tr key={p.id}><td className="mono">{p.or_number}</td><td>{p.customer_name}</td><td className="mono">{p.loan_code}</td><td>{p.date_paid}</td><td>{p.collector_name || '—'}</td><td className="text-right text-success fw-bold">₱ {fmt(p.amount_paid)}</td><td className="text-right">₱ {fmt(p.balance_after)}</td></tr>)}</tbody></table></>
+      
+      const collectorTotals = payments.reduce((acc, p) => {
+        const name = p.collector_name || 'Unassigned';
+        if (!acc[name]) acc[name] = 0;
+        acc[name] += p.amount_paid;
+        return acc;
+      }, {});
+      const chartData = Object.entries(collectorTotals).map(([name, amount]) => ({ name, amount }));
+
+      return (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          <div style={{ overflowX: 'auto' }}>
+            <div style={{ marginBottom: 12 }} className="fw-bold text-success">Total Collections: ₱ {fmt(total)}</div>
+            <table className="data-table">
+              <thead><tr><th>OR#</th><th>Customer</th><th>Loan#</th><th>Date</th><th>Collector</th><th>Amount</th><th>Bal. After</th></tr></thead>
+              <tbody>{payments.length === 0 ? <tr><td colSpan={7} className="empty-state">No records</td></tr> : payments.map(p => <tr key={p.id}><td className="mono">{p.or_number}</td><td>{p.customer_name}</td><td className="mono">{p.loan_code}</td><td>{p.date_paid}</td><td>{p.collector_name || '—'}</td><td className="text-right text-success fw-bold">₱ {fmt(p.amount_paid)}</td><td className="text-right">₱ {fmt(p.balance_after)}</td></tr>)}</tbody>
+            </table>
+          </div>
+          <div>
+            <div style={{ marginBottom: 12 }} className="fw-bold">Collection per Collector</div>
+            <div style={{ height: 400, background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 16 }}>
+              {chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip formatter={(val) => `₱ ${fmt(val)}`} />
+                    <Legend />
+                    <Bar dataKey="amount" fill="#3b82f6" name="Collection Amount" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="empty-state">No data for chart</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )
     }
     if (active === 'monthly-releases') {
       const { loans = [], total_principal } = data
