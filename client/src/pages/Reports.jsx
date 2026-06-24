@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import API from '../services/api'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 const today = () => new Date().toISOString().split('T')[0]
 const yesterday = () => {
@@ -107,16 +106,23 @@ export default function Reports() {
             <div style={{ marginBottom: 12 }} className="fw-bold">Collection per Collector</div>
             <div style={{ height: 400, background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 16 }}>
               {chartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip formatter={(val) => `₱ ${fmt(val)}`} />
-                    <Legend />
-                    <Bar dataKey="amount" fill="#3b82f6" name="Collection Amount" />
-                  </BarChart>
-                </ResponsiveContainer>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {chartData.map(item => {
+                    const max = Math.max(...chartData.map(c => c.amount), 1)
+                    const width = Math.max((item.amount / max) * 100, 3)
+                    return (
+                      <div key={item.name}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12, marginBottom: 4 }}>
+                          <span style={{ fontWeight: 700 }}>{item.name}</span>
+                          <span className="text-success fw-bold">PHP {fmt(item.amount)}</span>
+                        </div>
+                        <div style={{ height: 18, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
+                          <div style={{ width: `${width}%`, height: '100%', background: '#3b82f6' }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               ) : (
                 <div className="empty-state">No data for chart</div>
               )}
