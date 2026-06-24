@@ -36,6 +36,39 @@ function normalizeStatus(value) {
   return String(value || '').trim().toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
 }
 
+function normalizeCollectorName(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function getCollectorAlias(value) {
+  const name = normalizeCollectorName(value);
+  const compact = name.replace(/\s+/g, '');
+  const hasPastdue = name.includes('pastdue') || name.includes('past due');
+
+  if (!name) return null;
+  if ((name.includes('rosal') || name.includes('aldie')) && hasPastdue) return '10';
+  if ((name.includes('torreta') || name.includes('angelito')) && hasPastdue) return '11';
+  if ((name.includes('domingono') || name.includes('renato')) && hasPastdue) return '12';
+  if ((name.includes('caballes') || name.includes('eddie')) && hasPastdue) return '5';
+  if ((name.includes('jugar') || name.includes('noel')) && hasPastdue) return '2';
+
+  if (name.includes('rosal') || name === 'aldie') return '1';
+  if (name.includes('torreta') || name === 'angelito') return '3';
+  if (name.includes('jugar') || name === 'noel') return '4';
+  if (name.includes('caballes') || name === 'eddie') return '6';
+  if (name.includes('domingono') || name === 'renato') return '7';
+  if (name.includes('laude') || name.includes('reynaldo')) return '8';
+  if (name.includes('melann') || name.includes('office')) return '9';
+  if (compact.includes('banez') || compact.includes('bañez')) return null;
+  return null;
+}
+
 function isGoodStatus(value) {
   const status = normalizeStatus(value);
   return status === 'good' || status === 'good status';
@@ -90,7 +123,7 @@ function readAccessImportRows() {
   const psString = (value) => `'${String(value || '').replace(/'/g, "''")}'`;
   const balanceExprFor = (prefix = '') => `IIF(IIF(IsNull(${prefix}Balance),0,${prefix}Balance)>0,IIF(IsNull(${prefix}Balance),0,${prefix}Balance),IIF(IsNull(${prefix}LoanTotal),0,${prefix}LoanTotal)-IIF(IsNull(${prefix}TotalPayment),0,${prefix}TotalPayment))`;
   const balanceExpr = balanceExprFor();
-  const loanWhereFor = (prefix = '') => `${prefix}LoanStatus='Good' AND ${prefix}Status='Good' AND ${prefix}Maturity >= #01/01/2016# AND ${prefix}Maturity <= #06/24/2026# AND ${balanceExprFor(prefix)} > 0`;
+  const loanWhereFor = (prefix = '') => `${prefix}LoanStatus='Good' AND ${prefix}Status='Good' AND ${prefix}DateRelease >= #01/01/2016# AND ${prefix}DateRelease <= #06/24/2026# AND ${balanceExprFor(prefix)} > 0`;
   const loanWhere = loanWhereFor();
   const loanSubquery = `SELECT LoanID FROM tblLoan WHERE ${loanWhere}`;
   const queries = {
@@ -201,10 +234,17 @@ function mapCustomer(row) {
 
 function mapLoan(row) {
   const principal = toNumber(pick(row, ['Principal', 'Loan Principal', 'Amount']));
-  const total = toNumber(pick(row, ['LoanTotal', 'Loan Total', 'Total Loan', 'TotalLoan', 'Total Amortization', 'Total Amount', 'Loan Amount']));
-  const rawBalance = toNumber(pick(row, ['EffectiveBalance', 'Loan Balance', 'Balance', 'Existing Balance', 'Outstanding Balance']));
+  const totalCandidates = [
+    toNumber(pick(row, ['Total'])),
+    toNumber(pick(row, ['TotalAmortization', 'Total Amortization'])),
+    toNumber(pick(row, ['LoanTotal', 'Loan Total', 'Total Loan', 'TotalLoan', 'Total Amount', 'Loan Amount'])),
+    principal,
+  ].filter(value => Number(value || 0) > 0);
+  const total = Math.max(...totalCandidates);
   const totalPaid = toNumber(pick(row, ['TotalPayment', 'Total Payment', 'Total Paid']));
-  const balance = rawBalance && rawBalance > 0 ? rawBalance : Math.max(0, Number(total || 0) - Number(totalPaid || 0));
+  const rawBalance = toNumber(pick(row, ['EffectiveBalance', 'Loan Balance', 'Balance', 'Existing Balance', 'Outstanding Balance']));
+  const balanceFromTotal = Math.max(0, Number(total || 0) - Number(totalPaid || 0));
+  const balance = balanceFromTotal > 0 ? balanceFromTotal : (rawBalance || 0);
   return {
     loan_code: String(pick(row, ['Loan Code', 'LoanCode', 'Loan ID', 'LoanID', 'Loan Ref', 'LoanRef']) || '').trim(),
     customer_code: String(pick(row, ['Customer Code', 'CustomerCode', 'CustCode', 'Client Code', 'ClientCode', 'CCode', 'Code']) || '').trim(),
@@ -299,9 +339,19 @@ function backupTargetDb() {
 async function getOrCreateCollector(sqlite, collectorName) {
   const name = String(collectorName || '').trim();
   if (!name) return null;
+  const aliasCode = getCollectorAlias(name);
+  if (aliasCode) {
+    const aliased = await sqlite.get('SELECT id FROM tblCollector WHERE collector_code = ? LIMIT 1', [aliasCode]);
+    if (aliased) return aliased.id;
+  }
   const existing = await sqlite.get(
-    `SELECT id FROM tblCollector WHERE lower(first_name || ' ' || last_name) = lower(?) OR lower(last_name || ', ' || first_name) = lower(?) LIMIT 1`,
-    [name, name]
+    `SELECT id FROM tblCollector
+     WHERE lower(trim(first_name || ' ' || last_name)) = lower(?)
+        OR lower(trim(last_name || ', ' || first_name)) = lower(?)
+        OR lower(trim(last_name)) = lower(?)
+        OR lower(trim(first_name)) = lower(?)
+     LIMIT 1`,
+    [name, name, name, name]
   );
   if (existing) return existing.id;
 
@@ -411,7 +461,7 @@ async function main() {
     .filter(loan => loan.loan_code && loan.customer_code)
     .filter(loan => isGoodStatus(loan.source_status) && notExcludedStatus(loan.source_status))
     .filter(loan => Number(loan.balance || 0) > 0)
-    .filter(loan => inRange(loan.date_maturity, config.from, config.to));
+    .filter(loan => inRange(loan.date_released, config.from, config.to));
 
   const loanCodes = new Set(loans.map(loan => loan.loan_code));
   const payments = snapshot.payments
@@ -422,7 +472,7 @@ async function main() {
   applyLedgerTotals(loans, payments);
 
   console.log(`Matched customers: ${new Set(loans.map(l => l.customer_code)).size}`);
-  console.log(`Matched Good active loans with balance and maturity ${config.from}..${config.to}: ${loans.length}`);
+  console.log(`Matched Good active loans with balance and date released ${config.from}..${config.to}: ${loans.length}`);
   console.log(`Matched Good payments for those loans: ${payments.length}`);
   if (config.dryRun) return;
 
@@ -431,13 +481,14 @@ async function main() {
 
   const db = new sqlite3.Database(config.dbPath);
   const sqlite = promisifyDb(db);
-  const stats = { customers: 0, loans: 0, payments: 0, skippedMissingCustomer: 0 };
+  const stats = { customers: 0, loans: 0, payments: 0, skippedMissingCustomer: 0, existingLoansUpdated: 0 };
   const loanIdByCode = new Map();
   const loanByCode = new Map(loans.map(loan => [loan.loan_code, loan]));
 
   try {
     await sqlite.run('BEGIN TRANSACTION');
     for (const loan of loans) {
+      const existingLoan = await sqlite.get('SELECT id FROM tblLoan WHERE loan_code = ?', [loan.loan_code]);
       const customer = customersByCode.get(loan.customer_code);
       if (!customer) {
         stats.skippedMissingCustomer += 1;
@@ -448,7 +499,8 @@ async function main() {
       const loanId = await upsertLoan(sqlite, loan, customerId, collectorId);
       loanIdByCode.set(loan.loan_code, { loanId, customerId, collectorId });
       stats.customers += 1;
-      stats.loans += 1;
+      if (existingLoan) stats.existingLoansUpdated += 1;
+      else stats.loans += 1;
     }
 
     for (const payment of payments) {
@@ -459,7 +511,7 @@ async function main() {
     }
 
     await sqlite.run('COMMIT');
-    console.log(`Import complete. Customers upserted: ${stats.customers}; loans upserted: ${stats.loans}; payments inserted: ${stats.payments}; loans skipped missing customer: ${stats.skippedMissingCustomer}`);
+    console.log(`Import complete. Customers upserted: ${stats.customers}; loans inserted: ${stats.loans}; existing loans updated: ${stats.existingLoansUpdated}; payments inserted: ${stats.payments}; loans skipped missing customer: ${stats.skippedMissingCustomer}`);
   } catch (err) {
     await sqlite.run('ROLLBACK').catch(() => {});
     throw err;

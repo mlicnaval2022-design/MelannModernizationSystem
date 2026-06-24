@@ -47,6 +47,15 @@ const queries = [
      WHERE c.customer_code = '3308' AND l.loan_code = '39123'`,
   ],
   [
+    'siaboc_ma_teresa_49323',
+    `SELECT c.customer_code, c.full_name, l.loan_code, l.principal, l.total_amortization AS total_loan,
+       l.balance, l.total_paid, l.date_released, l.date_maturity,
+       (SELECT COUNT(*) FROM tblPayment p WHERE p.loan_id = l.id) AS payments
+     FROM tblLoan l
+     JOIN tblCustomer c ON c.id = l.customer_id
+     WHERE c.customer_code = '3457' AND l.loan_code = '49323'`,
+  ],
+  [
     'sanity_totals',
     `SELECT
        SUM(CASE WHEN total_amortization < balance THEN 1 ELSE 0 END) AS total_less_than_balance,
@@ -54,6 +63,15 @@ const queries = [
        SUM(CASE WHEN balance < 0 THEN 1 ELSE 0 END) AS negative_balance
      FROM tblLoan
      WHERE remarks LIKE 'Imported read-only from jcashdb.mdb%'`,
+  ],
+  [
+    'sanity_total_less_than_balance_rows',
+    `SELECT c.customer_code, c.full_name, l.loan_code, l.principal, l.total_amortization AS total_loan,
+       l.balance, l.total_paid, l.date_released, l.date_maturity
+     FROM tblLoan l
+     JOIN tblCustomer c ON c.id = l.customer_id
+     WHERE l.remarks LIKE 'Imported read-only from jcashdb.mdb%'
+       AND l.total_amortization < l.balance`,
   ],
 ];
 

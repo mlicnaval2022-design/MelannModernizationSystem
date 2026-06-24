@@ -142,7 +142,22 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const { search, status, branch_id } = req.query;
     let q = `
-      SELECT c.*, b.branch_name, co.first_name || ' ' || co.last_name as collector_name,
+      SELECT c.*, b.branch_name,
+        COALESCE(
+          NULLIF(TRIM(co.first_name || ' ' || co.last_name), ''),
+          (
+            SELECT NULLIF(TRIM(co2.first_name || ' ' || co2.last_name), '')
+            FROM tblLoan l2
+            JOIN tblCollector co2 ON co2.id = l2.collector_id
+            WHERE l2.customer_id = c.id
+              AND l2.collector_id IS NOT NULL
+            ORDER BY
+              CASE WHEN l2.status IN ('active', 'pastdue') THEN 0 ELSE 1 END,
+              COALESCE(l2.date_released, l2.created_at) DESC,
+              l2.id DESC
+            LIMIT 1
+          )
+        ) as collector_name,
         EXISTS(
           SELECT 1 FROM tblLoan l
           WHERE l.customer_id = c.id
@@ -170,7 +185,27 @@ router.get('/', authenticateToken, async (req, res) => {
 
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
-    const customer = await dbGet(`SELECT c.*, b.branch_name, co.first_name || ' ' || co.last_name as collector_name FROM tblCustomer c LEFT JOIN tblBranch b ON c.branch_id = b.id LEFT JOIN tblCollector co ON c.collector_id = co.id WHERE c.id = ?`, [req.params.id]);
+    const customer = await dbGet(`
+      SELECT c.*, b.branch_name,
+        COALESCE(
+          NULLIF(TRIM(co.first_name || ' ' || co.last_name), ''),
+          (
+            SELECT NULLIF(TRIM(co2.first_name || ' ' || co2.last_name), '')
+            FROM tblLoan l2
+            JOIN tblCollector co2 ON co2.id = l2.collector_id
+            WHERE l2.customer_id = c.id
+              AND l2.collector_id IS NOT NULL
+            ORDER BY
+              CASE WHEN l2.status IN ('active', 'pastdue') THEN 0 ELSE 1 END,
+              COALESCE(l2.date_released, l2.created_at) DESC,
+              l2.id DESC
+            LIMIT 1
+          )
+        ) as collector_name
+      FROM tblCustomer c
+      LEFT JOIN tblBranch b ON c.branch_id = b.id
+      LEFT JOIN tblCollector co ON c.collector_id = co.id
+      WHERE c.id = ?`, [req.params.id]);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
     const loans = await dbAll(`SELECT * FROM tblLoan WHERE customer_id = ? ORDER BY created_at DESC`, [req.params.id]);
     const payments = await dbAll(`SELECT p.*, l.loan_code FROM tblPayment p JOIN tblLoan l ON p.loan_id = l.id WHERE p.customer_id = ? ORDER BY p.date_paid DESC, p.created_at DESC`, [req.params.id]);
