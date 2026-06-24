@@ -516,10 +516,9 @@
 
   body.soa-print-statement .formal-soa-print,
   body.soa-print-profile .formal-profile-print {
-    position: fixed !important;
-    left: 0 !important;
-    top: 0 !important;
+    position: static !important;
     width: 100% !important;
+    max-width: 100% !important;
     background: white;
     padding: 0;
     display: block;
@@ -532,9 +531,12 @@
     box-sizing: border-box;
     font-size: 9px;
     line-height: 1.12;
+    margin-left: 0.45in;
     min-height: 8in;
     overflow: hidden;
     page-break-after: avoid;
+    padding-left: 0;
+    width: calc(100% - 0.45in) !important;
   }
 
   body.soa-print-statement .formal-soa-print {
@@ -669,9 +671,9 @@
   .fp-field {
     border-bottom: 1px solid #d5dbe8;
     border-right: 1px solid #d5dbe8;
-    min-height: 28px;
+    min-height: 25px;
     min-width: 0;
-    padding: 4px 8px;
+    padding: 3px 7px;
   }
 
   .fp-field span {
@@ -679,19 +681,62 @@
     display: block;
     font-size: 7.5px;
     font-weight: 900;
-    margin-bottom: 2px;
+    margin-bottom: 1px;
     text-transform: uppercase;
   }
 
   .fp-field strong {
     color: #000;
     display: block;
-    font-size: 9.2px;
+    font-size: 8.8px;
     font-weight: 800;
     line-height: 1.15;
     overflow-wrap: anywhere;
     white-space: normal;
     word-break: normal;
+  }
+
+  .fp-photo-section {
+    margin-bottom: 6px;
+  }
+
+  .fp-image-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .fp-image-tile {
+    background: #fff;
+    border: 1px solid #d5dbe8;
+    border-radius: 4px;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .fp-image-tile span {
+    border-bottom: 1px solid #d5dbe8;
+    color: #0b297a;
+    display: block;
+    font-size: 7.5px;
+    font-weight: 900;
+    line-height: 1;
+    padding: 3px 6px;
+    text-transform: uppercase;
+  }
+
+  .fp-image-tile img,
+  .fp-image-placeholder {
+    align-items: center;
+    background: #f8fafc;
+    color: #64748b;
+    display: flex;
+    font-size: 8px;
+    height: 125px;
+    justify-content: center;
+    object-fit: contain;
+    width: 100%;
   }
 
   .fp-footer {

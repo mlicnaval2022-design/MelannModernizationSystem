@@ -322,7 +322,7 @@ export default function Customers() {
 
                 return (
                   <>
-                  <style media="print">{`@page { size: ${soaTab === 'profile' ? '13in 8.5in' : '8.5in 13in'}; margin: ${soaTab === 'profile' ? '0.25in' : '0.3in'}; }`}</style>
+                  <style media="print">{`@page { size: ${soaTab === 'profile' ? '13in 8.5in' : '8.5in 13in'}; margin: ${soaTab === 'profile' ? '0.25in 0.12in 0.25in 0.35in' : '0.3in 0.3in 0.3in 0.45in'}; }`}</style>
                   <div className="printable-soa-wrapper">
                     <div className="soa-top-header">
                       <div className="print-brand-container">
@@ -444,6 +444,27 @@ export default function Customers() {
                         <tr><td>Page</td><td>:</td><td>1 of 1</td></tr>
                       </tbody></table>
                     </div>
+
+                    <section className="fp-section fp-photo-section">
+                      <h3>ID AND PHOTO ATTACHMENTS</h3>
+                      <div className="fp-image-grid">
+                        {[
+                          ['Client Photo', soaData.photo_client],
+                          ['ID Front', soaData.photo_id_front],
+                          ['ID Back', soaData.photo_id_back],
+                          ['Business Proof', soaData.photo_business_proof],
+                        ].map(([label, path]) => (
+                          <div className="fp-image-tile" key={label}>
+                            <span>{label}</span>
+                            {path ? (
+                              <img src={getImageUrl(path)} alt={label} />
+                            ) : (
+                              <div className="fp-image-placeholder">No image</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </section>
 
                     <div className="fp-grid">
                       <div className="fp-col">
