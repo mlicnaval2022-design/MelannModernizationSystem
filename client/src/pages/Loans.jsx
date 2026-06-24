@@ -180,7 +180,7 @@ export default function Loans() {
 
       {/* ===================== Release Loan Modal ===================== */}
       {releaseModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setReleaseModal(false)}>
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setReleaseModal(false)}>
           <div className="modal" style={{ maxWidth: 500 }}>
             <div className="modal-header">
               <span className="modal-title">🚀 Release Approved Loan</span>
@@ -219,7 +219,7 @@ export default function Loans() {
 
       {/* ===================== Loan Detail Modal ===================== */}
       {detailModal && detailLoan && (
-        <div className="modal-overlay" style={{ background: 'rgba(0,0,0,0.4)', padding: 20 }} onClick={e => e.target === e.currentTarget && setDetailModal(false)}>
+        <div className="modal-overlay" style={{ background: 'rgba(0,0,0,0.4)', padding: 20 }} onMouseDown={e => e.target === e.currentTarget && setDetailModal(false)}>
           <div className="modal" style={{ maxWidth: 950, borderRadius: 16, padding: '30px', background: '#fff', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)' }}>
             
             {/* Header */}

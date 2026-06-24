@@ -167,21 +167,6 @@ export default function FullyPaid({ search = '' }) {
                         {hasRole('admin', 'manager') ? (
                           <div style={{ display: 'flex', gap: '5px' }}>
                             <button className="btn btn-dark btn-sm" onClick={() => openEval(r)}>Evaluate</button>
-                            <select 
-                              className="form-control" 
-                              style={{ width: '130px', padding: '5px 10px', height: '32px', fontSize: '13px' }} 
-                              onChange={(e) => {
-                                if (e.target.value) handleActionDirect(r, e.target.value);
-                                e.target.value = "";
-                              }}
-                            >
-                              <option value="">Quick Action</option>
-                              <option value="RELOAN">Reloan</option>
-                              <option value="RECON">Recon</option>
-                              <option value="RELAX">Relax</option>
-                              <option value="HOLD">Hold</option>
-                              <option value="RECI">Re-CI</option>
-                            </select>
                           </div>
                         ) : (
                           <span style={{color: '#94a3b8', fontSize: '12px'}}>Manager Only</span>
@@ -310,9 +295,8 @@ export default function FullyPaid({ search = '' }) {
                         <span style={{ width: 38, height: 38, borderRadius: 8, background: '#dbeafe', color: '#0f4fbf', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>*</span>
                         MANAGER ACTION
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 28 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28 }}>
                         {actionCard('RELOAN', 'Open Reloan Application', 'RL', '#2563eb', '#eff6ff', '#bfdbfe', 'RELOAN', true)}
-                        {actionCard('RECON', 'Requires additional review', 'RC', '#2563eb', '#eff6ff', '#bfdbfe', 'RECON')}
                         {actionCard('RELAX', 'Temporarily resting', 'RX', '#f59e0b', '#fff7ed', '#fed7aa', 'RELAX')}
                         {actionCard('HOLD', 'Block new applications', '!', '#ef4444', '#fff1f2', '#fecaca', 'HOLD')}
                       </div>
