@@ -19,6 +19,8 @@ export default function FullyPaid({ search = '' }) {
   // Reloan Modal State
   const [reloanModalOpen, setReloanModalOpen] = useState(false);
   const [reloanCustomerId, setReloanCustomerId] = useState(null);
+  const [reloanCustomer, setReloanCustomer] = useState(null);
+  const [loanActionType, setLoanActionType] = useState('Reloan');
 
   const load = () => {
     setLoading(true);
@@ -55,8 +57,10 @@ export default function FullyPaid({ search = '' }) {
   };
 
   const handleActionDirect = async (customer, action) => {
-    if (action === 'RELOAN') {
+    if (action === 'RELOAN' || action === 'RECON') {
       setReloanCustomerId(customer.id);
+      setReloanCustomer(customer);
+      setLoanActionType(action === 'RECON' ? 'Recon' : 'Reloan');
       setReloanModalOpen(true);
       return;
     }
@@ -73,9 +77,11 @@ export default function FullyPaid({ search = '' }) {
 
   const handleAction = async (action) => {
     if (!evalCustomer) return;
-    if (action === 'RELOAN') {
+    if (action === 'RELOAN' || action === 'RECON') {
       setEvalModal(false);
       setReloanCustomerId(evalCustomer.id);
+      setReloanCustomer(evalCustomer);
+      setLoanActionType(action === 'RECON' ? 'Recon' : 'Reloan');
       setReloanModalOpen(true);
       return;
     }
@@ -237,8 +243,11 @@ export default function FullyPaid({ search = '' }) {
         isOpen={reloanModalOpen}
         onClose={() => setReloanModalOpen(false)}
         customerId={reloanCustomerId}
+        customer={reloanCustomer}
+        loanType={loanActionType}
         onReloanSubmitted={() => {
           setReloanModalOpen(false);
+          setReloanCustomer(null);
           load();
         }}
       />

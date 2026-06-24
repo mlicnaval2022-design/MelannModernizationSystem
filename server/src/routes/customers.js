@@ -1,6 +1,7 @@
 const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
+const { computeMaturityDate, generateAmortizationSchedule } = require('../services/loanCalculator');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -263,22 +264,39 @@ router.put('/:id/relax', authenticateToken, requireRole('admin', 'manager'), asy
 
 router.post('/:id/reloan', authenticateToken, async (req, res) => {
   try {
-    const { principal, loan_period, remarks } = req.body;
+    const { principal, loan_period, interest_rate, date_released, loan_type, remarks } = req.body;
     const customer = await dbGet('SELECT * FROM tblCustomer WHERE id = ?', [req.params.id]);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
     
     const lCount = (await dbGet('SELECT COUNT(*) as c FROM tblLoan')).c;
     const loan_code = `LN-${String(lCount + 1).padStart(6, '0')}`;
-    const date_released = new Date().toISOString().split('T')[0];
+    const releaseDate = date_released || new Date().toISOString().split('T')[0];
     const amount = Number(principal) || 0;
     const period = Number(loan_period) || 45;
-    const amortization = amount > 0 ? (amount * 1.15) / period : 0;
+    const interestRate = Number(interest_rate) || 0;
+    const normalizedLoanType = loan_type === 'Recon' ? 'Recon' : 'Re-Loan';
+    const loanStatus = normalizedLoanType === 'Recon' ? 'pending' : 'active';
+    const actionName = normalizedLoanType === 'Recon' ? 'RECON_APP' : 'RELOAN_APP';
+    const defaultRemarks = normalizedLoanType === 'Recon' ? 'Auto-created via Recon application' : 'Auto-created via Re-Loan application';
+    const interestAmount = amount * (interestRate / 100);
+    const totalAmortization = amount + interestAmount;
+    const amortization = amount > 0 && period > 0 ? Math.ceil(totalAmortization / period) : 0;
+    const dateMaturity = computeMaturityDate(releaseDate, period);
     
-    await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, loan_period, date_released, amortization, status, remarks, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [loan_code, customer.id, customer.collector_id, customer.branch_id, 'Re-Loan', amount, 15, period, date_released, amortization, 'reloan_pending', remarks || 'Auto-created via Re-Loan application', req.user.id]
+    const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, net_proceeds, balance, status, remarks, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [loan_code, customer.id, customer.collector_id, customer.branch_id, normalizedLoanType, amount, interestRate, interestAmount, period, releaseDate, dateMaturity, amortization, totalAmortization, amount, totalAmortization, loanStatus, remarks || defaultRemarks, req.user.id]
     );
-    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'RELOAN_APP', 'CUSTOMER', customer.id, `Re-Loan application created: ${loan_code} for ₱${amount}`]);
-    res.json({ message: 'Re-Loan application submitted successfully', loan_code });
+    if (loanStatus === 'active') {
+      const schedule = generateAmortizationSchedule(result.lastID, releaseDate, period, amortization);
+      for (const s of schedule) {
+        await dbRun(`INSERT INTO tblAmortizationSchedule (loan_id, period_number, due_date, amount_due, status) VALUES (?,?,?,?,?)`, [s.loan_id, s.period_number, s.due_date, s.amount_due, s.status]);
+      }
+      await dbRun(`UPDATE tblCustomer SET status='active', updated_at=datetime('now') WHERE id=?`, [customer.id]);
+      await dbRun(`INSERT INTO tblCustomerStatusHistory (customer_id, previous_status, new_status, changed_by, remarks) VALUES (?, ?, ?, ?, ?)`,
+        [customer.id, customer.status, 'active', req.user.id, `Re-Loan activated: ${loan_code}`]);
+    }
+    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, actionName, 'CUSTOMER', customer.id, `${normalizedLoanType} application created: ${loan_code} for ₱${amount}`]);
+    res.json({ message: loanStatus === 'active' ? `${normalizedLoanType} saved to Active Loans successfully` : `${normalizedLoanType} application submitted successfully`, loan_code, status: loanStatus });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 
