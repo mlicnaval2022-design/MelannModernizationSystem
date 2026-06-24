@@ -97,6 +97,7 @@ export default function Payments() {
 
   const handlePost = async (e, force_duplicate = false) => {
     if (e) e.preventDefault()
+    if (saving && !force_duplicate) return
     if (!activeLoan) return
     setNotification(null)
     setSaving(true)
@@ -127,13 +128,25 @@ export default function Payments() {
     } catch (err) {
       if (err.response?.status === 409 && err.response?.data?.is_duplicate) {
         if (window.confirm(err.response.data.error + '\n\nDo you want to post it anyway?')) {
-          handlePost(null, true)
+          await handlePost(null, true)
         }
       } else {
         setNotification({ type: 'danger', message: err.response?.data?.error || 'Error posting payment' })
       }
     } finally {
-      if (!force_duplicate) setSaving(false)
+      setSaving(false)
+    }
+  }
+
+  const handlePaymentFormKeyDown = (e) => {
+    if (e.key !== 'Enter' || e.nativeEvent?.isComposing) return
+    if (e.target.closest('.search-area')) return
+
+    e.preventDefault()
+    if (activeLoan) {
+      handlePost(e)
+    } else if (e.target === scannerRef.current) {
+      handleScan(e)
     }
   }
 
@@ -185,7 +198,7 @@ export default function Payments() {
           Payment Form
         </div>
         
-        <div className="payments-form-body">
+        <div className="payments-form-body" onKeyDown={handlePaymentFormKeyDown}>
           <div className="p-row">
             {/* LEFT COLUMN */}
             <div className="p-col-6" style={{ paddingRight: '40px' }}>
@@ -216,7 +229,6 @@ export default function Payments() {
                       className="p-input" 
                       value={scannerInput}
                       onChange={e => setScannerInput(e.target.value.replace(/\D/g, ''))}
-                      onKeyDown={e => { if (e.key === 'Enter') handleScan(e) }}
                       placeholder="00234"
                     />
                     {activeLoan && <span className="badge-found" style={{ position: 'static', transform: 'none', whiteSpace: 'nowrap' }}>✓ Found</span>}
@@ -322,12 +334,6 @@ export default function Payments() {
                         ref={amountInputRef}
                         value={form.amount_paid} 
                         onChange={e => setForm({...form, amount_paid: e.target.value})}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            if (activeLoan && !saving) handlePost(e);
-                          }
-                        }}
                         disabled={!activeLoan}
                       />
                     </div>

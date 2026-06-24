@@ -1,14 +1,53 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import API from '../services/api';
+import './ReloanModal.css';
 
-const ReloanModal = ({ isOpen, onClose, customerId, onReloanSubmitted }) => {
+const peso = n => Number(n || 0).toLocaleString('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
+
+const numberText = n => Number(n || 0).toLocaleString('en-PH', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
+
+const formatDate = date => date.toLocaleDateString('en-US', {
+  month: '2-digit',
+  day: '2-digit',
+  year: 'numeric'
+});
+
+const toInputDate = date => date.toISOString().split('T')[0];
+
+const formatDateTime = date => `${formatDate(date)} ${date.toLocaleTimeString('en-US', {
+  hour: 'numeric',
+  minute: '2-digit',
+  second: '2-digit'
+})}`;
+
+const addDays = (date, days) => {
+  const next = new Date(date);
+  next.setDate(next.getDate() + Number(days || 0));
+  return next;
+};
+
+const getRecommendedAmount = data => {
+  if (!data) return '';
+  return data.recommendations?.standard || data.last_loan_amount || '';
+};
+
+const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan', onReloanSubmitted }) => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
-  
-  // Form State
+  const [showSuccess, setShowSuccess] = useState(false);
   const [desiredAmount, setDesiredAmount] = useState('');
+  const [dateRelease, setDateRelease] = useState(() => toInputDate(new Date()));
   const [loanTerm, setLoanTerm] = useState('45');
+  const [interestRate, setInterestRate] = useState('15');
   const [remarks, setRemarks] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -18,6 +57,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, onReloanSubmitted }) => {
     try {
       const res = await API.get(`/customers/${customerId}/reloan-eval`);
       setData(res.data);
+      setDesiredAmount(current => current || getRecommendedAmount(res.data));
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to fetch reloan evaluation data');
     } finally {
@@ -31,22 +71,65 @@ const ReloanModal = ({ isOpen, onClose, customerId, onReloanSubmitted }) => {
     }
   }, [isOpen, customerId, fetchReloanData]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      setError('');
+      setSubmitting(false);
+      setRemarks('');
+      setLoanTerm('45');
+      setInterestRate('15');
+      setDateRelease(toInputDate(new Date()));
+      setDesiredAmount('');
+    }
+  }, [isOpen]);
+
+  const computed = useMemo(() => {
+    const today = new Date();
+    const releaseDate = dateRelease ? new Date(`${dateRelease}T00:00:00`) : today;
+    const principal = Number(desiredAmount || 0);
+    const terms = Number(loanTerm || 45);
+    const interest = Number(interestRate || 0);
+    const charges = 0;
+    const interestAmount = principal * (interest / 100);
+    const totalForRelease = Math.max(principal - charges, 0);
+    const totalAmount = principal + interestAmount;
+    const paymentPerDay = terms > 0 ? Math.ceil(totalAmount / terms) : 0;
+
+    return {
+      today,
+      releaseDate,
+      principal,
+      interest,
+      interestAmount,
+      terms,
+      charges,
+      totalForRelease,
+      totalAmount,
+      paymentPerDay,
+      maturity: addDays(releaseDate, terms)
+    };
+  }, [desiredAmount, loanTerm, interestRate, dateRelease]);
+
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
+    if (submitting) return;
     if (!desiredAmount || isNaN(desiredAmount) || Number(desiredAmount) <= 0) {
       setError('Please enter a valid loan amount.');
       return;
     }
-    
+
     setSubmitting(true);
     setError('');
     try {
       await API.post(`/customers/${customerId}/reloan`, {
         principal: Number(desiredAmount),
         loan_period: Number(loanTerm),
-        remarks: remarks
+        interest_rate: Number(interestRate || 0),
+        date_released: dateRelease,
+        loan_type: loanType,
+        remarks
       });
-      onReloanSubmitted();
+      setShowSuccess(true);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to submit reloan application');
       setSubmitting(false);
@@ -55,199 +138,334 @@ const ReloanModal = ({ isOpen, onClose, customerId, onReloanSubmitted }) => {
 
   if (!isOpen) return null;
 
-  return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth: 960, maxHeight: '90vh', overflowY: 'auto' }}>
-        <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ background: '#2563eb', color: '#fff', borderRadius: 8, padding: 8, display: 'flex' }}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            </div>
-            <h2 className="modal-title">RELOAN APPLICATION</h2>
-          </div>
-          <button onClick={onClose} className="modal-close">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
+  const clientName = customer?.client_name || customer?.full_name || 'Selected customer';
+  const customerCode = customer?.customer_code || customerId || '';
+  const collectorName = customer?.collector_name || 'Select collector';
+  const isEligible = data?.is_eligible !== false;
 
-        <div className="modal-body">
-          {loading ? (
-            <div className="flex justify-center items-center py-20">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-            </div>
-          ) : error ? (
-            <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4">{error}</div>
-          ) : data ? (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              
-              {/* Left Column: History & Eligibility */}
-              <div className="lg:col-span-1 space-y-6">
-                
-                {/* Eligibility Card */}
-                <div className={`p-5 rounded-xl border ${data.is_eligible ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Eligibility Status</h3>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-4 h-4 rounded-full animate-pulse ${data.is_eligible ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
-                    <span className={`text-xl font-bold ${data.is_eligible ? 'text-emerald-700' : 'text-red-700'}`}>
-                      {data.is_eligible ? 'Eligible for Reloan' : 'Not Eligible'}
-                    </span>
-                  </div>
-                  {!data.is_eligible && (
-                    <p className="text-xs text-red-600 mt-2">Client must be Fully Paid with no active balance or hold status.</p>
-                  )}
-                </div>
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
 
-                {/* History Summary */}
-                <div className="bg-gray-50 rounded-xl border border-gray-200 p-5">
-                  <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4 border-b pb-2">Loan History Summary</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-500 text-sm">Total Loans Availed</span>
-                      <span className="font-medium">{data.total_loans}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-500 text-sm">Successful Loans</span>
-                      <span className="font-medium text-emerald-600">{data.successful_loans}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-500 text-sm">Past Due Accounts</span>
-                      <span className="font-medium text-red-600">{data.past_due_occurrences}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-500 text-sm">Recon Accounts</span>
-                      <span className="font-medium text-orange-600">{data.recon_history}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-500 text-sm">Collection Efficiency</span>
-                      <span className="font-bold text-indigo-600">{data.collection_efficiency}%</span>
-                    </div>
-                    <div className="pt-3 mt-3 border-t border-gray-200">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-gray-500 text-sm">Last Loan Amount</span>
-                        <span className="font-medium text-gray-900">₱{data.last_loan_amount?.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-500 text-sm">Last Fully Paid</span>
-                        <span className="text-sm text-gray-700">{data.last_fully_paid_date || 'N/A'}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Right Column: Request Form */}
-              <div className="lg:col-span-2 space-y-6">
-                
-                {/* Recommendation Engine */}
-                {data.is_eligible && (
-                  <div className="bg-white rounded-xl border border-indigo-100 shadow-sm p-5">
-                    <h3 className="text-sm font-semibold text-indigo-900 uppercase tracking-wider mb-4">Recommended Loan Amounts</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div 
-                        onClick={() => setDesiredAmount(data.recommendations.conservative)}
-                        className="cursor-pointer group relative overflow-hidden bg-slate-50 border border-slate-200 p-4 rounded-lg hover:border-indigo-400 hover:shadow-md transition-all text-center"
-                      >
-                        <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Conservative</div>
-                        <div className="text-xl font-bold text-slate-800">₱{data.recommendations.conservative?.toLocaleString()}</div>
-                      </div>
-                      <div 
-                        onClick={() => setDesiredAmount(data.recommendations.standard)}
-                        className="cursor-pointer group relative overflow-hidden bg-indigo-50 border border-indigo-200 p-4 rounded-lg hover:border-indigo-500 hover:shadow-md transition-all text-center"
-                      >
-                        <div className="absolute top-0 right-0 bg-indigo-500 text-white text-[10px] px-2 py-0.5 font-bold rounded-bl-lg">STANDARD</div>
-                        <div className="text-xs text-indigo-600 uppercase font-semibold mb-1">Standard</div>
-                        <div className="text-2xl font-bold text-indigo-900">₱{data.recommendations.standard?.toLocaleString()}</div>
-                      </div>
-                      <div 
-                        onClick={() => setDesiredAmount(data.recommendations.progressive)}
-                        className="cursor-pointer group relative overflow-hidden bg-amber-50 border border-amber-200 p-4 rounded-lg hover:border-amber-400 hover:shadow-md transition-all text-center"
-                      >
-                        <div className="text-xs text-amber-600 uppercase font-semibold mb-1">Progressive</div>
-                        <div className="text-xl font-bold text-amber-900">₱{data.recommendations.progressive?.toLocaleString()}</div>
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-400 mt-3 text-center italic">Click a recommendation to auto-fill the desired amount.</p>
-                  </div>
-                )}
-
-                {/* Form */}
-                <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
-                    <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">Loan Request Details</h3>
-                  </div>
-                  <div className="p-5 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Desired Loan Amount (₱)</label>
-                        <input
-                          type="number"
-                          value={desiredAmount}
-                          onChange={(e) => setDesiredAmount(e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg font-semibold"
-                          placeholder="0.00"
-                          disabled={!data.is_eligible}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Loan Term</label>
-                        <select
-                          value={loanTerm}
-                          onChange={(e) => setLoanTerm(e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50"
-                          disabled={!data.is_eligible}
-                        >
-                          <option value="30">30 Days</option>
-                          <option value="45">45 Days</option>
-                          <option value="60">60 Days</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Remarks (Optional)</label>
-                      <textarea
-                        value={remarks}
-                        onChange={(e) => setRemarks(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                        rows="2"
-                        placeholder="Add any notes for the approver..."
-                        disabled={!data.is_eligible}
-                      ></textarea>
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 px-5 py-4 border-t border-gray-200 flex justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-medium"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={!data.is_eligible || submitting}
-                      className={`px-5 py-2 text-white rounded-lg font-medium shadow-sm transition-all flex items-center gap-2 ${
-                        !data.is_eligible || submitting
-                          ? 'bg-indigo-300 cursor-not-allowed'
-                          : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-md'
-                      }`}
-                    >
-                      {submitting ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          Submitting...
-                        </>
-                      ) : 'Submit for Approval'}
-                    </button>
-                  </div>
-                </form>
-
-              </div>
-            </div>
-          ) : null}
+  if (showSuccess) {
+    return (
+      <div className="reloan-overlay" onMouseDown={e => e.target === e.currentTarget && onClose()}>
+        <div className="reloan-modal" style={{ width: '400px', textAlign: 'center', padding: '50px 30px' }}>
+          <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#ecfdf5', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '40px', margin: '0 auto 20px auto' }}>✓</div>
+          <h2 style={{ margin: '0 0 10px 0', color: '#047857', fontSize: '24px' }}>Saved Loan</h2>
+          <p style={{ color: '#64748b', marginBottom: '30px' }}>The loan application has been saved successfully and sent for approval.</p>
+          <button className="reloan-primary" style={{ width: '100%', padding: '12px', justifyContent: 'center' }} onClick={onReloanSubmitted}>OK</button>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="reloan-overlay" onMouseDown={e => e.target === e.currentTarget && onClose()}>
+      <form className="reloan-modal" onSubmit={handleSubmit}>
+        <div className="reloan-header">
+          <div className="reloan-title-block">
+            <div className="reloan-bell" aria-hidden="true">
+              <span>●</span>
+            </div>
+            <div>
+              <h2>REGULAR LOAN FILE MAINTENANCE</h2>
+              <p>Create and manage regular loan records</p>
+            </div>
+          </div>
+          <div className="reloan-id-panel">
+            <label>Loan ID</label>
+            <input value="(Auto-Generate)" readOnly />
+            <button type="button" className="reloan-icon-button" onClick={onClose} aria-label="Close reloan modal">
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <div className="reloan-body">
+          {loading ? (
+            <div className="reloan-state">
+              <div className="reloan-spinner" />
+              <span>Loading reloan file...</span>
+            </div>
+          ) : (
+            <>
+              {error && <div className="reloan-error">{error}</div>}
+
+              <div className="reloan-grid">
+                <section className="reloan-card reloan-left-card">
+                  <div className="reloan-section-title">
+                    <span>LOAN INFORMATION</span>
+                    <small>ⓘ ⓘ</small>
+                  </div>
+                  <p className="reloan-help">Code must be numbers only. Then press ENTER.</p>
+                  <p className="reloan-required">* Required Field</p>
+
+                  <label className="reloan-field">
+                    <span>Code <b>*</b></span>
+                    <div className="reloan-input-with-icon">
+                      <input value={customerCode} readOnly />
+                      <i>▦</i>
+                    </div>
+                  </label>
+
+                  <label className="reloan-field">
+                    <span>Principal <b>*</b></span>
+                    <div className="reloan-money-input">
+                      <i>₱</i>
+                      <input
+                        type="number"
+                        min="1"
+                        value={desiredAmount}
+                        onChange={e => setDesiredAmount(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Enter principal amount"
+                        required
+                      />
+                    </div>
+                  </label>
+
+                  <label className="reloan-field">
+                    <span>Date Release <b>*</b></span>
+                    <div className="reloan-input-with-icon">
+                      <input
+                        type="date"
+                        value={dateRelease}
+                        onChange={e => setDateRelease(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        required
+                      />
+                      <i>▣</i>
+                    </div>
+                  </label>
+
+                  <div className="reloan-split">
+                    <div>
+                      <div className="reloan-section-title compact">LOAN TYPE</div>
+                      <label className="reloan-radio">
+                        <input type="radio" checked readOnly />
+                        {loanType}
+                      </label>
+                    </div>
+                    <label className="reloan-field">
+                      <span>INTEREST RATE (%)</span>
+                      <div className="reloan-percent">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={interestRate}
+                          onChange={e => setInterestRate(e.target.value)}
+                          onKeyDown={handleKeyDown}
+                        />
+                        <i>%</i>
+                      </div>
+                    </label>
+                  </div>
+
+                  <label className="reloan-field">
+                    <span>PERIOD (DAYS) <b>*</b></span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={loanTerm}
+                      onChange={e => setLoanTerm(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Enter number of days"
+                    />
+                  </label>
+                  <p className="reloan-note">Manual input only. System terms available: 45 days</p>
+                </section>
+
+                <section className="reloan-card reloan-middle-card">
+                  <div className="reloan-today-row">
+                    <div className="reloan-soft-icon blue">▣</div>
+                    <div>
+                      <span>DATE TODAY</span>
+                      <strong>{formatDateTime(computed.today)}</strong>
+                    </div>
+                  </div>
+
+                  <div className="reloan-select-row">
+                    <div className="reloan-soft-icon">♙</div>
+                    <label>Collector</label>
+                    <select value={collectorName} disabled>
+                      <option>{collectorName}</option>
+                    </select>
+                  </div>
+
+                  <div className="reloan-select-row">
+                    <div className="reloan-soft-icon">♙</div>
+                    <label>Customer</label>
+                    <select value={clientName} disabled>
+                      <option>{clientName}</option>
+                    </select>
+                  </div>
+
+                  <div className="reloan-metric-grid">
+                    <div className="reloan-metric">
+                      <div className="reloan-soft-icon violet">▣</div>
+                      <span>MATURITY DATE</span>
+                      <strong>{formatDate(computed.maturity)}</strong>
+                    </div>
+                    <div className="reloan-metric">
+                      <div className="reloan-soft-icon green">▣</div>
+                      <span>PAYMENT / DAY</span>
+                      <strong>{peso(computed.paymentPerDay)}</strong>
+                    </div>
+                  </div>
+
+                  <div className="reloan-balance-row">
+                    <div className="reloan-soft-icon violet">⟲</div>
+                    <div>
+                      <span>OLD BALANCE</span>
+                      <strong>{peso(0)}</strong>
+                    </div>
+                  </div>
+
+                  <div className="reloan-charges-row">
+                    <div className="reloan-charges">
+                      <div className="reloan-section-title compact">CHARGES INFORMATION</div>
+                      {['Insurance', 'Collection', 'Penalty', 'Passbook', 'Service Fee'].map(label => (
+                        <label key={label} className="reloan-charge-field">
+                          <span>{label}</span>
+                          <div>
+                            <i>₱</i>
+                            <input value={numberText(0)} readOnly />
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                    <div className="reloan-terms">
+                      <span>TERMS</span>
+                      <strong>{computed.terms}</strong>
+                      <em>days</em>
+                    </div>
+                  </div>
+                </section>
+
+                <aside className="reloan-side">
+                  <div className="reloan-side-card collector">
+                    <div className="reloan-side-heading">
+                      <div className="reloan-soft-icon violet">▤</div>
+                      <strong>COLLECTOR CHARGES</strong>
+                    </div>
+                    <div className="reloan-two-col">
+                      <div>
+                        <span>Deducted to<br />Total Charges</span>
+                        <strong>{peso(0)}</strong>
+                      </div>
+                      <div>
+                        <span>Not Posted</span>
+                        <strong>{peso(0)}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="reloan-side-card customer">
+                    <div className="reloan-side-heading">
+                      <div className="reloan-soft-icon green">●</div>
+                      <strong>OVER TO CUSTOMER</strong>
+                    </div>
+                    <div className="reloan-inline-total">
+                      <span>Added to Total Charges</span>
+                      <strong>{peso(0)}</strong>
+                    </div>
+                  </div>
+
+                  <div className="reloan-side-card breakdown">
+                    <div className="reloan-side-heading">
+                      <div className="reloan-soft-icon blue">◔</div>
+                      <strong>LOAN BREAKDOWN INFORMATION</strong>
+                    </div>
+                    <dl>
+                      <div><dt>Principal</dt><dd>{peso(computed.principal)}</dd></div>
+                      <div><dt>Interest ({computed.interest}%)</dt><dd>{peso(computed.interestAmount)}</dd></div>
+                      <div><dt>Less: Total Charges</dt><dd>{peso(computed.charges)}</dd></div>
+                      <div className="total"><dt>Total for Release</dt><dd>{peso(computed.totalForRelease)}</dd></div>
+                    </dl>
+                  </div>
+
+                  <div className="reloan-side-card amortization">
+                    <div className="reloan-side-heading">
+                      <div className="reloan-soft-icon gold">▣</div>
+                      <strong>TOTAL AMORTIZATION</strong>
+                    </div>
+                    <strong>{peso(computed.paymentPerDay)}</strong>
+                  </div>
+                </aside>
+              </div>
+
+              <section className="reloan-table-panel">
+                <div className="reloan-search-row">
+                  <button type="button" className="reloan-search-button">⌕</button>
+                  <strong>Search</strong>
+                  <input value={`${customerCode} ${clientName}`} readOnly />
+                  <span>×</span>
+                </div>
+                <div className="reloan-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Loan ID</th>
+                        <th>Code</th>
+                        <th>Principal</th>
+                        <th>Date Release</th>
+                        <th>Loan Type</th>
+                        <th>Interest %</th>
+                        <th>Period (Days)</th>
+                        <th>Customer</th>
+                        <th>Maturity</th>
+                        <th>Total Amount</th>
+                        <th>Total Charges</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>Auto</td>
+                        <td>{customerCode}</td>
+                        <td>{peso(computed.principal)}</td>
+                        <td>{formatDate(computed.releaseDate)}</td>
+                        <td>{loanType}</td>
+                        <td>{computed.interest}</td>
+                        <td>{computed.terms}</td>
+                        <td>{clientName}</td>
+                        <td>{formatDate(computed.maturity)}</td>
+                        <td>{peso(computed.totalAmount)}</td>
+                        <td>{peso(computed.charges)}</td>
+                        <td><span className={isEligible ? 'reloan-good' : 'reloan-hold'}>{isEligible ? 'Good' : 'Hold'}</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div className="reloan-table-footer">Showing 1 to 1 of 1 entries</div>
+              </section>
+
+              <div className="reloan-footer">
+                <button type="submit" className="reloan-primary" disabled={submitting}>
+                  <span>＋</span>{submitting ? 'Submitting...' : 'Add'}
+                </button>
+                <button type="button" className="reloan-secondary" onClick={onClose}>× Close</button>
+                <button type="button" className="reloan-secondary muted">▤ SOA (Statement of Account)</button>
+                <button type="button" className="reloan-secondary muted">▭ Generate Disclosure</button>
+                <label className="reloan-remarks">
+                  <span>Remarks</span>
+                  <input
+                    value={remarks}
+                    onChange={e => setRemarks(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Add notes for approval"
+                  />
+                </label>
+              </div>
+            </>
+          )}
+        </div>
+      </form>
     </div>
   );
 };

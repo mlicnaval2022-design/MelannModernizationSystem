@@ -1,6 +1,7 @@
 const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
+const { computeMaturityDate, generateAmortizationSchedule } = require('../services/loanCalculator');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -15,6 +16,92 @@ const storage = multer.diskStorage({
   filename: function(req, file, cb) { cb(null, Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9.]/g, '_')); }
 });
 const upload = multer({ storage });
+
+const toDateOnly = (value) => {
+  if (!value) return null;
+  const d = new Date(`${String(value).slice(0, 10)}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+const daysBetween = (from, to) => {
+  const start = toDateOnly(from);
+  const end = toDateOnly(to);
+  if (!start || !end) return 0;
+  return Math.floor((end - start) / 86400000);
+};
+
+const getPenaltyRate = (daysOverdue) => {
+  if (daysOverdue >= 30) return 5;
+  if (daysOverdue >= 15) return 3;
+  if (daysOverdue >= 8) return 2;
+  if (daysOverdue >= 1) return 1;
+  return 0;
+};
+
+const getPaymentConsistency = (loan, payments) => {
+  const principal = Number(loan.principal || 0);
+  const totalLoan = Number(loan.total_amortization || loan.principal || 0);
+  const activePayments = payments.filter(p => p.status !== 'reversed').sort((a, b) => {
+    const byDate = String(a.date_paid || '').localeCompare(String(b.date_paid || ''));
+    return byDate || Number(a.id || 0) - Number(b.id || 0);
+  });
+  const totalPaid = activePayments.reduce((sum, p) => sum + Number(p.amount_paid || 0), 0);
+  const lastPayment = activePayments[activePayments.length - 1] || null;
+  const finalPaymentAmount = lastPayment ? Number(lastPayment.amount_paid || 0) : 0;
+  const paidBeforeFinal = Math.max(0, totalPaid - finalPaymentAmount);
+  const paidBeforeFinalPercent = totalLoan > 0 ? Math.round((paidBeforeFinal / totalLoan) * 100) : 0;
+  const totalPaidPercent = totalLoan > 0 ? Math.round((totalPaid / totalLoan) * 100) : 0;
+  const finalPaymentPercent = totalLoan > 0 ? Math.round((finalPaymentAmount / totalLoan) * 100) : 0;
+  const finalBeforeMaturity = lastPayment && loan.date_maturity ? daysBetween(lastPayment.date_paid, loan.date_maturity) > 0 : false;
+  const uniquePaymentDays = new Set(activePayments.map(p => p.date_paid).filter(Boolean)).size;
+  const expectedDailyDays = Number(loan.loan_period || 0);
+  const dailyPaymentPercent = expectedDailyDays > 0 ? Math.round((uniquePaymentDays / expectedDailyDays) * 100) : 0;
+  const lumpSumAdvance = finalBeforeMaturity && finalPaymentPercent >= 40 && dailyPaymentPercent < 80;
+
+  let label = 'No payment history';
+  let risk = 'neutral';
+  let scoreAdjustment = -10;
+
+  if (lumpSumAdvance && paidBeforeFinalPercent <= 30) {
+    label = 'Bad - low daily payment history before advance payoff';
+    risk = 'bad';
+    scoreAdjustment = -35;
+  } else if (lumpSumAdvance && paidBeforeFinalPercent < 50) {
+    label = 'Fair - advance payoff with weak daily payment consistency';
+    risk = 'fair';
+    scoreAdjustment = -20;
+  } else if (paidBeforeFinalPercent >= 90 || dailyPaymentPercent >= 90) {
+    label = 'Excellent - consistent daily payments';
+    risk = 'excellent';
+    scoreAdjustment = 5;
+  } else if (paidBeforeFinalPercent >= 50 || dailyPaymentPercent >= 50) {
+    label = 'Good - acceptable payment consistency';
+    risk = 'good';
+    scoreAdjustment = 0;
+  } else if (activePayments.length > 0) {
+    label = 'Bad - insufficient daily payment consistency';
+    risk = 'bad';
+    scoreAdjustment = -30;
+  }
+
+  return {
+    total_paid: totalPaid,
+    total_paid_percent: totalPaidPercent,
+    paid_before_final: paidBeforeFinal,
+    paid_before_final_percent: paidBeforeFinalPercent,
+    final_payment_amount: finalPaymentAmount,
+    final_payment_percent: finalPaymentPercent,
+    final_payment_date: lastPayment ? lastPayment.date_paid : null,
+    final_before_maturity: finalBeforeMaturity,
+    unique_payment_days: uniquePaymentDays,
+    expected_daily_days: expectedDailyDays,
+    daily_payment_percent: dailyPaymentPercent,
+    lump_sum_advance: lumpSumAdvance,
+    label,
+    risk,
+    score_adjustment: scoreAdjustment
+  };
+};
 
 router.post('/upload', authenticateToken, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -54,7 +141,24 @@ router.get('/list/fully-paid', authenticateToken, async (req, res) => {
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { search, status, branch_id } = req.query;
-    let q = `SELECT c.*, b.branch_name, co.first_name || ' ' || co.last_name as collector_name FROM tblCustomer c LEFT JOIN tblBranch b ON c.branch_id = b.id LEFT JOIN tblCollector co ON c.collector_id = co.id WHERE 1=1`;
+    let q = `
+      SELECT c.*, b.branch_name, co.first_name || ' ' || co.last_name as collector_name,
+        EXISTS(
+          SELECT 1 FROM tblLoan l
+          WHERE l.customer_id = c.id
+            AND l.loan_type IN ('Re-Loan', 'Reloan')
+            AND l.status NOT IN ('reversed', 'rejected', 'fullpaid')
+        ) as has_open_reloan,
+        EXISTS(
+          SELECT 1 FROM tblLoan l
+          WHERE l.customer_id = c.id
+            AND l.loan_type = 'Recon'
+            AND l.status NOT IN ('reversed', 'rejected', 'fullpaid')
+        ) as has_open_recon
+      FROM tblCustomer c
+      LEFT JOIN tblBranch b ON c.branch_id = b.id
+      LEFT JOIN tblCollector co ON c.collector_id = co.id
+      WHERE 1=1`;
     const p = [];
     if (search) { q += ` AND (c.full_name LIKE ? OR c.customer_code LIKE ? OR c.contact LIKE ?)`; p.push(`%${search}%`, `%${search}%`, `%${search}%`); }
     if (status) { q += ` AND c.status = ?`; p.push(status); }
@@ -77,12 +181,20 @@ router.get('/:id', authenticateToken, async (req, res) => {
 router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
   try {
     const id = req.params.id;
+    const today = new Date().toISOString().split('T')[0];
     const stats = await dbGet(`
       SELECT 
         COUNT(l.id) as total_loans,
-        SUM(l.principal) as total_amount_borrowed,
+        SUM(COALESCE(NULLIF(l.total_amortization, 0), l.principal + COALESCE(l.interest_amount, 0), l.principal)) as total_amount_borrowed,
         MAX(l.principal) as last_loan_amount
       FROM tblLoan l WHERE l.customer_id = ?`, [id]);
+
+    const lastLoan = await dbGet(`
+      SELECT *
+      FROM tblLoan
+      WHERE customer_id = ?
+      ORDER BY COALESCE(date_released, created_at) DESC, id DESC
+      LIMIT 1`, [id]);
       
     const sched = await dbGet(`
       SELECT 
@@ -93,8 +205,25 @@ router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
 
     const pd = await dbGet(`SELECT COUNT(*) as past_due_occurrences FROM tblLoan WHERE customer_id = ? AND status='pastdue'`, [id]);
     const recon = await dbGet(`SELECT COUNT(*) as recon_history FROM tblCustomerStatusHistory WHERE customer_id = ? AND new_status='RECON'`, [id]);
-    
-    let score = 100 - ((sched ? sched.late : 0) * 2) - ((pd ? pd.past_due_occurrences : 0) * 20);
+
+    const payments = lastLoan
+      ? await dbAll(`SELECT * FROM tblPayment WHERE loan_id = ? AND status != 'reversed' ORDER BY date_paid ASC, id ASC`, [lastLoan.id])
+      : [];
+    const totalPaymentCount = payments.length;
+    const consistency = lastLoan ? getPaymentConsistency(lastLoan, payments) : getPaymentConsistency({}, []);
+
+    const daysOverdue = lastLoan && lastLoan.date_maturity && Number(lastLoan.balance || 0) > 0
+      ? Math.max(0, daysBetween(lastLoan.date_maturity, today))
+      : 0;
+    const penaltyRate = getPenaltyRate(daysOverdue);
+    const penaltyBase = lastLoan ? Number(lastLoan.balance || 0) : 0;
+    const recommendedPenalty = Math.round((penaltyBase * (penaltyRate / 100)) * 100) / 100;
+    const overdueStatus = daysOverdue > 0
+      ? (String(lastLoan.status).toLowerCase() === 'pastdue' ? 'past due' : 'overdue')
+      : 'current';
+
+    let score = 100 - ((sched ? sched.late : 0) * 2) - ((pd ? pd.past_due_occurrences : 0) * 20) + consistency.score_adjustment;
+    if (daysOverdue > 0) score -= Math.min(40, daysOverdue * 2);
     score = Math.max(0, score);
 
     res.json({
@@ -103,9 +232,26 @@ router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
       last_loan_amount: stats ? stats.last_loan_amount : 0,
       on_time_payments: sched ? sched.on_time : 0,
       late_payments: sched ? sched.late : 0,
+      total_payment_count: totalPaymentCount,
       past_due_occurrences: pd ? pd.past_due_occurrences : 0,
       recon_history: recon ? recon.recon_history : 0,
-      credit_score: score
+      credit_score: score,
+      payment_consistency: consistency,
+      last_loan: lastLoan ? {
+        id: lastLoan.id,
+        loan_code: lastLoan.loan_code,
+        status: lastLoan.status,
+        balance: Number(lastLoan.balance || 0),
+        date_maturity: lastLoan.date_maturity,
+        total_amortization: Number(lastLoan.total_amortization || lastLoan.principal || 0)
+      } : null,
+      overdue: {
+        status: overdueStatus,
+        days: daysOverdue,
+        penalty_rate: penaltyRate,
+        recommended_penalty: recommendedPenalty,
+        requires_manager_approval: recommendedPenalty > 0
+      }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -261,24 +407,74 @@ router.put('/:id/relax', authenticateToken, requireRole('admin', 'manager'), asy
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 
+router.post('/:id/penalty', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const loan = await dbGet(`
+      SELECT *
+      FROM tblLoan
+      WHERE customer_id = ?
+        AND status IN ('active', 'pastdue')
+        AND balance > 0
+      ORDER BY COALESCE(date_maturity, date_released) DESC, id DESC
+      LIMIT 1`, [req.params.id]);
+
+    if (!loan || !loan.date_maturity) return res.status(400).json({ error: 'No overdue active loan found for penalty.' });
+
+    const daysOverdue = Math.max(0, daysBetween(loan.date_maturity, today));
+    const penaltyRate = getPenaltyRate(daysOverdue);
+    const penaltyAmount = Math.round((Number(loan.balance || 0) * (penaltyRate / 100)) * 100) / 100;
+
+    if (penaltyAmount <= 0) return res.status(400).json({ error: 'This loan is not overdue enough for a penalty.' });
+
+    const existingPenalty = await dbGet(`SELECT id FROM tblCharge WHERE loan_id = ? AND charge_type = 'Overdue Penalty' AND date_charged = ? LIMIT 1`, [loan.id, today]);
+    if (existingPenalty) return res.status(409).json({ error: 'An overdue penalty has already been applied to this loan today.' });
+
+    await dbRun(`INSERT INTO tblCharge (loan_id, charge_type, amount, date_charged, remarks) VALUES (?, 'Overdue Penalty', ?, ?, ?)`,
+      [loan.id, penaltyAmount, today, `${penaltyRate}% penalty approved by manager for ${daysOverdue} overdue day(s)`]);
+    await dbRun(`UPDATE tblLoan SET balance = balance + ?, updated_at = datetime('now') WHERE id = ?`, [penaltyAmount, loan.id]);
+    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
+      [req.user.id, req.user.username, 'APPROVE_PENALTY', 'CUSTOMER', req.params.id, `Approved ${penaltyRate}% overdue penalty: ${penaltyAmount}`]);
+
+    res.json({ message: 'Penalty approved and added to loan balance.', penalty_amount: penaltyAmount, penalty_rate: penaltyRate, days_overdue: daysOverdue });
+  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+});
+
 router.post('/:id/reloan', authenticateToken, async (req, res) => {
   try {
-    const { principal, loan_period, remarks } = req.body;
+    const { principal, loan_period, interest_rate, date_released, loan_type, remarks } = req.body;
     const customer = await dbGet('SELECT * FROM tblCustomer WHERE id = ?', [req.params.id]);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
     
     const lCount = (await dbGet('SELECT COUNT(*) as c FROM tblLoan')).c;
     const loan_code = `LN-${String(lCount + 1).padStart(6, '0')}`;
-    const date_released = new Date().toISOString().split('T')[0];
+    const releaseDate = date_released || new Date().toISOString().split('T')[0];
     const amount = Number(principal) || 0;
     const period = Number(loan_period) || 45;
-    const amortization = amount > 0 ? (amount * 1.15) / period : 0;
+    const interestRate = Number(interest_rate) || 0;
+    const normalizedLoanType = loan_type === 'Recon' ? 'Recon' : 'Re-Loan';
+    const loanStatus = normalizedLoanType === 'Recon' ? 'pending' : 'active';
+    const actionName = normalizedLoanType === 'Recon' ? 'RECON_APP' : 'RELOAN_APP';
+    const defaultRemarks = normalizedLoanType === 'Recon' ? 'Auto-created via Recon application' : 'Auto-created via Re-Loan application';
+    const interestAmount = amount * (interestRate / 100);
+    const totalAmortization = amount + interestAmount;
+    const amortization = amount > 0 && period > 0 ? Math.ceil(totalAmortization / period) : 0;
+    const dateMaturity = computeMaturityDate(releaseDate, period);
     
-    await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, loan_period, date_released, amortization, status, remarks, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [loan_code, customer.id, customer.collector_id, customer.branch_id, 'Re-Loan', amount, 15, period, date_released, amortization, 'reloan_pending', remarks || 'Auto-created via Re-Loan application', req.user.id]
+    const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, net_proceeds, balance, status, remarks, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [loan_code, customer.id, customer.collector_id, customer.branch_id, normalizedLoanType, amount, interestRate, interestAmount, period, releaseDate, dateMaturity, amortization, totalAmortization, amount, totalAmortization, loanStatus, remarks || defaultRemarks, req.user.id]
     );
-    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'RELOAN_APP', 'CUSTOMER', customer.id, `Re-Loan application created: ${loan_code} for ₱${amount}`]);
-    res.json({ message: 'Re-Loan application submitted successfully', loan_code });
+    if (loanStatus === 'active') {
+      const schedule = generateAmortizationSchedule(result.lastID, releaseDate, period, amortization);
+      for (const s of schedule) {
+        await dbRun(`INSERT INTO tblAmortizationSchedule (loan_id, period_number, due_date, amount_due, status) VALUES (?,?,?,?,?)`, [s.loan_id, s.period_number, s.due_date, s.amount_due, s.status]);
+      }
+      await dbRun(`UPDATE tblCustomer SET status='active', updated_at=datetime('now') WHERE id=?`, [customer.id]);
+      await dbRun(`INSERT INTO tblCustomerStatusHistory (customer_id, previous_status, new_status, changed_by, remarks) VALUES (?, ?, ?, ?, ?)`,
+        [customer.id, customer.status, 'active', req.user.id, `Re-Loan activated: ${loan_code}`]);
+    }
+    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, actionName, 'CUSTOMER', customer.id, `${normalizedLoanType} application created: ${loan_code} for ₱${amount}`]);
+    res.json({ message: loanStatus === 'active' ? `${normalizedLoanType} saved to Active Loans successfully` : `${normalizedLoanType} application submitted successfully`, loan_code, status: loanStatus });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 
