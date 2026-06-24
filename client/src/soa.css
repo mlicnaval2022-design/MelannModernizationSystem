@@ -524,7 +524,19 @@
     display: block;
     font-family: Arial, Helvetica, sans-serif;
     color: #000;
+  }
+
+  body.soa-print-statement .formal-soa-print table {
+    page-break-inside: auto;
+  }
+
+  body.soa-print-statement .formal-soa-print thead {
+    display: table-header-group;
+  }
+
+  body.soa-print-statement .formal-soa-print tr {
     page-break-inside: avoid;
+    page-break-after: auto;
   }
 
   body.soa-print-profile .formal-profile-print {

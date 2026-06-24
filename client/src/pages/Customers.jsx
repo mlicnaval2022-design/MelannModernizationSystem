@@ -621,34 +621,6 @@ export default function Customers() {
 
                     <h1 className="f-soa-title">STATEMENT OF ACCOUNT</h1>
 
-                    <div className="f-soa-section">
-                      <div className="f-soa-sec-header">
-                        <i className="bi bi-person-circle"></i> CUSTOMER INFORMATION
-                      </div>
-                      <div className="f-soa-sec-body">
-                        <div className="f-soa-grid-2">
-                          <table>
-                            <tbody>
-                              <tr><td>Customer Code</td><td>:</td><td>{soaData.customer_code}</td></tr>
-                              <tr><td>Customer Name</td><td>:</td><td>{soaData.full_name}</td></tr>
-                              <tr><td>Address</td><td>:</td><td>{customerAddress || '-'}</td></tr>
-                              <tr><td>Contact No.</td><td>:</td><td>{soaData.contact || '-'}</td></tr>
-                              <tr><td>Email</td><td>:</td><td>{soaData.email || '-'}</td></tr>
-                            </tbody>
-                          </table>
-                          <table>
-                            <tbody>
-                              <tr><td>Birthday</td><td>:</td><td>{formatDateLong(soaData.birth_date || soaData.birthday)}</td></tr>
-                              <tr><td>Gender</td><td>:</td><td>{soaData.gender || '-'}</td></tr>
-                              <tr><td>Civil Status</td><td>:</td><td>{soaData.civil_status || '-'}</td></tr>
-                              <tr><td>Occupation</td><td>:</td><td>{soaData.occupation || '-'}</td></tr>
-                              <tr><td>Business Name</td><td>:</td><td>{soaData.business_name || '-'}</td></tr>
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </div>
-
                     {loans.length > 0 && (
                       <div className="f-soa-section">
                         <div className="f-soa-sec-header">
@@ -658,6 +630,8 @@ export default function Customers() {
                           <div className="f-soa-grid-3">
                             <table>
                               <tbody>
+                                <tr><td>Customer Code</td><td>:</td><td>{soaData.customer_code}</td></tr>
+                                <tr><td>Customer Name</td><td>:</td><td className="fw-bold">{soaData.full_name}</td></tr>
                                 <tr><td>Loan Code</td><td>:</td><td>{currentLoan.loan_code}</td></tr>
                                 <tr><td>Loan Type</td><td>:</td><td style={{textTransform:'uppercase'}}>{currentLoan.loan_type}</td></tr>
                                 <tr><td>Date Released</td><td>:</td><td>{formatDateLong(currentLoan.date_released)}</td></tr>
