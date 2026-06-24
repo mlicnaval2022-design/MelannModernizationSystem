@@ -224,7 +224,7 @@ export default function Customers() {
                   </td>
                   <td>
                     <div className="address-cell">
-                      <div>{[r.address, r.sitio, r.purok, r.brgy].filter(Boolean).join(', ') || '—'}</div>
+                      <div>{[r.address, r.sitio, r.purok, r.brgy].filter(v => v && v.toUpperCase() !== 'N/A').join(', ') || '—'}</div>
                       <div style={{fontSize: 11, marginTop: 4}}>{r.city || '—'}</div>
                     </div>
                   </td>
@@ -238,6 +238,8 @@ export default function Customers() {
                       <span className="status-badge status-active"><div className="status-dot"></div> Active</span>
                     ) : r.status === 'hold' ? (
                       <span className="status-badge" style={{ background: '#fef2f2', color: '#ef4444', borderColor: '#fca5a5' }}><div className="status-dot" style={{ background: '#ef4444' }}></div> Hold</span>
+                    ) : r.status === 'FULLY PAID' || r.status === 'fully paid' ? (
+                      <span className="status-badge" style={{ background: '#f0fdf4', color: '#10b981', borderColor: '#a7f3d0' }}><div className="status-dot" style={{ background: '#10b981' }}></div> FULLY PAID</span>
                     ) : (
                       <span className="status-badge status-inactive"><div className="status-dot"></div> {r.status}</span>
                     )}
