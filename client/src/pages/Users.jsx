@@ -57,7 +57,7 @@ export default function Users() {
         </div>
       </div>
       {modal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setModal(false)}>
           <div className="modal">
             <div className="modal-header"><span className="modal-title">{editing ? 'Edit User' : 'New User'}</span><button className="modal-close" onClick={() => setModal(false)}>✕</button></div>
             <div className="modal-body">

@@ -189,12 +189,11 @@ router.post('/:id/manager-decision', authenticateToken, requireRole('admin', 'ma
       await dbRun(`UPDATE tblLoan SET status='approved', updated_at=datetime('now') WHERE id=?`, [loan_id]);
       await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'APPROVE', 'LOAN', loan_id, `Manager Approved Loan`]);
     } else if (decision === 'reject') {
-      if (!remarks) return res.status(400).json({ error: 'Remarks are required for rejection' });
-      await dbRun(`UPDATE tblLoan SET status='rejected', remarks=?, updated_at=datetime('now') WHERE id=?`, [remarks, loan_id]);
+      await dbRun(`UPDATE tblLoan SET status='rejected', remarks=?, updated_at=datetime('now') WHERE id=?`, [remarks || '', loan_id]);
       await dbRun(`UPDATE tblCustomer SET status='hold' WHERE id=?`, [loan.customer_id]);
-      await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REJECT', 'LOAN', loan_id, `Manager Rejected Loan: ${remarks}`]);
+      await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REJECT', 'LOAN', loan_id, `Manager Rejected Loan: ${remarks || 'No remarks'}`]);
     } else if (decision === 'reduce') {
-      if (!remarks || !approved_amount) return res.status(400).json({ error: 'Approved amount and remarks are required' });
+      if (!approved_amount) return res.status(400).json({ error: 'Approved amount is required' });
       const newPrincipal = Number(approved_amount);
       const { interest_amount, total_amortization, amortization } = computeAmortization(newPrincipal, loan.interest_rate || 0, loan.loan_period || 45);
       const { net_proceeds } = computeNetProceeds(newPrincipal, 0, 0, 0, 0);

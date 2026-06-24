@@ -337,7 +337,7 @@ export default function CreditScoring() {
 
       {/* ===================== New Application Modal ===================== */}
       {appModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setAppModal(false)}>
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setAppModal(false)}>
           <div className="modal" style={{ maxWidth: 600 }}>
             <div className="modal-header">
               <span className="modal-title">📋 New CI Application</span>
@@ -407,7 +407,7 @@ export default function CreditScoring() {
 
       {/* ===================== CI Modal ===================== */}
       {ciModal && ciLoan && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setCiModal(false)}>
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setCiModal(false)}>
           <div className="modal" style={{ maxWidth: 900 }}>
             <div className="modal-header">
               <span className="modal-title">CREDIT INVESTIGATION - {ciLoan.customer_name}</span>
@@ -602,7 +602,7 @@ export default function CreditScoring() {
 
       {/* ===================== Manager Review Modal ===================== */}
       {managerModal && ciLoan && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setManagerModal(false)}>
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setManagerModal(false)}>
           <div className="modal" style={{ maxWidth: 900 }}>
             <div className="modal-header">
               <span className="modal-title">MANAGER REVIEW - {ciLoan.customer_name}</span>
@@ -653,8 +653,8 @@ export default function CreditScoring() {
                   )}
                   {managerForm.decision && (
                     <div className="form-group mb-3">
-                      <label className="form-label fw-bold">Manager Remarks {managerForm.decision !== 'approve' && '*'}</label>
-                      <textarea className="form-control" rows="3" value={managerForm.remarks} onChange={e => setManagerForm(f => ({ ...f, remarks: e.target.value }))} required={managerForm.decision !== 'approve'}></textarea>
+                      <label className="form-label fw-bold">Manager Remarks</label>
+                      <textarea className="form-control" rows="3" value={managerForm.remarks} onChange={e => setManagerForm(f => ({ ...f, remarks: e.target.value }))}></textarea>
                     </div>
                   )}
 

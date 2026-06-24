@@ -152,7 +152,7 @@ export default function CashPosition() {
 
       {/* New Entry Modal */}
       {modal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setModal(false)}>
           <div className="modal">
             <div className="modal-header">
               <span className="modal-title">{tab === 'hand' ? '🏧 New Cash on Hand Entry' : '🏦 New Bank Transaction'}</span>

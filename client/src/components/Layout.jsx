@@ -199,7 +199,7 @@ export default function Layout() {
 
       {/* Change Password Modal */}
       {changePwModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setChangePwModal(false)}>
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setChangePwModal(false)}>
           <div className="modal" style={{ maxWidth: 420 }}>
             <div className="modal-header">
               <span className="modal-title">🔑 Change Password</span>
