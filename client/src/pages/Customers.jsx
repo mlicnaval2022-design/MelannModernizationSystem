@@ -5,10 +5,10 @@ import { useAuth } from '../context/AuthContext'
 import '../soa.css'
 import '../customers.css'
 import CustomerWizard from '../components/CustomerWizard'
-import ReloanModal from '../components/ReloanModal'
+import logoImg from '../assets/logo.png'
 
 export default function Customers() {
-  const { hasRole } = useAuth()
+  const { user } = useAuth()
   const [searchParams] = useSearchParams()
   const [rows, setRows] = useState([])
   const [branches, setBranches] = useState([])
@@ -27,19 +27,25 @@ export default function Customers() {
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
   
-  const [reloanModalOpen, setReloanModalOpen] = useState(false)
-  const [reloanCustomer, setReloanCustomer] = useState(null)
-  const [loanActionType, setLoanActionType] = useState('Reloan')
-
   const [soaModal, setSoaModal] = useState(false)
   const [soaData, setSoaData] = useState(null)
   const [previewImage, setPreviewImage] = useState(null)
   const [soaLoading, setSoaLoading] = useState(false)
   const [soaTab, setSoaTab] = useState('summary')
-  const [viewAllLoans, setViewAllLoans] = useState(false)
-  const [viewAllPayments, setViewAllPayments] = useState(false)
-  const [confirmModal, setConfirmModal] = useState({ open: false, type: '', customer: null, message: '' })
 
+  useEffect(() => {
+    if (soaModal) {
+      document.body.classList.add('soa-print-mode');
+    } else {
+      document.body.classList.remove('soa-print-mode');
+    }
+    document.body.classList.toggle('soa-print-profile', soaModal && soaTab === 'profile');
+    document.body.classList.toggle('soa-print-statement', soaModal && soaTab !== 'profile');
+
+    return () => {
+      document.body.classList.remove('soa-print-mode', 'soa-print-profile', 'soa-print-statement');
+    };
+  }, [soaModal, soaTab]);
   const getImageUrl = (path) => {
     if (!path) return '';
     if (path.startsWith('http')) return path;
@@ -84,8 +90,6 @@ export default function Customers() {
     setSoaLoading(true);
     setSoaData(null);
     setSoaTab('summary');
-    setViewAllLoans(false);
-    setViewAllPayments(false);
     try {
       const r = await API.get(`/customers/${id}`);
       setSoaData(r.data);
@@ -94,53 +98,6 @@ export default function Customers() {
       setSoaModal(false);
     } finally {
       setSoaLoading(false);
-    }
-  }
-
-  const triggerReloan = (customer) => {
-    setReloanCustomer(customer);
-    setLoanActionType('Reloan');
-    setReloanModalOpen(true);
-  }
-
-  const triggerRecon = (customer) => {
-    setReloanCustomer(customer);
-    setLoanActionType('Recon');
-    setReloanModalOpen(true);
-  }
-
-  const triggerReCI = (customer) => {
-    setConfirmModal({
-      open: true, type: 'reci', customer,
-      message: 'Are you sure you want to send this client for a new Credit Investigation?'
-    })
-  }
-
-  const handleRelax = async (customer) => {
-    if (!window.confirm('Are you sure you want to relax this client?')) return
-    try {
-      await API.put(`/customers/${customer.id}/relax`)
-      load()
-      alert('Customer successfully relaxed.')
-    } catch (err) {
-      alert(err.response?.data?.error || 'An error occurred while relaxing.')
-    }
-  }
-
-  const confirmAction = async () => {
-    const { type, customer } = confirmModal;
-    setConfirmModal({ open: false, type: '', customer: null, message: '' });
-    try {
-      if (type === 'reloan') {
-        await API.post(`/customers/${customer.id}/reloan`);
-        alert('Re-Loan application created and sent to For Approval queue.');
-      } else if (type === 'reci') {
-        await API.post(`/customers/${customer.id}/reci`);
-        alert('Re-CI application created and sent to For CI queue.');
-      }
-      load();
-    } catch (err) {
-      alert(err.response?.data?.error || 'An error occurred');
     }
   }
 
@@ -159,8 +116,14 @@ export default function Customers() {
     window.print();
   };
 
-  const isFullyPaidCustomer = (customer) => String(customer.status || '').toUpperCase() === 'FULLY PAID';
-  const hasOpenReloan = (customer) => Number(customer.has_open_reloan) === 1 || customer.has_open_reloan === true;
+  const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
+  const formatPhp = (value) => `PHP ${Number(value || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
+  const formatDateLong = (value) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' });
+  };
 
   return (
     <div className="customers-container">
@@ -282,24 +245,6 @@ export default function Customers() {
                   <td className="table-actions-col">
                     <div className="table-actions">
                       <button className="action-btn action-soa" onClick={() => openSoa(r.id)}>SOA</button>
-                      {hasRole('admin', 'manager') && hasOpenReloan(r) ? (
-                        <>
-                          <button className="action-btn" style={{color: '#f59e0b', borderColor: '#fef3c7'}} onClick={() => handleRelax(r)}>Relax</button>
-                          <button className="action-btn" style={{color: '#0369a1', borderColor: '#bae6fd'}} onClick={() => triggerRecon(r)}>Recon</button>
-                        </>
-                      ) : hasRole('admin', 'manager') && isFullyPaidCustomer(r) ? (
-                        <>
-                          <button className="action-btn" style={{color: '#3b82f6', borderColor: '#dbeafe'}} onClick={() => triggerReloan(r)}>Re-Loan</button>
-                          <button className="action-btn" style={{color: '#10b981', borderColor: '#d1fae5'}} onClick={() => triggerReCI(r)}>Re-CI</button>
-                          <button className="action-btn" style={{color: '#f59e0b', borderColor: '#fef3c7'}} onClick={() => handleRelax(r)}>Relax</button>
-                        </>
-                      ) : (
-                        <>
-                          {hasRole('admin', 'manager') && r.status === 'active' && (
-                            <button className="action-btn" style={{color: '#0369a1', borderColor: '#bae6fd'}} onClick={() => triggerRecon(r)}>Recon</button>
-                          )}
-                        </>
-                      )}
                     </div>
                   </td>
                 </tr>
@@ -336,21 +281,6 @@ export default function Customers() {
         />
       )}
       
-      {reloanModalOpen && reloanCustomer && (
-        <ReloanModal
-          isOpen={reloanModalOpen}
-          onClose={() => setReloanModalOpen(false)}
-          customerId={reloanCustomer.id}
-          customer={reloanCustomer}
-          loanType={loanActionType}
-          onReloanSubmitted={() => {
-            setReloanModalOpen(false);
-            setReloanCustomer(null);
-            load();
-          }}
-        />
-      )}
-
       {soaModal && (
         <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setSoaModal(false)}>
           <div className="soa-modal">
@@ -373,14 +303,26 @@ export default function Customers() {
                 const lastPayment = sortedPayments.length > 0 ? new Date(sortedPayments[0].date_paid).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '-';
                 const nextDueDate = activeLoans.length > 0 && activeLoans[0].date_maturity ? new Date(activeLoans[0].date_maturity).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '-';
                 const memberSince = soaData.created_at ? new Date(soaData.created_at).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '-';
+                const currentLoan = activeLoans[0] || validLoans[0] || loans[0] || {};
+                const accountStatus = (currentLoan.id ? getLoanStatusLabel(currentLoan) : soaData.status) || '-';
+                const soaNumber = `SOA-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${soaData.customer_code || soaData.id}`;
+                const customerAddress = [soaData.address, soaData.sitio, soaData.purok, soaData.brgy, soaData.city, soaData.province, soaData.zip_code].filter(Boolean).join(', ');
+                const serviceFee = Number(currentLoan.service_fee || 0);
+                const insurance = Number(currentLoan.insurance || 0);
+                const notarialFee = Number(currentLoan.notarial_fee || 0);
+                const filingFee = Number(currentLoan.filing_fee || 0);
+                const totalDeductions = Number(currentLoan.total_deductions || 0);
+                const otherCharges = Math.max(totalDeductions - serviceFee - insurance - notarialFee - filingFee, 0);
                 const profileSections = [
                   { title: 'Personal Information', fields: [['Customer Code', soaData.customer_code], ['Classification', soaData.customer_classification], ['Full Name', soaData.full_name], ['Gender', soaData.gender], ['Birth Date', soaData.birth_date], ['Civil Status', soaData.civil_status], ['Nationality', soaData.nationality], ['Status', soaData.status]] },
                   { title: 'Address Information', fields: [['Address', [soaData.address, soaData.sitio, soaData.purok, soaData.brgy, soaData.city].filter(Boolean).join(', ')], ['Province', soaData.province], ['Zip Code', soaData.zip_code], ['Home Status', soaData.home_status]] },
                   { title: 'Contact Information', fields: [['Main Contact', soaData.contact], ['Secondary Contact', soaData.secondary_contact], ['Email', soaData.email], ['Facebook', soaData.fb_account]] },
-                  { title: 'Business Information', fields: [['Business Type', soaData.business_type], ['Occupation', soaData.occupation], ['Business Name', soaData.business_name], ['Monthly Income', soaData.income_per_month ? `PHP ${Number(soaData.income_per_month).toLocaleString(undefined, {minimumFractionDigits:2})}` : ''], ['Branch', soaData.branch_name], ['Collector', soaData.collector_name]] },
+                  { title: 'Business Information', fields: [['Business Type', soaData.business_type], ['Occupation', soaData.occupation], ['Business Name', soaData.business_name], ['Monthly Income', soaData.income_per_month ? formatPhp(soaData.income_per_month) : ''], ['Branch', soaData.branch_name], ['Collector', soaData.collector_name]] },
                 ];
 
                 return (
+                  <>
+                  <style media="print">{`@page { size: ${soaTab === 'profile' ? '13in 8.5in' : '8.5in 13in'}; margin: ${soaTab === 'profile' ? '0.25in' : '0.3in'}; }`}</style>
                   <div className="printable-soa-wrapper">
                     <div className="soa-top-header">
                       <div className="print-brand-container">
@@ -391,6 +333,9 @@ export default function Customers() {
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div className="soa-date screen-only">Date: <span>{new Date().toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'})}</span></div>
+                        <div className="soa-print-preview-note screen-only">
+                          Print preview: {soaTab === 'profile' ? 'Legal landscape, 1 page' : `Legal portrait, ${sortedPayments.length > 20 ? 'may continue to page 2' : '1 page expected'}`}
+                        </div>
                         <div className="screen-only" style={{ display: 'flex', gap: 10, marginTop: 10, justifyContent: 'flex-end' }}>
                           <button className="soa-print-btn" style={{ background: '#64748b' }} onClick={() => setSoaModal(false)}>Close</button>
                           <button className="soa-print-btn" onClick={() => window.print()}>Print</button>
@@ -423,11 +368,11 @@ export default function Customers() {
                               )}
                             </div>
                           </div>
-                          <div className="soa-gauge-wrapper"><div className="soa-gauge"><div className="soa-gauge-label">Outstanding<br/>Balance</div><div className="soa-gauge-val">PHP {Number(outstandingBal).toLocaleString(undefined, {minimumFractionDigits:2})}</div><div className="soa-gauge-sub">As of {new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})}</div></div></div>
+                          <div className="soa-gauge-wrapper"><div className="soa-gauge"><div className="soa-gauge-label">Outstanding<br/>Balance</div><div className="soa-gauge-val">{formatPhp(outstandingBal)}</div><div className="soa-gauge-sub">As of {new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})}</div></div></div>
                         </div>
 
                         <div className="soa-summary-row">
-                          <div className="soa-card soa-summary-card print-card"><div className="print-tab print-tab-green">LOAN SUMMARY</div><div className="soa-summary-grid"><div><div className="soa-summary-label">Total Loan Amount</div><div className="soa-summary-val">PHP {Number(totalLoanAmt).toLocaleString(undefined, {minimumFractionDigits:2})}</div></div><div><div className="soa-summary-label">Total Paid</div><div className="soa-summary-val green">PHP {Number(totalPaid).toLocaleString(undefined, {minimumFractionDigits:2})}</div></div><div><div className="soa-summary-label">Outstanding Balance</div><div className="soa-summary-val blue">PHP {Number(outstandingBal).toLocaleString(undefined, {minimumFractionDigits:2})}</div></div></div></div>
+                          <div className="soa-card soa-summary-card print-card"><div className="print-tab print-tab-green">LOAN SUMMARY</div><div className="soa-summary-grid"><div><div className="soa-summary-label">Total Loan Amount</div><div className="soa-summary-val">{formatPhp(totalLoanAmt)}</div></div><div><div className="soa-summary-label">Total Paid</div><div className="soa-summary-val green">{formatPhp(totalPaid)}</div></div><div><div className="soa-summary-label">Outstanding Balance</div><div className="soa-summary-val blue">{formatPhp(outstandingBal)}</div></div></div></div>
                           <div className="soa-card soa-summary-card print-card"><div className="print-tab print-tab-blue">PAYMENT SUMMARY</div><div className="soa-summary-grid"><div><div className="soa-summary-label">Total Payments</div><div className="soa-summary-val green">{sortedPayments.length}</div></div><div><div className="soa-summary-label">Last Payment</div><div className="soa-summary-val" style={{ fontSize: 16 }}>{lastPayment}</div></div><div><div className="soa-summary-label">Next Due Date</div><div className="soa-summary-val" style={{ fontSize: 16 }}>{nextDueDate}</div></div></div></div>
                         </div>
                       </>
@@ -469,35 +414,362 @@ export default function Customers() {
                     {soaTab === 'history' && (
                       <div className="soa-card">
                         <div className="soa-list-card-header"><div className="soa-list-title">Loans & Payments History</div></div>
-                        {loans.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Loan Code</th><th>Type</th><th>Date Released</th><th>Maturity</th><th>Period</th><th>Principal</th><th>Interest Rate</th><th>Interest Amount</th><th>Total Loan</th><th>Amortization</th><th>Balance</th><th>Status</th></tr></thead><tbody>{loans.map(l => (<tr key={l.id}><td className="mono">{l.loan_code}</td><td>{l.loan_type || '-'}</td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>PHP {Number(l.principal || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</td><td>{l.interest_rate || 0}%</td><td>PHP {Number(l.interest_amount || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</td><td>PHP {Number(l.total_amortization || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</td><td>PHP {Number(l.amortization || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</td><td>PHP {Number(l.balance || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
+                        {loans.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Loan Code</th><th>Type</th><th>Date Released</th><th>Maturity</th><th>Period</th><th>Principal</th><th>Interest Rate</th><th>Interest Amount</th><th>Total Loan</th><th>Amortization</th><th>Balance</th><th>Status</th></tr></thead><tbody>{loans.map(l => (<tr key={l.id}><td className="mono">{l.loan_code}</td><td>{l.loan_type || '-'}</td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
                         <div className="soa-list-card-header" style={{ marginTop: 24 }}><div className="soa-list-title">Payment Ledger</div></div>
-                        {sortedPayments.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Date Paid</th><th>Loan Ref</th><th>OR No.</th><th>Amount Paid</th><th>Balance After</th><th>Status</th><th>Remarks</th></tr></thead><tbody>{sortedPayments.map(p => { const isFullyPaid = p.status === 'active' && Number(p.balance_after) <= 0; const statusClass = isFullyPaid ? 'fullpaid' : p.status; const statusLabel = isFullyPaid ? 'Fully Paid' : (p.status || '-'); return (<tr key={p.id}><td>{p.date_paid || '-'}</td><td className="mono">{p.loan_code || '-'}</td><td>{p.or_number || '-'}</td><td className="fw-600 text-success">PHP {Number(p.amount_paid || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</td><td>PHP {Number(p.balance_after || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</td><td><span className={`badge badge-${statusClass}`}>{statusLabel}</span></td><td>{p.remarks || '-'}</td></tr>); })}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No payments found.</div><div className="soa-empty-sub">There are no payment records associated with this account.</div></div>)}
+                        {sortedPayments.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Date Paid</th><th>Loan Ref</th><th>OR No.</th><th>Amount Paid</th><th>Balance After</th><th>Status</th><th>Remarks</th></tr></thead><tbody>{sortedPayments.map(p => { const isFullyPaid = p.status === 'active' && Number(p.balance_after) <= 0; const statusClass = isFullyPaid ? 'fullpaid' : p.status; const statusLabel = isFullyPaid ? 'Fully Paid' : (p.status || '-'); return (<tr key={p.id}><td>{p.date_paid || '-'}</td><td className="mono">{p.loan_code || '-'}</td><td>{p.or_number || '-'}</td><td className="fw-600 text-success">{formatPhp(p.amount_paid)}</td><td>{formatPhp(p.balance_after)}</td><td><span className={`badge badge-${statusClass}`}>{statusLabel}</span></td><td>{p.remarks || '-'}</td></tr>); })}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No payments found.</div><div className="soa-empty-sub">There are no payment records associated with this account.</div></div>)}
                       </div>
                     )}
 
                     <div className="print-footer print-only"><div className="print-footer-col"><p>We are committed to provide reliable and responsible lending solutions for your financial growth.</p></div><div className="print-footer-col center-col"><div>09171131000</div><div>melann.lic2016@gmail.com</div><div>facebook.com/MelannLendingInvestorCorp</div></div><div className="print-footer-col right-col"><div style={{ color: '#1e3a8a', fontStyle: 'italic', fontSize: 16 }}>Thank you for choosing</div><div className="print-footer-brand">MELANN LENDING!</div></div><div className="print-footer-wave"></div></div>
                   </div>
+                  
+                  {/* FORMAL CUSTOMER PROFILE PRINT LAYOUT */}
+                  <div className="formal-profile-print">
+                    <div className="fp-header">
+                      <div className="fp-brand">
+                        <img src={logoImg} className="fp-logo" alt="Melann Lending logo" />
+                        <div>
+                          <h2>MELANN LENDING</h2>
+                          <h3>INVESTOR CORPORATION</h3>
+                          <p>Lot 3, Blk 2, Brgy. San Isidro,</p>
+                          <p>Ormoc City</p>
+                          <p>Leyte 6541</p>
+                          <p>Tel. No.: (053) 555-1234</p>
+                        </div>
+                      </div>
+                      <h1>CUSTOMER PROFILE</h1>
+                      <table className="fp-meta"><tbody>
+                        <tr><td>Print Date</td><td>:</td><td>{new Date().toLocaleDateString('en-US')} {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</td></tr>
+                        <tr><td>Printed By</td><td>:</td><td>{user?.username || user?.full_name || '-'}</td></tr>
+                        <tr><td>Page</td><td>:</td><td>1 of 1</td></tr>
+                      </tbody></table>
+                    </div>
+
+                    <div className="fp-grid">
+                      <div className="fp-col">
+                        <section className="fp-section">
+                          <h3>PERSONAL INFORMATION</h3>
+                          <div className="fp-fields">
+                            {[
+                              ['Customer Code', soaData.customer_code],
+                              ['Classification', soaData.customer_classification],
+                              ['Full Name', soaData.full_name],
+                              ['First Name', soaData.first_name],
+                              ['Middle Name', soaData.middle_name],
+                              ['Last Name', soaData.last_name],
+                              ['Gender', soaData.gender],
+                              ['Birth Date', soaData.birth_date],
+                              ['Civil Status', soaData.civil_status],
+                              ['Nationality', soaData.nationality],
+                              ['Status', soaData.status],
+                              ['Risk Category', soaData.risk_category],
+                            ].map(([label, value]) => <div className="fp-field" key={label}><span>{label}</span><strong>{value || '-'}</strong></div>)}
+                          </div>
+                        </section>
+
+                        <section className="fp-section">
+                          <h3>ADDRESS INFORMATION</h3>
+                          <div className="fp-fields">
+                            {[
+                              ['Address', soaData.address],
+                              ['Sitio', soaData.sitio],
+                              ['Purok', soaData.purok],
+                              ['Barangay', soaData.brgy],
+                              ['City', soaData.city],
+                              ['Province', soaData.province],
+                              ['Zip Code', soaData.zip_code],
+                              ['Home Status', soaData.home_status],
+                              ['Length of Stay', soaData.length_of_stay],
+                              ['Previous Address', soaData.previous_address],
+                            ].map(([label, value]) => <div className="fp-field" key={label}><span>{label}</span><strong>{value || '-'}</strong></div>)}
+                          </div>
+                        </section>
+
+                        <section className="fp-section">
+                          <h3>CONTACT INFORMATION</h3>
+                          <div className="fp-fields">
+                            {[
+                              ['Main Contact', soaData.contact],
+                              ['Secondary Contact', soaData.secondary_contact],
+                              ['Email', soaData.email],
+                              ['Facebook', soaData.fb_account],
+                              ['Messenger', soaData.messenger_account],
+                              ['Preferred Method', soaData.preferred_contact_method],
+                              ['Preferred Time From', soaData.preferred_contact_time_from],
+                              ['Preferred Time To', soaData.preferred_contact_time_to],
+                              ['Contact Notes', soaData.contact_notes],
+                            ].map(([label, value]) => <div className="fp-field" key={label}><span>{label}</span><strong>{value || '-'}</strong></div>)}
+                          </div>
+                        </section>
+                      </div>
+
+                      <div className="fp-col">
+                        <section className="fp-section">
+                          <h3>BUSINESS INFORMATION</h3>
+                          <div className="fp-fields">
+                            {[
+                              ['Business Type', soaData.business_type],
+                              ['Occupation', soaData.occupation],
+                              ['Business Name', soaData.business_name],
+                              ['Business Address', soaData.business_address],
+                              ['Business Location', soaData.business_location],
+                              ['Business Years', soaData.business_years],
+                              ['Business Months', soaData.business_months],
+                              ['Monthly Income', soaData.income_per_month ? formatPhp(soaData.income_per_month) : ''],
+                              ['Monthly Expenses', soaData.expenses_per_month ? formatPhp(soaData.expenses_per_month) : ''],
+                              ['Employees', soaData.business_employees],
+                              ['Ownership', soaData.business_ownership],
+                              ['Business Permit', soaData.business_permit],
+                              ['Permit No.', soaData.permit_no],
+                              ['Permit Date Issued', soaData.permit_date_issued],
+                              ['Permit Place Issued', soaData.permit_place_issued],
+                            ].map(([label, value]) => <div className="fp-field" key={label}><span>{label}</span><strong>{value || '-'}</strong></div>)}
+                          </div>
+                        </section>
+
+                        <section className="fp-section">
+                          <h3>IDENTIFICATION AND LOAN ASSIGNMENT</h3>
+                          <div className="fp-fields">
+                            {[
+                              ['ID Type', soaData.id_type],
+                              ['ID Number', soaData.id_number],
+                              ['ID Issue Date', soaData.id_issue_date],
+                              ['ID Expiry Date', soaData.id_expiry_date],
+                              ['ID Issued By', soaData.id_issued_by],
+                              ['ID Place of Issue', soaData.id_place_of_issue],
+                              ['TIN', soaData.tin_number],
+                              ['SSS', soaData.sss_number],
+                              ['ID Notes', soaData.id_notes],
+                              ['Loan Purpose', soaData.loan_purpose],
+                              ['Collateral', soaData.collateral],
+                              ['Branch', soaData.branch_name],
+                              ['Collector', soaData.collector_name],
+                              ['CIC Verification', soaData.cic_verification],
+                            ].map(([label, value]) => <div className="fp-field" key={label}><span>{label}</span><strong>{value || '-'}</strong></div>)}
+                          </div>
+                        </section>
+                      </div>
+                    </div>
+
+                    <div className="fp-footer">This is a system generated report. No signature is required.</div>
+                  </div>
+                  {/* END FORMAL CUSTOMER PROFILE PRINT LAYOUT */}
+
+                  {/* FORMAL SOA PRINT LAYOUT */}
+                  <div className="formal-soa-print">
+                    <div className="f-soa-header">
+                      <div className="f-soa-header-left">
+                        <img src={logoImg} className="f-soa-logo" alt="Melann Lending logo" />
+                        <div className="f-soa-company">
+                          <h2>MELANN LENDING</h2>
+                          <h3>INVESTOR CORPORATION</h3>
+                          <p>Lot 3 Blk 2, Brgy. San Isidro</p>
+                          <p>Ormoc City</p>
+                          <br />
+                          <p>Contact No.: 09171131000</p>
+                        </div>
+                      </div>
+                      <div className="f-soa-header-right">
+                        <table>
+                          <tbody>
+                            <tr><td>SOA No.</td><td>:</td><td>{soaNumber}</td></tr>
+                            <tr><td>Print Date</td><td>:</td><td>{new Date().toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'})}</td></tr>
+                            <tr><td>Customer Code</td><td>:</td><td>{soaData.customer_code}</td></tr>
+                            <tr><td>Collector</td><td>:</td><td>{soaData.collector_name || '-'}</td></tr>
+                            <tr><td>Status</td><td>:</td><td style={{ color: '#0b297a', fontWeight: 'bold', textTransform: 'uppercase' }}>{accountStatus}</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <h1 className="f-soa-title">STATEMENT OF ACCOUNT</h1>
+
+                    <div className="f-soa-section">
+                      <div className="f-soa-sec-header">
+                        <i className="bi bi-person-circle"></i> CUSTOMER INFORMATION
+                      </div>
+                      <div className="f-soa-sec-body">
+                        <div className="f-soa-grid-2">
+                          <table>
+                            <tbody>
+                              <tr><td>Customer Code</td><td>:</td><td>{soaData.customer_code}</td></tr>
+                              <tr><td>Customer Name</td><td>:</td><td>{soaData.full_name}</td></tr>
+                              <tr><td>Address</td><td>:</td><td>{customerAddress || '-'}</td></tr>
+                              <tr><td>Contact No.</td><td>:</td><td>{soaData.contact || '-'}</td></tr>
+                              <tr><td>Email</td><td>:</td><td>{soaData.email || '-'}</td></tr>
+                            </tbody>
+                          </table>
+                          <table>
+                            <tbody>
+                              <tr><td>Birthday</td><td>:</td><td>{formatDateLong(soaData.birth_date || soaData.birthday)}</td></tr>
+                              <tr><td>Gender</td><td>:</td><td>{soaData.gender || '-'}</td></tr>
+                              <tr><td>Civil Status</td><td>:</td><td>{soaData.civil_status || '-'}</td></tr>
+                              <tr><td>Occupation</td><td>:</td><td>{soaData.occupation || '-'}</td></tr>
+                              <tr><td>Business Name</td><td>:</td><td>{soaData.business_name || '-'}</td></tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+
+                    {loans.length > 0 && (
+                      <div className="f-soa-section">
+                        <div className="f-soa-sec-header">
+                          <i className="bi bi-file-earmark-text"></i> LOAN INFORMATION
+                        </div>
+                        <div className="f-soa-sec-body">
+                          <div className="f-soa-grid-3">
+                            <table>
+                              <tbody>
+                                <tr><td>Loan Code</td><td>:</td><td>{currentLoan.loan_code}</td></tr>
+                                <tr><td>Loan Type</td><td>:</td><td style={{textTransform:'uppercase'}}>{currentLoan.loan_type}</td></tr>
+                                <tr><td>Date Released</td><td>:</td><td>{formatDateLong(currentLoan.date_released)}</td></tr>
+                              </tbody>
+                            </table>
+                            <table>
+                              <tbody>
+                                <tr><td>Principal Amount</td><td>:</td><td>{formatMoney(currentLoan.principal)}</td></tr>
+                                <tr><td>Interest Rate</td><td>:</td><td>{currentLoan.interest_rate || 0}%</td></tr>
+                                <tr><td>Loan Term</td><td>:</td><td>{currentLoan.loan_period || 0} Days</td></tr>
+                              </tbody>
+                            </table>
+                            <table>
+                              <tbody>
+                                <tr><td>Maturity Date</td><td>:</td><td>{formatDateLong(currentLoan.date_maturity)}</td></tr>
+                                <tr><td>Payment Frequency</td><td>:</td><td>Daily</td></tr>
+                                <tr><td>Purpose</td><td>:</td><td>{currentLoan.purpose || soaData.loan_purpose || '-'}</td></tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="f-soa-split">
+                      <div className="f-soa-section f-soa-flex-1">
+                        <div className="f-soa-sec-header">
+                          <i className="bi bi-calculator"></i> LOAN COMPUTATION
+                        </div>
+                        <div className="f-soa-sec-body">
+                          <table className="f-soa-comp-table">
+                            <tbody>
+                              <tr><td>Principal Amount</td><td>{formatMoney(currentLoan.principal)}</td></tr>
+                              <tr><td>Interest Amount</td><td>{formatMoney(currentLoan.interest_amount)}</td></tr>
+                              <tr><td>Insurance</td><td>{formatMoney(insurance)}</td></tr>
+                              <tr><td>Notarial Fee</td><td>{formatMoney(notarialFee)}</td></tr>
+                              <tr><td>Processing Fee</td><td>{formatMoney(serviceFee)}</td></tr>
+                              <tr><td>Other Charges</td><td>{formatMoney(otherCharges + filingFee)}</td></tr>
+                              <tr><td colSpan="2"><br/></td></tr>
+                              <tr className="f-soa-bold" style={{color: '#0b297a'}}><td>TOTAL LOAN</td><td>{formatMoney(currentLoan.total_amortization || currentLoan.principal)}</td></tr>
+                              <tr><td>Daily Amortization</td><td>{formatMoney(currentLoan.amortization)}</td></tr>
+                              <tr><td colSpan="2"><br/></td></tr>
+                              <tr className="f-soa-bold"><td>Outstanding Balance</td><td>{formatMoney(outstandingBal)}</td></tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      <div className="f-soa-section f-soa-flex-2">
+                        <div className="f-soa-sec-header">
+                          <i className="bi bi-cash-stack"></i> PAYMENT HISTORY (LEDGER)
+                        </div>
+                        <div className="f-soa-sec-body f-soa-no-pad">
+                          <table className="f-soa-ledger-table">
+                            <thead>
+                              <tr>
+                                <th>DATE</th>
+                                <th>OR NO.</th>
+                                <th>PARTICULARS</th>
+                                <th>AMOUNT</th>
+                                <th>BALANCE</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {sortedPayments.length > 0 ? sortedPayments.map(p => (
+                                <tr key={p.id}>
+                                  <td>{formatDateLong(p.date_paid)}</td>
+                                  <td>{p.or_number || '-'}</td>
+                                  <td>{p.remarks || p.loan_code || 'Payment'}</td>
+                                  <td>{formatMoney(p.amount_paid)}</td>
+                                  <td>{formatMoney(p.balance_after)}</td>
+                                </tr>
+                              )) : (
+                                <tr>
+                                  <td colSpan="5" className="f-soa-empty">
+                                    <i className="bi bi-file-earmark-text" style={{fontSize: 32, color: '#94a3b8'}}></i><br/>
+                                    <strong style={{color: '#0f172a', fontSize: 12}}>No payments recorded.</strong><br/>
+                                    <span style={{color: '#64748b', fontSize: 10}}>There are no payment records<br/>associated with this account.</span>
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                            <tfoot>
+                              <tr>
+                                <td colSpan="3" style={{color: '#0b297a', fontWeight: 'bold'}}>TOTAL PAYMENTS RECEIVED</td>
+                                <td colSpan="2" style={{textAlign: 'right', fontWeight: 'bold'}}>{formatMoney(totalPaid)}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="f-soa-section">
+                      <div className="f-soa-sec-header">
+                        <i className="bi bi-clipboard-data"></i> ACCOUNT SUMMARY
+                      </div>
+                      <div className="f-soa-sec-body f-soa-summary-box">
+                        <div className="f-soa-summary-left">
+                          <table>
+                            <tbody>
+                              <tr><td>Total Loan Amount</td><td>:</td><td>{formatMoney(totalLoanAmt)}</td></tr>
+                              <tr><td>Total Payments Received</td><td>:</td><td>{formatMoney(totalPaid)}</td></tr>
+                              <tr className="f-soa-bold" style={{color: '#0b297a'}}><td style={{fontSize: 12}}>Outstanding Balance</td><td>:</td><td style={{fontSize: 12}}>{formatMoney(outstandingBal)}</td></tr>
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="f-soa-summary-right">
+                          <div className="f-soa-status-box">
+                            <div className="lbl">ACCOUNT STATUS</div>
+                            <div className="val">{accountStatus}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="f-soa-signatures">
+                      <div className="f-soa-sig-box">
+                        <div className="f-soa-sig-lbl">Prepared By:</div>
+                        <div className="f-soa-sig-line">
+                          <strong>{user?.full_name?.toUpperCase() || user?.username?.toUpperCase() || 'IT OFFICER'}</strong>
+                          <span>IT Officer</span>
+                        </div>
+                      </div>
+                      <div className="f-soa-sig-box">
+                        <div className="f-soa-sig-lbl">Checked By:</div>
+                        <div className="f-soa-sig-line">
+                          <strong>VICTORIO L. RELOBA JR.</strong>
+                          <span>Operations Manager</span>
+                        </div>
+                      </div>
+                      <div className="f-soa-sig-box">
+                        <div className="f-soa-sig-lbl">Approved By:</div>
+                        <div className="f-soa-sig-line">
+                          <strong>ANNA LIZA R. RODRIGUEZ</strong>
+                          <span>Executive Vice President</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="f-soa-footer">
+                      This is a system-generated Statement of Account.<br/>
+                      No signature is required.
+                    </div>
+                  </div>
+                  {/* END FORMAL SOA PRINT LAYOUT */}
+                  </>
                 );
               })() : <div className="text-danger text-center">Failed to load data.</div>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirmation Modal */}
-      {confirmModal.open && (
-        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setConfirmModal({ ...confirmModal, open: false })}>
-          <div className="modal" style={{ maxWidth: '400px' }}>
-            <div className="modal-header">
-              <span className="modal-title">{confirmModal.type === 'reloan' ? 'Confirm Re-Loan' : 'Confirm Re-CI'}</span>
-              <button className="modal-close" onClick={() => setConfirmModal({ ...confirmModal, open: false })}>✕</button>
-            </div>
-            <div className="modal-body">
-              <p style={{ marginTop: 0, marginBottom: '20px', lineHeight: '1.5' }}>{confirmModal.message}</p>
-              <div className="form-actions" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                <button className="btn btn-secondary" onClick={() => setConfirmModal({ ...confirmModal, open: false })}>Cancel</button>
-                <button className="btn btn-primary" onClick={confirmAction}>Yes, Continue</button>
-              </div>
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import FullyPaid from './FullyPaid'
+import ReloanModal from '../components/ReloanModal'
 
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 
@@ -22,6 +23,21 @@ export default function Loans() {
   const [releaseForm, setReleaseForm] = useState({ id: '', date_released: new Date().toISOString().split('T')[0] })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  const [reloanCustomer, setReloanCustomer] = useState(null)
+  const [loanActionType, setLoanActionType] = useState('')
+  const [reloanModalOpen, setReloanModalOpen] = useState(false)
+
+  const triggerRecon = (r) => {
+    setReloanCustomer({
+      id: r.customer_id,
+      customer_code: r.customer_code,
+      client_name: r.customer_name,
+      collector_name: r.collector_name
+    });
+    setLoanActionType('Recon');
+    setReloanModalOpen(true);
+  }
 
   const load = () => { setLoading(true); API.get('/loans', { params: { search, status } }).then(r => setRows(r.data)).finally(() => setLoading(false)) }
   useEffect(() => { load() }, [search, status])
@@ -160,9 +176,12 @@ export default function Loans() {
                     <td>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button className="btn btn-secondary btn-sm" onClick={() => viewDetail(r.id)}>View</button>
-                        {hasRole('admin', 'manager') && r.status === 'active' &&
-                          <button className="btn btn-danger btn-sm" onClick={() => handleReverse(r.id)}>Reverse</button>
-                        }
+                        {hasRole('admin', 'manager') && r.status === 'active' && (
+                          <>
+                            <button className="btn btn-sm" style={{ background: '#0369a1', color: '#fff', border: 'none' }} onClick={() => triggerRecon(r)}>Recon</button>
+                            <button className="btn btn-danger btn-sm" onClick={() => handleReverse(r.id)}>Reverse</button>
+                          </>
+                        )}
                         {hasRole('admin', 'manager') && r.status === 'reloan_pending' && (
                           <>
                             <button className="btn btn-success btn-sm" onClick={() => handleApproveReloan(r.id)}>Approve</button>
@@ -411,6 +430,17 @@ export default function Loans() {
       )}
       </>
     )}
+      {/* ===================== Reloan / Recon Modal ===================== */}
+      <ReloanModal
+        isOpen={reloanModalOpen}
+        onClose={() => setReloanModalOpen(false)}
+        customer={reloanCustomer}
+        loanType={loanActionType}
+        onSuccess={() => {
+          setReloanModalOpen(false);
+          load();
+        }}
+      />
     </div>
   )
 }
