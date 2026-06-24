@@ -112,6 +112,13 @@ export default function Customers() {
     return name.substring(0, 2).toUpperCase();
   };
 
+  const getPaginationPages = () => {
+    if (totalPages <= 7) return [...Array(totalPages)].map((_, i) => i + 1);
+    if (page <= 4) return [1, 2, 3, 4, 5, '...', totalPages];
+    if (page >= totalPages - 3) return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    return [1, '...', page - 1, page, page + 1, '...', totalPages];
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -262,12 +269,18 @@ export default function Customers() {
             </div>
             <div className="pagination-controls">
               <button className="page-btn" disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>←</button>
-              {[...Array(totalPages)].map((_, i) => (
-                <button key={i} className={`page-btn ${page === i + 1 ? 'active' : ''}`} onClick={() => setPage(i + 1)}>
-                  {i + 1}
+              {getPaginationPages().map((p, i) => (
+                <button 
+                  key={i} 
+                  className={`page-btn ${page === p ? 'active' : ''} ${p === '...' ? 'ellipsis' : ''}`} 
+                  onClick={() => p !== '...' && setPage(p)}
+                  disabled={p === '...'}
+                  style={p === '...' ? { cursor: 'default', background: 'transparent', border: 'none' } : {}}
+                >
+                  {p}
                 </button>
               ))}
-              <button className="page-btn" disabled={page === totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>→</button>
+              <button className="page-btn" disabled={page === totalPages || totalPages === 0} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>→</button>
             </div>
           </div>
         )}
