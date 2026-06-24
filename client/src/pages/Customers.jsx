@@ -29,6 +29,7 @@ export default function Customers() {
   
   const [reloanModalOpen, setReloanModalOpen] = useState(false)
   const [reloanCustomer, setReloanCustomer] = useState(null)
+  const [loanActionType, setLoanActionType] = useState('Reloan')
 
   const [soaModal, setSoaModal] = useState(false)
   const [soaData, setSoaData] = useState(null)
@@ -98,6 +99,13 @@ export default function Customers() {
 
   const triggerReloan = (customer) => {
     setReloanCustomer(customer);
+    setLoanActionType('Reloan');
+    setReloanModalOpen(true);
+  }
+
+  const triggerRecon = (customer) => {
+    setReloanCustomer(customer);
+    setLoanActionType('Recon');
     setReloanModalOpen(true);
   }
 
@@ -106,6 +114,17 @@ export default function Customers() {
       open: true, type: 'reci', customer,
       message: 'Are you sure you want to send this client for a new Credit Investigation?'
     })
+  }
+
+  const handleRelax = async (customer) => {
+    if (!window.confirm('Are you sure you want to relax this client?')) return
+    try {
+      await API.put(`/customers/${customer.id}/relax`)
+      load()
+      alert('Customer successfully relaxed.')
+    } catch (err) {
+      alert(err.response?.data?.error || 'An error occurred while relaxing.')
+    }
   }
 
   const confirmAction = async () => {
@@ -139,6 +158,9 @@ export default function Customers() {
   const handlePrint = () => {
     window.print();
   };
+
+  const isFullyPaidCustomer = (customer) => String(customer.status || '').toUpperCase() === 'FULLY PAID';
+  const hasOpenReloan = (customer) => Number(customer.has_open_reloan) === 1 || customer.has_open_reloan === true;
 
   return (
     <div className="customers-container">
@@ -257,18 +279,25 @@ export default function Customers() {
                       <span className="status-badge status-inactive"><div className="status-dot"></div> {r.status}</span>
                     )}
                   </td>
-                      <td className="table-actions-col">
-                        <div className="table-actions">
-                          <button className="action-btn action-soa" onClick={() => openSoa(r.id)}>SOA</button>
-                          <button className="action-btn" onClick={() => openEdit(r)}>Edit</button>
-                          {hasRole('admin', 'manager') && (
-                            <>
-                              <button className="action-btn" style={{color: '#3b82f6', borderColor: '#dbeafe'}} onClick={() => triggerReloan(r)}>Re-Loan</button>
-                              <button className="action-btn" style={{color: '#10b981', borderColor: '#d1fae5'}} onClick={() => triggerReCI(r)}>Re-CI</button>
-                            </>
-                          )}
-                        </div>
-                      </td>
+                  <td className="table-actions-col">
+                    <div className="table-actions">
+                      <button className="action-btn action-soa" onClick={() => openSoa(r.id)}>SOA</button>
+                      {hasRole('admin', 'manager') && hasOpenReloan(r) ? (
+                        <>
+                          <button className="action-btn" style={{color: '#f59e0b', borderColor: '#fef3c7'}} onClick={() => handleRelax(r)}>Relax</button>
+                          <button className="action-btn" style={{color: '#0369a1', borderColor: '#bae6fd'}} onClick={() => triggerRecon(r)}>Recon</button>
+                        </>
+                      ) : hasRole('admin', 'manager') && isFullyPaidCustomer(r) ? (
+                        <>
+                          <button className="action-btn" style={{color: '#3b82f6', borderColor: '#dbeafe'}} onClick={() => triggerReloan(r)}>Re-Loan</button>
+                          <button className="action-btn" style={{color: '#10b981', borderColor: '#d1fae5'}} onClick={() => triggerReCI(r)}>Re-CI</button>
+                          <button className="action-btn" style={{color: '#f59e0b', borderColor: '#fef3c7'}} onClick={() => handleRelax(r)}>Relax</button>
+                        </>
+                      ) : (
+                        <button className="action-btn" onClick={() => openEdit(r)}>Edit</button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
           </tbody>
@@ -309,7 +338,7 @@ export default function Customers() {
           onClose={() => setReloanModalOpen(false)}
           customerId={reloanCustomer.id}
           customer={reloanCustomer}
-          loanType="Reloan"
+          loanType={loanActionType}
           onReloanSubmitted={() => {
             setReloanModalOpen(false);
             setReloanCustomer(null);
@@ -401,7 +430,36 @@ export default function Customers() {
                     )}
 
                     {soaTab === 'profile' && (
-                      <div className="soa-card"><div className="soa-list-card-header"><div className="soa-list-title">Profile</div></div><div className="soa-profile-grid">{profileSections.map(section => (<section className="soa-profile-section" key={section.title}><h4>{section.title}</h4><div className="soa-profile-fields">{section.fields.map(([label, value]) => (<div className="soa-profile-field" key={label}><span>{label}</span><strong>{value || '-'}</strong></div>))}</div></section>))}</div></div>
+                      <div className="soa-card">
+                        <div className="soa-list-card-header">
+                          <div className="soa-list-title">Profile</div>
+                          <button
+                            type="button"
+                            className="action-btn"
+                            onClick={() => {
+                              setSoaModal(false);
+                              openEdit(soaData);
+                            }}
+                          >
+                            Edit
+                          </button>
+                        </div>
+                        <div className="soa-profile-grid">
+                          {profileSections.map(section => (
+                            <section className="soa-profile-section" key={section.title}>
+                              <h4>{section.title}</h4>
+                              <div className="soa-profile-fields">
+                                {section.fields.map(([label, value]) => (
+                                  <div className="soa-profile-field" key={label}>
+                                    <span>{label}</span>
+                                    <strong>{value || '-'}</strong>
+                                  </div>
+                                ))}
+                              </div>
+                            </section>
+                          ))}
+                        </div>
+                      </div>
                     )}
 
                     {soaTab === 'history' && (

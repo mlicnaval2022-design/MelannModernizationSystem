@@ -55,7 +55,24 @@ router.get('/list/fully-paid', authenticateToken, async (req, res) => {
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { search, status, branch_id } = req.query;
-    let q = `SELECT c.*, b.branch_name, co.first_name || ' ' || co.last_name as collector_name FROM tblCustomer c LEFT JOIN tblBranch b ON c.branch_id = b.id LEFT JOIN tblCollector co ON c.collector_id = co.id WHERE 1=1`;
+    let q = `
+      SELECT c.*, b.branch_name, co.first_name || ' ' || co.last_name as collector_name,
+        EXISTS(
+          SELECT 1 FROM tblLoan l
+          WHERE l.customer_id = c.id
+            AND l.loan_type IN ('Re-Loan', 'Reloan')
+            AND l.status NOT IN ('reversed', 'rejected', 'fullpaid')
+        ) as has_open_reloan,
+        EXISTS(
+          SELECT 1 FROM tblLoan l
+          WHERE l.customer_id = c.id
+            AND l.loan_type = 'Recon'
+            AND l.status NOT IN ('reversed', 'rejected', 'fullpaid')
+        ) as has_open_recon
+      FROM tblCustomer c
+      LEFT JOIN tblBranch b ON c.branch_id = b.id
+      LEFT JOIN tblCollector co ON c.collector_id = co.id
+      WHERE 1=1`;
     const p = [];
     if (search) { q += ` AND (c.full_name LIKE ? OR c.customer_code LIKE ? OR c.contact LIKE ?)`; p.push(`%${search}%`, `%${search}%`, `%${search}%`); }
     if (status) { q += ` AND c.status = ?`; p.push(status); }
