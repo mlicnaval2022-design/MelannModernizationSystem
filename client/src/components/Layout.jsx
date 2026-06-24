@@ -7,7 +7,6 @@ import logoImg from '../assets/logo.png'
 const NAV = [
   { path: '/', label: 'Dashboard', icon: '📊', section: 'Main' },
   { path: '/customers', label: 'Customers', icon: '👥', section: 'Operations' },
-  { path: '/due-clients', label: 'Due Clients', icon: '⏰', section: 'Operations' },
   { path: '/credit-scoring', label: 'Credit Scoring', icon: '📋', section: 'Operations' },
   { path: '/loans', label: 'Loans', icon: '💰', section: 'Operations' },
   { path: '/payments', label: 'Payments', icon: '💳', section: 'Operations' },
