@@ -412,8 +412,8 @@ select.form-control option { background: var(--bg-secondary); }
 @media (max-width: 900px) { .dashboard-grid { grid-template-columns: 1fr; } }
 
 /* ===================== MISC ===================== */
-.text-right   { text-align: right; }
-.text-center  { text-align: center; }
+.text-right   { text-align: right !important; }
+.text-center  { text-align: center !important; }
 .text-muted   { color: var(--text-muted); }
 .text-success { color: var(--accent-success); }
 .text-danger  { color: var(--accent-danger); }

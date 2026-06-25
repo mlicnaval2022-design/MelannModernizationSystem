@@ -137,11 +137,47 @@ router.get('/monthly-releases', authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+router.get('/release-report', authenticateToken, async (req, res) => {
+  try {
+    const from = req.query.date_from || new Date().toISOString().split('T')[0];
+    const to = req.query.date_to || from;
+    const loans = await dbAll(`
+      SELECT l.*, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name
+      FROM tblLoan l
+      LEFT JOIN tblCustomer c ON l.customer_id = c.id
+      LEFT JOIN tblCollector co ON l.collector_id = co.id
+      WHERE l.date_released BETWEEN ? AND ?
+        AND l.status != 'reversed'
+      ORDER BY l.date_released, co.last_name, c.full_name
+    `, [from, to]);
+    res.json({ loans, total_principal: loans.reduce((s, l) => s + Number(l.principal || 0), 0), date_from: from, date_to: to });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.get('/past-due', authenticateToken, async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
-    const loans = await dbAll(`SELECT l.*, c.full_name as customer_name, c.customer_code, c.address, c.contact, co.first_name || ' ' || co.last_name as collector_name, CAST(ROUND(JULIANDAY('now') - JULIANDAY(l.date_maturity)) AS INTEGER) as days_overdue FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id WHERE l.date_maturity < ? AND l.status NOT IN ('fullpaid','reversed') ORDER BY l.date_maturity ASC`, [today]);
-    res.json({ loans, total_balance: loans.reduce((s, l) => s + l.balance, 0) });
+    const from = req.query.date_from || new Date().toISOString().split('T')[0];
+    const to = req.query.date_to || from;
+    const loans = await dbAll(`
+      SELECT l.*, c.full_name as customer_name, c.customer_code, c.address, c.contact,
+             co.first_name || ' ' || co.last_name as collector_name,
+             CAST(ROUND(JULIANDAY('now') - JULIANDAY(l.date_maturity)) AS INTEGER) as days_overdue
+      FROM tblLoan l
+      LEFT JOIN tblCustomer c ON l.customer_id = c.id
+      LEFT JOIN tblCollector co ON l.collector_id = co.id
+      WHERE l.date_maturity BETWEEN ? AND ?
+        AND l.status IN ('active','pastdue')
+        AND COALESCE(l.balance, 0) > 0
+      ORDER BY co.last_name, c.full_name, l.date_maturity ASC
+    `, [from, to]);
+    res.json({
+      loans,
+      date_from: from,
+      date_to: to,
+      total_balance: loans.reduce((s, l) => s + Number(l.balance || 0), 0),
+      total_principal: loans.reduce((s, l) => s + Number(l.principal || 0), 0),
+      total_interest: loans.reduce((s, l) => s + Number(l.interest_amount || 0), 0)
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
