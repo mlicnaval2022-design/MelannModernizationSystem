@@ -378,6 +378,27 @@ async function initializeDatabase() {
       is_active INTEGER DEFAULT 1,
       FOREIGN KEY (compliance_id) REFERENCES tblGovernmentCompliance(id)
     );
+    CREATE TABLE IF NOT EXISTS tblCICSubmissionBatch (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      batch_number TEXT NOT NULL UNIQUE,
+      month INTEGER NOT NULL,
+      year INTEGER NOT NULL,
+      branch_id INTEGER,
+      status TEXT DEFAULT 'generated',
+      total_records INTEGER DEFAULT 0,
+      generated_by INTEGER,
+      generated_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS tblCICSubmissionRecord (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      batch_id INTEGER NOT NULL,
+      customer_id INTEGER NOT NULL,
+      loan_id INTEGER,
+      record_type TEXT NOT NULL,
+      raw_data TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (batch_id) REFERENCES tblCICSubmissionBatch(id)
+    );
   `;
 
   await dbExec(schema);

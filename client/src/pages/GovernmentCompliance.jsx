@@ -229,7 +229,9 @@ export default function GovernmentCompliance() {
       </div>
 
       <div className="card">
-        {viewMode === 'company' ? (
+        {active === 'CIC' ? (
+          <CICGenerator />
+        ) : viewMode === 'company' ? (
           <>
         <div className="gc-toolbar">
           <div className="search-input-wrap"><span className="search-icon">Search</span><input className="form-control" placeholder="Search compliance records" value={filters.search} onChange={e => setFilters(f => ({ ...f, search: e.target.value }))} onKeyDown={e => e.key === 'Enter' && loadRows()} /></div>
@@ -354,3 +356,179 @@ function Field({ label, name, form, setForm, type = 'text', required = false }) 
 function SelectField({ label, name, options, form, setForm, required = false }) {
   return <div className="form-group"><label className="form-label">{label}{required ? ' *' : ''}</label><select className="form-control" value={form[name] || ''} required={required} onChange={e => setForm(f => ({ ...f, [name]: e.target.value }))}><option value="">Select</option>{options.map(o => <option key={o}>{o}</option>)}</select></div>;
 }
+
+function CICGenerator() {
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [branchId, setBranchId] = useState('');
+  const [branches, setBranches] = useState([]);
+  
+  const [validation, setValidation] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [activeTab, setActiveTab] = useState('validation'); // validation | history
+  const [loading, setLoading] = useState(false);
+
+  const [fixCustomer, setFixCustomer] = useState(null);
+
+  useEffect(() => {
+    API.get('/branches').then(res => setBranches(res.data)).catch(console.error);
+    loadHistory();
+  }, []);
+
+  const loadHistory = () => {
+    API.get('/cic/history').then(res => setHistory(res.data)).catch(console.error);
+  };
+
+  const handleValidate = async () => {
+    setLoading(true);
+    try {
+      const { data } = await API.post('/cic/validate', { year, month, branch_id: branchId });
+      setValidation(data);
+      setActiveTab('validation');
+    } catch (err) {
+      alert(err.response?.data?.error || 'Validation failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditClient = async (customerId) => {
+    try {
+      const { data } = await API.get(`/customers/${customerId}`);
+      setFixCustomer(data);
+    } catch (err) {
+      alert('Failed to load customer');
+    }
+  };
+
+  const handleSaveFix = async (e) => {
+    e.preventDefault();
+    try {
+      await API.put(`/customers/${fixCustomer.id}`, fixCustomer);
+      alert('Customer CIC fields updated successfully!');
+      setFixCustomer(null);
+      handleValidate();
+    } catch (err) {
+      alert('Failed to update customer');
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (!validation) return alert('Please validate records first');
+    if (validation.errors.length > 0) {
+      const confirmGen = window.confirm(`There are ${validation.errors.length} records with errors. These will be excluded. Continue?`);
+      if (!confirmGen) return;
+    }
+    setLoading(true);
+    try {
+      const { data } = await API.post('/cic/generate', { year, month, branch_id: branchId });
+      
+      const blob = new Blob([data.csv_data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${data.batch_number}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      
+      alert(data.message);
+      loadHistory();
+      setActiveTab('history');
+    } catch (err) {
+      alert(err.response?.data?.error || 'Generation failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="cic-generator-container">
+      <div className="gc-toolbar" style={{ marginBottom: 20 }}>
+        <input className="form-control" type="number" value={year} onChange={e => setYear(e.target.value)} placeholder="Year" />
+        <select className="form-control" value={month} onChange={e => setMonth(e.target.value)}>
+          {Array.from({ length: 12 }, (_, i) => (<option key={i+1} value={i+1}>{new Date(2026, i, 1).toLocaleString('en-US', { month: 'long' })}</option>))}
+        </select>
+        <select className="form-control" value={branchId} onChange={e => setBranchId(e.target.value)}>
+          <option value="">All Branches</option>
+          {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+        </select>
+        <button className="btn btn-secondary" onClick={handleValidate} disabled={loading}>{loading ? 'Validating...' : 'Validate Records'}</button>
+        <button className="btn btn-primary" onClick={handleGenerate} disabled={loading || !validation || validation.summary.ready === 0}>Generate CIC CSV</button>
+      </div>
+
+      <div className="gc-tabs" style={{ borderBottom: '1px solid #ddd', marginBottom: 20 }}>
+        <button className={activeTab === 'validation' ? 'active' : ''} onClick={() => setActiveTab('validation')}>Validation</button>
+        <button className={activeTab === 'history' ? 'active' : ''} onClick={() => setActiveTab('history')}>Submission History</button>
+      </div>
+
+      {activeTab === 'validation' && (
+        <div>
+          {validation ? (
+            <>
+              <div style={{ display: 'flex', gap: 20, marginBottom: 20 }}>
+                <div className="gc-kpi blue"><span>Total Eligible</span><strong>{validation.summary.totalEligible}</strong></div>
+                <div className="gc-kpi green"><span>Ready for Submission</span><strong>{validation.summary.ready}</strong></div>
+                <div className="gc-kpi red"><span>With Errors</span><strong>{validation.summary.withErrors}</strong></div>
+              </div>
+              {validation.errors.length > 0 ? (
+                <div className="table-wrapper">
+                  <h4 style={{marginBottom: 10}}>Validation Errors</h4>
+                  <table className="data-table">
+                    <thead><tr><th>Customer Name</th><th>Loan Code</th><th>Missing Fields</th></tr></thead>
+                    <tbody>
+                      {validation.errors.map((err, idx) => (
+                        <tr key={idx}><td style={{cursor: 'pointer', color: '#1d4ed8', textDecoration: 'underline'}} onClick={() => handleEditClient(err.customerId)} title="Click to fix missing fields">{err.customerName}</td><td>{err.loanCode}</td><td style={{color: 'red'}}>{err.missingFields}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="empty-state">All records are complete and ready for submission!</div>
+              )}
+            </>
+          ) : (
+            <div className="empty-state">Select a period and click "Validate Records" to review data before generation.</div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'history' && (
+        <div className="table-wrapper">
+          <table className="data-table">
+            <thead><tr><th>Batch Number</th><th>Period</th><th>Records</th><th>Generated By</th><th>Date Generated</th></tr></thead>
+            <tbody>
+              {history.length === 0 ? <tr><td colSpan="5" className="empty-state">No submissions generated yet.</td></tr> :
+                history.map(h => (
+                <tr key={h.id}>
+                  <td>{h.batch_number}</td>
+                  <td>{h.year}-{String(h.month).padStart(2, '0')}</td>
+                  <td>{h.total_records}</td>
+                  <td>{h.generated_by}</td>
+                  <td>{new Date(h.generated_at).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {fixCustomer && (
+        <div className="modal-overlay"><div className="modal gc-modal"><div className="modal-header"><span className="modal-title">Fix CIC Requirements for {fixCustomer.customer_code}</span><button className="modal-close" onClick={() => setFixCustomer(null)}>x</button></div>
+          <form className="modal-body" onSubmit={handleSaveFix}>
+            <div className="form-grid">
+              <Field label="First Name" name="first_name" form={fixCustomer} setForm={setFixCustomer} required />
+              <Field label="Last Name" name="last_name" form={fixCustomer} setForm={setFixCustomer} required />
+              <Field label="Date of Birth" name="birth_date" type="date" form={fixCustomer} setForm={setFixCustomer} required />
+              <div className="form-group span-full"><label className="form-label">Full Address *</label><input className="form-control" value={fixCustomer.address || ''} required onChange={e => setFixCustomer(f => ({ ...f, address: e.target.value }))} /></div>
+            </div>
+            <div className="form-actions" style={{marginTop: 20}}>
+              <button type="button" className="btn btn-secondary" onClick={() => setFixCustomer(null)}>Cancel</button>
+              <button className="btn btn-primary" type="submit">Save Changes</button>
+            </div>
+          </form>
+        </div></div>
+      )}
+    </div>
+  );
+}
+

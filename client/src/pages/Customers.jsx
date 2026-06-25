@@ -92,7 +92,12 @@ export default function Customers() {
     setSoaTab('summary');
     try {
       const r = await API.get(`/customers/${id}`);
-      setSoaData(r.data);
+      let cicStatus = null;
+      try {
+        const cicReq = await API.get(`/cic/readiness/${id}`);
+        cicStatus = cicReq.data;
+      } catch (err) {}
+      setSoaData({ ...r.data, cicStatus });
     } catch {
       alert('Failed to load SOA data');
       setSoaModal(false);
@@ -376,7 +381,7 @@ export default function Customers() {
                               <div className="soa-avatar">{getInitials(soaData.full_name)}</div>
                             )}
                             <div className="soa-info-grid" style={{ gridTemplateColumns: soaData.photo_business_proof ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)' }}>
-                              <div className="soa-info-item"><div><div className="soa-info-label">Customer Name</div><div className="soa-info-val" style={{ textTransform: 'uppercase' }}>{soaData.full_name}</div><div className="soa-info-label" style={{ marginTop: 10 }}>Contact</div><div className="soa-info-val">{soaData.contact || '-'}</div></div></div>
+                              <div className="soa-info-item"><div><div className="soa-info-label" style={{display:'flex', alignItems:'center', gap:5}}>Customer Name {soaData.cicStatus && <span title={soaData.cicStatus.status === 'Ready' ? 'CIC Ready' : `CIC Incomplete: ${soaData.cicStatus.missingFields?.join(', ')}`} style={{fontSize: 12, cursor:'help'}}>{soaData.cicStatus.status === 'Ready' ? '🟢' : '🟡'}</span>}</div><div className="soa-info-val" style={{ textTransform: 'uppercase' }}>{soaData.full_name}</div><div className="soa-info-label" style={{ marginTop: 10 }}>Contact</div><div className="soa-info-val">{soaData.contact || '-'}</div></div></div>
                               <div className="soa-info-item"><div><div className="soa-info-label">Customer Code</div><div className="soa-info-val">{soaData.customer_code}</div><div className="soa-info-label" style={{ marginTop: 10 }}>Customer Status</div><div className={soaData.status === 'inactive' ? 'soa-badge-inactive' : 'soa-badge-active'}>{soaData.status || '-'}</div></div></div>
                               <div className="soa-info-item"><div><div className="soa-info-label">Address</div><div className="soa-info-val">{[soaData.address, soaData.sitio, soaData.purok, soaData.brgy, soaData.city].filter(Boolean).join(', ') || '-'}</div><div className="soa-info-label" style={{ marginTop: 10 }}>Member Since</div><div className="soa-info-val">{memberSince}</div></div></div>
                               {soaData.photo_business_proof && (
