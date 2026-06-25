@@ -119,6 +119,17 @@ export default function Payments() {
         force_duplicate
       }
       const r = await API.post('/payments', payload)
+    try {
+      const payload = {
+        loan_id: activeLoan.id,
+        or_number: 'N/A',
+        date_paid: form.date_paid,
+        amount_paid: form.amount_paid,
+        collector_id: selectedCollector,
+        remarks: form.remarks,
+        force_duplicate
+      }
+      const r = await API.post('/payments', payload)
       
       setActiveLoan(null)
       setScannerInput('')
@@ -126,9 +137,9 @@ export default function Payments() {
       loadRecentPayments()
       
       if (r.data.loan_status === 'fullpaid') {
-        setNotification({ type: 'success', message: 'Customer is now Fully Paid' })
+        setNotification({ type: 'success', message: `Customer is now Fully Paid. Payment Code: ${r.data.payment_code}` })
       } else {
-        setNotification({ type: 'success', message: 'Payment saved successfully.' })
+        setNotification({ type: 'success', message: `Payment Successfully Posted. Payment Code: ${r.data.payment_code}` })
       }
       
       if (scannerRef.current) scannerRef.current.focus()
