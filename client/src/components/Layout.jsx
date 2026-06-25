@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import API from '../services/api'
@@ -16,6 +16,7 @@ const NAV = [
   { path: '/dcr', label: 'Daily Cash Report', icon: '📝', section: 'Finance' },
   { path: '/cash', label: 'Cash Position', icon: '🏧', section: 'Finance' },
   { path: '/reports', label: 'Reports', icon: '📈', section: 'Reports' },
+  { path: '/government-compliance', label: 'Government Compliance', icon: 'GC', section: 'Reports', roles: ['admin', 'compliance', 'compliance_officer', 'accounting', 'corporate_secretary', 'management', 'manager', 'it'] },
   { path: '/branches', label: 'Branches', icon: '🏢', section: 'Admin', roles: ['admin', 'manager'] },
   { path: '/users', label: 'User Management', icon: '🔐', section: 'Admin', roles: ['admin'] },
   { path: '/audit', label: 'Audit Trail', icon: '🔍', section: 'Admin', roles: ['admin', 'manager'] },
@@ -36,6 +37,21 @@ export default function Layout() {
     { id: 2, title: 'Past Due Alert', message: '3 accounts have moved to past due status today.', time: '1 hour ago', color: '#ef4444' },
     { id: 3, title: 'New Approval', message: 'Loan LN-000008 has been approved by the manager.', time: '2 hours ago', color: '#10b981' }
   ])
+
+  useEffect(() => {
+    API.get('/government-compliance/summary')
+      .then(r => {
+        const complianceNotes = (r.data.notifications || []).map((n, idx) => ({
+          id: `gc-${idx}-${n.id}`,
+          title: n.title,
+          message: n.message,
+          time: 'Compliance',
+          color: n.severity === 'danger' ? '#ef4444' : n.severity === 'warning' ? '#f59e0b' : '#3b82f6'
+        }))
+        if (complianceNotes.length) setNotifications(prev => [...complianceNotes, ...prev])
+      })
+      .catch(() => {})
+  }, [])
 
   const today = new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
   const visibleNav = NAV.filter(n => !n.roles || hasRole(...n.roles))

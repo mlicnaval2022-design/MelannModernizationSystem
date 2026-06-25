@@ -16,6 +16,7 @@ import Reports from './pages/Reports'
 import Users from './pages/Users'
 import Branches from './pages/Branches'
 import AuditTrail from './pages/AuditTrail'
+import GovernmentCompliance from './pages/GovernmentCompliance'
 
 function PrivateRoute({ children }) {
   const { user } = useAuth()
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="dcr" element={<DailyCashReport />} />
         <Route path="cash" element={<CashPosition />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="government-compliance" element={<GovernmentCompliance />} />
         <Route path="branches" element={<Branches />} />
         <Route path="users" element={<Users />} />
         <Route path="audit" element={<AuditTrail />} />

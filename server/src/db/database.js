@@ -339,9 +339,54 @@ async function initializeDatabase() {
       ip_address TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS tblGovernmentCompliance (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agency TEXT NOT NULL,
+      title TEXT,
+      submission_month INTEGER,
+      reporting_period TEXT,
+      compliance_name TEXT,
+      filing_type TEXT,
+      tax_type TEXT,
+      filing_period TEXT,
+      due_date TEXT NOT NULL,
+      date_submitted TEXT,
+      date_filed TEXT,
+      date_paid TEXT,
+      or_number TEXT,
+      amount REAL DEFAULT 0,
+      status TEXT NOT NULL,
+      remarks TEXT,
+      prepared_by TEXT,
+      verified_by TEXT,
+      assigned_personnel TEXT,
+      created_by INTEGER,
+      updated_by INTEGER,
+      is_archived INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS tblGovernmentComplianceAttachment (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      compliance_id INTEGER NOT NULL,
+      document_type TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      stored_name TEXT NOT NULL,
+      file_url TEXT NOT NULL,
+      uploaded_by INTEGER,
+      uploaded_at TEXT DEFAULT (datetime('now')),
+      is_active INTEGER DEFAULT 1,
+      FOREIGN KEY (compliance_id) REFERENCES tblGovernmentCompliance(id)
+    );
   `;
 
   await dbExec(schema);
+
+  const customerCols = await dbAll(`PRAGMA table_info(tblCustomer)`);
+  const customerColNames = new Set(customerCols.map(c => c.name));
+  if (!customerColNames.has('for_bir')) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN for_bir INTEGER DEFAULT 0`);
+  if (!customerColNames.has('for_cic')) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN for_cic INTEGER DEFAULT 0`);
+  if (!customerColNames.has('for_sec')) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN for_sec INTEGER DEFAULT 0`);
 
   // Seed default admin
   const userCount = await dbGet('SELECT COUNT(*) as count FROM tblUser');

@@ -17,6 +17,14 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+async function ensureComplianceChecklistColumns() {
+  const cols = await dbAll(`PRAGMA table_info(tblCustomer)`);
+  const names = new Set(cols.map(c => c.name));
+  if (!names.has('for_bir')) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN for_bir INTEGER DEFAULT 0`);
+  if (!names.has('for_cic')) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN for_cic INTEGER DEFAULT 0`);
+  if (!names.has('for_sec')) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN for_sec INTEGER DEFAULT 0`);
+}
+
 const toDateOnly = (value) => {
   if (!value) return null;
   const d = new Date(`${String(value).slice(0, 10)}T00:00:00`);
@@ -180,6 +188,74 @@ router.get('/', authenticateToken, async (req, res) => {
     if (branch_id) { q += ` AND c.branch_id = ?`; p.push(branch_id); }
     q += ` ORDER BY c.last_name, c.first_name`;
     res.json(await dbAll(q, p));
+  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+});
+
+router.get('/compliance-checklist/list', authenticateToken, async (req, res) => {
+  try {
+    await ensureComplianceChecklistColumns();
+    const { search, status, release_date } = req.query;
+    let q = `
+      SELECT c.id, c.customer_code, c.full_name, c.contact, c.status, c.for_bir, c.for_cic, c.for_sec,
+             COALESCE(NULLIF(TRIM(co.first_name || ' ' || co.last_name), ''), 'Unassigned') as collector_name,
+             CASE WHEN EXISTS (
+               SELECT 1 FROM tblLoan l
+               WHERE l.customer_id = c.id
+                 AND l.date_released = ?
+                 AND l.status != 'cancelled'
+             ) THEN 1 ELSE 0 END as has_release_today
+      FROM tblCustomer c
+      LEFT JOIN tblCollector co ON c.collector_id = co.id
+      WHERE 1=1`;
+    const p = [release_date || ''];
+    if (search) {
+      q += ` AND (c.full_name LIKE ? OR c.customer_code LIKE ? OR c.contact LIKE ?)`;
+      p.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    if (status) {
+      q += ` AND c.status = ?`;
+      p.push(status);
+    }
+    if (release_date) {
+      q += ` AND EXISTS (
+        SELECT 1 FROM tblLoan l
+        WHERE l.customer_id = c.id
+          AND l.date_released = ?
+          AND l.status != 'cancelled'
+      )`;
+      p.push(release_date);
+    }
+    q += ` ORDER BY has_release_today DESC, c.last_name, c.first_name LIMIT 500`;
+    res.json(await dbAll(q, p));
+  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+});
+
+router.put('/compliance-checklist/bulk', authenticateToken, async (req, res) => {
+  try {
+    await ensureComplianceChecklistColumns();
+    const { customers } = req.body;
+    if (!Array.isArray(customers)) return res.status(400).json({ error: 'customers array is required' });
+    let updated = 0;
+    for (const item of customers) {
+      const previous = await dbGet(`SELECT id, for_bir, for_cic, for_sec FROM tblCustomer WHERE id = ?`, [item.id]);
+      if (!previous) continue;
+      const next = {
+        for_bir: item.for_bir ? 1 : 0,
+        for_cic: item.for_cic ? 1 : 0,
+        for_sec: item.for_sec ? 1 : 0
+      };
+      if (previous.for_bir === next.for_bir && previous.for_cic === next.for_cic && previous.for_sec === next.for_sec) continue;
+      await dbRun(
+        `UPDATE tblCustomer SET for_bir = ?, for_cic = ?, for_sec = ?, updated_at = datetime('now') WHERE id = ?`,
+        [next.for_bir, next.for_cic, next.for_sec, item.id]
+      );
+      await dbRun(
+        `INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
+        [req.user.id, req.user.username, 'UPDATE_COMPLIANCE_CHECKLIST', 'CUSTOMER', item.id, JSON.stringify({ previousValue: previous, newValue: next })]
+      );
+      updated += 1;
+    }
+    res.json({ message: 'Compliance checklist updated', updated });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 

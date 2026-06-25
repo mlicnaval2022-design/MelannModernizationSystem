@@ -37,7 +37,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
 
     // 2. Loan Releases
     const releases = await dbAll(`
-      SELECT l.id, l.loan_code, l.net_proceeds, l.loan_type, l.date_released, l.created_at, l.dcr_id,
+      SELECT l.id, l.customer_id, l.loan_code, l.net_proceeds, l.loan_type, l.date_released, l.created_at, l.dcr_id,
              c.customer_code, c.first_name, c.last_name, u.full_name as encoded_by,
              co.first_name || ' ' || co.last_name as collector_name
       FROM tblLoan l
@@ -100,7 +100,34 @@ router.get('/summary', authenticateToken, async (req, res) => {
       ledger
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Error fetching DCR summary' });
+  }
+});
+
+// Get loan releases for BIR Checklist
+router.get('/loan-releases', authenticateToken, async (req, res) => {
+  try {
+    const { date } = req.query;
+    if (!date) return res.status(400).json({ error: 'Date is required' });
+
+    const releases = await dbAll(`
+      SELECT l.id as loan_id, l.customer_id, l.net_proceeds as loan_amount, l.loan_type, l.date_released, l.status,
+             c.customer_code, c.first_name || ' ' || c.last_name as customer_name,
+             co.first_name || ' ' || co.last_name as collector_name,
+             b.branch_name
+      FROM tblLoan l
+      JOIN tblCustomer c ON l.customer_id = c.id
+      LEFT JOIN tblCollector co ON l.collector_id = co.id
+      LEFT JOIN tblBranch b ON l.branch_id = b.id
+      WHERE l.date_released = ? AND l.status != 'cancelled'
+      ORDER BY l.created_at DESC
+    `, [date]);
+
+    res.json(releases);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error fetching loan releases' });
   }
 });
 
