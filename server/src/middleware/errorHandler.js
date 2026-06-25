@@ -1,7 +1,7 @@
 function errorHandler(err, req, res, next) {
   console.error(`[ERROR] ${err.message}`);
   const status = err.status || 500;
-  console.error([ERROR 500 LOG], err); res.status(status).json({
+  res.status(status).json({
     error: err.message || 'Internal server error',
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
