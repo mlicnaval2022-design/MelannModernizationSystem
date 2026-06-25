@@ -5,7 +5,7 @@ const router = express.Router();
 
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    res.json(await dbAll(`SELECT co.*, b.branch_name, (SELECT COUNT(*) FROM tblLoan l WHERE l.collector_id = co.id AND l.status = 'active') as active_loans FROM tblCollector co LEFT JOIN tblBranch b ON co.branch_id = b.id WHERE co.is_active = 1 ORDER BY co.last_name`));
+    res.json(await dbAll(`SELECT co.*, b.branch_name, (SELECT COUNT(*) FROM tblLoan l WHERE l.collector_id = co.id AND l.status = 'active') as active_loans FROM tblCollector co LEFT JOIN tblBranch b ON co.branch_id = b.id WHERE co.is_active = 1 ORDER BY co.collector_code`));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

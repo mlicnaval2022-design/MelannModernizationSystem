@@ -17,6 +17,13 @@ const formatDate = date => {
   if (isNaN(d.getTime())) return date;
   return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
 }
+const byCollectorCode = (a, b) =>
+  String(a.collector_code || '').localeCompare(String(b.collector_code || ''), undefined, {
+    numeric: true,
+    sensitivity: 'base'
+  })
+const collectorLabel = collector =>
+  [collector.collector_code, `${collector.first_name} ${collector.last_name}`.trim()].filter(Boolean).join(' - ')
 
 export default function Payments() {
   useAuth()
@@ -39,7 +46,7 @@ export default function Payments() {
   const [clientList, setClientList] = useState([])
 
   useEffect(() => {
-    API.get('/collectors').then(r => setCollectors(r.data.filter(c => c.is_active)))
+    API.get('/collectors').then(r => setCollectors(r.data.filter(c => c.is_active).sort(byCollectorCode)))
     loadRecentPayments()
   }, [])
 
@@ -213,7 +220,7 @@ export default function Payments() {
                     setNotification(null)
                   }} style={{ appearance: 'none' }}>
                     <option value="">-- Select Collector --</option>
-                    {collectors.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+                    {collectors.map(c => <option key={c.id} value={c.id}>{collectorLabel(c)}</option>)}
                   </select>
                   <span className="p-icon-right">⌄</span>
                 </div>

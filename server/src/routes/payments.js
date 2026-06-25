@@ -41,7 +41,12 @@ router.post('/', authenticateToken, async (req, res) => {
     
     const balance_before = loan.balance;
     const balance_after = Math.max(0, balance_before - amount_paid);
-    const result = await dbRun(`INSERT INTO tblPayment (loan_id, customer_id, collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, status, remarks, encoded_by) VALUES (?,?,?,?,?,?,?,?,'active',?,?)`, [loan_id, loan.customer_id, collector_id || loan.collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, remarks, req.user.id]);
+
+    const maxCodeRes = await dbGet(`SELECT MAX(CAST(payment_code AS INTEGER)) as max_code FROM tblPayment WHERE customer_id = ?`, [loan.customer_id]);
+    const nextCode = (maxCodeRes.max_code || 0) + 1;
+    const payment_code = String(nextCode).padStart(4, '0');
+
+    const result = await dbRun(`INSERT INTO tblPayment (loan_id, customer_id, collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, status, remarks, encoded_by, payment_code) VALUES (?,?,?,?,?,?,?,?,'active',?,?,?)`, [loan_id, loan.customer_id, collector_id || loan.collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, remarks, req.user.id, payment_code]);
     const newStatus = balance_after <= 0 ? 'fullpaid' : 'active';
     await dbRun(`UPDATE tblLoan SET balance=?, total_paid=total_paid+?, status=?, updated_at=datetime('now') WHERE id=?`, [balance_after, amount_paid, newStatus, loan_id]);
     
@@ -70,7 +75,7 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'PAYMENT', result.lastID, `OR#${or_number} Amt:${amount_paid} Col:${collector_id || loan.collector_id}`]);
-    res.status(201).json({ id: result.lastID, balance_before, balance_after, loan_status: newStatus });
+    res.status(201).json({ id: result.lastID, payment_code, balance_before, balance_after, loan_status: newStatus });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
