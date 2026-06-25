@@ -83,7 +83,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
     const loan = await dbGet(`SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, c.photo_client, c.photo_id_front, c.address as customer_address, co.first_name || ' ' || co.last_name as collector_name, b.branch_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id LEFT JOIN tblBranch b ON l.branch_id = b.id WHERE l.id = ?`, [req.params.id]);
     if (!loan) return res.status(404).json({ error: 'Loan not found' });
     const schedule = await dbAll('SELECT * FROM tblAmortizationSchedule WHERE loan_id = ? ORDER BY period_number', [req.params.id]);
-    const payments = await dbAll(`SELECT * FROM tblPayment WHERE loan_id = ? AND status = 'active' ORDER BY date_paid DESC`, [req.params.id]);
+    const payments = await dbAll(`SELECT * FROM tblPayment WHERE loan_id = ? ORDER BY date_paid DESC`, [req.params.id]);
     res.json({ ...loan, schedule, payments });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

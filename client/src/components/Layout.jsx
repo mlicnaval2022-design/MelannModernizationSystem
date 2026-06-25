@@ -9,7 +9,7 @@ const NAV = [
   { path: '/customers', label: 'Customers', icon: '👥', section: 'Operations' },
   { path: '/credit-scoring', label: 'Credit Scoring', icon: '📋', section: 'Operations' },
   { path: '/loans', label: 'Loans', icon: '💰', section: 'Operations' },
-  { path: '/payments', label: 'Payments', icon: '💳', section: 'Operations' },
+  { path: '/payments', label: 'Encode Payments', icon: '💳', section: 'Operations' },
   { path: '/collectors', label: 'Collectors', icon: '🚶', section: 'Operations' },
   { path: '/deposits', label: 'Deposits', icon: '🏦', section: 'Finance' },
   { path: '/expenses', label: 'Expenses', icon: '📋', section: 'Finance' },
