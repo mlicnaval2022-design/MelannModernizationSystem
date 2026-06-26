@@ -2,7 +2,7 @@ import pyodbc
 import json
 
 db_path = r"D:\Users\Mel Rodriguez\Documents\FOR MELANN DEPLOYMENT - Copy\DB\jcashdb.mdb"
-conn_str = rf"Driver={{Microsoft Access Driver (*.mdb, *.accdb)}};DBQ={db_path};"
+conn_str = rf"Driver={{Microsoft Access Driver (*.mdb, *.accdb)}};DBQ={db_path};PWD=kim123;"
 
 try:
     conn = pyodbc.connect(conn_str)
