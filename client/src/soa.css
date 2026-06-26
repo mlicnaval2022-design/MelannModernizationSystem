@@ -925,32 +925,18 @@
   }
 
   .f-soa-split {
-    display: block;
+    display: flex;
+    gap: 10px;
     margin-bottom: 7px;
-    clear: both;
-    overflow: visible;
-  }
-
-  .f-soa-split::after {
-    content: "";
-    display: table;
-    clear: both;
+    align-items: stretch;
   }
 
   .f-soa-split .f-soa-section {
     margin-bottom: 0;
   }
 
-  .f-soa-flex-1 { 
-    float: left; 
-    width: calc(35% - 5px); 
-    margin-right: 10px;
-  }
-  
-  .f-soa-flex-2 { 
-    float: right; 
-    width: calc(65% - 5px); 
-  }
+  .f-soa-flex-1 { flex: 0 0 calc(35% - 5px); }
+  .f-soa-flex-2 { flex: 0 0 calc(65% - 5px); }
 
   .f-soa-comp-table td {
     padding: 4px 4px !important;
