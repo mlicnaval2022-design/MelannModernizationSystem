@@ -2,11 +2,13 @@ const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const DEFAULT_SOURCE = '\\\\SERVERPC\\LendingV2Melan\\db\\jcashdb.mdb';
 const DEFAULT_FROM = '2016-01-01';
 const DEFAULT_TO = '2026-06-24';
 const EXCLUDED_STATUS = new Set(['fully paid', 'fullypaid', 'paid', 'reversed', 'reversing']);
+const REVERSED_STATUS = new Set(['reversed', 'reversing']);
 
 const args = new Map();
 for (let i = 2; i < process.argv.length; i += 1) {
@@ -25,6 +27,7 @@ const config = {
   dbPath: args.get('db') || process.env.DB_PATH || path.join(__dirname, 'melann.db'),
   from: args.get('from') || DEFAULT_FROM,
   to: args.get('to') || DEFAULT_TO,
+  history: Boolean(args.get('history')),
   dryRun: Boolean(args.get('dry-run')),
 };
 
@@ -78,6 +81,20 @@ function notExcludedStatus(value) {
   return !EXCLUDED_STATUS.has(normalizeStatus(value));
 }
 
+function notReversedStatus(value) {
+  return !REVERSED_STATUS.has(normalizeStatus(value));
+}
+
+function isFullyPaidStatus(value) {
+  const status = normalizeStatus(value).replace(/\s+/g, '');
+  return status === 'fullypaid' || status === 'fullpaid' || status === 'paid';
+}
+
+function accessDateLiteral(isoDate) {
+  const [year, month, day] = String(isoDate).split('-');
+  return `${month}/${day}/${year}`;
+}
+
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return null;
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
@@ -123,13 +140,20 @@ function readAccessImportRows() {
   const psString = (value) => `'${String(value || '').replace(/'/g, "''")}'`;
   const balanceExprFor = (prefix = '') => `IIF(IIF(IsNull(${prefix}Balance),0,${prefix}Balance)>0,IIF(IsNull(${prefix}Balance),0,${prefix}Balance),IIF(IsNull(${prefix}LoanTotal),0,${prefix}LoanTotal)-IIF(IsNull(${prefix}TotalPayment),0,${prefix}TotalPayment))`;
   const balanceExpr = balanceExprFor();
-  const loanWhereFor = (prefix = '') => `${prefix}LoanStatus='Good' AND ${prefix}Status='Good' AND ${prefix}DateRelease >= #01/01/2016# AND ${prefix}DateRelease <= #06/24/2026# AND ${balanceExprFor(prefix)} > 0`;
+  const fromDate = accessDateLiteral(config.from);
+  const toDate = accessDateLiteral(config.to);
+  const loanWhereFor = (prefix = '') => {
+    if (config.history) {
+      const fullyPaid = `(${prefix}LoanStatus IN ('Fully Paid','FullyPaid','Full Paid','FullPaid','Paid') OR ${prefix}Status IN ('Fully Paid','FullyPaid','Full Paid','FullPaid','Paid'))`;
+      const goodRecent = `(${prefix}DateRelease >= #06/25/2026# AND (${prefix}LoanStatus IN ('Good','Good Status') OR ${prefix}Status IN ('Good','Good Status')))`;
+      return `(${fullyPaid} OR ${goodRecent}) AND (IsNull(${prefix}Status) OR ${prefix}Status NOT IN ('Reversed','Reversing')) AND (IsNull(${prefix}LoanStatus) OR ${prefix}LoanStatus NOT IN ('Reversed','Reversing')) AND ${prefix}DateRelease >= #${fromDate}# AND ${prefix}DateRelease <= #${toDate}#`;
+    }
+    return `${prefix}LoanStatus='Good' AND ${prefix}Status='Good' AND ${prefix}DateRelease >= #01/01/2016# AND ${prefix}DateRelease <= #06/24/2026# AND ${balanceExprFor(prefix)} > 0`;
+  };
   const loanWhere = loanWhereFor();
-  const loanSubquery = `SELECT LoanID FROM tblLoan WHERE ${loanWhere}`;
   const queries = {
     loans: `SELECT *, ${balanceExpr} AS EffectiveBalance FROM tblLoan WHERE ${loanWhere}`,
     customers: `SELECT DISTINCT c.* FROM tblCustomer AS c INNER JOIN tblLoan AS l ON c.Code = l.Code WHERE ${loanWhereFor('l.')}`,
-    payments: `SELECT * FROM tblPayment WHERE Status='Good' AND LoanID IN (${loanSubquery})`,
   };
 
   const ps = `
@@ -139,7 +163,6 @@ $password = ${psString(config.password)}
 $queries = @{
   loans = ${psString(queries.loans)}
   customers = ${psString(queries.customers)}
-  payments = ${psString(queries.payments)}
 }
 $providers = @('Microsoft.ACE.OLEDB.16.0','Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')
 $errors = @()
@@ -162,6 +185,23 @@ function Invoke-AccessQuery($cn, $sql) {
   }
   return $rows
 }
+function Convert-SqlLiteral($value) {
+  if ($null -eq $value) { return $null }
+  $text = [string]$value
+  $numeric = 0
+  if ([double]::TryParse($text, [ref]$numeric)) { return $text }
+  return "'" + $text.Replace("'", "''") + "'"
+}
+function Invoke-PaymentBatches($cn, $loanRows) {
+  $loanIds = @($loanRows | ForEach-Object { Convert-SqlLiteral $_.LoanID } | Where-Object { $_ })
+  $payments = @()
+  for ($i = 0; $i -lt $loanIds.Count; $i += 200) {
+    $end = [Math]::Min($i + 199, $loanIds.Count - 1)
+    $idList = ($loanIds[$i..$end] -join ',')
+    $payments += Invoke-AccessQuery $cn "SELECT * FROM tblPayment WHERE Status='Good' AND LoanID IN ($idList)"
+  }
+  return $payments
+}
 foreach ($provider in $providers) {
   try {
     $escapedPassword = $password.Replace("'", "''")
@@ -169,11 +209,14 @@ foreach ($provider in $providers) {
     if ($password) { $connectionString += "Jet OLEDB:Database Password=$escapedPassword;" }
     $cn = New-Object System.Data.OleDb.OleDbConnection($connectionString)
     $cn.Open()
+    $loans = Invoke-AccessQuery $cn $queries['loans']
+    $customers = Invoke-AccessQuery $cn $queries['customers']
+    $payments = Invoke-PaymentBatches $cn $loans
     $result = [ordered]@{
       provider = $provider
-      customers = Invoke-AccessQuery $cn $queries['customers']
-      loans = Invoke-AccessQuery $cn $queries['loans']
-      payments = Invoke-AccessQuery $cn $queries['payments']
+      customers = $customers
+      loans = $loans
+      payments = $payments
     }
     $cn.Close()
     [pscustomobject]$result | ConvertTo-Json -Depth 8 -Compress
@@ -240,11 +283,14 @@ function mapLoan(row) {
     toNumber(pick(row, ['LoanTotal', 'Loan Total', 'Total Loan', 'TotalLoan', 'Total Amount', 'Loan Amount'])),
     principal,
   ].filter(value => Number(value || 0) > 0);
-  const total = Math.max(...totalCandidates);
+  const total = totalCandidates.length > 0 ? Math.max(...totalCandidates) : 0;
   const totalPaid = toNumber(pick(row, ['TotalPayment', 'Total Payment', 'Total Paid']));
   const rawBalance = toNumber(pick(row, ['EffectiveBalance', 'Loan Balance', 'Balance', 'Existing Balance', 'Outstanding Balance']));
   const balanceFromTotal = Math.max(0, Number(total || 0) - Number(totalPaid || 0));
-  const balance = balanceFromTotal > 0 ? balanceFromTotal : (rawBalance || 0);
+  const loanStatus = pick(row, ['Loan Status', 'LoanStatus']);
+  const rowStatus = pick(row, ['Status', 'Account Status']);
+  const importStatus = isFullyPaidStatus(loanStatus) || isFullyPaidStatus(rowStatus) ? 'fullpaid' : 'active';
+  const balance = importStatus === 'fullpaid' ? 0 : (balanceFromTotal > 0 ? balanceFromTotal : (rawBalance || 0));
   return {
     loan_code: String(pick(row, ['Loan Code', 'LoanCode', 'Loan ID', 'LoanID', 'Loan Ref', 'LoanRef']) || '').trim(),
     customer_code: String(pick(row, ['Customer Code', 'CustomerCode', 'CustCode', 'Client Code', 'ClientCode', 'CCode', 'Code']) || '').trim(),
@@ -259,7 +305,10 @@ function mapLoan(row) {
     amortization: toNumber(pick(row, ['Payment per day', 'Payment Per Day', 'Amortization', 'Daily Payment'])),
     balance,
     legacy_total_payment: totalPaid,
-    source_status: pick(row, ['Loan Status', 'LoanStatus', 'Status']),
+    source_loan_status: loanStatus,
+    source_row_status: rowStatus,
+    source_status: loanStatus || rowStatus,
+    import_status: importStatus,
   };
 }
 
@@ -302,7 +351,8 @@ function applyLedgerTotals(loans, payments) {
     const latestBalance = Number(latest.balance_after || 0);
 
     if (openingBalance > 0) loan.total_amortization = openingBalance;
-    if (latestBalance >= 0) loan.balance = latestBalance;
+    if (loan.import_status === 'fullpaid') loan.balance = 0;
+    else if (latestBalance >= 0) loan.balance = latestBalance;
   }
 }
 
@@ -327,6 +377,21 @@ function promisifyDb(db) {
       });
     },
   };
+}
+
+function paymentKey(loanId, datePaid, amountPaid, orNumber) {
+  return [
+    loanId,
+    datePaid || '',
+    Number(amountPaid || 0).toFixed(2),
+    String(orNumber || '').trim(),
+  ].join('|');
+}
+
+function chunkArray(values, size) {
+  const chunks = [];
+  for (let i = 0; i < values.length; i += size) chunks.push(values.slice(i, i + size));
+  return chunks;
 }
 
 function backupTargetDb() {
@@ -379,7 +444,7 @@ async function upsertCustomer(sqlite, customer) {
   if (existing) {
     const setClause = cols.map(col => `${col} = COALESCE(?, ${col})`).join(', ');
     await sqlite.run(
-      `UPDATE tblCustomer SET ${setClause}, status='active', updated_at=datetime('now') WHERE id=?`,
+      `UPDATE tblCustomer SET ${setClause}, updated_at=datetime('now') WHERE id=?`,
       [...cols.map(col => customer[col] ?? null), existing.id]
     );
     return existing.id;
@@ -387,7 +452,7 @@ async function upsertCustomer(sqlite, customer) {
 
   const insertCols = ['customer_code', ...cols, 'branch_id', 'status'];
   const placeholders = insertCols.map(() => '?').join(',');
-  const values = [customer.customer_code, ...cols.map(col => customer[col] ?? null), 1, 'active'];
+  const values = [customer.customer_code, ...cols.map(col => customer[col] ?? null), 1, config.history ? 'FULLY PAID' : 'active'];
   const result = await sqlite.run(`INSERT INTO tblCustomer (${insertCols.join(',')}) VALUES (${placeholders})`, values);
   return result.lastID;
 }
@@ -395,14 +460,17 @@ async function upsertCustomer(sqlite, customer) {
 async function upsertLoan(sqlite, loan, customerId, collectorId) {
   const interestAmount = Math.max(0, Number(loan.total_amortization || 0) - Number(loan.principal || 0));
   const total = loan.total_amortization ?? loan.principal ?? 0;
-  const balance = loan.balance ?? total;
+  const balance = loan.import_status === 'fullpaid' ? 0 : (loan.balance ?? total);
   const totalPaid = Math.max(0, Number(total || 0) - Number(balance || 0));
   const existing = await sqlite.get('SELECT id FROM tblLoan WHERE loan_code = ?', [loan.loan_code]);
+  const status = loan.import_status || 'active';
+  const remarks = status === 'fullpaid'
+    ? 'Imported read-only from jcashdb.mdb loan history'
+    : 'Imported read-only from jcashdb.mdb Good status loan';
   const values = [
     customerId, collectorId, 1, loan.loan_type || 'Good', loan.principal || 0, loan.interest_rate || 0,
     interestAmount, loan.loan_period || 0, loan.date_released, loan.date_maturity, loan.amortization || 0,
-    total || 0, loan.principal || 0, balance || 0, totalPaid, 'active',
-    'Imported read-only from jcashdb.mdb Good status loan'
+    total || 0, loan.principal || 0, balance || 0, totalPaid, status, remarks
   ];
 
   if (existing) {
@@ -425,28 +493,66 @@ async function upsertLoan(sqlite, loan, customerId, collectorId) {
   return result.lastID;
 }
 
-async function insertPaymentIfMissing(sqlite, payment, loan, loanId, customerId, collectorId) {
+async function loadExistingPaymentKeys(sqlite, loanIds) {
+  const keys = new Set();
+  for (const chunk of chunkArray(loanIds, 900)) {
+    if (chunk.length === 0) continue;
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = await sqlite.all(
+      `SELECT loan_id, date_paid, amount_paid, or_number
+       FROM tblPayment
+       WHERE status='active'
+         AND loan_id IN (${placeholders})`,
+      chunk
+    );
+    for (const row of rows) {
+      keys.add(paymentKey(row.loan_id, row.date_paid, row.amount_paid, row.or_number));
+    }
+  }
+  return keys;
+}
+
+async function insertPaymentIfMissing(sqlite, payment, loan, loanId, customerId, collectorId, existingPaymentKeys) {
   const amount = payment.amount_paid || 0;
   const balanceAfter = payment.balance_after ?? Math.max(0, Number(loan.balance || 0));
   const balanceBefore = payment.balance_before ?? balanceAfter + amount;
-  const existing = await sqlite.get(
-    `SELECT id FROM tblPayment WHERE loan_id=? AND date_paid=? AND amount_paid=? AND or_number=? AND status='active' LIMIT 1`,
-    [loanId, payment.date_paid, amount, payment.or_number]
-  );
-  if (existing) {
-    await sqlite.run(
-      `UPDATE tblPayment SET customer_id=?, collector_id=?, balance_before=?, balance_after=?, remarks=? WHERE id=?`,
-      [customerId, collectorId, balanceBefore, balanceAfter, payment.remarks || 'Imported Good status payment', existing.id]
-    );
+  const key = paymentKey(loanId, payment.date_paid, amount, payment.or_number);
+  if (existingPaymentKeys.has(key)) {
     return false;
   }
   await sqlite.run(
     `INSERT INTO tblPayment (loan_id, customer_id, collector_id, or_number, date_paid, amount_paid,
      balance_before, balance_after, payment_type, status, remarks)
      VALUES (?,?,?,?,?,?,?,?,?,'active',?)`,
-    [loanId, customerId, collectorId, payment.or_number, payment.date_paid, amount, balanceBefore, balanceAfter, 'regular', payment.remarks || 'Imported Good status payment']
+    [loanId, customerId, collectorId, payment.or_number, payment.date_paid, amount, balanceBefore, balanceAfter, 'regular', payment.remarks || 'Imported jcash payment history']
   );
+  existingPaymentKeys.add(key);
   return true;
+}
+
+async function repairCustomerCollector(sqlite, customerId) {
+  await sqlite.run(
+    `UPDATE tblCustomer
+     SET collector_id = (
+       SELECT l.collector_id
+       FROM tblLoan l
+       WHERE l.customer_id = tblCustomer.id
+         AND l.collector_id IS NOT NULL
+       ORDER BY
+         CASE WHEN l.status IN ('active', 'pastdue') THEN 0 ELSE 1 END,
+         COALESCE(l.date_released, l.created_at) DESC,
+         l.id DESC
+       LIMIT 1
+     ),
+     updated_at = datetime('now')
+     WHERE id = ?
+       AND EXISTS (
+         SELECT 1 FROM tblLoan l
+         WHERE l.customer_id = tblCustomer.id
+           AND l.collector_id IS NOT NULL
+       )`,
+    [customerId]
+  );
 }
 
 async function main() {
@@ -459,20 +565,28 @@ async function main() {
   const loans = snapshot.loans
     .map(mapLoan)
     .filter(loan => loan.loan_code && loan.customer_code)
-    .filter(loan => isGoodStatus(loan.source_status) && notExcludedStatus(loan.source_status))
-    .filter(loan => Number(loan.balance || 0) > 0)
+    .filter(loan => {
+      if (config.history) {
+        const fullyPaid = isFullyPaidStatus(loan.source_loan_status) || isFullyPaidStatus(loan.source_row_status);
+        const goodRecent = loan.date_released >= '2026-06-25' && (isGoodStatus(loan.source_loan_status) || isGoodStatus(loan.source_row_status));
+        return (fullyPaid || goodRecent)
+          && notReversedStatus(loan.source_loan_status)
+          && notReversedStatus(loan.source_row_status);
+      }
+      return isGoodStatus(loan.source_status) && notExcludedStatus(loan.source_status) && Number(loan.balance || 0) > 0;
+    })
     .filter(loan => inRange(loan.date_released, config.from, config.to));
 
   const loanCodes = new Set(loans.map(loan => loan.loan_code));
   const payments = snapshot.payments
     .map(mapPayment)
     .filter(payment => payment.loan_code && loanCodes.has(payment.loan_code))
-    .filter(payment => isGoodStatus(payment.source_status) && notExcludedStatus(payment.source_status))
+    .filter(payment => isGoodStatus(payment.source_status) && notReversedStatus(payment.source_status))
     .filter(payment => payment.date_paid && Number(payment.amount_paid || 0) > 0);
   applyLedgerTotals(loans, payments);
 
   console.log(`Matched customers: ${new Set(loans.map(l => l.customer_code)).size}`);
-  console.log(`Matched Good active loans with balance and date released ${config.from}..${config.to}: ${loans.length}`);
+  console.log(`Matched ${config.history ? 'loan-history' : 'Good active'} loans with date released ${config.from}..${config.to}: ${loans.length}`);
   console.log(`Matched Good payments for those loans: ${payments.length}`);
   if (config.dryRun) return;
 
@@ -484,9 +598,11 @@ async function main() {
   const stats = { customers: 0, loans: 0, payments: 0, skippedMissingCustomer: 0, existingLoansUpdated: 0 };
   const loanIdByCode = new Map();
   const loanByCode = new Map(loans.map(loan => [loan.loan_code, loan]));
+  const touchedCustomerIds = new Set();
 
   try {
     await sqlite.run('BEGIN TRANSACTION');
+    await sqlite.run(`CREATE INDEX IF NOT EXISTS idx_tblPayment_import_key ON tblPayment (loan_id, date_paid, amount_paid, or_number, status)`);
     for (const loan of loans) {
       const existingLoan = await sqlite.get('SELECT id FROM tblLoan WHERE loan_code = ?', [loan.loan_code]);
       const customer = customersByCode.get(loan.customer_code);
@@ -497,16 +613,22 @@ async function main() {
       const collectorId = await getOrCreateCollector(sqlite, loan.collector_name || customer.collector_name);
       const customerId = await upsertCustomer(sqlite, customer);
       const loanId = await upsertLoan(sqlite, loan, customerId, collectorId);
+      touchedCustomerIds.add(customerId);
       loanIdByCode.set(loan.loan_code, { loanId, customerId, collectorId });
       stats.customers += 1;
       if (existingLoan) stats.existingLoansUpdated += 1;
       else stats.loans += 1;
     }
 
+    for (const customerId of touchedCustomerIds) {
+      await repairCustomerCollector(sqlite, customerId);
+    }
+
+    const existingPaymentKeys = await loadExistingPaymentKeys(sqlite, Array.from(loanIdByCode.values()).map(linked => linked.loanId));
     for (const payment of payments) {
       const linked = loanIdByCode.get(payment.loan_code);
       if (!linked) continue;
-      const inserted = await insertPaymentIfMissing(sqlite, payment, loanByCode.get(payment.loan_code), linked.loanId, linked.customerId, linked.collectorId);
+      const inserted = await insertPaymentIfMissing(sqlite, payment, loanByCode.get(payment.loan_code), linked.loanId, linked.customerId, linked.collectorId, existingPaymentKeys);
       if (inserted) stats.payments += 1;
     }
 
