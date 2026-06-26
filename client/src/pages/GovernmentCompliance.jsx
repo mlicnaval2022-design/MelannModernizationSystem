@@ -40,10 +40,33 @@ const AGENCIES = {
   }
 };
 
+const CIC_HEADERS = {
+  HD: ["Record Type","Provider Code","File Reference Date\n(End Day of the Reporting Month)\nddmmyyy","Version","Submission Type","Provider Comments"],
+  ID: ["Record Type","Provider Code","Branch Code","Subject Reference Date\n(End Day of the Reporting Month)\nddmmyyy","Provider Subject No","Title","First Name","Last Name","Middle Name","Suffix","Nickname","Previous Last Name","Gender","Date of Birth","Place of Birth","Country of Birth (Code)","Nationality","Resident","Civil Status","Number of Dependents","Car/s Owned ","Spouse First Name","Spouse Last Name","Spouse Middle Name","Mother's Maiden First Name","Mother's Maiden FULL NAME","Mother's Maiden Middle Name","Father First Name","Father Last Name","Father Middle Name","Father Suffix","Address 1: Address Type","Address 1: FullAddress","Address 1: StreetNo","Address 1: PostalCode","Address 1: Subdivision","Address 1: Barangay","Address 1: City","Address 1: Province","Address 1: Country","Address 1: House Owner/Lessee","Address 1: Occupied Since","Address 2: Address Type","Address 2: FullAddress","Address 2: StreetNo","Address 2: PostalCode","Address 2: Subdivision","Address 2: Barangay","Address 2: City","Address 2: Province","Address 2: Country","Address 2: House Owner/Lessee","Address 2: Occupied Since","Identification 1: Type","Identification 1: Number","Identification 2: Type","Identification 2: Number","Identification 3: Type","Identification 3: Number","ID 1: Type","ID 1: Number","ID 1: IssueDate","ID 1: IssueCountry","ID 1: ExpiryDate","ID 1: Issued By","ID 2: Type","ID 2: Number","ID 2: IssueDate","ID 2: IssueCountry","ID 2: ExpiryDate","ID 2: Issued By","ID 3: Type","ID 3: Number","ID 3: IssueDate","ID 3: IssueCountry","ID 3: ExpiryDate","ID 3: Issued By","Contact 1: Type","Contact 1: Value","Contact 2: Type","Contact 2: Value","Employment: Trade Name","Employment: TIN","Employment: Phone Number","Employment:  PSIC","Employment: GrossIncome","Employment: Annual/Monthly Indicator","Employment: Currency","Employment: OccupationStatus","Employment: DateHiredFrom","Employment: DateHiredTo","Employment: Occupation","Sole Trader:  TradeName","Sole Trader 1: Address Type","Sole Trader 1: FullAddress","Sole Trader 1: StreetNo","Sole Trader 1: PostalCode","Sole Trader 1: Subdivision","Sole Trader 1: Barangay","Sole Trader 1: City","Sole Trader 1: Province","Sole Trader 1: Country","Sole Trader 1: House Owner/Lessee","Sole Trader 1: Occupied Since","Sole Trader 2: Address Type","Sole Trader 2: FullAddress","Sole Trader 2: StreetNo","Sole Trader 2: PostalCode","Sole Trader 2: Subdivision","Sole Trader 2: Barangay","Sole Trader 2: City","Sole Trader 2: Province","Sole Trader 2: Country","Sole Trader 2: House Owner/Lessee","Sole Trader 2: Occupied Since","Sole Trader 1:  Identification Type","Sole Trader 1:  Identification Number","Sole Trader 2:  Identification Type","Sole Trader 2: Identification Number","Sole Trader 1: Contact Type","Sole Trader 1: Contact Value","Sole Trader 2: Contact Type","Sole Trader 2: Contact Value"],
+  CI: ["Record Type","Provider Code","Branch Code","Contract Reference Date\n(End Day of the Reporting Month)\nddmmyyy","Provider Subject No","Role","Provider Contract No","Contract Type","Contract Phase","Contract Status","Currency","Original Currency","Contract Start Date","Contract Request Date","Contract End Planned Date","Contract End Actual Date","Last Payment Date","Reorganized Credit Code","Board Resolution flag","Financed Amount","Installments Number","Transaction Type / Sub-facility","Purpose of credit","Payment Periodicity","Payment Method","Monthly Payment Amount","First Payment Date","Last payment amount","Next Payment Date","Next Payment","Outstanding Payments Number","Outstanding Balance","Overdue Payments Number","Overdue Payments Amount","Overdue Days","Good Type","Good Value","New/Used Code","Good Brand","Manufacturing Date","Registration number","Provider Guarantee No 1","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 2","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 3","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 4","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 5","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 6","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Subject No (Linked Subject 1)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 2)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 3)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 4)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 5)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 6)","Role","Name of the Linked Subject"],
+  NE: ["Record Type","Provider Code","Branch Code","Negative Event Reference Date\n(End Day of the Reporting Month)\nddmmyyy","Provider Subject No","Event Code","Event Detail","Event Date","Event Status","Event Status Date"],
+  FT: ["Record Type","Provider Code","File Reference Date\n(End Day of the Reporting Month)\nddmmyyy","No. of records"]
+};
+
 const months = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: new Date(2026, i, 1).toLocaleString('en-US', { month: 'long' }) }));
 const currentYear = new Date().getFullYear();
 const emptyFilters = { search: '', month: '', year: currentYear, status: '', filing_type: '', tax_type: '', page: 1, limit: 10, sort: 'due_date', dir: 'ASC' };
 const emptyForm = { due_date: '', status: '', amount: 0 };
+
+function csvEscape(val) {
+  if (val == null) return '';
+  const str = String(val);
+  if (/[",\n\r]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+  return str;
+}
+
+function toCsv(records) {
+  const ordered = [];
+  ['HD', 'ID', 'CI', 'NE', 'FT'].forEach(type => {
+    records.filter(r => r.recordType === type).forEach(r => ordered.push(r.values));
+  });
+  return ordered.map(row => row.map(csvEscape).join(',')).join('\n');
+}
 
 function badgeClass(status) {
   const key = String(status || '').toLowerCase().replace(/\s+/g, '-');
@@ -302,7 +325,7 @@ export default function GovernmentCompliance() {
                       <td style={{ color: '#64748b' }}>{new Date(row.created_at).toLocaleString()}</td>
                       <td style={{ fontWeight: 'bold', color: '#1d4ed8' }}>{row.customer_code}</td>
                       <td style={{ fontWeight: 'bold' }}>{row.customer_name}</td>
-                      <td>₱{Number(row.loan_amount).toLocaleString()}</td>
+                      <td>â‚±{Number(row.loan_amount).toLocaleString()}</td>
                       <td><span style={{ padding: '2px 8px', background: '#f1f5f9', borderRadius: '4px', fontSize: '12px' }}>{row.loan_type}</span></td>
                       <td>{row.release_date}</td>
                       <td>{row.collector_name || 'N/A'}</td>
@@ -358,17 +381,21 @@ function SelectField({ label, name, options, form, setForm, required = false }) 
 }
 
 function CICGenerator() {
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const today = new Date();
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth() + 1);
   const [branchId, setBranchId] = useState('');
   const [branches, setBranches] = useState([]);
-  
-  const [validation, setValidation] = useState(null);
+  const [fileReferenceNumber, setFileReferenceNumber] = useState('');
+  const [submission, setSubmission] = useState(null);
   const [history, setHistory] = useState([]);
-  const [activeTab, setActiveTab] = useState('validation'); // validation | history
+  const [activeTab, setActiveTab] = useState('submission');
   const [loading, setLoading] = useState(false);
-
-  const [fixCustomer, setFixCustomer] = useState(null);
+  const [previewFilter, setPreviewFilter] = useState('ID');
+  
+  const [editingRowId, setEditingRowId] = useState(null);
+  const [editingValues, setEditingValues] = useState([]);
+  const [includedErrors, setIncludedErrors] = useState(new Set());
 
   useEffect(() => {
     API.get('/branches').then(res => setBranches(res.data)).catch(console.error);
@@ -379,115 +406,277 @@ function CICGenerator() {
     API.get('/cic/history').then(res => setHistory(res.data)).catch(console.error);
   };
 
-  const handleValidate = async () => {
+  const requestPayload = () => ({
+    year,
+    month,
+    branch_id: branchId,
+    file_reference_number: fileReferenceNumber
+  });
+
+  const previewSubmission = async () => {
     setLoading(true);
     try {
-      const { data } = await API.post('/cic/validate', { year, month, branch_id: branchId });
-      setValidation(data);
-      setActiveTab('validation');
+      const { data } = await API.post('/cic/preview', requestPayload());
+      setSubmission(data);
+      setIncludedErrors(new Set());
+      setActiveTab('submission');
     } catch (err) {
-      alert(err.response?.data?.error || 'Validation failed');
+      alert(err.response?.data?.error || 'Preview failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEditClient = async (customerId) => {
+  const downloadCsv = async () => {
+    if (!submission || !submission.previewRecords || submission.previewRecords.length === 0) return;
+    
+    const csvStr = toCsv(submission.previewRecords);
+    const blob = new Blob([csvStr], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = submission.fileName || 'CIC_Export.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+    
     try {
-      const { data } = await API.get(`/customers/${customerId}`);
-      setFixCustomer(data);
-    } catch (err) {
-      alert('Failed to load customer');
-    }
-  };
-
-  const handleSaveFix = async (e) => {
-    e.preventDefault();
-    try {
-      await API.put(`/customers/${fixCustomer.id}`, fixCustomer);
-      alert('Customer CIC fields updated successfully!');
-      setFixCustomer(null);
-      handleValidate();
-    } catch (err) {
-      alert('Failed to update customer');
-    }
-  };
-
-  const handleGenerate = async () => {
-    if (!validation) return alert('Please validate records first');
-    if (validation.errors.length > 0) {
-      const confirmGen = window.confirm(`There are ${validation.errors.length} records with errors. These will be excluded. Continue?`);
-      if (!confirmGen) return;
-    }
-    setLoading(true);
-    try {
-      const { data } = await API.post('/cic/generate', { year, month, branch_id: branchId });
-      
-      const blob = new Blob([data.csv_data], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${data.batch_number}.csv`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-      
-      alert(data.message);
+      await API.post('/cic/history', { 
+        year, month, branch_id: branchId, file_reference_number: fileReferenceNumber,
+        file_name: submission.fileName 
+      });
       loadHistory();
-      setActiveTab('history');
-    } catch (err) {
-      alert(err.response?.data?.error || 'Generation failed');
-    } finally {
-      setLoading(false);
+    } catch (e) {
+      console.warn('Failed to save history', e);
     }
   };
+
+  const handleAddRecord = () => {
+    if (!submission) return;
+    const newRecord = {
+      recordType: previewFilter,
+      values: Array(120).fill('').map((_, i) => i === 0 ? previewFilter : '')
+    };
+    setSubmission(prev => ({ ...prev, previewRecords: [newRecord, ...prev.previewRecords] }));
+    setEditingRowId(`new-${Date.now()}`);
+    setEditingValues(newRecord.values);
+  };
+
+  const handleDeleteRecord = (idxToDel, rType) => {
+    if (!window.confirm('Are you sure you want to delete this record?')) return;
+    setSubmission(prev => {
+      const recordsTypeMatch = prev.previewRecords.filter(r => r.recordType === rType);
+      const toDelete = recordsTypeMatch[idxToDel];
+      const newAll = prev.previewRecords.filter(r => r !== toDelete);
+      return { ...prev, previewRecords: newAll };
+    });
+  };
+
+  const handleEditRecord = (record, index, rType) => {
+    setEditingRowId(`${rType}-${index}`);
+    setEditingValues([...record.values]);
+  };
+
+  const handleSaveRecord = (index, rType) => {
+    setSubmission(prev => {
+      const all = [...prev.previewRecords];
+      const recordsTypeMatch = all.filter(r => r.recordType === rType);
+      const toEdit = recordsTypeMatch[index];
+      const actualIndex = all.findIndex(r => r === toEdit);
+      if (actualIndex >= 0) {
+        all[actualIndex] = { ...all[actualIndex], values: editingValues };
+      }
+      return { ...prev, previewRecords: all };
+    });
+    setEditingRowId(null);
+  };
+
+  const handleIncludeExcluded = (idx, err, checked) => {
+    setIncludedErrors(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(idx);
+      else next.delete(idx);
+      return next;
+    });
+
+    setSubmission(prev => {
+      const newRecs = [...prev.previewRecords];
+      if (checked) {
+        if (err.generatedRecords?.ID) newRecs.push({ recordType: 'ID', clientCode: err.clientCode, loanNumber: err.loanNumber, values: err.generatedRecords.ID });
+        if (err.generatedRecords?.CI) newRecs.push({ recordType: 'CI', clientCode: err.clientCode, loanNumber: err.loanNumber, values: err.generatedRecords.CI });
+        if (err.generatedRecords?.NE) newRecs.push({ recordType: 'NE', clientCode: err.clientCode, loanNumber: err.loanNumber, values: err.generatedRecords.NE });
+      } else {
+        return {
+          ...prev,
+          previewRecords: prev.previewRecords.filter(r => !(r.clientCode === err.clientCode && r.loanNumber === err.loanNumber))
+        };
+      }
+      return { ...prev, previewRecords: newRecs };
+    });
+  };
+
+  const hasValidRecords = submission && submission.previewRecords && submission.previewRecords.length > 0;
 
   return (
     <div className="cic-generator-container">
-      <div className="gc-toolbar" style={{ marginBottom: 20 }}>
-        <input className="form-control" type="number" value={year} onChange={e => setYear(e.target.value)} placeholder="Year" />
-        <select className="form-control" value={month} onChange={e => setMonth(e.target.value)}>
-          {Array.from({ length: 12 }, (_, i) => (<option key={i+1} value={i+1}>{new Date(2026, i, 1).toLocaleString('en-US', { month: 'long' })}</option>))}
-        </select>
-        <select className="form-control" value={branchId} onChange={e => setBranchId(e.target.value)}>
-          <option value="">All Branches</option>
-          {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
-        </select>
-        <button className="btn btn-secondary" onClick={handleValidate} disabled={loading}>{loading ? 'Validating...' : 'Validate Records'}</button>
-        <button className="btn btn-primary" onClick={handleGenerate} disabled={loading || !validation || validation.summary.ready === 0}>Generate CIC CSV</button>
+      <h3 style={{ marginTop: 0 }}>CIC Submission</h3>
+      <div className="gc-toolbar" style={{ marginBottom: 14, alignItems: 'end' }}>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">Reporting Year</label>
+          <input className="form-control" type="number" value={year} onChange={e => setYear(e.target.value)} />
+        </div>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">Reporting Month</label>
+          <select className="form-control" value={month} onChange={e => setMonth(e.target.value)}>
+            {Array.from({ length: 12 }, (_, i) => (<option key={i + 1} value={i + 1}>{new Date(2026, i, 1).toLocaleString('en-US', { month: 'long' })}</option>))}
+          </select>
+        </div>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">Branch</label>
+          <select className="form-control" value={branchId} onChange={e => setBranchId(e.target.value)}>
+            <option value="">All Branches</option>
+            {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+          </select>
+        </div>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">File Reference Number</label>
+          <input className="form-control" value={fileReferenceNumber} onChange={e => setFileReferenceNumber(e.target.value)} placeholder="Required in FT record" />
+        </div>
+        <button className="btn btn-secondary" onClick={previewSubmission} disabled={loading}>{loading ? 'Loading...' : 'Preview'}</button>
+        <button className="btn btn-success" onClick={downloadCsv} disabled={loading || !fileReferenceNumber.trim()}>Download CSV</button>
+      </div>
+      <div style={{ marginTop: -10, marginBottom: 20, color: '#64748b', fontSize: 13 }}>
+        The selected reporting month covers the previous month&apos;s loan accounts. Example: select June 2026 to export May 2026 loans.
       </div>
 
       <div className="gc-tabs" style={{ borderBottom: '1px solid #ddd', marginBottom: 20 }}>
-        <button className={activeTab === 'validation' ? 'active' : ''} onClick={() => setActiveTab('validation')}>Validation</button>
+        <button className={activeTab === 'submission' ? 'active' : ''} onClick={() => setActiveTab('submission')}>CIC Submission</button>
         <button className={activeTab === 'history' ? 'active' : ''} onClick={() => setActiveTab('history')}>Submission History</button>
       </div>
 
-      {activeTab === 'validation' && (
+      {activeTab === 'submission' && (
         <div>
-          {validation ? (
+          {submission ? (
             <>
-              <div style={{ display: 'flex', gap: 20, marginBottom: 20 }}>
-                <div className="gc-kpi blue"><span>Total Eligible</span><strong>{validation.summary.totalEligible}</strong></div>
-                <div className="gc-kpi green"><span>Ready for Submission</span><strong>{validation.summary.ready}</strong></div>
-                <div className="gc-kpi red"><span>With Errors</span><strong>{validation.summary.withErrors}</strong></div>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
+                <div className="gc-kpi blue"><span>Total ID Records</span><strong>{submission.counts.totalIdRecords}</strong></div>
+                <div className="gc-kpi green"><span>Total CI Records</span><strong>{submission.counts.totalCiRecords}</strong></div>
+                <div className="gc-kpi blue"><span>Total Records for FT</span><strong>{submission.counts.totalRecordsForFt}</strong></div>
+                <div className="gc-kpi red"><span>Excluded</span><strong>{submission.counts.excludedLoanAccounts}</strong></div>
               </div>
-              {validation.errors.length > 0 ? (
-                <div className="table-wrapper">
-                  <h4 style={{marginBottom: 10}}>Validation Errors</h4>
-                  <table className="data-table">
-                    <thead><tr><th>Customer Name</th><th>Loan Code</th><th>Missing Fields</th></tr></thead>
-                    <tbody>
-                      {validation.errors.map((err, idx) => (
-                        <tr key={idx}><td style={{cursor: 'pointer', color: '#1d4ed8', textDecoration: 'underline'}} onClick={() => handleEditClient(err.customerId)} title="Click to fix missing fields">{err.customerName}</td><td>{err.loanCode}</td><td style={{color: 'red'}}>{err.missingFields}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="empty-state">All records are complete and ready for submission!</div>
+
+              {!hasValidRecords && (
+                <div className="empty-state" style={{ marginBottom: 20 }}>No valid CIC records found for the selected reporting month.</div>
               )}
+
+              <div className="table-wrapper" style={{ marginBottom: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <h4 style={{ margin: 0 }}>Preview Records</h4>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button className="btn btn-primary btn-sm" onClick={handleAddRecord} disabled={!submission}>
+                      <i className="fi fi-rr-plus" style={{ marginRight: 6 }}></i> Add {previewFilter} Record
+                    </button>
+                    <select className="form-control" value={previewFilter} onChange={e => { setPreviewFilter(e.target.value); setEditingRowId(null); }} style={{ width: 'auto' }}>
+                      <option value="HD">HD Records</option>
+                      <option value="ID">ID Records</option>
+                      <option value="CI">CI Records</option>
+                      <option value="NE">NE Records</option>
+                      <option value="FT">FT Records</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                  {submission.previewRecords.filter(r => r.recordType === previewFilter).length === 0 ? (
+                    <div className="empty-state" style={{ margin: '20px', border: 'none' }}>
+                      No {previewFilter} records to preview.
+                    </div>
+                  ) : (
+                    <table className="data-table" style={{ minWidth: '100%' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: 120, position: 'sticky', left: 0, zIndex: 1, background: '#f8fafc' }}>Actions</th>
+                          {CIC_HEADERS[previewFilter].map((h, i) => <th key={i} style={{ whiteSpace: 'nowrap' }}>{h.split('\n')[0]}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {submission.previewRecords.filter(r => r.recordType === previewFilter).slice(0, 100).map((record, idx) => {
+                          const isEditing = editingRowId === `${record.recordType}-${idx}` || (editingRowId && editingRowId.startsWith('new-') && idx === 0);
+                          return (
+                            <tr key={`${record.recordType}-${idx}`}>
+                              <td style={{ position: 'sticky', left: 0, background: '#fff', borderRight: '1px solid #e2e8f0' }}>
+                                {isEditing ? (
+                                  <div style={{ display: 'flex', gap: 6 }}>
+                                    <button className="btn btn-primary btn-sm" onClick={() => handleSaveRecord(idx, record.recordType)}>Save</button>
+                                    <button className="btn btn-secondary btn-sm" onClick={() => setEditingRowId(null)}>Cancel</button>
+                                  </div>
+                                ) : (
+                                  <div style={{ display: 'flex', gap: 6 }}>
+                                    <button className="btn btn-secondary btn-sm" onClick={() => handleEditRecord(record, idx, record.recordType)}>Edit</button>
+                                    <button className="btn btn-danger btn-sm" onClick={() => handleDeleteRecord(idx, record.recordType)}>Delete</button>
+                                  </div>
+                                )}
+                              </td>
+                              {Array(CIC_HEADERS[previewFilter].length).fill('').map((_, vIdx) => {
+                                const val = isEditing ? editingValues[vIdx] : record.values[vIdx];
+                                return (
+                                  <td key={vIdx} style={{ whiteSpace: 'nowrap', padding: isEditing ? 4 : undefined }}>
+                                    {isEditing ? (
+                                      <input 
+                                        type="text" 
+                                        className="form-control" 
+                                        style={{ minWidth: 100, padding: '4px 8px', height: 'auto' }}
+                                        value={val || ''} 
+                                        onChange={e => {
+                                          const newVals = [...editingValues];
+                                          newVals[vIdx] = e.target.value;
+                                          setEditingValues(newVals);
+                                        }} 
+                                      />
+                                    ) : (val || '-')}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '8px', textAlign: 'right' }}>
+                  Showing up to 100 {previewFilter} records.
+                </div>
+              </div>
+
+              <div className="table-wrapper">
+                <h4 style={{ marginBottom: 10 }}>Validation Results</h4>
+                <table className="data-table">
+                  <thead><tr><th style={{ width: 60, textAlign: 'center' }}>Include</th><th>Client Code</th><th>Client Name</th><th>Loan Number</th><th>Reason</th><th>Missing Fields</th></tr></thead>
+                  <tbody>
+                    {submission.validationErrors.length === 0 ? (
+                      <tr><td colSpan="6" className="empty-state">No validation exclusions.</td></tr>
+                    ) : submission.validationErrors.map((err, idx) => (
+                      <tr key={idx}>
+                        <td style={{ textAlign: 'center' }}>
+                          <input 
+                            type="checkbox" 
+                            style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                            checked={includedErrors.has(idx)} 
+                            onChange={e => handleIncludeExcluded(idx, err, e.target.checked)} 
+                          />
+                        </td>
+                        <td>{err.clientCode || '-'}</td>
+                        <td>{err.clientName || '-'}</td>
+                        <td>{err.loanNumber || '-'}</td>
+                        <td>{err.reason}</td>
+                        <td style={{ color: '#b91c1c' }}>{err.missingFields.join(', ')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           ) : (
-            <div className="empty-state">Select a period and click "Validate Records" to review data before generation.</div>
+            <div className="empty-state">Select a reporting month, enter the file reference number, then click Preview or Generate CIC CSV.</div>
           )}
         </div>
       )}
@@ -510,23 +699,6 @@ function CICGenerator() {
             </tbody>
           </table>
         </div>
-      )}
-
-      {fixCustomer && (
-        <div className="modal-overlay"><div className="modal gc-modal"><div className="modal-header"><span className="modal-title">Fix CIC Requirements for {fixCustomer.customer_code}</span><button className="modal-close" onClick={() => setFixCustomer(null)}>x</button></div>
-          <form className="modal-body" onSubmit={handleSaveFix}>
-            <div className="form-grid">
-              <Field label="First Name" name="first_name" form={fixCustomer} setForm={setFixCustomer} required />
-              <Field label="Last Name" name="last_name" form={fixCustomer} setForm={setFixCustomer} required />
-              <Field label="Date of Birth" name="birth_date" type="date" form={fixCustomer} setForm={setFixCustomer} required />
-              <div className="form-group span-full"><label className="form-label">Full Address *</label><input className="form-control" value={fixCustomer.address || ''} required onChange={e => setFixCustomer(f => ({ ...f, address: e.target.value }))} /></div>
-            </div>
-            <div className="form-actions" style={{marginTop: 20}}>
-              <button type="button" className="btn btn-secondary" onClick={() => setFixCustomer(null)}>Cancel</button>
-              <button className="btn btn-primary" type="submit">Save Changes</button>
-            </div>
-          </form>
-        </div></div>
       )}
     </div>
   );
