@@ -101,7 +101,7 @@ export default function GovernmentCompliance() {
   const visibleAgencies = Object.keys(AGENCIES).filter(agency => canSeeAgency(user, agency));
   const [active, setActive] = useState(visibleAgencies[0] || 'CIC');
   const [rows, setRows] = useState([]);
-  const [viewMode, setViewMode] = useState('clients');
+  const [viewMode] = useState('clients');
   const [clientRows, setClientRows] = useState([]);
   const [summary, setSummary] = useState({ cards: {}, notifications: [] });
   const [total, setTotal] = useState(0);

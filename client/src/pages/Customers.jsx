@@ -32,6 +32,7 @@ export default function Customers() {
   const [previewImage, setPreviewImage] = useState(null)
   const [soaLoading, setSoaLoading] = useState(false)
   const [soaTab, setSoaTab] = useState('summary')
+  const [selectedLoanForPayments, setSelectedLoanForPayments] = useState(null)
 
   useEffect(() => {
     if (soaModal) {
@@ -435,9 +436,7 @@ export default function Customers() {
                     {soaTab === 'history' && (
                       <div className="soa-card">
                         <div className="soa-list-card-header"><div className="soa-list-title">Loans & Payments History</div></div>
-                        {loans.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Loan Code</th><th>Type</th><th>Date Released</th><th>Maturity</th><th>Period</th><th>Principal</th><th>Interest Rate</th><th>Interest Amount</th><th>Total Loan</th><th>Amortization</th><th>Balance</th><th>Status</th></tr></thead><tbody>{loans.map(l => (<tr key={l.id}><td className="mono">{l.loan_code}</td><td>{l.loan_type || '-'}</td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
-                        <div className="soa-list-card-header" style={{ marginTop: 24 }}><div className="soa-list-title">Payment Ledger</div></div>
-                        {sortedPayments.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Date Paid</th><th>Loan Ref</th><th>OR No.</th><th>Amount Paid</th><th>Balance After</th><th>Status</th><th>Remarks</th></tr></thead><tbody>{sortedPayments.map(p => { const isFullyPaid = p.status === 'active' && Number(p.balance_after) <= 0; const statusClass = isFullyPaid ? 'fullpaid' : p.status; const statusLabel = isFullyPaid ? 'Fully Paid' : (p.status || '-'); return (<tr key={p.id}><td>{p.date_paid || '-'}</td><td className="mono">{p.loan_code || '-'}</td><td>{p.or_number || '-'}</td><td className="fw-600 text-success">{formatPhp(p.amount_paid)}</td><td>{formatPhp(p.balance_after)}</td><td><span className={`badge badge-${statusClass}`}>{statusLabel}</span></td><td>{p.remarks || '-'}</td></tr>); })}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No payments found.</div><div className="soa-empty-sub">There are no payment records associated with this account.</div></div>)}
+                        {loans.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Loan Code</th><th>Type</th><th>Date Released</th><th>Maturity</th><th>Period</th><th>Principal</th><th>Interest Rate</th><th>Interest Amount</th><th>Total Loan</th><th>Amortization</th><th>Balance</th><th>Status</th></tr></thead><tbody>{loans.map(l => (<tr key={l.id} onClick={() => setSelectedLoanForPayments(l)} style={{ cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><td className="mono" style={{color: '#2563eb', fontWeight: '600'}} title="View payment history for this loan">{l.loan_code}</td><td>{l.loan_type || '-'}</td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
                       </div>
                     )}
 
@@ -816,6 +815,345 @@ export default function Customers() {
         </div>
       )}
 
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <div className="modal-overlay" style={{ zIndex: 100000, background: 'rgba(0,0,0,0.85)' }} onClick={() => setPreviewImage(null)}>
+          <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <button 
+              onClick={() => setPreviewImage(null)}
+              style={{
+                position: 'absolute', top: 20, left: 20, background: 'rgba(255,255,255,0.2)', 
+                border: 'none', color: '#fff', fontSize: '16px', padding: '10px 20px', 
+                borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+                fontWeight: 600
+              }}
+            >
+              <span>←</span> Back
+            </button>
+            <img 
+              src={previewImage} 
+              alt="Preview" 
+              style={{ maxWidth: '90%', maxHeight: '90%', borderRadius: '8px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }} 
+              onClick={e => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Payment Ledger Modal - Redesigned to match reference exactly */}
+      {selectedLoanForPayments && (
+        <div className="modal-overlay" style={{ zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15, 23, 42, 0.6)', padding: '20px' }} onClick={() => setSelectedLoanForPayments(null)}>
+          <div className="modal-content" style={{ width: '100%', maxWidth: '1000px', backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
+            
+            {/* Header */}
+            <div style={{ padding: '24px 32px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ width: '56px', height: '56px', borderRadius: '12px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb', fontSize: '28px' }}>
+                  <i className="bi bi-receipt"></i>
+                </div>
+                <div>
+                  <h2 style={{ margin: '0 0 4px 0', fontSize: '24px', fontWeight: '700', color: '#1e293b' }}>Payment History</h2>
+                  <div style={{ color: '#64748b', fontSize: '14px' }}>View payment history for the selected loan</div>
+                </div>
+              </div>
+              <button onClick={() => setSelectedLoanForPayments(null)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '24px', cursor: 'pointer', padding: '4px' }}>&times;</button>
+            </div>
+            
+            {/* Body */}
+            <div style={{ padding: '32px', overflowY: 'auto', backgroundColor: '#fdfdfd' }}>
+              
+              {(() => {
+                const principal = Number(selectedLoanForPayments.principal) || 0;
+                const interestRate = Number(selectedLoanForPayments.interest_rate) || 0;
+                // If interest_amount is 0 or missing, calculate it
+                let interestAmount = Number(selectedLoanForPayments.interest_amount) || 0;
+                if (interestAmount === 0 && interestRate > 0) {
+                  interestAmount = principal * (interestRate / 100);
+                }
+                
+                // If total_amortization is 0, missing, or weirdly smaller than principal, calculate it
+                let totalLoan = Number(selectedLoanForPayments.total_amortization) || 0;
+                if (totalLoan <= principal) {
+                  totalLoan = principal + interestAmount;
+                }
+
+                // True Remaining Balance computation
+                let remainingBalance = Number(selectedLoanForPayments.balance) || 0;
+                const isPaid = selectedLoanForPayments.status?.toLowerCase() === 'paid';
+                
+                if (remainingBalance === 0 && !isPaid) {
+                  const pForLoan = (soaData?.payments || []).filter(p => p.loan_code === selectedLoanForPayments.loan_code).sort((a,b) => new Date(b.date_paid) - new Date(a.date_paid));
+                  if (pForLoan.length > 0) {
+                    remainingBalance = Number(pForLoan[0].balance_after) || 0;
+                  } else {
+                    // No payments yet? Then remaining balance is the total loan, unless DB's total_amortization held the true balance.
+                    remainingBalance = Number(selectedLoanForPayments.total_amortization) > 0 ? Number(selectedLoanForPayments.total_amortization) : totalLoan;
+                  }
+                }
+
+                return (
+                  <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', marginBottom: '32px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px 32px', backgroundColor: '#ffffff' }}>
+                    {/* Row 1 */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontSize: '18px', flexShrink: 0 }}>
+                        <i className="bi bi-file-earmark-text"></i>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>LOAN REFERENCE</div>
+                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#2563eb' }}>{selectedLoanForPayments.loan_code}</div>
+                      </div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontSize: '18px', flexShrink: 0 }}>
+                        <i className="bi bi-person"></i>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>CLIENT CODE</div>
+                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{soaData?.customer_code || '-'}</div>
+                      </div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#faf5ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a855f7', fontSize: '18px', flexShrink: 0 }}>
+                        <i className="bi bi-person-badge"></i>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>CLIENT NAME</div>
+                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{soaData?.full_name?.toUpperCase() || '-'}</div>
+                      </div>
+                    </div>
+                    
+                    {/* Row 2 */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontSize: '18px', flexShrink: 0 }}>
+                        <i className="bi bi-calendar3"></i>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>LOAN DATE</div>
+                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{selectedLoanForPayments.date_released || '-'}</div>
+                      </div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', fontSize: '18px', flexShrink: 0 }}>
+                        <i className="bi bi-calendar-event"></i>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>DUE DATE</div>
+                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#ef4444' }}>{selectedLoanForPayments.date_maturity || '-'}</div>
+                      </div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f97316', fontSize: '18px', flexShrink: 0 }}>
+                        <i className="bi bi-clock"></i>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>TERM / PERIOD</div>
+                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{selectedLoanForPayments.loan_period || 0} Days</div>
+                      </div>
+                    </div>
+                    
+                    {/* Row 3 */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#22c55e', fontSize: '18px', flexShrink: 0 }}>
+                        <i className="bi bi-cash-stack"></i>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>PRINCIPAL LOAN</div>
+                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{formatPhp(principal)}</div>
+                      </div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#faf5ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a855f7', fontSize: '18px', flexShrink: 0 }}>
+                        <i className="bi bi-piggy-bank"></i>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>INTEREST AMOUNT</div>
+                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{formatPhp(interestAmount)} <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '500' }}>({interestRate}%)</span></div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontSize: '18px', flexShrink: 0 }}>
+                        <i className="bi bi-arrow-repeat"></i>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>AMORTIZATION</div>
+                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{formatPhp(selectedLoanForPayments.amortization)}</div>
+                      </div>
+                    </div>
+
+                    {/* Row 4 */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#faf5ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a855f7', fontSize: '18px', flexShrink: 0 }}>
+                        <i className="bi bi-wallet2"></i>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>TOTAL LOAN</div>
+                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{formatPhp(totalLoan)}</div>
+                      </div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#22c55e', fontSize: '18px', flexShrink: 0 }}>
+                        <i className="bi bi-wallet"></i>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>REMAINING BALANCE</div>
+                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#22c55e' }}>{formatPhp(remainingBalance)}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', opacity: 0 }}>
+                      {/* Empty placeholder for grid balance */}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Payment History Section Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <i className="bi bi-file-text" style={{ color: '#2563eb', fontSize: '20px' }}></i>
+                <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENT HISTORY</h3>
+                <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }}></div>
+              </div>
+
+              {/* Payment History Logic */}
+              {(() => {
+                const loanPayments = (soaData?.payments || []).filter(p => p.loan_code === selectedLoanForPayments.loan_code).sort((a,b) => new Date(b.date_paid) - new Date(a.date_paid));
+                const totalPaid = loanPayments.reduce((sum, p) => sum + Number(p.amount_paid || 0), 0);
+                const totalPayable = Number(selectedLoanForPayments.total_amortization || selectedLoanForPayments.principal);
+                const paymentRate = totalPayable > 0 ? Math.min(100, (totalPaid / totalPayable) * 100).toFixed(2) : 0;
+                const lastPaymentDate = loanPayments.length > 0 ? loanPayments[0].date_paid : '-';
+
+                return (
+                  <>
+                    {/* Table */}
+                    {loanPayments.length > 0 ? (
+                      <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', marginBottom: '24px', backgroundColor: '#ffffff' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                          <thead style={{ backgroundColor: '#0d6efd', color: '#ffffff' }}>
+                            <tr>
+                              <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>DATE</th>
+                              <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENT CODE</th>
+                              <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENTS</th>
+                              <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>RUNNING BALANCE</th>
+                              <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>STATUS</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {loanPayments.map((p, idx) => { 
+                              const isFullyPaid = p.status === 'active' && Number(p.balance_after) <= 0; 
+                              const isPartial = p.status === 'active' && Number(p.balance_after) > 0;
+                              
+                              // Pill styles
+                              let pillBg = '#f1f5f9', pillColor = '#64748b', pillIcon = 'bi-circle';
+                              if (isFullyPaid) { pillBg = '#f3e8ff'; pillColor = '#9333ea'; pillIcon = 'bi-check-circle'; }
+                              else if (isPartial) { pillBg = '#dcfce7'; pillColor = '#16a34a'; pillIcon = 'bi-check-circle'; }
+                              
+                              return (
+                                <tr key={p.id} style={{ borderBottom: idx === loanPayments.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
+                                  <td style={{ padding: '16px 24px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                      <i className="bi bi-calendar" style={{ color: '#94a3b8', fontSize: '18px' }}></i>
+                                      <div>
+                                        <div style={{ fontSize: '14px', fontWeight: '600', color: '#0f172a' }}>{p.date_paid || '-'}</div>
+                                        <div style={{ fontSize: '12px', color: '#64748b' }}>12:00 PM</div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '500', color: '#2563eb' }}>{p.or_number || p.loan_code}</td>
+                                  <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>{formatPhp(p.amount_paid)}</td>
+                                  <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>{formatPhp(p.balance_after)}</td>
+                                  <td style={{ padding: '16px 24px', textAlign: 'center' }}>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '9999px', backgroundColor: pillBg, color: pillColor, fontSize: '12px', fontWeight: '600' }}>
+                                      <i className={`bi ${pillIcon}`}></i> {isFullyPaid ? 'Fully Paid' : 'Active'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ); 
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div style={{ padding: '60px 0', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1', textAlign: 'center', marginBottom: '24px' }}>
+                        <i className="bi bi-receipt" style={{ fontSize: '32px', color: '#94a3b8', marginBottom: '16px', display: 'block' }}></i>
+                        <div style={{ fontSize: '15px', color: '#475569', fontWeight: '500' }}>No payment history found for this loan.</div>
+                      </div>
+                    )}
+
+                    {/* Summary Cards */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+                      
+                      <div style={{ padding: '16px', backgroundColor: '#f8fafc', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontSize: '24px', flexShrink: 0 }}>
+                          <i className="bi bi-coin"></i>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '2px', letterSpacing: '0.5px' }}>TOTAL PAYMENTS</div>
+                          <div style={{ fontSize: '18px', fontWeight: '700', color: '#2563eb' }}>{loanPayments.length}</div>
+                          <div style={{ fontSize: '12px', color: '#64748b' }}>Transactions</div>
+                        </div>
+                      </div>
+                      
+                      <div style={{ padding: '16px', backgroundColor: '#f0fdf4', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a', fontSize: '24px', flexShrink: 0 }}>
+                          <i className="bi bi-wallet2"></i>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '2px', letterSpacing: '0.5px' }}>TOTAL PAID</div>
+                          <div style={{ fontSize: '18px', fontWeight: '700', color: '#16a34a' }}>{formatPhp(totalPaid)}</div>
+                          <div style={{ fontSize: '12px', color: '#64748b' }}>Amount Paid</div>
+                        </div>
+                      </div>
+                      
+                      <div style={{ padding: '16px', backgroundColor: '#fff7ed', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#ffedd5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ea580c', fontSize: '24px', flexShrink: 0 }}>
+                          <i className="bi bi-percent"></i>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '2px', letterSpacing: '0.5px' }}>PAYMENT RATE</div>
+                          <div style={{ fontSize: '18px', fontWeight: '700', color: '#ea580c' }}>{paymentRate}%</div>
+                          <div style={{ fontSize: '12px', color: '#64748b' }}>of Total Payable</div>
+                        </div>
+                      </div>
+                      
+                      <div style={{ padding: '16px', backgroundColor: '#faf5ff', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#f3e8ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9333ea', fontSize: '24px', flexShrink: 0 }}>
+                          <i className="bi bi-calendar-event"></i>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '2px', letterSpacing: '0.5px' }}>LAST PAYMENT</div>
+                          <div style={{ fontSize: '18px', fontWeight: '700', color: '#9333ea' }}>{lastPaymentDate}</div>
+                          <div style={{ fontSize: '12px', color: '#64748b' }}>12:00 PM</div>
+                        </div>
+                      </div>
+
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+            
+            {/* Footer */}
+            <div style={{ padding: '16px 32px', backgroundColor: '#ffffff', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end' }}>
+              <button 
+                type="button" 
+                onClick={() => setSelectedLoanForPayments(null)}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 24px', backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', color: '#334155', transition: 'all 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#ffffff'}
+              >
+                <i className="bi bi-x-lg"></i> Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

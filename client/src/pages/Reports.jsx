@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import API from '../services/api'
-<<<<<<< HEAD
-=======
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
->>>>>>> reportmodule-edit-shan
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 const toDateInputValue = date => {
   const year = date.getFullYear()
@@ -624,25 +621,6 @@ export default function Reports() {
             <div style={{ marginBottom: 12 }} className="fw-bold">Collection per Collector</div>
             <div style={{ height: 400, background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 16 }}>
               {chartData.length > 0 ? (
-<<<<<<< HEAD
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {chartData.map(item => {
-                    const max = Math.max(...chartData.map(c => c.amount), 1)
-                    const width = Math.max((item.amount / max) * 100, 3)
-                    return (
-                      <div key={item.name}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12, marginBottom: 4 }}>
-                          <span style={{ fontWeight: 700 }}>{item.name}</span>
-                          <span className="text-success fw-bold">PHP {fmt(item.amount)}</span>
-                        </div>
-                        <div style={{ height: 18, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
-                          <div style={{ width: `${width}%`, height: '100%', background: '#3b82f6' }} />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-=======
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
                     <defs>
@@ -663,7 +641,6 @@ export default function Reports() {
                     <Bar dataKey="amount" fill="url(#barGradient)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={1000} />
                   </BarChart>
                 </ResponsiveContainer>
->>>>>>> reportmodule-edit-shan
               ) : (
                 <div className="empty-state">No data for chart</div>
               )}
