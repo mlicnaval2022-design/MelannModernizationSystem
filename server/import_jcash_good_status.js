@@ -379,13 +379,22 @@ function promisifyDb(db) {
   };
 }
 
-function paymentKey(loanId, datePaid, amountPaid, orNumber) {
+function paymentKey(loanId, datePaid, orNumber) {
   return [
     loanId,
     datePaid || '',
-    Number(amountPaid || 0).toFixed(2),
     String(orNumber || '').trim(),
   ].join('|');
+}
+
+function getActualPaymentAmount(payment) {
+  const balanceBefore = Number(payment.balance_before || 0);
+  const balanceAfter = Number(payment.balance_after || 0);
+  const balanceDelta = Number((balanceBefore - balanceAfter).toFixed(2));
+  if (balanceBefore > 0 && balanceAfter >= 0 && balanceDelta >= 0) {
+    return balanceDelta;
+  }
+  return Number(payment.amount_paid || 0);
 }
 
 function chunkArray(values, size) {
@@ -499,24 +508,24 @@ async function loadExistingPaymentKeys(sqlite, loanIds) {
     if (chunk.length === 0) continue;
     const placeholders = chunk.map(() => '?').join(',');
     const rows = await sqlite.all(
-      `SELECT loan_id, date_paid, amount_paid, or_number
+      `SELECT loan_id, date_paid, or_number
        FROM tblPayment
        WHERE status='active'
          AND loan_id IN (${placeholders})`,
       chunk
     );
     for (const row of rows) {
-      keys.add(paymentKey(row.loan_id, row.date_paid, row.amount_paid, row.or_number));
+      keys.add(paymentKey(row.loan_id, row.date_paid, row.or_number));
     }
   }
   return keys;
 }
 
 async function insertPaymentIfMissing(sqlite, payment, loan, loanId, customerId, collectorId, existingPaymentKeys) {
-  const amount = payment.amount_paid || 0;
+  const amount = getActualPaymentAmount(payment);
   const balanceAfter = payment.balance_after ?? Math.max(0, Number(loan.balance || 0));
   const balanceBefore = payment.balance_before ?? balanceAfter + amount;
-  const key = paymentKey(loanId, payment.date_paid, amount, payment.or_number);
+  const key = paymentKey(loanId, payment.date_paid, payment.or_number);
   if (existingPaymentKeys.has(key)) {
     return false;
   }
