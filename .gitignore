@@ -1,9 +1,8 @@
 node_modules/
 .env
 
-# Temporary Database Files at Backups
-server/melann.db-shm
-server/melann.db-wal
+# Database Files and Backups
+server/melann.db*
 *.bak
 
 # System at Agent Logs
