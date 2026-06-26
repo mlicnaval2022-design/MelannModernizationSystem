@@ -28,7 +28,7 @@ router.get('/sheet/collection', authenticateToken, async (req, res) => {
              (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status='active') as collected_today
       FROM tblLoan l
       JOIN tblCustomer c ON l.customer_id = c.id
-      WHERE l.collector_id = ? AND l.status IN ('active', 'pastdue')
+      WHERE l.collector_id = ? AND LOWER(l.status) IN ('active', 'pastdue') AND COALESCE(l.balance, 0) > 0
       ORDER BY c.full_name ASC
     `, [targetDate, collector_id]);
     
@@ -71,8 +71,9 @@ router.get('/lookup/client', authenticateToken, async (req, res) => {
     `, [code]);
     
     if (!loan) return res.status(404).json({ error: 'This customer has no loans.' });
-    if (loan.status === 'fullpaid') return res.status(400).json({ error: 'This account is already fully paid.', is_fully_paid: true });
-    if (loan.status !== 'active' && loan.status !== 'pastdue') return res.status(400).json({ error: 'This account is inactive and cannot accept payments.', is_inactive: true });
+    const loanStatus = String(loan.status || '').toLowerCase();
+    if (Number(loan.balance || 0) <= 0 || loanStatus === 'fullpaid') return res.status(400).json({ error: 'This account is already fully paid.', is_fully_paid: true });
+    if (loanStatus !== 'active' && loanStatus !== 'pastdue') return res.status(400).json({ error: 'This account is inactive and cannot accept payments.', is_inactive: true });
 
     res.json(loan);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -83,7 +84,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
     const loan = await dbGet(`SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, c.photo_client, c.photo_id_front, c.address as customer_address, co.first_name || ' ' || co.last_name as collector_name, b.branch_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id LEFT JOIN tblBranch b ON l.branch_id = b.id WHERE l.id = ?`, [req.params.id]);
     if (!loan) return res.status(404).json({ error: 'Loan not found' });
     const schedule = await dbAll('SELECT * FROM tblAmortizationSchedule WHERE loan_id = ? ORDER BY period_number', [req.params.id]);
-    const payments = await dbAll(`SELECT * FROM tblPayment WHERE loan_id = ? AND status = 'active' ORDER BY date_paid DESC`, [req.params.id]);
+    const payments = await dbAll(`SELECT * FROM tblPayment WHERE loan_id = ? ORDER BY date_paid DESC`, [req.params.id]);
     res.json({ ...loan, schedule, payments });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

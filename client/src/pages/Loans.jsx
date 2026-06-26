@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import FullyPaid from './FullyPaid'
+import ReloanModal from '../components/ReloanModal'
 
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 
@@ -22,6 +23,21 @@ export default function Loans() {
   const [releaseForm, setReleaseForm] = useState({ id: '', date_released: new Date().toISOString().split('T')[0] })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  const [reloanCustomer, setReloanCustomer] = useState(null)
+  const [loanActionType, setLoanActionType] = useState('')
+  const [reloanModalOpen, setReloanModalOpen] = useState(false)
+
+  const triggerRecon = (r) => {
+    setReloanCustomer({
+      id: r.customer_id,
+      customer_code: r.customer_code,
+      client_name: r.customer_name,
+      collector_name: r.collector_name
+    });
+    setLoanActionType('Recon');
+    setReloanModalOpen(true);
+  }
 
   const load = () => { setLoading(true); API.get('/loans', { params: { search, status } }).then(r => setRows(r.data)).finally(() => setLoading(false)) }
   useEffect(() => { load() }, [search, status])
@@ -160,9 +176,12 @@ export default function Loans() {
                     <td>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button className="btn btn-secondary btn-sm" onClick={() => viewDetail(r.id)}>View</button>
-                        {hasRole('admin', 'manager') && r.status === 'active' &&
-                          <button className="btn btn-danger btn-sm" onClick={() => handleReverse(r.id)}>Reverse</button>
-                        }
+                        {hasRole('admin', 'manager') && r.status === 'active' && (
+                          <>
+                            <button className="btn btn-sm" style={{ background: '#0369a1', color: '#fff', border: 'none' }} onClick={() => triggerRecon(r)}>Recon</button>
+                            <button className="btn btn-danger btn-sm" onClick={() => handleReverse(r.id)}>Reverse</button>
+                          </>
+                        )}
                         {hasRole('admin', 'manager') && r.status === 'reloan_pending' && (
                           <>
                             <button className="btn btn-success btn-sm" onClick={() => handleApproveReloan(r.id)}>Approve</button>
@@ -335,6 +354,7 @@ export default function Loans() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <thead style={{ background: '#f8fafc' }}>
                     <tr>
+                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>PAYMENT CODE</th>
                       <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>DATE</th>
                       <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>AMOUNT</th>
                       <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>RUNNING BALANCE</th>
@@ -343,9 +363,10 @@ export default function Loans() {
                   </thead>
                   <tbody>
                     {(detailLoan.payments || []).length === 0
-                      ? <tr><td colSpan={4} style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>No payments yet</td></tr>
+                      ? <tr><td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>No payments yet</td></tr>
                       : detailLoan.payments.map(p => (
                         <tr key={p.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '16px 20px', color: '#3b82f6', fontWeight: 700, fontFamily: 'monospace' }}>{p.payment_code || '---'}</td>
                           <td style={{ padding: '16px 20px', color: '#334155' }}>{p.date_paid}</td>
                           <td style={{ padding: '16px 20px', color: '#0f172a', fontWeight: 800 }}>₱ {fmt(p.amount_paid)}</td>
                           <td style={{ padding: '16px 20px', color: '#475569' }}>₱ {fmt(p.balance_after)}</td>
@@ -367,8 +388,8 @@ export default function Loans() {
                   {(detailLoan.payments || []).length > 0 && (
                     <tfoot style={{ background: '#f8fafc', borderTop: '1px solid #f1f5f9' }}>
                       <tr>
-                        <td colSpan={2} style={{ padding: '20px', color: '#1d4ed8', fontSize: 14, fontWeight: 800 }}>TOTAL PAID</td>
-                        <td style={{ padding: '20px', color: '#1d4ed8', fontSize: 15, fontWeight: 800 }}>₱ {fmt(detailLoan.payments.reduce((s, p) => s + p.amount_paid, 0))}</td>
+                        <td colSpan={3} style={{ padding: '20px', color: '#1d4ed8', fontSize: 14, fontWeight: 800 }}>TOTAL PAID</td>
+                        <td style={{ padding: '20px', color: '#1d4ed8', fontSize: 15, fontWeight: 800 }}>₱ {fmt(detailLoan.payments.filter(p => p.status === 'active').reduce((s, p) => s + p.amount_paid, 0))}</td>
                         <td colSpan={2}></td>
                       </tr>
                     </tfoot>
@@ -411,6 +432,17 @@ export default function Loans() {
       )}
       </>
     )}
+      {/* ===================== Reloan / Recon Modal ===================== */}
+      <ReloanModal
+        isOpen={reloanModalOpen}
+        onClose={() => setReloanModalOpen(false)}
+        customer={reloanCustomer}
+        loanType={loanActionType}
+        onSuccess={() => {
+          setReloanModalOpen(false);
+          load();
+        }}
+      />
     </div>
   )
 }

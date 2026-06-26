@@ -143,20 +143,21 @@
 
 /* Print CSS for Export to PDF */
 @media print {
-  body * {
+  body:not(.soa-print-mode) * {
     visibility: hidden;
   }
-  .customers-table-container, .customers-table-container * {
+  body:not(.soa-print-mode) .customers-table-container,
+  body:not(.soa-print-mode) .customers-table-container * {
     visibility: visible;
   }
-  .customers-table-container {
+  body:not(.soa-print-mode) .customers-table-container {
     position: absolute;
     left: 0;
     top: 0;
     width: 100%;
     box-shadow: none;
   }
-  .table-actions {
+  body:not(.soa-print-mode) .table-actions {
     display: none !important;
   }
 }

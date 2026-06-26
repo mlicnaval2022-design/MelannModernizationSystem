@@ -178,40 +178,42 @@ export default function Dashboard() {
                 👥 Collector Performance 
                 {data.cycle_start && <span style={{ fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: 8 }}>(Cycle: {new Date(data.cycle_start).toLocaleDateString('en-US', {month:'short', day:'numeric'})} - {new Date(data.cycle_end).toLocaleDateString('en-US', {month:'short', day:'numeric'})})</span>}
               </div>
-              <table className="data-table" style={{ fontSize: 12 }}>
-                <thead>
-                  <tr>
-                    <th style={{ background: 'transparent' }}>Collector</th>
-                    <th style={{ background: 'transparent' }}>Target</th>
-                    <th style={{ background: 'transparent' }}>Collected</th>
-                    <th style={{ background: 'transparent', textAlign: 'right' }}>%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.collector_performance && data.collector_performance.length > 0 ? data.collector_performance.map(c => {
-                    const pct = c.target > 0 ? Math.round((c.collected / c.target) * 100) : 0;
-                    let color = '#ef4444';
-                    if (pct >= 100) color = '#10b981';
-                    else if (pct >= 80) color = '#f59e0b';
-                    
-                    return (
-                      <tr key={c.id}>
-                        <td className="fw-bold">{c.name}</td>
-                        <td>₱{fmt(c.target)}</td>
-                        <td>₱{fmt(c.collected)}</td>
-                        <td style={{ textAlign: 'right' }}>
-                          <span style={{ fontWeight: 600 }}>{pct}%</span>
-                          <div className="progress-container">
-                            <div className="progress-fill" style={{ width: `${Math.min(pct, 100)}%`, background: color }}></div>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  }) : (
-                    <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '10px 0' }}>No active collectors</td></tr>
-                  )}
-                </tbody>
-              </table>
+              <div style={{ maxHeight: '350px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                <table className="data-table" style={{ fontSize: 12, margin: 0, border: 'none' }}>
+                  <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+                    <tr>
+                      <th style={{ background: '#f8fafc', borderTop: 'none' }}>Collector</th>
+                      <th style={{ background: '#f8fafc', borderTop: 'none' }}>Target</th>
+                      <th style={{ background: '#f8fafc', borderTop: 'none' }}>Collected</th>
+                      <th style={{ background: '#f8fafc', textAlign: 'right', borderTop: 'none' }}>%</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.collector_performance && data.collector_performance.length > 0 ? data.collector_performance.map(c => {
+                      const pct = c.target > 0 ? Math.round((c.collected / c.target) * 100) : 0;
+                      let color = '#ef4444';
+                      if (pct >= 100) color = '#10b981';
+                      else if (pct >= 80) color = '#f59e0b';
+                      
+                      return (
+                        <tr key={c.id}>
+                          <td className="fw-bold">{c.name}</td>
+                          <td>₱{fmt(c.target)}</td>
+                          <td>₱{fmt(c.collected)}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <span style={{ fontWeight: 600 }}>{pct}%</span>
+                            <div className="progress-container">
+                              <div className="progress-fill" style={{ width: `${Math.min(pct, 100)}%`, background: color }}></div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }) : (
+                      <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '10px 0' }}>No active collectors</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
               <div style={{ display: 'flex', gap: 12, marginTop: 15, fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }}></div> 100%+</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }}></div> 80%-99%</span>

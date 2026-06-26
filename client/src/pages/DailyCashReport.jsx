@@ -6,6 +6,12 @@ export default function DailyCashReport() {
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [checklistOpen, setChecklistOpen] = useState(false);
+  const [checklistRows, setChecklistRows] = useState([]);
+  const [checklistLoading, setChecklistLoading] = useState(false);
+  const [checklistSaving, setChecklistSaving] = useState(false);
+  const [selectedClients, setSelectedClients] = useState(new Set());
+  const [sendingTo, setSendingTo] = useState(null);
   
   // Denominations - kept for closing the day, though hidden from print view
   const [, setDenom] = useState({
@@ -95,6 +101,58 @@ export default function DailyCashReport() {
     document.body.removeChild(link);
   };
 
+  const openChecklist = async () => {
+    setChecklistOpen(true);
+    setSelectedClients(new Set());
+    setChecklistLoading(true);
+    try {
+      const res = await API.get('/dcr/loan-releases', { params: { date } });
+      setChecklistRows(res.data.map(row => ({
+        ...row,
+        for_bir: Boolean(row.for_bir),
+        for_cic: Boolean(row.for_cic),
+        for_sec: Boolean(row.for_sec)
+      })));
+    } catch (err) {
+      console.error('Unable to load BIR checklist', err);
+    } finally {
+      setChecklistLoading(false);
+    }
+  };
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedClients(new Set(checklistRows.map(r => r.loan_id)));
+    } else {
+      setSelectedClients(new Set());
+    }
+  };
+
+  const handleSelectClient = (loan_id) => {
+    const next = new Set(selectedClients);
+    if (next.has(loan_id)) next.delete(loan_id);
+    else next.add(loan_id);
+    setSelectedClients(next);
+  };
+
+  const handleSendTo = async (agency) => {
+    if (selectedClients.size === 0) {
+      alert('Please select at least one client before sending.');
+      return;
+    }
+    setSendingTo(agency);
+    try {
+      const clientsToSend = checklistRows.filter(r => selectedClients.has(r.loan_id));
+      await API.post('/government-compliance/send-clients', { agency, clients: clientsToSend });
+      alert('Selected loan release records have been successfully sent.');
+      setSelectedClients(new Set());
+    } catch (err) {
+      alert(err?.response?.data?.error || 'Failed to send clients');
+    } finally {
+      setSendingTo(null);
+    }
+  };
+
   return (
     <div className="dcr-container">
       <style>{`
@@ -110,6 +168,16 @@ export default function DailyCashReport() {
         .dcr-actions button { padding: 6px 12px; border: 1px solid #e2e8f0; background: #fff; border-radius: 6px; font-weight: 600; cursor: pointer; color: #1d4ed8; margin-left: 10px; display: inline-flex; alignItems: center; gap: 5px; }
         .dcr-actions button.btn-export { color: #ef4444; border-color: #fca5a5; }
         .dcr-actions button.btn-excel { color: #10b981; border-color: #6ee7b7; }
+        .dcr-actions button.btn-checklist { color: #7c3aed; border-color: #c4b5fd; }
+        .dcr-checklist-modal { max-width: 980px; }
+        .dcr-checklist-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+        .dcr-checklist-toolbar input { flex: 1; border: 1px solid #e2e8f0; border-radius: 6px; padding: 9px 12px; }
+        .dcr-checklist-table-wrap { max-height: 58vh; overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
+        .dcr-checklist-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .dcr-checklist-table th { position: sticky; top: 0; background: #f8fafc; z-index: 1; text-align: left; padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155; }
+        .dcr-checklist-table td { padding: 9px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+        .dcr-checklist-table label { display: inline-flex; align-items: center; justify-content: center; width: 100%; }
+        .dcr-checklist-table input[type="checkbox"] { width: 18px; height: 18px; accent-color: #2563eb; }
         
         .dcr-summary-cards { display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; margin-bottom: 20px; }
         .dcr-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px 10px; display: flex; gap: 10px; align-items: center; }
@@ -180,10 +248,11 @@ export default function DailyCashReport() {
           <select><option>All Branches</option></select>
         </div>
         <div className="dcr-actions">
-          <button onClick={() => loadData()}>🔄 Refresh</button>
-          <button className="btn-export" onClick={() => window.print()}>📄 Export PDF</button>
-          <button className="btn-excel" onClick={handleExportExcel}>📊 Export Excel</button>
-          <button onClick={() => window.print()}>🖨️ Print</button>
+          <button type="button" onClick={() => loadData()}>🔄 Refresh</button>
+          <button type="button" className="btn-export" onClick={() => window.print()}>📄 Export PDF</button>
+          <button type="button" className="btn-excel" onClick={handleExportExcel}>📊 Export Excel</button>
+          <button type="button" className="btn-checklist" onClick={openChecklist}>BIR Checklist</button>
+          <button type="button" onClick={() => window.print()}>🖨️ Print</button>
         </div>
       </div>
 
@@ -448,6 +517,80 @@ export default function DailyCashReport() {
           <div className="dcr-sign-date">{dayjs(date).format('MMMM D, YYYY')} {dayjs().format('h:mm A')}</div>
         </div>
       </div>
+
+      {checklistOpen && (
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setChecklistOpen(false)}>
+          <div className="modal dcr-checklist-modal">
+            <div className="modal-header">
+              <span className="modal-title">BIR / CIC / SEC Client Checklist</span>
+              <button className="modal-close" onClick={() => setChecklistOpen(false)}>x</button>
+            </div>
+            <div className="modal-body">
+              <div className="dcr-checklist-toolbar">
+                <div style={{ flex: 1, color: '#64748b', fontSize: 13 }}>
+                  Loan release clients for {dayjs(date).format('MMMM D, YYYY')}
+                </div>
+                <button className="btn btn-secondary" onClick={openChecklist} disabled={checklistLoading}>
+                  {checklistLoading ? 'Loading...' : 'Refresh'}
+                </button>
+              </div>
+              <div className="dcr-checklist-table-wrap">
+                <table className="dcr-checklist-table">
+                  <thead>
+                    <tr>
+                      <th style={{ padding: '12px', borderBottom: '1px solid #cbd5e1' }}>
+                        <input type="checkbox" onChange={handleSelectAll} checked={checklistRows.length > 0 && selectedClients.size === checklistRows.length} />
+                      </th>
+                      <th style={{ padding: '12px', borderBottom: '1px solid #cbd5e1', fontSize: '12px', color: '#64748b' }}>CLIENT CODE</th>
+                      <th style={{ padding: '12px', borderBottom: '1px solid #cbd5e1', fontSize: '12px', color: '#64748b' }}>CLIENT NAME</th>
+                      <th style={{ padding: '12px', borderBottom: '1px solid #cbd5e1', fontSize: '12px', color: '#64748b' }}>LOAN AMOUNT</th>
+                      <th style={{ padding: '12px', borderBottom: '1px solid #cbd5e1', fontSize: '12px', color: '#64748b' }}>TYPE</th>
+                      <th style={{ padding: '12px', borderBottom: '1px solid #cbd5e1', fontSize: '12px', color: '#64748b' }}>RELEASE DATE</th>
+                      <th style={{ padding: '12px', borderBottom: '1px solid #cbd5e1', fontSize: '12px', color: '#64748b' }}>COLLECTOR</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {checklistLoading ? (
+                      <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24 }}>Loading clients...</td></tr>
+                    ) : checklistRows.length === 0 ? (
+                      <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24, color: '#64748b' }}>No loan releases found for this DCR date.</td></tr>
+                    ) : checklistRows.map(row => (
+                      <tr key={row.loan_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '12px' }}>
+                          <input type="checkbox" checked={selectedClients.has(row.loan_id)} onChange={() => handleSelectClient(row.loan_id)} />
+                        </td>
+                        <td style={{ padding: '12px', color: '#334155', fontWeight: '600' }}>{row.customer_code}</td>
+                        <td style={{ padding: '12px', color: '#0f172a', fontWeight: 'bold' }}>{row.customer_name}</td>
+                        <td style={{ padding: '12px', color: '#0f172a', fontWeight: 'bold' }}>₱{Number(row.loan_amount).toLocaleString()}</td>
+                        <td style={{ padding: '12px' }}><span style={{ padding: '4px 8px', background: '#eff6ff', color: '#1d4ed8', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>{row.loan_type}</span></td>
+                        <td style={{ padding: '12px', color: '#475569' }}>{row.date_released}</td>
+                        <td style={{ padding: '12px', color: '#475569' }}>{row.collector_name || 'N/A'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '14px', color: '#64748b', fontWeight: 'bold' }}>
+                  {selectedClients.size} clients selected
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={() => setChecklistOpen(false)} style={{ padding: '8px 16px', border: 'none', background: '#f1f5f9', color: '#334155', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
+                  <button onClick={() => handleSendTo('CIC')} disabled={sendingTo === 'CIC' || selectedClients.size === 0} style={{ padding: '8px 16px', border: 'none', background: '#0284c7', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                    {sendingTo === 'CIC' ? 'Sending...' : 'Send to CIC'}
+                  </button>
+                  <button onClick={() => handleSendTo('SEC')} disabled={sendingTo === 'SEC' || selectedClients.size === 0} style={{ padding: '8px 16px', border: 'none', background: '#16a34a', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                    {sendingTo === 'SEC' ? 'Sending...' : 'Send to SEC'}
+                  </button>
+                  <button onClick={() => handleSendTo('BIR')} disabled={sendingTo === 'BIR' || selectedClients.size === 0} style={{ padding: '8px 16px', border: 'none', background: '#ea580c', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                    {sendingTo === 'BIR' ? 'Sending...' : 'Send to BIR'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

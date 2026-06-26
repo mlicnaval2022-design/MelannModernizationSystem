@@ -12,11 +12,11 @@ import Deposits from './pages/Deposits'
 import Expenses from './pages/Expenses'
 import DailyCashReport from './pages/DailyCashReport'
 import CashPosition from './pages/CashPosition'
-import DueClients from './pages/DueClients'
 import Reports from './pages/Reports'
 import Users from './pages/Users'
 import Branches from './pages/Branches'
 import AuditTrail from './pages/AuditTrail'
+import GovernmentCompliance from './pages/GovernmentCompliance'
 
 function PrivateRoute({ children }) {
   const { user } = useAuth()
@@ -39,8 +39,8 @@ export default function App() {
         <Route path="expenses" element={<Expenses />} />
         <Route path="dcr" element={<DailyCashReport />} />
         <Route path="cash" element={<CashPosition />} />
-        <Route path="due-clients" element={<DueClients />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="government-compliance" element={<GovernmentCompliance />} />
         <Route path="branches" element={<Branches />} />
         <Route path="users" element={<Users />} />
         <Route path="audit" element={<AuditTrail />} />
