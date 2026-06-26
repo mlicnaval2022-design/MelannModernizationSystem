@@ -434,10 +434,24 @@ select.form-control option { background: var(--bg-secondary); }
 /* ===================== PRINT ===================== */
 @media print {
   body * { visibility: hidden; }
+  body, html { height: auto !important; overflow: visible !important; }
   #printable-area, #printable-area * { visibility: visible; }
-  #printable-area { position: absolute; left: 0; top: 0; width: 100%; }
-  .btn, .modal-close, .search-input-wrap, select { display: none !important; }
+  #printable-area { 
+    position: absolute; 
+    left: 0; 
+    top: 0; 
+    width: 100%; 
+    height: auto !important; 
+    overflow: visible !important; 
+  }
+  .btn, .modal-close, .search-input-wrap, select, .f-soa-action-bar, .soa-tabs { display: none !important; }
   .badge { border: 1px solid #aaa; color: black !important; background: transparent !important; }
+  
+  /* Prevent table rows from splitting in half across pages */
+  tr, td, th { page-break-inside: avoid; }
+  
+  /* Ensure background colors print */
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 
 /* ===================== WIZARD ===================== */
