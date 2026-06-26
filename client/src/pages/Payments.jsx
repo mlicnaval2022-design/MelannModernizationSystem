@@ -565,7 +565,7 @@ export default function Payments() {
               </tr>
             </thead>
             <tbody>
-              {recentPayments.map((p, i) => (
+              {(searchTable ? recentPayments : recentPayments.slice(0, 3)).map((p, i) => (
                 <tr key={p.id}>
                   <td>{i + 1}</td>
                   <td>{p.customer_code}</td>

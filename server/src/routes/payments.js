@@ -30,9 +30,14 @@ router.post('/', authenticateToken, async (req, res) => {
   try {
     let { loan_id, or_number, date_paid, amount_paid, collector_id, remarks, force_duplicate } = req.body;
     if (!loan_id || !date_paid || !amount_paid) return res.status(400).json({ error: 'loan_id, date_paid, amount_paid required' });
+    amount_paid = Number(amount_paid);
+    if (!Number.isFinite(amount_paid) || amount_paid <= 0) return res.status(400).json({ error: 'Payment amount must be greater than zero' });
     if (!or_number) or_number = 'N/A';
-    const loan = await dbGet(`SELECT * FROM tblLoan WHERE id = ? AND status NOT IN ('reversed','fullpaid')`, [loan_id]);
-    if (!loan) return res.status(404).json({ error: 'Active loan not found' });
+    const loan = await dbGet(`SELECT * FROM tblLoan WHERE id = ?`, [loan_id]);
+    if (!loan) return res.status(404).json({ error: 'Loan not found' });
+    const loanStatus = String(loan.status || '').toLowerCase();
+    if (Number(loan.balance || 0) <= 0 || loanStatus === 'fullpaid') return res.status(400).json({ error: 'This account is already fully paid.', is_fully_paid: true });
+    if (!['active', 'pastdue'].includes(loanStatus)) return res.status(400).json({ error: 'This account is inactive and cannot accept payments.', is_inactive: true });
     
     const sameDay = await dbGet(`SELECT COUNT(*) as c FROM tblPayment WHERE loan_id = ? AND date_paid = ? AND amount_paid = ? AND status = 'active'`, [loan_id, date_paid, amount_paid]);
     if (sameDay.c > 0 && !force_duplicate) {

@@ -28,7 +28,7 @@ router.get('/sheet/collection', authenticateToken, async (req, res) => {
              (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status='active') as collected_today
       FROM tblLoan l
       JOIN tblCustomer c ON l.customer_id = c.id
-      WHERE l.collector_id = ? AND l.status IN ('active', 'pastdue')
+      WHERE l.collector_id = ? AND LOWER(l.status) IN ('active', 'pastdue') AND COALESCE(l.balance, 0) > 0
       ORDER BY c.full_name ASC
     `, [targetDate, collector_id]);
     
@@ -71,8 +71,9 @@ router.get('/lookup/client', authenticateToken, async (req, res) => {
     `, [code]);
     
     if (!loan) return res.status(404).json({ error: 'This customer has no loans.' });
-    if (loan.status === 'fullpaid') return res.status(400).json({ error: 'This account is already fully paid.', is_fully_paid: true });
-    if (loan.status !== 'active' && loan.status !== 'pastdue') return res.status(400).json({ error: 'This account is inactive and cannot accept payments.', is_inactive: true });
+    const loanStatus = String(loan.status || '').toLowerCase();
+    if (Number(loan.balance || 0) <= 0 || loanStatus === 'fullpaid') return res.status(400).json({ error: 'This account is already fully paid.', is_fully_paid: true });
+    if (loanStatus !== 'active' && loanStatus !== 'pastdue') return res.status(400).json({ error: 'This account is inactive and cannot accept payments.', is_inactive: true });
 
     res.json(loan);
   } catch (err) { res.status(500).json({ error: err.message }); }
