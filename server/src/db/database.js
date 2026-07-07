@@ -264,6 +264,20 @@ async function initializeDatabase() {
       dcr_id INTEGER,
       created_at TEXT DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS tblTransaction (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      branch_id INTEGER,
+      transaction_date TEXT NOT NULL,
+      amount REAL NOT NULL,
+      transaction_type TEXT DEFAULT 'Expense',
+      category TEXT,
+      description TEXT,
+      payee TEXT,
+      status TEXT DEFAULT 'active',
+      created_by INTEGER,
+      dcr_id INTEGER,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
     CREATE TABLE IF NOT EXISTS tblCashOnHand (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       branch_id INTEGER,
