@@ -288,6 +288,12 @@ async function initializeDatabase() {
       other_income REAL DEFAULT 0,
       other_disbursements REAL DEFAULT 0,
       expected_ending_cash REAL DEFAULT 0,
+      ending_cash_on_bank REAL DEFAULT 0,
+      total_cash_position REAL DEFAULT 0,
+      total_deposits REAL DEFAULT 0,
+      total_withdrawals REAL DEFAULT 0,
+      total_bank_charges REAL DEFAULT 0,
+      total_bank_interest REAL DEFAULT 0,
       count_1000 INTEGER DEFAULT 0,
       count_500 INTEGER DEFAULT 0,
       count_200 INTEGER DEFAULT 0,
@@ -415,15 +421,115 @@ async function initializeDatabase() {
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (batch_id) REFERENCES tblCICSubmissionBatch(id)
     );
+    CREATE TABLE IF NOT EXISTS tblSystemSettings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      setting_key TEXT NOT NULL UNIQUE,
+      setting_value TEXT NOT NULL,
+      description TEXT,
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS tblHoliday (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      holiday_date TEXT NOT NULL UNIQUE,
+      description TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS tblMonitoringAlert (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      loan_id INTEGER NOT NULL,
+      branch_id INTEGER NOT NULL,
+      collector_id INTEGER NOT NULL,
+      first_missed_date TEXT,
+      latest_missed_date TEXT,
+      consecutive_days INTEGER DEFAULT 0,
+      total_missed_days INTEGER DEFAULT 0,
+      alert_level TEXT DEFAULT 'Day 1',
+      status TEXT DEFAULT 'Active',
+      sequence_number INTEGER DEFAULT 1,
+      repeat_risk TEXT DEFAULT 'Low Risk',
+      resolved_at TEXT,
+      resolved_by INTEGER,
+      resolution_reason TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS tblFollowUp (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      alert_id INTEGER NOT NULL,
+      customer_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      follow_up_date TEXT NOT NULL,
+      follow_up_method TEXT NOT NULL,
+      contact_result TEXT NOT NULL,
+      remarks TEXT,
+      next_follow_up_date TEXT,
+      attachment_url TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS tblPromiseToPay (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      alert_id INTEGER NOT NULL,
+      customer_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      promise_date TEXT NOT NULL,
+      promised_amount REAL NOT NULL,
+      payment_method TEXT,
+      reason TEXT,
+      follow_up_date TEXT,
+      remarks TEXT,
+      status TEXT DEFAULT 'Pending',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS tblSystemAudit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      role TEXT,
+      action TEXT NOT NULL,
+      previous_value TEXT,
+      new_value TEXT,
+      module TEXT,
+      ip_address TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS tblInAppNotification (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      is_read INTEGER DEFAULT 0,
+      related_module TEXT,
+      related_id INTEGER,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
   `;
 
   await dbExec(schema);
+
+  // Seed default settings for Monitoring if missing
+  const settingCount = await dbGet('SELECT COUNT(*) as count FROM tblSystemSettings');
+  if (settingCount.count === 0) {
+    await dbRun("INSERT INTO tblSystemSettings (setting_key, setting_value, description) VALUES (?, ?, ?)", ['daily_cutoff', '20:00', 'Daily background cut-off time (HH:mm)']);
+    await dbRun("INSERT INTO tblSystemSettings (setting_key, setting_value, description) VALUES (?, ?, ?)", ['treat_positive_as_paid', 'true', 'Treat any positive payment as paid for the day']);
+    await dbRun("INSERT INTO tblSystemSettings (setting_key, setting_value, description) VALUES (?, ?, ?)", ['exclude_sundays', 'true', 'Do not count Sundays as collection days']);
+    await dbRun("INSERT INTO tblSystemSettings (setting_key, setting_value, description) VALUES (?, ?, ?)", ['escalation_threshold', '4', 'Consecutive days required to escalate case']);
+  }
 
   const customerCols = await dbAll(`PRAGMA table_info(tblCustomer)`);
   const customerColNames = new Set(customerCols.map(c => c.name));
   if (!customerColNames.has('for_bir')) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN for_bir INTEGER DEFAULT 0`);
   if (!customerColNames.has('for_cic')) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN for_cic INTEGER DEFAULT 0`);
   if (!customerColNames.has('for_sec')) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN for_sec INTEGER DEFAULT 0`);
+
+  const dcrCols = await dbAll(`PRAGMA table_info(tblDailyCashReport)`);
+  const dcrColNames = new Set(dcrCols.map(c => c.name));
+  if (!dcrColNames.has('ending_cash_on_bank')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN ending_cash_on_bank REAL DEFAULT 0`);
+  if (!dcrColNames.has('total_cash_position')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN total_cash_position REAL DEFAULT 0`);
+  if (!dcrColNames.has('total_deposits')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN total_deposits REAL DEFAULT 0`);
+  if (!dcrColNames.has('total_withdrawals')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN total_withdrawals REAL DEFAULT 0`);
+  if (!dcrColNames.has('total_bank_charges')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN total_bank_charges REAL DEFAULT 0`);
+  if (!dcrColNames.has('total_bank_interest')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN total_bank_interest REAL DEFAULT 0`);
 
   // Seed default admin
   const userCount = await dbGet('SELECT COUNT(*) as count FROM tblUser');

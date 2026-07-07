@@ -133,31 +133,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <h4 style={{ margin: '0 0 10px 0', color: '#334155' }}>3-Day No-Payment Alerts</h4>
-      <div className="metrics-top-row" style={{ marginBottom: 20 }}>
-        <div className="metric-card-v2" onClick={() => navigate('/monitoring?tab=monitoring')} style={{ cursor: 'pointer', borderTop: '4px solid #ef4444' }}>
-          <div className="header">
-            <span style={{ fontWeight: 'bold', color: '#b91c1c' }}>Active Alerts</span>
-            <h3 style={{ color: '#dc2626' }}>{data.monitoring_alerts_active || 0} <span style={{fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)'}}>Clients</span></h3>
-          </div>
-          <div className="metric-icon-circle" style={{ background: '#fef2f2', color: '#ef4444', fontSize: 24 }}>🚨</div>
-        </div>
-        <div className="metric-card-v2" onClick={() => navigate('/monitoring?tab=escalated')} style={{ cursor: 'pointer', borderTop: '4px solid #991b1b' }}>
-          <div className="header">
-            <span style={{ fontWeight: 'bold', color: '#7f1d1d' }}>Escalated (Day 4+)</span>
-            <h3 style={{ color: '#991b1b' }}>{data.monitoring_alerts_escalated || 0}</h3>
-          </div>
-          <div className="metric-icon-circle" style={{ background: '#fee2e2', color: '#b91c1c', fontSize: 24 }}>🔥</div>
-        </div>
-        <div className="metric-card-v2" onClick={() => navigate('/monitoring?tab=resolved')} style={{ cursor: 'pointer', borderTop: '4px solid #10b981' }}>
-          <div className="header">
-            <span style={{ fontWeight: 'bold', color: '#047857' }}>Resolved Today</span>
-            <h3 style={{ color: '#059669' }}>{data.monitoring_alerts_resolved_today || 0}</h3>
-          </div>
-          <div className="metric-icon-circle" style={{ background: '#ecfdf5', color: '#10b981', fontSize: 24 }}>✅</div>
-        </div>
-      </div>
-
       <h4 style={{ margin: '0 0 10px 0', color: '#334155' }}>Loan Processing Queue</h4>
       <div className="metrics-top-row" style={{ marginBottom: 20 }}>
         <div className="metric-card-v2" onClick={() => navigate('/credit-scoring')} style={{ cursor: 'pointer', borderTop: '4px solid #f59e0b' }}>

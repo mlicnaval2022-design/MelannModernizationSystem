@@ -1,6 +1,7 @@
 const express = require('express');
 const { dbGet, dbRun, dbAll } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
+const { triggerLoanRecalculation } = require('../services/noPaymentMonitoring');
 const router = express.Router();
 
 router.get('/search', authenticateToken, async (req, res) => {
@@ -85,6 +86,10 @@ router.post('/payment/by-code', authenticateToken, requireRole('admin', 'manager
     }
 
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REVERSE', 'PAYMENT', p.id, `Reversed OR#${p.or_number} Reason: ${reason}`]);
+    
+    // Trigger No Payment Monitoring recalculation
+    triggerLoanRecalculation(p.loan_id).catch(e => console.error(e));
+
     res.json({ message: 'Payment reversed successfully' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -96,6 +101,7 @@ router.post('/payment/:id', authenticateToken, requireRole('admin', 'manager'), 
     await dbRun(`UPDATE tblLoan SET balance=balance+?, total_paid=total_paid-?, status='active', updated_at=datetime('now') WHERE id=?`, [payment.amount_paid, payment.amount_paid, payment.loan_id]);
     await dbRun(`UPDATE tblPayment SET status='reversed', reversed_at=datetime('now'), reversed_by=? WHERE id=?`, [req.user.id, payment.id]);
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REVERSE', 'PAYMENT', payment.id, `Reversed OR#${payment.or_number}`]);
+    triggerLoanRecalculation(payment.loan_id).catch(e => console.error(e));
     res.json({ message: 'Payment reversed successfully' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -107,6 +113,7 @@ router.post('/loan/:id', authenticateToken, requireRole('admin', 'manager'), asy
     await dbRun(`UPDATE tblPayment SET status='reversed', reversed_at=datetime('now'), reversed_by=? WHERE loan_id=? AND status='active'`, [req.user.id, loan.id]);
     await dbRun(`UPDATE tblLoan SET status='reversed', balance=0, updated_at=datetime('now') WHERE id=?`, [loan.id]);
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REVERSE', 'LOAN', loan.id, `Reversed loan ${loan.loan_code}`]);
+    triggerLoanRecalculation(loan.id).catch(e => console.error(e));
     res.json({ message: 'Loan reversed successfully' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -148,6 +155,12 @@ router.post('/batch', authenticateToken, requireRole('admin', 'manager'), async 
       await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, 
         [req.user.id, req.user.username, 'REVERSE', 'PAYMENT', p.id, `Batch Reversal [${batch_id}] OR#${p.or_number}`]
       );
+    }
+    
+    // Trigger recalculations for unique loans
+    const uniqueLoans = [...new Set(payments.map(p => p.loan_id))];
+    for (const lid of uniqueLoans) {
+      triggerLoanRecalculation(lid).catch(e => console.error(e));
     }
 
     res.json({ message: 'Batch reversal processed successfully', batch_id });

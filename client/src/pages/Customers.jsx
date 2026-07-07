@@ -33,6 +33,17 @@ export default function Customers() {
   const [soaLoading, setSoaLoading] = useState(false)
   const [soaTab, setSoaTab] = useState('summary')
   const [selectedLoanForPayments, setSelectedLoanForPayments] = useState(null)
+  const [printModeLoan, setPrintModeLoan] = useState(null)
+
+  useEffect(() => {
+    if (printModeLoan) {
+      const timer = setTimeout(() => {
+        window.print();
+        setPrintModeLoan(null);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [printModeLoan]);
 
   useEffect(() => {
     if (soaModal) {
@@ -40,13 +51,13 @@ export default function Customers() {
     } else {
       document.body.classList.remove('soa-print-mode');
     }
-    document.body.classList.toggle('soa-print-profile', soaModal && soaTab === 'profile');
-    document.body.classList.toggle('soa-print-statement', soaModal && soaTab !== 'profile');
+    document.body.classList.toggle('soa-print-profile', soaModal && soaTab === 'profile' && !printModeLoan);
+    document.body.classList.toggle('soa-print-statement', soaModal && (soaTab !== 'profile' || printModeLoan));
 
     return () => {
       document.body.classList.remove('soa-print-mode', 'soa-print-profile', 'soa-print-statement');
     };
-  }, [soaModal, soaTab]);
+  }, [soaModal, soaTab, printModeLoan]);
   const getImageUrl = (path) => {
     if (!path) return '';
     if (path.startsWith('http')) return path;
@@ -317,14 +328,16 @@ export default function Customers() {
                 const loans = soaData.loans || [];
                 const validLoans = loans.filter(l => ['active', 'pastdue', 'fullpaid'].includes(l.status));
                 const activeLoans = loans.filter(l => ['active', 'pastdue'].includes(l.status));
-                const sortedPayments = soaData.payments ? [...soaData.payments].sort((a, b) => new Date(b.date_paid) - new Date(a.date_paid)) : [];
-                const totalLoanAmt = validLoans.reduce((sum, l) => sum + Number(l.total_amortization || l.principal || 0), 0);
-                const outstandingBal = activeLoans.reduce((sum, l) => sum + Number(l.balance || 0), 0);
+                const currentLoan = printModeLoan || activeLoans[0] || validLoans[0] || loans[0] || {};
+                const sortedPayments = soaData.payments 
+                  ? [...soaData.payments].filter(p => printModeLoan ? p.loan_code === printModeLoan.loan_code : true).sort((a, b) => new Date(b.date_paid) - new Date(a.date_paid)) 
+                  : [];
+                const totalLoanAmt = printModeLoan ? Number(currentLoan.total_amortization || currentLoan.principal || 0) : validLoans.reduce((sum, l) => sum + Number(l.total_amortization || l.principal || 0), 0);
+                const outstandingBal = printModeLoan ? Number(currentLoan.balance || 0) : activeLoans.reduce((sum, l) => sum + Number(l.balance || 0), 0);
                 const totalPaid = sortedPayments.reduce((sum, p) => sum + Number(p.amount_paid || 0), 0);
                 const lastPayment = sortedPayments.length > 0 ? new Date(sortedPayments[0].date_paid).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '-';
-                const nextDueDate = activeLoans.length > 0 && activeLoans[0].date_maturity ? new Date(activeLoans[0].date_maturity).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '-';
+                const nextDueDate = (printModeLoan ? [printModeLoan] : activeLoans).length > 0 && (printModeLoan || activeLoans[0]).date_maturity ? new Date((printModeLoan || activeLoans[0]).date_maturity).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '-';
                 const memberSince = soaData.created_at ? new Date(soaData.created_at).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '-';
-                const currentLoan = activeLoans[0] || validLoans[0] || loans[0] || {};
                 const accountStatus = (currentLoan.id ? getLoanStatusLabel(currentLoan) : soaData.status) || '-';
                 const soaNumber = `SOA-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${soaData.customer_code || soaData.id}`;
                 const customerAddress = [soaData.address, soaData.sitio, soaData.purok, soaData.brgy, soaData.city, soaData.province, soaData.zip_code].filter(Boolean).join(', ');
@@ -436,7 +449,7 @@ export default function Customers() {
                     {soaTab === 'history' && (
                       <div className="soa-card">
                         <div className="soa-list-card-header"><div className="soa-list-title">Loans & Payments History</div></div>
-                        {loans.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Loan Code</th><th>Type</th><th>Date Released</th><th>Maturity</th><th>Period</th><th>Principal</th><th>Interest Rate</th><th>Interest Amount</th><th>Total Loan</th><th>Amortization</th><th>Balance</th><th>Status</th></tr></thead><tbody>{loans.map(l => (<tr key={l.id} onClick={() => setSelectedLoanForPayments(l)} style={{ cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><td className="mono" style={{color: '#2563eb', fontWeight: '600'}} title="View payment history for this loan">{l.loan_code}</td><td>{l.loan_type || '-'}</td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
+                        {loans.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Loan Code</th><th>Type</th><th>Date Released</th><th>Maturity</th><th>Period</th><th>Principal</th><th>Interest Rate</th><th>Interest Amount</th><th>Total Loan</th><th>Amortization</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead><tbody>{loans.map(l => (<tr key={l.id} onClick={() => setSelectedLoanForPayments(l)} style={{ cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><td className="mono" style={{color: '#2563eb', fontWeight: '600'}} title="View payment history for this loan">{l.loan_code}</td><td>{l.loan_type || '-'}</td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td><td><button className="action-btn" onClick={(e) => { e.stopPropagation(); setPrintModeLoan(l); }}><i className="bi bi-printer"></i> Print</button></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
                       </div>
                     )}
 
@@ -604,10 +617,10 @@ export default function Customers() {
                         <div className="f-soa-company">
                           <h2>MELANN LENDING</h2>
                           <h3>INVESTOR CORPORATION</h3>
-                          <p>Lot 3 Blk 2, Brgy. San Isidro</p>
-                          <p>Ormoc City</p>
-                          <br />
-                          <p>Contact No.: 09171131000</p>
+                          <div className="f-soa-contact">
+                            <p><i className="bi bi-geo-alt-fill"></i> <span>Lot 3 Blk 2, Brgy. San Isidro<br/>Ormoc City</span></p>
+                            <p style={{marginTop: '4px'}}><i className="bi bi-telephone-fill"></i> <span>Contact No.: 09171131000</span></p>
+                          </div>
                         </div>
                       </div>
                       <div className="f-soa-header-right">
@@ -623,34 +636,43 @@ export default function Customers() {
                       </div>
                     </div>
 
-                    <h1 className="f-soa-title">STATEMENT OF ACCOUNT</h1>
+                    <div className="f-soa-title-wrapper">
+                      <div className="f-soa-title-line"></div>
+                      <div className="f-soa-title-dot"></div>
+                      <h1 className="f-soa-title">STATEMENT OF ACCOUNT</h1>
+                      <div className="f-soa-title-dot"></div>
+                      <div className="f-soa-title-line"></div>
+                    </div>
 
                     {loans.length > 0 && (
                       <div className="f-soa-section">
                         <div className="f-soa-sec-header">
                           <i className="bi bi-file-earmark-text"></i> LOAN INFORMATION
                         </div>
-                        <div className="f-soa-sec-body">
+                        <div className="f-soa-sec-body f-soa-loan-info">
                           <div className="f-soa-grid-3">
                             <table>
                               <tbody>
-                                <tr><td>Customer Code</td><td>:</td><td>{soaData.customer_code}</td></tr>
-                                <tr><td>Customer Name</td><td>:</td><td className="fw-bold">{soaData.full_name}</td></tr>
-                                <tr><td>Loan Code</td><td>:</td><td>{currentLoan.loan_code}</td></tr>
-                                <tr><td>Loan Type</td><td>:</td><td style={{textTransform:'uppercase'}}>{currentLoan.loan_type}</td></tr>
+                                <tr><td>Customer Code</td><td>:</td><td className="fw-bold">{soaData.customer_code}</td></tr>
+                                <tr><td>Customer Name</td><td>:</td><td className="fw-bold text-uppercase">{soaData.full_name}</td></tr>
+                                <tr><td colSpan="3" style={{height:'15px'}}></td></tr>
+                                <tr><td>Loan Code</td><td>:</td><td>{currentLoan.loan_code || '-'}</td></tr>
+                                <tr><td>Loan Type</td><td>:</td><td className="text-uppercase">{currentLoan.loan_type || '-'}</td></tr>
                                 <tr><td>Date Released</td><td>:</td><td>{formatDateLong(currentLoan.date_released)}</td></tr>
                               </tbody>
                             </table>
                             <table>
                               <tbody>
-                                <tr><td>Principal Amount</td><td>:</td><td>{formatMoney(currentLoan.principal)}</td></tr>
+                                <tr><td>Principal Amount</td><td>:</td><td className="fw-bold">{formatMoney(currentLoan.principal)}</td></tr>
                                 <tr><td>Interest Rate</td><td>:</td><td>{currentLoan.interest_rate || 0}%</td></tr>
+                                <tr><td colSpan="3" style={{height:'15px'}}></td></tr>
                                 <tr><td>Loan Term</td><td>:</td><td>{currentLoan.loan_period || 0} Days</td></tr>
+                                <tr><td>Maturity Date</td><td>:</td><td className="fw-bold">{formatDateLong(currentLoan.date_maturity)}</td></tr>
+                                <tr><td>Daily Payment</td><td>:</td><td className="fw-bold">{formatMoney(currentLoan.amortization)}</td></tr>
                               </tbody>
                             </table>
-                            <table>
+                            <table className="f-soa-no-border">
                               <tbody>
-                                <tr><td>Maturity Date</td><td>:</td><td>{formatDateLong(currentLoan.date_maturity)}</td></tr>
                                 <tr><td>Payment Frequency</td><td>:</td><td>Daily</td></tr>
                                 <tr><td>Purpose</td><td>:</td><td>{currentLoan.purpose || soaData.loan_purpose || '-'}</td></tr>
                               </tbody>
@@ -660,125 +682,44 @@ export default function Customers() {
                       </div>
                     )}
 
-                    <div className="f-soa-split">
-                      <div className="f-soa-section f-soa-flex-1">
-                        <div className="f-soa-sec-header">
-                          <i className="bi bi-calculator"></i> LOAN COMPUTATION
-                        </div>
-                        <div className="f-soa-sec-body">
-                          <table className="f-soa-comp-table">
-                            <tbody>
-                              <tr><td>Principal Amount</td><td>{formatMoney(currentLoan.principal)}</td></tr>
-                              <tr><td>Interest Amount</td><td>{formatMoney(currentLoan.interest_amount)}</td></tr>
-                              <tr><td>Insurance</td><td>{formatMoney(insurance)}</td></tr>
-                              <tr><td>Notarial Fee</td><td>{formatMoney(notarialFee)}</td></tr>
-                              <tr><td>Processing Fee</td><td>{formatMoney(serviceFee)}</td></tr>
-                              <tr><td>Other Charges</td><td>{formatMoney(otherCharges + filingFee)}</td></tr>
-                              <tr><td colSpan="2"><br/></td></tr>
-                              <tr className="f-soa-bold" style={{color: '#0b297a'}}><td>TOTAL LOAN</td><td>{formatMoney(currentLoan.total_amortization || currentLoan.principal)}</td></tr>
-                              <tr><td>Daily Amortization</td><td>{formatMoney(currentLoan.amortization)}</td></tr>
-                              <tr><td colSpan="2"><br/></td></tr>
-                              <tr className="f-soa-bold"><td>Outstanding Balance</td><td>{formatMoney(outstandingBal)}</td></tr>
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      <div className="f-soa-section f-soa-flex-2">
-                        <div className="f-soa-sec-header">
-                          <i className="bi bi-cash-stack"></i> PAYMENT HISTORY (LEDGER)
-                        </div>
-                        <div className="f-soa-sec-body f-soa-no-pad">
-                          <table className="f-soa-ledger-table">
-                            <thead>
-                              <tr>
-                                <th>DATE</th>
-                                <th>OR NO.</th>
-                                <th>PARTICULARS</th>
-                                <th>AMOUNT</th>
-                                <th>BALANCE</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {sortedPayments.length > 0 ? sortedPayments.map(p => (
-                                <tr key={p.id}>
-                                  <td>{formatDateLong(p.date_paid)}</td>
-                                  <td>{p.or_number || '-'}</td>
-                                  <td>{p.remarks || p.loan_code || 'Payment'}</td>
-                                  <td>{formatMoney(p.amount_paid)}</td>
-                                  <td>{formatMoney(p.balance_after)}</td>
-                                </tr>
-                              )) : (
-                                <tr>
-                                  <td colSpan="5" className="f-soa-empty">
-                                    <i className="bi bi-file-earmark-text" style={{fontSize: 32, color: '#94a3b8'}}></i><br/>
-                                    <strong style={{color: '#0f172a', fontSize: 12}}>No payments recorded.</strong><br/>
-                                    <span style={{color: '#64748b', fontSize: 10}}>There are no payment records<br/>associated with this account.</span>
-                                  </td>
-                                </tr>
-                              )}
-                            </tbody>
-                            <tfoot>
-                              <tr>
-                                <td colSpan="3" style={{color: '#0b297a', fontWeight: 'bold'}}>TOTAL PAYMENTS RECEIVED</td>
-                                <td colSpan="2" style={{textAlign: 'right', fontWeight: 'bold'}}>{formatMoney(totalPaid)}</td>
-                              </tr>
-                            </tfoot>
-                          </table>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="f-soa-section">
+                    <div className="f-soa-section" style={{marginBottom: 0}}>
                       <div className="f-soa-sec-header">
-                        <i className="bi bi-clipboard-data"></i> ACCOUNT SUMMARY
+                        <i className="bi bi-receipt"></i> PAYMENT HISTORY (LEDGER)
                       </div>
-                      <div className="f-soa-sec-body f-soa-summary-box">
-                        <div className="f-soa-summary-left">
-                          <table>
-                            <tbody>
-                              <tr><td>Total Loan Amount</td><td>:</td><td>{formatMoney(totalLoanAmt)}</td></tr>
-                              <tr><td>Total Payments Received</td><td>:</td><td>{formatMoney(totalPaid)}</td></tr>
-                              <tr className="f-soa-bold" style={{color: '#0b297a'}}><td style={{fontSize: 12}}>Outstanding Balance</td><td>:</td><td style={{fontSize: 12}}>{formatMoney(outstandingBal)}</td></tr>
-                            </tbody>
-                          </table>
-                        </div>
-                        <div className="f-soa-summary-right">
-                          <div className="f-soa-status-box">
-                            <div className="lbl">ACCOUNT STATUS</div>
-                            <div className="val">{accountStatus}</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="f-soa-signatures">
-                      <div className="f-soa-sig-box">
-                        <div className="f-soa-sig-lbl">Prepared By:</div>
-                        <div className="f-soa-sig-line">
-                          <strong>{user?.full_name?.toUpperCase() || user?.username?.toUpperCase() || 'IT OFFICER'}</strong>
-                          <span>IT Officer</span>
-                        </div>
-                      </div>
-                      <div className="f-soa-sig-box">
-                        <div className="f-soa-sig-lbl">Checked By:</div>
-                        <div className="f-soa-sig-line">
-                          <strong>VICTORIO L. RELOBA JR.</strong>
-                          <span>Operations Manager</span>
-                        </div>
-                      </div>
-                      <div className="f-soa-sig-box">
-                        <div className="f-soa-sig-lbl">Approved By:</div>
-                        <div className="f-soa-sig-line">
-                          <strong>ANNA LIZA R. RODRIGUEZ</strong>
-                          <span>Executive Vice President</span>
+                      <div className="f-soa-sec-body f-soa-no-pad">
+                        <table className="f-soa-ledger-table-new">
+                          <thead>
+                            <tr>
+                              <th><i className="bi bi-calendar3"></i> DATE</th>
+                              <th><i className="bi bi-tags-fill"></i> PAYMENT CODE</th>
+                              <th><i className="bi bi-coin"></i> PAYMENTS</th>
+                              <th><i className="bi bi-scales"></i> RUNNING BALANCE</th>
+                              <th><i className="bi bi-flag-fill"></i> STATUS</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sortedPayments.length > 0 ? sortedPayments.map((p, index) => (
+                              <tr key={p.id} className={index % 2 === 0 ? 'f-soa-row-even' : 'f-soa-row-odd'}>
+                                <td>{formatDateLong(p.date_paid)}</td>
+                                <td>{p.or_number || p.payment_code || '-'}</td>
+                                <td className="fw-bold">{formatMoney(p.amount_paid)}</td>
+                                <td>{formatMoney(p.balance_after)}</td>
+                                <td><span className="f-soa-status-badge"><i className="bi bi-check2"></i> Active</span></td>
+                              </tr>
+                            )) : (
+                              <tr><td colSpan="5" className="f-soa-empty">No payments found.</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                        <div className="f-soa-ledger-footer-new">
+                          <div className="f-soa-footer-text">TOTAL PAYMENTS RECEIVED</div>
+                          <div className="f-soa-footer-amount">{formatMoney(totalPaid)}</div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="f-soa-footer">
-                      This is a system-generated Statement of Account.<br/>
-                      No signature is required.
+                    <div className="f-soa-thank-you">
+                      <p>Thank you for your prompt payments.<br/>We are here to serve you better.</p>
                     </div>
                   </div>
                   {/* END FORMAL SOA PRINT LAYOUT */}
@@ -856,7 +797,17 @@ export default function Customers() {
                   <div style={{ color: '#64748b', fontSize: '14px' }}>View payment history for the selected loan</div>
                 </div>
               </div>
-              <button onClick={() => setSelectedLoanForPayments(null)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '24px', cursor: 'pointer', padding: '4px' }}>&times;</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <button 
+                  onClick={() => setPrintModeLoan(selectedLoanForPayments)} 
+                  style={{ background: '#eff6ff', color: '#2563eb', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#dbeafe'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#eff6ff'}
+                >
+                  <i className="bi bi-printer"></i> Print Statement
+                </button>
+                <button onClick={() => setSelectedLoanForPayments(null)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '28px', cursor: 'pointer', padding: '4px', lineHeight: '1' }}>&times;</button>
+              </div>
             </div>
             
             {/* Body */}

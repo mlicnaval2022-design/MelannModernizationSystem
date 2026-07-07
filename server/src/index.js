@@ -18,9 +18,12 @@ const auditRoutes = require('./routes/audit');
 const dcrRoutes = require('./routes/dcr');
 const governmentComplianceRoutes = require('./routes/governmentCompliance');
 const cicRoutes = require('./routes/cic');
+const monitoringRoutes = require('./routes/monitoring');
+const settingsRoutes = require('./routes/settings');
 
 const { initializeDatabase } = require('./db/database');
 const { startPastDueScheduler } = require('./services/pastDueUpdater');
+const { startNoPaymentMonitoringScheduler } = require('./services/noPaymentMonitoring');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -49,6 +52,8 @@ app.use('/api/audit', auditRoutes);
 app.use('/api/dcr', dcrRoutes);
 app.use('/api/government-compliance', governmentComplianceRoutes);
 app.use('/api/cic', cicRoutes);
+app.use('/api/monitoring', monitoringRoutes);
+app.use('/api/settings', settingsRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', system: 'Melann Lending System V2', timestamp: new Date().toISOString() });
@@ -59,6 +64,8 @@ app.use(errorHandler);
 initializeDatabase().then(() => {
   // Start background past-due status updater
   startPastDueScheduler();
+  // Start No Payment Monitoring Scheduler
+  startNoPaymentMonitoringScheduler();
 
   app.listen(PORT, () => {
     console.log(`\n🏦 Melann Lending System V2 Server`);

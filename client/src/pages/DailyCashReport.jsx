@@ -4,6 +4,8 @@ import dayjs from 'dayjs';
 
 export default function DailyCashReport() {
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
+  const [branchId, setBranchId] = useState('');
+  const [branches, setBranches] = useState([]);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [checklistOpen, setChecklistOpen] = useState(false);
@@ -22,7 +24,9 @@ export default function DailyCashReport() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const res = await API.get(`/dcr/summary?date=${date}`);
+      const bRes = await API.get('/branches');
+      setBranches(bRes.data);
+      const res = await API.get(`/dcr/summary?date=${date}&branch_id=${branchId}`);
       setData(res.data);
       if (res.data.dcr) {
         setDenom({
@@ -38,7 +42,7 @@ export default function DailyCashReport() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { loadData(); }, [date]);
+  useEffect(() => { loadData(); }, [date, branchId]);
 
   const fmt = (num) => Number(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -52,11 +56,11 @@ export default function DailyCashReport() {
     return acc;
   }, {});
 
-  const bankCharges = []; // Mock data since not in db
-  const interest = []; // Mock data
-  const withdrawal = []; // Mock data
-  const deposit = []; // Mock data
-  const adjustments = []; // Mock data
+  const bankCharges = data.bankCharges || [];
+  const interest = data.interest || [];
+  const withdrawal = data.withdrawals || [];
+  const deposit = data.deposits || [];
+  const adjustments = data.adjustments || [];
 
   const handleExportExcel = () => {
     // Basic CSV Export
@@ -65,9 +69,9 @@ export default function DailyCashReport() {
     // 1. LOAN RELEASES
     csv += `1. LOAN RELEASES\nNo.,Code,Customer,Collector,Type of Loan,Amount\n`;
     data.releases.forEach((r, i) => {
-      csv += `${i + 1},${r.loan_code.replace('LN-','')},"${r.last_name}, ${r.first_name}",${r.collector_name || 'Unassigned'},${r.loan_type || 'NEW'},${(r.net_proceeds || 0).toFixed(2)}\n`;
+      csv += `${i + 1},${r.loan_code.replace('LN-','')},"${r.last_name}, ${r.first_name}",${r.collector_name || 'Unassigned'},${r.loan_type || 'NEW'},${(r.principal || 0).toFixed(2)}\n`;
     });
-    csv += `TOTAL LOAN RELEASES,,,,,,${data.total_releases.toFixed(2)}\n\n`;
+    csv += `TOTAL LOAN RELEASES,,,,,,${data.display_total_releases.toFixed(2)}\n\n`;
 
     // 2. EXPENSES
     csv += `2. EXPENSES\nParticulars,Amount\n`;
@@ -87,8 +91,9 @@ export default function DailyCashReport() {
     csv += `CASH SUMMARY\n`;
     csv += `Beginning Cash,${data.beginning_cash.toFixed(2)}\n`;
     csv += `Total Collections,${data.total_collections.toFixed(2)}\n`;
-    csv += `Total Loan Releases,-${data.total_releases.toFixed(2)}\n`;
+    csv += `Total Loan Releases,-${data.cash_out_releases.toFixed(2)}\n`;
     csv += `Total Expenses,-${data.total_expenses.toFixed(2)}\n`;
+    csv += `Total Deposits,-${data.total_deposits.toFixed(2)}\n`;
     csv += `EXPECTED ENDING CASH,${data.expected_ending_cash.toFixed(2)}\n`;
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -244,8 +249,10 @@ export default function DailyCashReport() {
       <div className="dcr-controls">
         <div>
           <input type="date" value={date} onChange={e => setDate(e.target.value)} />
-          <select><option>All Collectors</option></select>
-          <select><option>All Branches</option></select>
+          <select value={branchId} onChange={e => setBranchId(e.target.value)}>
+            <option value="">All Branches</option>
+            {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+          </select>
         </div>
         <div className="dcr-actions">
           <button type="button" onClick={() => loadData()}>🔄 Refresh</button>
@@ -270,7 +277,7 @@ export default function DailyCashReport() {
           <div className="icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>💸</div>
           <div className="details">
             <h4 style={{ color: '#16a34a' }}>TOTAL LOAN RELEASES</h4>
-            <div className="val">₱{fmt(data.total_releases)}</div>
+            <div className="val">₱{fmt(data.display_total_releases)}</div>
             <div className="sub">{data.releases.length} Loan(s)</div>
           </div>
         </div>
@@ -286,15 +293,15 @@ export default function DailyCashReport() {
           <div className="icon" style={{ background: '#faf5ff', color: '#9333ea' }}>🏦</div>
           <div className="details">
             <h4 style={{ color: '#9333ea' }}>TOTAL CASH IN BANK</h4>
-            <div className="val">₱0.00</div>
-            <div className="sub">0 Transaction(s)</div>
+            <div className="val">₱{fmt(data.ending_cash_on_bank)}</div>
+            <div className="sub">{(data.deposits?.length || 0) + (data.withdrawals?.length || 0)} Transaction(s)</div>
           </div>
         </div>
         <div className="dcr-card" style={{ borderColor: '#bbf7d0' }}>
           <div className="icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>💵</div>
           <div className="details">
             <h4 style={{ color: '#16a34a' }}>CASH ON HAND</h4>
-            <div className="val">₱{fmt(data.total_collections)}</div>
+            <div className="val">₱{fmt(data.expected_ending_cash)}</div>
             <div className="sub">As of End of Day</div>
           </div>
         </div>
@@ -302,7 +309,7 @@ export default function DailyCashReport() {
           <div className="icon" style={{ background: '#eff6ff', color: '#2563eb' }}>📊</div>
           <div className="details">
             <h4>TOTAL CASH POSITION</h4>
-            <div className="val">₱{fmt(data.total_collections)}</div>
+            <div className="val">₱{fmt(data.total_cash_position)}</div>
             <div className="sub">Cash on Hand & In Bank</div>
           </div>
         </div>
@@ -338,7 +345,7 @@ export default function DailyCashReport() {
                     <td style={{textAlign:'center'}}>
                       <span className={`badge-type type-${(r.loan_type || 'new').toLowerCase()}`}>{r.loan_type || 'NEW'}</span>
                     </td>
-                    <td className="text-right">{(r.net_proceeds || 0).toFixed(2)}</td>
+                    <td className="text-right">{(r.principal || 0).toFixed(2)}</td>
                     <td className="text-right">0.00</td>
                     <td className="text-right">0.00</td>
                     <td className="text-right">0.00</td>
@@ -350,7 +357,7 @@ export default function DailyCashReport() {
                 {data.releases.length === 0 && <tr><td colSpan={12} style={{textAlign:'center', padding: 20}}>No loan releases.</td></tr>}
                 <tr className="dcr-footer-row">
                   <td colSpan={5}>TOTAL LOAN RELEASES</td>
-                  <td className="text-right">₱{fmt(data.total_releases)}</td>
+                  <td className="text-right">₱{fmt(data.display_total_releases)}</td>
                   <td className="text-right">0.00</td>
                   <td className="text-right">0.00</td>
                   <td className="text-right">0.00</td>
@@ -396,8 +403,9 @@ export default function DailyCashReport() {
               <table className="dcr-table">
                 <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
                 <tbody>
+                  {withdrawal.map((w, i) => <tr key={i}><td>{w.reference_no}</td><td className="text-right">{(w.amount || 0).toFixed(2)}</td></tr>)}
                   {withdrawal.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No withdrawal recorded.</td></tr>}
-                  <tr className="dcr-footer-row"><td style={{color: '#9333ea'}}>TOTAL WITHDRAWAL</td><td className="text-right" style={{color: '#9333ea'}}>₱0.00</td></tr>
+                  <tr className="dcr-footer-row"><td style={{color: '#9333ea'}}>TOTAL WITHDRAWAL</td><td className="text-right" style={{color: '#9333ea'}}>₱{fmt(data.total_withdrawals)}</td></tr>
                 </tbody>
               </table>
             </div>
@@ -408,8 +416,9 @@ export default function DailyCashReport() {
               <table className="dcr-table">
                 <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
                 <tbody>
+                  {deposit.map((d, i) => <tr key={i}><td>{d.reference_no}</td><td className="text-right">{(d.amount || 0).toFixed(2)}</td></tr>)}
                   {deposit.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No deposit recorded.</td></tr>}
-                  <tr className="dcr-footer-row"><td>TOTAL DEPOSIT</td><td className="text-right">₱0.00</td></tr>
+                  <tr className="dcr-footer-row"><td>TOTAL DEPOSIT</td><td className="text-right">₱{fmt(data.total_deposits)}</td></tr>
                 </tbody>
               </table>
             </div>
@@ -420,8 +429,9 @@ export default function DailyCashReport() {
               <table className="dcr-table">
                 <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
                 <tbody>
+                  {bankCharges.map((b, i) => <tr key={i}><td>{b.reference_no}</td><td className="text-right">{(b.amount || 0).toFixed(2)}</td></tr>)}
                   {bankCharges.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No bank charges recorded.</td></tr>}
-                  <tr className="dcr-footer-row"><td style={{color:'#ef4444'}}>TOTAL BANK CHARGES</td><td className="text-right" style={{color:'#ef4444'}}>₱0.00</td></tr>
+                  <tr className="dcr-footer-row"><td style={{color:'#ef4444'}}>TOTAL BANK CHARGES</td><td className="text-right" style={{color:'#ef4444'}}>₱{fmt(data.total_bank_charges)}</td></tr>
                 </tbody>
               </table>
             </div>
@@ -432,8 +442,9 @@ export default function DailyCashReport() {
               <table className="dcr-table">
                 <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
                 <tbody>
+                  {interest.map((int, i) => <tr key={i}><td>{int.reference_no}</td><td className="text-right">{(int.amount || 0).toFixed(2)}</td></tr>)}
                   {interest.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No interest recorded.</td></tr>}
-                  <tr className="dcr-footer-row"><td style={{color:'#16a34a'}}>TOTAL INTEREST</td><td className="text-right" style={{color:'#16a34a'}}>₱0.00</td></tr>
+                  <tr className="dcr-footer-row"><td style={{color:'#16a34a'}}>TOTAL INTEREST</td><td className="text-right" style={{color:'#16a34a'}}>₱{fmt(data.total_bank_interest)}</td></tr>
                 </tbody>
               </table>
             </div>
@@ -462,29 +473,31 @@ export default function DailyCashReport() {
             <h3 className="dcr-section-title">9. CASH SUMMARY</h3>
             <div style={{ padding: '10px 0' }}>
               <div style={{ padding: '0 15px', fontWeight: 800, color: '#1d4ed8', fontSize: 11, marginBottom: 5 }}>CASH IN BANK</div>
-              <div className="cash-summary-row"><span>Beginning Bank Balance</span><span>₱0.00</span></div>
-              <div className="cash-summary-row"><span>Total Bank Charges</span><span>- ₱0.00</span></div>
-              <div className="cash-summary-row"><span>Total Deposit</span><span>+ ₱0.00</span></div>
-              <div className="cash-summary-row"><span>Total Interest</span><span>+ ₱0.00</span></div>
-              <div className="cash-summary-row"><span>Total Withdrawal</span><span>- ₱0.00</span></div>
-              <div className="cash-summary-row bold" style={{ color: '#1d4ed8', marginTop: 5, paddingBottom: 15 }}><span>TOTAL CASH IN BANK</span><span>₱0.00</span></div>
+              <div className="cash-summary-row"><span>Beginning Bank Balance</span><span>₱{fmt(data.beginning_cash_on_bank)}</span></div>
+              <div className="cash-summary-row"><span>Total Bank Charges</span><span>- ₱{fmt(data.total_bank_charges)}</span></div>
+              <div className="cash-summary-row"><span>Total Deposit</span><span>+ ₱{fmt(data.total_deposits)}</span></div>
+              <div className="cash-summary-row"><span>Total Interest</span><span>+ ₱{fmt(data.total_bank_interest)}</span></div>
+              <div className="cash-summary-row"><span>Total Withdrawal</span><span>- ₱{fmt(data.total_withdrawals)}</span></div>
+              <div className="cash-summary-row bold" style={{ color: '#1d4ed8', marginTop: 5, paddingBottom: 15 }}><span>TOTAL CASH IN BANK</span><span>₱{fmt(data.ending_cash_on_bank)}</span></div>
               
               <div style={{ borderTop: '1px solid #e2e8f0', margin: '0 15px' }}></div>
               
               <div style={{ padding: '15px 15px 5px 15px', fontWeight: 800, color: '#16a34a', fontSize: 11 }}>CASH ON HAND</div>
               <div className="cash-summary-row"><span>Beginning Cash on Hand</span><span>₱{fmt(data.beginning_cash)}</span></div>
-              <div className="cash-summary-row"><span>Total Adjustments</span><span>₱0.00</span></div>
+              <div className="cash-summary-row"><span>Total Adjustments</span><span>₱{fmt(data.total_adjustments)}</span></div>
+              <div className="cash-summary-row"><span>Total Withdrawals</span><span>₱{fmt(data.total_withdrawals)}</span></div>
               <div className="cash-summary-row"><span>Total Collections</span><span>₱{fmt(data.total_collections)}</span></div>
               
-              <div className="cash-summary-row bold" style={{ marginTop: 10 }}><span>CASH AVAILABLE</span><span>₱{fmt(data.beginning_cash + data.total_collections)}</span></div>
+              <div className="cash-summary-row bold" style={{ marginTop: 10 }}><span>CASH AVAILABLE</span><span>₱{fmt(data.beginning_cash + data.total_collections + data.total_adjustments + data.total_withdrawals)}</span></div>
               <div style={{ padding: '5px 15px', fontSize: 11, fontWeight: 800, color: '#0f172a' }}>LESS:</div>
-              <div className="cash-summary-row"><span style={{paddingLeft: 10}}>Total Loan Releases</span><span>₱{fmt(data.total_releases)}</span></div>
+              <div className="cash-summary-row"><span style={{paddingLeft: 10}}>Total Loan Releases (Cash out)</span><span>₱{fmt(data.cash_out_releases)}</span></div>
               <div className="cash-summary-row"><span style={{paddingLeft: 10}}>Total Expenses</span><span>₱{fmt(data.total_expenses)}</span></div>
+              <div className="cash-summary-row"><span style={{paddingLeft: 10}}>Total Deposits</span><span>₱{fmt(data.total_deposits)}</span></div>
               <div className="cash-summary-row bold" style={{ marginTop: 10, color: '#ef4444' }}><span>CASH ON HAND (END OF DAY)</span><span>₱{fmt(data.expected_ending_cash)}</span></div>
               
               <div className="cash-summary-row total">
                 <span>TOTAL CASH ON HAND & IN BANK</span>
-                <span>₱{fmt(data.expected_ending_cash)}</span>
+                <span>₱{fmt(data.total_cash_position)}</span>
               </div>
             </div>
           </div>

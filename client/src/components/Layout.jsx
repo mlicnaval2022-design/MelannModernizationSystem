@@ -10,6 +10,7 @@ const NAV = [
   { path: '/credit-scoring', label: 'Credit Scoring', icon: '📋', section: 'Operations' },
   { path: '/loans', label: 'Loans', icon: '💰', section: 'Operations' },
   { path: '/payments', label: 'Encode Payments', icon: '💳', section: 'Operations' },
+  { path: '/monitoring', label: '3-Day Monitoring', icon: '🚨', section: 'Operations' },
   { path: '/collectors', label: 'Collectors', icon: '🚶', section: 'Operations' },
   { path: '/deposits', label: 'Deposits', icon: '🏦', section: 'Finance' },
   { path: '/expenses', label: 'Expenses', icon: '📋', section: 'Finance' },
@@ -20,6 +21,7 @@ const NAV = [
   { path: '/branches', label: 'Branches', icon: '🏢', section: 'Admin', roles: ['admin', 'manager'] },
   { path: '/users', label: 'User Management', icon: '🔐', section: 'Admin', roles: ['admin'] },
   { path: '/audit', label: 'Audit Trail', icon: '🔍', section: 'Admin', roles: ['admin', 'manager'] },
+  { path: '/monitoring-settings', label: 'Monitoring Settings', icon: '⚙️', section: 'Admin', roles: ['admin'] },
 ]
 
 export default function Layout() {
@@ -49,6 +51,19 @@ export default function Layout() {
           color: n.severity === 'danger' ? '#ef4444' : n.severity === 'warning' ? '#f59e0b' : '#3b82f6'
         }))
         if (complianceNotes.length) setNotifications(prev => [...complianceNotes, ...prev])
+      })
+      .catch(() => {})
+
+    API.get('/monitoring/notifications')
+      .then(r => {
+        const monNotes = (r.data || []).map(n => ({
+          id: `mon-${n.id}`,
+          title: n.title,
+          message: n.message,
+          time: 'Monitoring',
+          color: '#ef4444' // red for alerts
+        }))
+        if (monNotes.length) setNotifications(prev => [...monNotes, ...prev])
       })
       .catch(() => {})
   }, [])

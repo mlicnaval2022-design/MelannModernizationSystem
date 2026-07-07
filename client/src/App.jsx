@@ -17,6 +17,8 @@ import Users from './pages/Users'
 import Branches from './pages/Branches'
 import AuditTrail from './pages/AuditTrail'
 import GovernmentCompliance from './pages/GovernmentCompliance'
+import NoPaymentMonitoring from './pages/NoPaymentMonitoring'
+import MonitoringSettings from './pages/MonitoringSettings'
 
 function PrivateRoute({ children }) {
   const { user } = useAuth()
@@ -44,6 +46,8 @@ export default function App() {
         <Route path="branches" element={<Branches />} />
         <Route path="users" element={<Users />} />
         <Route path="audit" element={<AuditTrail />} />
+        <Route path="monitoring" element={<NoPaymentMonitoring />} />
+        <Route path="monitoring-settings" element={<MonitoringSettings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

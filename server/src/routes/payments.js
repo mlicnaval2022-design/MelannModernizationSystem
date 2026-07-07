@@ -1,6 +1,7 @@
 const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken } = require('../middleware/auth');
+const { triggerLoanRecalculation } = require('../services/noPaymentMonitoring');
 const router = express.Router();
 
 router.get('/', authenticateToken, async (req, res) => {
@@ -80,6 +81,10 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'PAYMENT', result.lastID, `OR#${or_number} Amt:${amount_paid} Col:${collector_id || loan.collector_id}`]);
+    
+    // Trigger No Payment Monitoring recalculation
+    triggerLoanRecalculation(loan_id).catch(e => console.error('Error triggering recalculation:', e));
+
     res.status(201).json({ id: result.lastID, payment_code, balance_before, balance_after, loan_status: newStatus });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
