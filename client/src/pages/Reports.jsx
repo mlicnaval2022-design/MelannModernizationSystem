@@ -1847,7 +1847,13 @@ export default function Reports() {
         if (col.length) cols.push(col)
         return cols
       }
-      const columns = splitByUnits(orderedEntries, 52)
+      const printablePageHeightIn = 13.4
+      const reservedHeaderHeightIn = 2.05
+      const reservedFooterHeightIn = 1.1
+      const columnHeaderHeightIn = 0.25
+      const averageEntryHeightIn = 0.285
+      const autoColumnUnits = Math.floor((printablePageHeightIn - reservedHeaderHeightIn - reservedFooterHeightIn - columnHeaderHeightIn) / averageEntryHeightIn)
+      const columns = splitByUnits(orderedEntries, autoColumnUnits)
       const pages = []
       for (let i = 0; i < columns.length; i += 2) {
         pages.push({ left: columns[i] || [], right: columns[i + 1] || [] })
@@ -1868,13 +1874,13 @@ export default function Reports() {
         )
         const c = entry.client
         return (<>
-          <td style={{ ...cs, fontWeight: 600, fontSize: '7pt', textAlign: 'center', width: '6%' }}>{entry.rowNum}</td>
-          <td style={{ ...cs, fontSize: '7pt', color: entry.color, width: '10%' }}>{c.customer_code}</td>
-          <td style={{ ...cs, color: entry.color, fontWeight: 700, fontSize: '8.6pt', padding: '2px 2px', lineHeight: 1.05, wordBreak: 'normal', overflowWrap: 'break-word', width: '37%' }}>{(c.customer_name || '').toUpperCase()}</td>
-          <td style={{ ...cs, textAlign: 'center', fontSize: '7pt', width: '13%' }}>{fDate(c.date_maturity)}</td>
-          <td style={{ ...cs, textAlign: 'center', fontSize: '7pt', color: entry.color, fontWeight: 600, width: '7%' }}>{c.days_past_due}</td>
-          <td style={{ ...cs, textAlign: 'right', fontSize: '7pt', width: '12%' }}>{c.amortization ? Number(c.amortization).toLocaleString() : '0'}</td>
-          <td style={{ ...cs, width: '15%', verticalAlign: 'bottom', paddingLeft: 3 }}>
+          <td style={{ ...cs, fontWeight: 600, fontSize: '7pt', textAlign: 'center', width: '5%' }}>{entry.rowNum}</td>
+          <td style={{ ...cs, fontSize: '10pt', fontWeight: 700, color: entry.color, width: '12%' }}>{c.customer_code}</td>
+          <td style={{ ...cs, color: entry.color, fontWeight: 700, fontSize: '10pt', padding: '2px 2px', lineHeight: 1.08, wordBreak: 'normal', overflowWrap: 'break-word', width: '43%' }}>{(c.customer_name || '').toUpperCase()}</td>
+          <td style={{ ...cs, textAlign: 'center', fontSize: '7pt', width: '9%' }}>{fDate(c.date_maturity)}</td>
+          <td style={{ ...cs, textAlign: 'center', fontSize: '7pt', color: entry.color, fontWeight: 600, width: '4%', paddingLeft: 0, paddingRight: 0 }}>{c.days_past_due}</td>
+          <td style={{ ...cs, textAlign: 'right', fontSize: '7pt', width: '8%', paddingLeft: 0 }}>{c.amortization ? Number(c.amortization).toLocaleString() : '0'}</td>
+          <td style={{ ...cs, width: '19%', verticalAlign: 'bottom', paddingLeft: 2 }}>
             {c.collected_today > 0
               ? <span style={{ fontSize: '7.5pt', fontWeight: 600 }}>{peso(c.collected_today)}</span>
               : <div style={{ height: 12, borderBottom: '1.5px solid #000' }}></div>}
@@ -1884,13 +1890,13 @@ export default function Reports() {
 
       const headerCell = { padding: '3px 1px', borderTop: '1.5px solid '+CL.navy, borderBottom: '1.5px solid '+CL.navy, fontSize: '7pt', color: CL.navy }
       const colHdr = (side) => [
-        <th key={side+'n'} style={{ ...headerCell, width: '6%', textAlign: 'center' }}>#</th>,
-        <th key={side+'c'} style={{ ...headerCell, width: '10%', textAlign: 'left' }}>Code</th>,
-        <th key={side+'nm'} style={{ ...headerCell, width: '37%', textAlign: 'left', padding: '3px 2px' }}>Client Name</th>,
-        <th key={side+'d'} style={{ ...headerCell, width: '13%', textAlign: 'center' }}>Due</th>,
-        <th key={side+'dp'} style={{ ...headerCell, width: '7%', textAlign: 'center' }}>DPD</th>,
-        <th key={side+'dl'} style={{ ...headerCell, width: '12%', textAlign: 'right' }}>Daily</th>,
-        <th key={side+'co'} style={{ ...headerCell, width: '15%', textAlign: 'center' }}>Collected</th>
+        <th key={side+'n'} style={{ ...headerCell, width: '5%', textAlign: 'center' }}>#</th>,
+        <th key={side+'c'} style={{ ...headerCell, width: '12%', textAlign: 'left', fontSize: '9pt' }}>Code</th>,
+        <th key={side+'nm'} style={{ ...headerCell, width: '43%', textAlign: 'left', padding: '3px 2px', fontSize: '9pt' }}>Client Name</th>,
+        <th key={side+'d'} style={{ ...headerCell, width: '9%', textAlign: 'center' }}>Due</th>,
+        <th key={side+'dp'} style={{ ...headerCell, width: '4%', textAlign: 'center', paddingLeft: 0, paddingRight: 0 }}>DPD</th>,
+        <th key={side+'dl'} style={{ ...headerCell, width: '8%', textAlign: 'right', paddingLeft: 0, paddingRight: 0 }}>Daily</th>,
+        <th key={side+'co'} style={{ ...headerCell, width: '19%', textAlign: 'center' }}>Collected</th>
       ]
       const renderClientColumn = (entries, keyPrefix) => (
         <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: '8pt' }}>
@@ -1904,18 +1910,35 @@ export default function Reports() {
           <span style={{ flex: 1, borderBottom: '1.5px solid #000', height: 13 }}></span>
         </div>
       )
+      const denominationLine = value => (
+        <div key={value} style={{ display: 'grid', gridTemplateColumns: '24px 8px 1fr 8px 1fr', alignItems: 'center', columnGap: 3, padding: '1px 0', fontSize: '6.4pt' }}>
+          <span style={{ fontWeight: 700, color: CL.navy, textAlign: 'right' }}>{value}</span>
+          <span style={{ textAlign: 'center' }}>x</span>
+          <span style={{ borderBottom: '1.2px solid #000', height: 10 }}></span>
+          <span style={{ textAlign: 'center' }}>=</span>
+          <span style={{ borderBottom: '1.2px solid #000', height: 10 }}></span>
+        </div>
+      )
+      const headerBox = (title, children, width) => (
+        <div style={{ flex: `0 0 ${width}px`, width, border: '1.5px solid '+CL.navy, borderRadius: 3 }}>
+          <div style={{ background: CL.navy, color: '#fff', padding: '3px 6px', fontWeight: 700, fontSize: '8pt', textAlign: 'center' }}>{title}</div>
+          <div style={{ padding: '4px 6px', fontSize: '7pt' }}>
+            {children}
+          </div>
+        </div>
+      )
       const pageHeader = (
         <div className="collection-sheet-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 8 }}>
-          <div style={{ flex: '1 1 auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <img src={logoImg} alt="" style={{ height: 36, width: 36, objectFit: 'contain' }} onError={e => { e.target.style.display = 'none' }} />
+          <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 6 }}>
+              <img src={logoImg} alt="" style={{ height: 50, width: 50, objectFit: 'contain' }} onError={e => { e.target.style.display = 'none' }} />
               <div>
-                <div style={{ fontWeight: 700, fontSize: '13pt', color: CL.navy, letterSpacing: 0.3 }}>MELANN LENDING INVESTOR CORPORATION</div>
-                <div style={{ fontWeight: 700, fontSize: '10pt', color: CL.navy }}>FIELD COLLECTION SHEET</div>
-                <div style={{ fontSize: '7pt', color: '#999' }}>Legal Portrait - Two-Column Field Format</div>
+                <div style={{ fontWeight: 700, fontSize: '16pt', color: CL.navy, letterSpacing: 0.3 }}>MELANN LENDING INVESTOR CORPORATION</div>
+                <div style={{ fontWeight: 700, fontSize: '11.5pt', color: CL.navy }}>FIELD COLLECTION SHEET</div>
+                <div style={{ fontSize: '8pt', color: '#999' }}>Legal Portrait - Two-Column Field Format</div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 16, fontSize: '9pt', marginBottom: 5, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 16, fontSize: '10pt', marginBottom: 5, flexWrap: 'wrap' }}>
               <div><b>Collector:</b> {collectorDisplayName}</div>
               <div><b>Collection Date:</b> {displayCollDate}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1929,23 +1952,21 @@ export default function Reports() {
                 { label: 'Overdue', count: groups.overdue.length, color: CL.overdue },
                 { label: 'Past Due', count: groups.pastdue.length, color: CL.pastdue }
               ].map(b => (
-                <div key={b.label} style={{ background: b.color, color: '#fff', padding: '2px 8px', borderRadius: 2, fontSize: '7.5pt', fontWeight: 600 }}>
+                <div key={b.label} style={{ background: b.color, color: '#fff', padding: '2px 8px', borderRadius: 2, fontSize: '8pt', fontWeight: 600 }}>
                   {b.label}: {b.count}
                 </div>
               ))}
             </div>
-            <div style={{ fontSize: '6.5pt', color: '#777', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: '7pt', color: '#777', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <span><b style={{ color: CL.active }}>-</b> Active - Not yet overdue</span>
               <span><b style={{ color: CL.recon }}>-</b> Recon - Reconstructed account</span>
               <span><b style={{ color: CL.overdue }}>-</b> Overdue - 1 to 29 days late</span>
               <span><b style={{ color: CL.pastdue }}>-</b> Past Due - 30+ days late</span>
             </div>
           </div>
-          <div style={{ flex: '0 0 auto', width: 190, border: '1.5px solid '+CL.navy, borderRadius: 3 }}>
-            <div style={{ background: CL.navy, color: '#fff', padding: '3px 8px', fontWeight: 700, fontSize: '8.5pt', textAlign: 'center' }}>DAILY CASH SUMMARY</div>
-            <div style={{ padding: '5px 8px', fontSize: '8pt' }}>
-              {['Total Collection', 'Field Release', 'Total Expense', 'Grand Total'].map(blankCashLine)}
-            </div>
+          <div style={{ flex: '0 0 auto', display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+            {headerBox('DAILY CASH SUMMARY', ['Total Collection', 'Field Release', 'Total Expense', 'Grand Total'].map(blankCashLine), 190)}
+            {headerBox('DENOMINATION', [1000, 500, 200, 100, 50, 20, 10, 5, 1].map(denominationLine), 170)}
           </div>
         </div>
       )
@@ -1958,7 +1979,7 @@ export default function Reports() {
             { role: 'Approved by', name: signatures.approvedBy || 'VICTORIO L. RELOBA JR.' }
           ].map(sig => (
             <div key={sig.role} style={{ width: '22%', textAlign: 'center' }}>
-              <div style={{ fontSize: '7pt', color: '#666', lineHeight: 1.1, marginBottom: 9 }}>{sig.role}</div>
+              <div style={{ fontSize: '7pt', color: '#666', lineHeight: 1.1, marginBottom: 18 }}>{sig.role}</div>
               <div style={{ borderBottom: '1.5px solid #000', marginBottom: 3 }}></div>
               <div style={{ fontWeight: 600, fontSize: '7pt', lineHeight: 1.1 }}>{sig.name}</div>
             </div>
@@ -1985,15 +2006,15 @@ export default function Reports() {
 
           <style>{`
             @media print {
-              @page { size: 8.5in 14in; margin: 0.3in 0.25in 0.4in 0.25in; }
+              @page { size: 8.5in 14in; margin: 0.25in 0.15in 0.35in 0.15in; }
               body { margin: 0; padding: 0; }
               .sidebar, .navbar, .reports-sidebar { display: none !important; }
               .content { margin: 0 !important; padding: 0 !important; }
               .reports-screen-only { display: none !important; }
               .collection-sheet-print { border: none !important; box-shadow: none !important; margin: 0 !important; padding: 0 !important; }
               .collection-sheet-page {
-                height: 13.25in !important;
-                min-height: 13.25in !important;
+                height: 13.4in !important;
+                min-height: 13.4in !important;
                 display: flex !important;
                 flex-direction: column !important;
                 overflow: hidden !important;
@@ -2004,10 +2025,12 @@ export default function Reports() {
               .collection-sheet-page-body {
                 flex: 1 1 auto !important;
                 align-content: start !important;
+                min-height: 0 !important;
               }
               .collection-sheet-page-footer {
                 flex: 0 0 auto !important;
                 margin-top: auto !important;
+                min-height: 0.72in !important;
               }
               tr { page-break-inside: avoid; }
               thead { display: table-header-group; }
@@ -2021,10 +2044,10 @@ export default function Reports() {
                 border-radius: 8px;
                 box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
                 padding: 15px;
-                max-width: 1100px;
+                max-width: 1160px;
               }
               .collection-sheet-page {
-                min-height: 13.25in;
+                min-height: 13.4in;
                 display: flex;
                 flex-direction: column;
                 margin-bottom: 24px;
