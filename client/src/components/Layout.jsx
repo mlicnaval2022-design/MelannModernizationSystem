@@ -13,7 +13,7 @@ const NAV = [
   { path: '/monitoring', label: '3-Day Monitoring', icon: '🚨', section: 'Operations' },
   { path: '/collectors', label: 'Collectors', icon: '🚶', section: 'Operations' },
   { path: '/deposits', label: 'Deposits', icon: '🏦', section: 'Finance' },
-  { path: '/expenses', label: 'Expenses', icon: '📋', section: 'Finance' },
+  { path: '/transactions', label: 'Transactions', icon: '🧾', section: 'Finance' },
   { path: '/dcr', label: 'Daily Cash Report', icon: '📝', section: 'Finance' },
   { path: '/cash', label: 'Cash Position', icon: '🏧', section: 'Finance' },
   { path: '/reports', label: 'Reports', icon: '📈', section: 'Reports' },

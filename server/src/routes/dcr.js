@@ -55,13 +55,13 @@ router.get('/summary', authenticateToken, async (req, res) => {
       WHERE ${lCond}
     `, lParams);
 
-    // 3. Expenses
-    const expenses = await dbAll(`
-      SELECT e.id, e.amount, e.category, e.description, e.payee, e.expense_date, e.created_at, e.dcr_id,
+    // 3. Transactions
+    const transactions = await dbAll(`
+      SELECT t.id, t.amount, t.transaction_type, t.category, t.description, t.payee, t.transaction_date as expense_date, t.created_at, t.dcr_id,
              u.full_name as encoded_by
-      FROM tblExpense e
-      LEFT JOIN tblUser u ON e.created_by = u.id
-      WHERE ${eCond}
+      FROM tblTransaction t
+      LEFT JOIN tblUser u ON t.created_by = u.id
+      WHERE ${eCond.replace(/e\./g, 't.')}
     `, eParams);
 
     // 4. Bank Transactions
@@ -142,7 +142,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
       total_cash_position,
       collections,
       releases,
-      expenses,
+      transactions,
       deposits,
       withdrawals,
       bankCharges,
@@ -221,12 +221,21 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
 
     const collections = await dbAll(`SELECT p.amount_paid FROM tblPayment p JOIN tblCustomer c ON p.customer_id = c.id WHERE ${pCond}`, pParams);
     const releases = await dbAll(`SELECT l.net_proceeds, l.principal FROM tblLoan l JOIN tblCustomer c ON l.customer_id = c.id WHERE ${lCond}`, lParams);
-    const expenses = await dbAll(`SELECT e.amount FROM tblExpense e WHERE ${eCond}`, eParams);
+    const transactions = await dbAll(`SELECT t.amount, t.transaction_type FROM tblTransaction t WHERE ${eCond.replace(/e\./g, 't.')}`, eParams);
     const bankTx = await dbAll(`SELECT * FROM tblCashOnBank WHERE ${cbCond}`, cbParams);
 
-    const total_collections = collections.reduce((acc, c) => acc + c.amount_paid, 0);
+    let total_collections = collections.reduce((acc, c) => acc + c.amount_paid, 0);
     const cash_out_releases = releases.reduce((acc, r) => acc + (r.net_proceeds || 0), 0);
-    const total_expenses = expenses.reduce((acc, e) => acc + e.amount, 0);
+    let total_expenses = 0;
+    let other_income = 0;
+    let other_disbursements = 0;
+    
+    transactions.forEach(t => {
+      if (t.transaction_type === 'Expense') total_expenses += t.amount;
+      else if (t.transaction_type === 'Short Overage') total_expenses += t.amount;
+      else if (t.transaction_type === 'Collectors Over') other_income += t.amount;
+      else if (t.transaction_type === 'Penalty') total_collections += t.amount;
+    });
     
     const deposits = bankTx.filter(b => b.transaction_type === 'deposit');
     const withdrawals = bankTx.filter(b => b.transaction_type === 'withdrawal');
@@ -250,8 +259,8 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
     const beginning_cash = prevDcr ? prevDcr.actual_cash_count : 0;
     const beginning_cash_on_bank = prevDcr ? prevDcr.ending_cash_on_bank : 0;
 
-    const cash_available = beginning_cash + total_collections + total_withdrawals;
-    const expected_ending_cash = cash_available - cash_out_releases - total_expenses - total_deposits;
+    const cash_available = beginning_cash + total_collections + total_withdrawals + other_income;
+    const expected_ending_cash = cash_available - cash_out_releases - total_expenses - total_deposits - other_disbursements;
     const ending_cash_on_bank = beginning_cash_on_bank + total_deposits + total_bank_interest - total_withdrawals - total_bank_charges;
     const total_cash_position = expected_ending_cash + ending_cash_on_bank;
 
@@ -265,13 +274,15 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
     const result = await dbRun(`
       INSERT INTO tblDailyCashReport (
         dcr_number, branch_id, report_date, beginning_cash, total_collections, total_releases, total_expenses,
+        other_income, other_disbursements,
         expected_ending_cash, ending_cash_on_bank, total_cash_position,
         total_deposits, total_withdrawals, total_bank_charges, total_bank_interest,
         count_1000, count_500, count_200, count_100, count_50, count_20, count_coins,
         actual_cash_count, variance, status, closed_by
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `, [
       dcr_number, branch_id, date, beginning_cash, total_collections, cash_out_releases, total_expenses,
+      other_income, other_disbursements,
       expected_ending_cash, ending_cash_on_bank, total_cash_position,
       total_deposits, total_withdrawals, total_bank_charges, total_bank_interest,
       denom.count_1000, denom.count_500, denom.count_200, denom.count_100, denom.count_50, denom.count_20, denom.count_coins,
@@ -284,11 +295,11 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
     if (branch_id) {
       await dbRun(`UPDATE tblPayment SET dcr_id = ? WHERE id IN (SELECT p.id FROM tblPayment p JOIN tblCustomer c ON p.customer_id = c.id WHERE ${pCond}) AND dcr_id IS NULL`, [dcrId, ...pParams]);
       await dbRun(`UPDATE tblLoan SET dcr_id = ? WHERE id IN (SELECT l.id FROM tblLoan l JOIN tblCustomer c ON l.customer_id = c.id WHERE ${lCond}) AND dcr_id IS NULL`, [dcrId, ...lParams]);
-      await dbRun(`UPDATE tblExpense SET dcr_id = ? WHERE id IN (SELECT e.id FROM tblExpense e WHERE ${eCond}) AND dcr_id IS NULL`, [dcrId, ...eParams]);
+      await dbRun(`UPDATE tblTransaction SET dcr_id = ? WHERE id IN (SELECT t.id FROM tblTransaction t WHERE ${eCond.replace(/e\./g, 't.')}) AND dcr_id IS NULL`, [dcrId, ...eParams]);
     } else {
       await dbRun(`UPDATE tblPayment SET dcr_id = ? WHERE date_paid = ? AND status = 'active' AND dcr_id IS NULL`, [dcrId, date]);
       await dbRun(`UPDATE tblLoan SET dcr_id = ? WHERE date_released = ? AND status IN ('active', 'fully_paid') AND dcr_id IS NULL`, [dcrId, date]);
-      await dbRun(`UPDATE tblExpense SET dcr_id = ? WHERE expense_date = ? AND status = 'active' AND dcr_id IS NULL`, [dcrId, date]);
+      await dbRun(`UPDATE tblTransaction SET dcr_id = ? WHERE transaction_date = ? AND status = 'active' AND dcr_id IS NULL`, [dcrId, date]);
     }
 
     await dbRun(`INSERT INTO tblLogtime (user_id, action, module) VALUES (?, ?, 'DCR')`, [req.user.id, `CLOSED DAY: ${dcr_number} for ${date}`]);
