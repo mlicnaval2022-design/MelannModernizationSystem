@@ -1895,7 +1895,7 @@ export default function Reports() {
       ])
       const entryUnits = entry => {
         if (!entry) return 0
-        if (entry.type === 'header') return 1.25
+        if (entry.type === 'header') return 1
         if (entry.type === 'empty') return 1
         return String(entry.client?.customer_name || '').length > 24 ? 1.35 : 1
       }
@@ -1917,18 +1917,18 @@ export default function Reports() {
         return cols
       }
       const printablePageHeightIn = 13.4
-      const reservedHeaderHeightIn = 2.05
-      const reservedFooterHeightIn = 1.1
+      const reservedHeaderHeightIn = 2.75
+      const reservedFooterHeightIn = 0.9
       const columnHeaderHeightIn = 0.25
-      const averageEntryHeightIn = 0.285
-      const autoColumnUnits = Math.floor((printablePageHeightIn - reservedHeaderHeightIn - reservedFooterHeightIn - columnHeaderHeightIn) / averageEntryHeightIn)
+      const averageEntryHeightIn = 0.265
+      const autoColumnUnits = (printablePageHeightIn - reservedHeaderHeightIn - reservedFooterHeightIn - columnHeaderHeightIn) / averageEntryHeightIn
       const columns = splitByUnits(orderedEntries, autoColumnUnits)
       const pages = []
       for (let i = 0; i < columns.length; i += 2) {
         pages.push({ left: columns[i] || [], right: columns[i + 1] || [] })
       }
 
-      const cs = { borderBottom: '1px solid #d9d9d9', verticalAlign: 'middle', padding: '2px 1px' }
+      const cs = { borderBottom: '1.2px solid #000', verticalAlign: 'middle', padding: '2px 1px' }
       const entryCells = (entry) => {
         if (!entry) return <td colSpan={7} style={{ border: 'none', padding: 0 }}></td>
         if (entry.type === 'header') return (
@@ -1974,47 +1974,55 @@ export default function Reports() {
         </table>
       )
       const blankCashLine = label => (
-        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0' }}>
-          <span style={{ color: '#555', flex: '0 0 78px' }}>{label}:</span>
-          <span style={{ flex: 1, borderBottom: '1.5px solid #000', height: 13 }}></span>
+        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+          <span style={{ color: '#555', flex: '0 0 90px', fontSize: '8.5pt' }}>{label}:</span>
+          <span style={{ flex: 1, borderBottom: '1.5px solid #000', height: 14 }}></span>
+        </div>
+      )
+      const blankCashLineSingle = label => (
+        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0 2px 0' }}>
+          <span style={{ color: '#555', flex: '0 0 60px', fontSize: '8.5pt' }}>{label}:</span>
+          <span style={{ flex: 1, borderBottom: '1.5px solid #000', height: 14 }}></span>
         </div>
       )
       const denominationLine = value => (
-        <div key={value} style={{ display: 'grid', gridTemplateColumns: '24px 8px 1fr 8px 1fr', alignItems: 'center', columnGap: 3, padding: '1px 0', fontSize: '6.4pt' }}>
+        <div key={value} style={{ display: 'grid', gridTemplateColumns: '32px 12px 1fr 12px 1fr', alignItems: 'center', columnGap: 4, padding: '2px 0', fontSize: '7.5pt' }}>
           <span style={{ fontWeight: 700, color: CL.navy, textAlign: 'right' }}>{value}</span>
           <span style={{ textAlign: 'center' }}>x</span>
-          <span style={{ borderBottom: '1.2px solid #000', height: 10 }}></span>
+          <span style={{ borderBottom: '1.2px solid #000', height: 12 }}></span>
           <span style={{ textAlign: 'center' }}>=</span>
-          <span style={{ borderBottom: '1.2px solid #000', height: 10 }}></span>
+          <span style={{ borderBottom: '1.2px solid #000', height: 12 }}></span>
+        </div>
+      )
+      const denominationTotalLine = () => (
+        <div key="total" style={{ display: 'flex', alignItems: 'center', gap: 4, paddingTop: 4, marginTop: 2, fontSize: '7.5pt' }}>
+          <span style={{ fontWeight: 700, color: CL.navy }}>OVERALL TOTAL:</span>
+          <span style={{ flex: 1, borderBottom: '1.2px solid #000', height: 12 }}></span>
         </div>
       )
       const headerBox = (title, children, width) => (
         <div style={{ flex: `0 0 ${width}px`, width, border: '1.5px solid '+CL.navy, borderRadius: 3 }}>
-          <div style={{ background: CL.navy, color: '#fff', padding: '3px 6px', fontWeight: 700, fontSize: '8pt', textAlign: 'center' }}>{title}</div>
-          <div style={{ padding: '4px 6px', fontSize: '7pt' }}>
+          <div style={{ background: CL.navy, color: '#fff', padding: '4px 6px', fontWeight: 700, fontSize: '9pt', textAlign: 'center' }}>{title}</div>
+          <div style={{ padding: '6px 8px', fontSize: '8pt' }}>
             {children}
           </div>
         </div>
       )
       const pageHeader = (
-        <div className="collection-sheet-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 8 }}>
-          <div style={{ flex: '1 1 auto', minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 6 }}>
-              <img src={logoImg} alt="" style={{ height: 50, width: 50, objectFit: 'contain' }} onError={e => { e.target.style.display = 'none' }} />
-              <div>
-                <div style={{ fontWeight: 700, fontSize: '16pt', color: CL.navy, letterSpacing: 0.3 }}>MELANN LENDING INVESTOR CORPORATION</div>
-                <div style={{ fontWeight: 700, fontSize: '11.5pt', color: CL.navy }}>FIELD COLLECTION SHEET</div>
-                <div style={{ fontSize: '8pt', color: '#999' }}>Legal Portrait - Two-Column Field Format</div>
-              </div>
+        <div className="collection-sheet-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 20 }}>
+          <div style={{ flex: '0 0 auto' }}>
+            {headerBox('DENOMINATION', [...[1000, 500, 200, 100, 50, 20, 10, 5, 1].map(denominationLine), denominationTotalLine()], 225)}
+          </div>
+          <div style={{ flex: '1 1 auto', minWidth: 0, textAlign: 'center' }}>
+            <div style={{ fontWeight: 700, fontSize: '15pt', color: CL.navy, letterSpacing: 0.2 }}>MELANN LENDING INVESTOR CORPORATION</div>
+            <div style={{ fontWeight: 700, fontSize: '11pt', color: CL.navy }}>FIELD COLLECTION SHEET</div>
+            <div style={{ fontSize: '8pt', color: '#999', marginBottom: 12 }}>Legal Portrait - Two-Column Field Format</div>
+            
+            <div style={{ fontSize: '11pt', fontWeight: 700, color: '#333' }}>
+              {collectorDisplayName} &nbsp;|&nbsp; {displayCollDate}
             </div>
-            <div style={{ display: 'flex', gap: 16, fontSize: '10pt', marginBottom: 5, flexWrap: 'wrap' }}>
-              <div><b>Collector:</b> {collectorDisplayName}</div>
-              <div><b>Collection Date:</b> {displayCollDate}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <b>Over / Short:</b> <span style={{ display: 'inline-block', width: 90, borderBottom: '1.5px solid #000' }}>&nbsp;</span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 12, flexWrap: 'wrap' }}>
               {[
                 { label: 'Active', count: groups.active.length, color: CL.active },
                 { label: 'Recon', count: groups.recon.length, color: CL.recon },
@@ -2026,16 +2034,22 @@ export default function Reports() {
                 </div>
               ))}
             </div>
-            <div style={{ fontSize: '7pt', color: '#777', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <span><b style={{ color: CL.active }}>-</b> Active - Not yet overdue</span>
-              <span><b style={{ color: CL.recon }}>-</b> Recon - Reconstructed account</span>
-              <span><b style={{ color: CL.overdue }}>-</b> Overdue - 1 to 29 days late</span>
-              <span><b style={{ color: CL.pastdue }}>-</b> Past Due - 30+ days late</span>
+            <div style={{ fontSize: '7pt', color: '#777', display: 'flex', gap: 10, justifyContent: 'center', marginTop: 4, flexWrap: 'wrap' }}>
+              <span><b style={{ color: CL.active }}>-</b> Active</span>
+              <span><b style={{ color: CL.recon }}>-</b> Recon</span>
+              <span><b style={{ color: CL.overdue }}>-</b> Overdue</span>
+              <span><b style={{ color: CL.pastdue }}>-</b> Past Due</span>
             </div>
           </div>
-          <div style={{ flex: '0 0 auto', display: 'flex', gap: 6, alignItems: 'flex-start' }}>
-            {headerBox('DAILY CASH SUMMARY', ['Total Collection', 'Field Release', 'Total Expense', 'Grand Total'].map(blankCashLine), 190)}
-            {headerBox('DENOMINATION', [1000, 500, 200, 100, 50, 20, 10, 5, 1].map(denominationLine), 170)}
+          <div style={{ flex: '0 0 auto' }}>
+            {headerBox('DAILY CASH SUMMARY', (
+              <>
+                {['Total Collection', 'Field Release', 'Total Expense', 'Grand Total'].map(blankCashLine)}
+                <div style={{ borderTop: '1.5px solid '+CL.navy, margin: '6px -8px -6px -8px', padding: '6px 8px 6px' }}>
+                   {blankCashLine('Over / Short')}
+                </div>
+              </>
+            ), 235)}
           </div>
         </div>
       )
@@ -2065,9 +2079,13 @@ export default function Reports() {
           {pages.map((page, pageIndex) => (
             <div key={pageIndex} className="collection-sheet-page" style={{ pageBreakAfter: pageIndex < pages.length - 1 ? 'always' : 'auto', breakAfter: pageIndex < pages.length - 1 ? 'page' : 'auto' }}>
               {pageHeader}
-              <div className="collection-sheet-page-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, alignItems: 'start' }}>
-                {renderClientColumn(page.left, `L${pageIndex}`)}
-                {renderClientColumn(page.right, `R${pageIndex}`)}
+              <div className="collection-sheet-page-body" style={{ display: 'flex', gap: 0, alignItems: 'stretch' }}>
+                <div style={{ flex: 1, minWidth: 0, borderRight: '1.5px solid #000', paddingRight: 8 }}>
+                  {renderClientColumn(page.left, `L${pageIndex}`)}
+                </div>
+                <div style={{ flex: 1, minWidth: 0, paddingLeft: 8 }}>
+                  {renderClientColumn(page.right, `R${pageIndex}`)}
+                </div>
               </div>
               {pageFooter}
             </div>
