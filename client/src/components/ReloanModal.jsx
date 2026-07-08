@@ -57,7 +57,11 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
     try {
       const res = await API.get(`/customers/${customerId}/reloan-eval`);
       setData(res.data);
-      setDesiredAmount(current => current || getRecommendedAmount(res.data));
+      if (loanType === 'Recon') {
+        setDesiredAmount(current => current || res.data.active_balance || '');
+      } else {
+        setDesiredAmount(current => current || getRecommendedAmount(res.data));
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to fetch reloan evaluation data');
     } finally {
@@ -66,13 +70,14 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
   }, [customerId]);
 
   useEffect(() => {
-    if (isOpen && customerId) {
-      fetchReloanData();
-    }
-  }, [isOpen, customerId, fetchReloanData]);
-
-  useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      if (customerId) {
+        fetchReloanData();
+      } else {
+        setError('Missing customer details. Please select a valid customer.');
+        setLoading(false);
+      }
+    } else {
       setError('');
       setSubmitting(false);
       setRemarks('');
@@ -80,8 +85,9 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
       setInterestRate('15');
       setDateRelease(toInputDate(new Date()));
       setDesiredAmount('');
+      setLoading(true); // Reset loading state for next open
     }
-  }, [isOpen]);
+  }, [isOpen, customerId, fetchReloanData]);
 
   const computed = useMemo(() => {
     const today = new Date();
@@ -141,7 +147,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
   const clientName = customer?.client_name || customer?.full_name || 'Selected customer';
   const customerCode = customer?.customer_code || customerId || '';
   const collectorName = customer?.collector_name || 'Select collector';
-  const isEligible = data?.is_eligible !== false;
+  const isEligible = loanType === 'Recon' ? true : data?.is_eligible !== false;
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
@@ -238,7 +244,6 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
                         onKeyDown={handleKeyDown}
                         required
                       />
-                      <i>▣</i>
                     </div>
                   </label>
 

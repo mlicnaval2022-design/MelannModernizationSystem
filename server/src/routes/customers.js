@@ -428,6 +428,7 @@ router.get('/:id/reloan-eval', authenticateToken, async (req, res) => {
       recon_history: recon ? recon.recon_history : 0,
       total_amount_borrowed: stats ? stats.total_amount_borrowed : 0,
       collection_efficiency: collection_efficiency,
+      active_balance: activeOrPastDueLoans ? activeOrPastDueLoans.total_balance : 0,
       is_eligible: is_good_standing,
       recommendations: {
         conservative: conservative,

@@ -78,6 +78,9 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       rejected_reloan_count: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='rejected' AND loan_type='Re-Loan'`)).c,
       approved_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='approved' AND DATE(updated_at)=?`, [today])).c,
       rejected_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='rejected' AND DATE(updated_at)=?`, [today])).c,
+      monitoring_alerts_active: (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert WHERE status='Active'`)).c,
+      monitoring_alerts_escalated: (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert WHERE status='Active' AND alert_level='Day 4+'`)).c,
+      monitoring_alerts_resolved_today: (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert WHERE status='Resolved' AND DATE(resolved_at)=?`, [today])).c,
       account_status_distribution: await dbAll(`SELECT status, COUNT(*) as count FROM tblLoan GROUP BY status`),
       aging_report: await dbGet(`
         SELECT 
@@ -290,6 +293,47 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
         encodedBy: 'IT/ACCOUNTING CLERK',
         approvedBy: 'VICTORIO L. RELOBA JR.'
       }
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/monitoring-summary', authenticateToken, async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // 10 Reports required
+    const activeClientsMonitoredToday = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert WHERE status='Active'`)).c;
+    const escalatedAccounts = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert WHERE alert_level='Day 4+' AND status='Active'`)).c;
+    const resolvedAccounts = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert WHERE status='Resolved'`)).c;
+    
+    // Follow-up success rate
+    const totalFollowUps = (await dbGet(`SELECT COUNT(*) as c FROM tblFollowUp`)).c;
+    const successfulFollowUps = (await dbGet(`SELECT COUNT(*) as c FROM tblFollowUp WHERE contact_result='Promised to Pay'`)).c;
+    const collectorPerformance = totalFollowUps > 0 ? Math.round((successfulFollowUps / totalFollowUps) * 100) + '%' : '0%';
+    
+    const summaryPTP = (await dbGet(`SELECT COUNT(*) as c, COALESCE(SUM(promised_amount),0) as total FROM tblPromiseToPay WHERE status='Pending'`));
+    
+    const followUpLogs = await dbAll(`SELECT f.*, a.loan_id FROM tblFollowUp f JOIN tblMonitoringAlert a ON f.alert_id = a.id ORDER BY f.created_at DESC LIMIT 5`);
+    
+    const alertsByBranch = await dbAll(`SELECT u.branch_id, COUNT(*) as count FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id JOIN tblUser u ON c.encoded_by = u.id WHERE a.status='Active' GROUP BY u.branch_id`);
+    
+    const clientsApproachingDay3 = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert WHERE status='Active' AND consecutive_days = 2`)).c;
+    
+    const chronicMissedPayments = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert WHERE sequence_number >= 3`)).c;
+    
+    const unresolvedOver7Days = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert WHERE status='Active' AND consecutive_days >= 7`)).c;
+    
+    res.json({
+      activeClientsMonitoredToday,
+      escalatedAccounts,
+      resolvedAccounts,
+      collectorPerformance,
+      summaryPTP,
+      followUpLogs,
+      alertsByBranch,
+      clientsApproachingDay3,
+      chronicMissedPayments,
+      unresolvedOver7Days
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

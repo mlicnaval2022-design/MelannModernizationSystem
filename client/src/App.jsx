@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+// Force Vite HMR invalidation
 import { useAuth } from './context/AuthContext'
 import Layout from './components/Layout'
 import Login from './pages/Login'
@@ -9,7 +10,7 @@ import Payments from './pages/Payments'
 import Collectors from './pages/Collectors'
 import CreditScoring from './pages/CreditScoring'
 import Deposits from './pages/Deposits'
-import Expenses from './pages/Expenses'
+import Transactions from './pages/Transactions'
 import DailyCashReport from './pages/DailyCashReport'
 import CashPosition from './pages/CashPosition'
 import Reports from './pages/Reports'
@@ -17,6 +18,8 @@ import Users from './pages/Users'
 import Branches from './pages/Branches'
 import AuditTrail from './pages/AuditTrail'
 import GovernmentCompliance from './pages/GovernmentCompliance'
+import NoPaymentMonitoring from './pages/NoPaymentMonitoring'
+import MonitoringSettings from './pages/MonitoringSettings'
 
 function PrivateRoute({ children }) {
   const { user } = useAuth()
@@ -36,7 +39,7 @@ export default function App() {
         <Route path="payments" element={<Payments />} />
         <Route path="collectors" element={<Collectors />} />
         <Route path="deposits" element={<Deposits />} />
-        <Route path="expenses" element={<Expenses />} />
+        <Route path="transactions" element={<Transactions />} />
         <Route path="dcr" element={<DailyCashReport />} />
         <Route path="cash" element={<CashPosition />} />
         <Route path="reports" element={<Reports />} />
@@ -44,6 +47,8 @@ export default function App() {
         <Route path="branches" element={<Branches />} />
         <Route path="users" element={<Users />} />
         <Route path="audit" element={<AuditTrail />} />
+        <Route path="monitoring" element={<NoPaymentMonitoring />} />
+        <Route path="monitoring-settings" element={<MonitoringSettings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -315,6 +315,7 @@ async function loadLoans(period, branchId) {
            (SELECT p.date_paid FROM tblPayment p WHERE p.loan_id = l.id AND p.status = 'active' AND p.balance_after <= 0 ORDER BY p.date_paid DESC, p.id DESC LIMIT 1) as fully_paid_date
     FROM tblLoan l
     JOIN tblCustomer c ON l.customer_id = c.id
+    JOIN tblGovernmentComplianceClients gcc ON l.id = gcc.loan_id AND gcc.agency = 'CIC'
     LEFT JOIN tblBranch b ON l.branch_id = b.id
     WHERE l.date_released BETWEEN ? AND ?
       AND l.status NOT IN ('reversed', 'rejected')

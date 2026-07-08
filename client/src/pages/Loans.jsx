@@ -436,6 +436,7 @@ export default function Loans() {
       <ReloanModal
         isOpen={reloanModalOpen}
         onClose={() => setReloanModalOpen(false)}
+        customerId={reloanCustomer?.id}
         customer={reloanCustomer}
         loanType={loanActionType}
         onSuccess={() => {

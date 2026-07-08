@@ -10,7 +10,7 @@ const paymentRoutes = require('./routes/payments');
 const collectorRoutes = require('./routes/collectors');
 const branchRoutes = require('./routes/branches');
 const depositRoutes = require('./routes/deposits');
-const expenseRoutes = require('./routes/expenses');
+const transactionRoutes = require('./routes/transactions');
 const reportRoutes = require('./routes/reports');
 const cashRoutes = require('./routes/cash');
 const reversalRoutes = require('./routes/reversals');
@@ -18,9 +18,12 @@ const auditRoutes = require('./routes/audit');
 const dcrRoutes = require('./routes/dcr');
 const governmentComplianceRoutes = require('./routes/governmentCompliance');
 const cicRoutes = require('./routes/cic');
+const monitoringRoutes = require('./routes/monitoring');
+const settingsRoutes = require('./routes/settings');
 
 const { initializeDatabase } = require('./db/database');
 const { startPastDueScheduler } = require('./services/pastDueUpdater');
+const { startNoPaymentMonitoringScheduler } = require('./services/noPaymentMonitoring');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -41,7 +44,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/collectors', collectorRoutes);
 app.use('/api/branches', branchRoutes);
 app.use('/api/deposits', depositRoutes);
-app.use('/api/expenses', expenseRoutes);
+app.use('/api/transactions', transactionRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/cash', cashRoutes);
 app.use('/api/reversals', reversalRoutes);
@@ -49,6 +52,8 @@ app.use('/api/audit', auditRoutes);
 app.use('/api/dcr', dcrRoutes);
 app.use('/api/government-compliance', governmentComplianceRoutes);
 app.use('/api/cic', cicRoutes);
+app.use('/api/monitoring', monitoringRoutes);
+app.use('/api/settings', settingsRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', system: 'Melann Lending System V2', timestamp: new Date().toISOString() });
@@ -59,6 +64,8 @@ app.use(errorHandler);
 initializeDatabase().then(() => {
   // Start background past-due status updater
   startPastDueScheduler();
+  // Start No Payment Monitoring Scheduler
+  startNoPaymentMonitoringScheduler();
 
   app.listen(PORT, () => {
     console.log(`\n🏦 Melann Lending System V2 Server`);

@@ -114,6 +114,13 @@ export default function Payments() {
     if (e) e.preventDefault()
     if (saving && !force_duplicate) return
     if (!activeLoan) return
+    
+    const amount = Number(form.amount_paid)
+    if (!amount || amount <= 0) {
+      setNotification({ type: 'danger', message: 'Please enter a valid payment amount.' })
+      return
+    }
+
     setNotification(null)
     setSaving(true)
     try {
@@ -277,9 +284,6 @@ export default function Payments() {
           </h2>
           <p className="payments-subtitle">Record payments for clients and automatically update their account balance.</p>
         </div>
-        <div className="payments-breadcrumb">
-          Dashboard <span style={{color: '#94a3b8'}}>/</span> Payments <span style={{color: '#94a3b8'}}>/</span> Encode Payments
-        </div>
       </div>
 
       {notification && (
@@ -343,7 +347,14 @@ export default function Payments() {
                       type="text" 
                       className="p-input" 
                       value={scannerInput}
-                      onChange={e => setScannerInput(e.target.value.replace(/\D/g, ''))}
+                      onChange={e => {
+                        const val = e.target.value.replace(/\D/g, '');
+                        setScannerInput(val);
+                        if (activeLoan && activeLoan.customer_code !== val) {
+                          setActiveLoan(null);
+                          setForm({ amount_paid: '', date_paid: today(), remarks: '' });
+                        }
+                      }}
                       placeholder="00234"
                     />
                     {activeLoan && <span className="badge-found" style={{ position: 'static', transform: 'none', whiteSpace: 'nowrap' }}>✓ Found</span>}

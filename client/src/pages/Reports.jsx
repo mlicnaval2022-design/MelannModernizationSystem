@@ -249,6 +249,7 @@ const REPORT_TYPES = [
   { key: 'full-paid', label: '✅ Full Paid Loans', desc: 'Fully paid loan accounts' },
   { key: 'loan-type', label: '📊 Loan Type Summary', desc: 'Summary by loan type and status' },
   { key: 'collection-sheet', label: '📋 Collection Sheet', desc: 'Per-collector active loan list' },
+  { key: 'monitoring-summary', label: '🚨 Monitoring Summary', desc: 'Alerts, escalations, PTPs, and resolutions' },
 ]
 
 export default function Reports() {
@@ -816,6 +817,74 @@ export default function Reports() {
         </>
       )
     }
+
+    if (active === 'monitoring-summary') {
+      return (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          <div className="card-v2" style={{ padding: 20 }}>
+            <h3 style={{ margin: '0 0 15px 0' }}>🚨 3-Day Monitoring Overview</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+                <span style={{ color: 'var(--text-muted)' }}>Active Clients Monitored Today</span>
+                <strong style={{ fontSize: 16 }}>{data.activeClientsMonitoredToday}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+                <span style={{ color: 'var(--text-muted)' }}>Escalated Accounts (Day 4+)</span>
+                <strong style={{ fontSize: 16, color: '#ef4444' }}>{data.escalatedAccounts}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+                <span style={{ color: 'var(--text-muted)' }}>Resolved Accounts</span>
+                <strong style={{ fontSize: 16, color: '#10b981' }}>{data.resolvedAccounts}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+                <span style={{ color: 'var(--text-muted)' }}>Clients Approaching Day 3 (Pre-alert)</span>
+                <strong style={{ fontSize: 16, color: '#f59e0b' }}>{data.clientsApproachingDay3}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+                <span style={{ color: 'var(--text-muted)' }}>Chronic Missed Payments (3+ times)</span>
+                <strong style={{ fontSize: 16, color: '#b91c1c' }}>{data.chronicMissedPayments}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Unresolved Alerts Over 7 Days</span>
+                <strong style={{ fontSize: 16, color: '#7f1d1d' }}>{data.unresolvedOver7Days}</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div className="card-v2" style={{ padding: 20 }}>
+              <h3 style={{ margin: '0 0 15px 0' }}>🤝 PTP & Follow-Ups</h3>
+              <div style={{ display: 'flex', gap: 20 }}>
+                <div style={{ flex: 1, textAlign: 'center', padding: 15, background: '#f0fdf4', borderRadius: 8 }}>
+                  <div style={{ fontSize: 12, color: '#15803d' }}>Follow-Up Success Rate</div>
+                  <strong style={{ fontSize: 24, color: '#16a34a' }}>{data.collectorPerformance}</strong>
+                </div>
+                <div style={{ flex: 1, textAlign: 'center', padding: 15, background: '#f8fafc', borderRadius: 8 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Pending PTPs</div>
+                  <strong style={{ fontSize: 24 }}>{data.summaryPTP?.c || 0}</strong>
+                  <div style={{ fontSize: 12, color: '#10b981' }}>₱ {fmt(data.summaryPTP?.total || 0)}</div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="card-v2" style={{ padding: 20, flex: 1 }}>
+              <h3 style={{ margin: '0 0 15px 0' }}>📝 Recent Follow-Up Logs</h3>
+              {data.followUpLogs && data.followUpLogs.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {data.followUpLogs.map(log => (
+                    <div key={log.id} style={{ fontSize: 13, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
+                      <strong>{new Date(log.created_at).toLocaleDateString()}</strong> - {log.follow_up_method} <br/>
+                      <span style={{ color: log.contact_result === 'Promised to Pay' ? '#10b981' : '#64748b' }}>Result: {log.contact_result}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : <div className="empty-state">No recent logs</div>}
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     if (active === 'monthly-releases') {
       const { loans = [], total_principal } = data
       const reportFrom = data.date_from || params.date_from
