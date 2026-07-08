@@ -172,8 +172,26 @@ router.get('/payments-reversed', authenticateToken, async (req, res) => {
   try {
     const from = req.query.date_from || new Date().toISOString().split('T')[0];
     const to = req.query.date_to || from;
-    const data = await dbAll(`SELECT p.*, l.loan_code, c.full_name as customer_name, u.full_name as reversed_by_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id LEFT JOIN tblUser u ON p.reversed_by = u.id WHERE p.status = 'reversed' AND DATE(p.reversed_at) BETWEEN ? AND ? ORDER BY p.reversed_at DESC`, [from, to]);
-    res.json({ data });
+    const data = await dbAll(`
+      SELECT p.*, l.loan_code, l.loan_type,
+             c.full_name as customer_name, c.customer_code,
+             co.first_name || ' ' || co.last_name as collector_name,
+             u.full_name as reversed_by_name,
+             p.reversal_reason
+      FROM tblPayment p
+      LEFT JOIN tblLoan l ON p.loan_id = l.id
+      LEFT JOIN tblCustomer c ON p.customer_id = c.id
+      LEFT JOIN tblCollector co ON p.collector_id = co.id
+      LEFT JOIN tblUser u ON p.reversed_by = u.id
+      WHERE p.status = 'reversed' AND DATE(p.reversed_at) BETWEEN ? AND ?
+      ORDER BY co.last_name, p.reversed_at DESC
+    `, [from, to]);
+    res.json({
+      payments: data,
+      total: data.reduce((s, p) => s + Number(p.amount_paid || 0), 0),
+      date_from: from,
+      date_to: to
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -190,24 +208,92 @@ router.get('/full-paid', authenticateToken, async (req, res) => {
     const { date_from, date_to } = req.query;
     let q = `SELECT l.*, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id WHERE l.status = 'fullpaid'`;
     const p = [];
-    if (date_from) { q += ` AND l.updated_at >= ?`; p.push(date_from); }
-    if (date_to) { q += ` AND l.updated_at <= ?`; p.push(date_to + ' 23:59:59'); }
+    if (date_from) { q += ` AND DATE(l.updated_at) >= ?`; p.push(date_from); }
+    if (date_to) { q += ` AND DATE(l.updated_at) <= ?`; p.push(date_to); }
     q += ` ORDER BY l.updated_at DESC`;
-    res.json(await dbAll(q, p));
+    const loans = await dbAll(q, p);
+    res.json({
+      loans,
+      total_principal: loans.reduce((s, l) => s + Number(l.principal || 0), 0),
+      date_from,
+      date_to
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.get('/loan-type', authenticateToken, async (req, res) => {
   try {
-    res.json(await dbAll(`SELECT loan_type, COUNT(*) as count, SUM(principal) as total_principal, SUM(balance) as total_balance, status FROM tblLoan WHERE status != 'reversed' GROUP BY loan_type, status ORDER BY loan_type`));
+    const from = req.query.date_from || new Date().toISOString().split('T')[0];
+    const to = req.query.date_to || from;
+    const loans = await dbAll(`
+      SELECT l.*, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name
+      FROM tblLoan l
+      LEFT JOIN tblCustomer c ON l.customer_id = c.id
+      LEFT JOIN tblCollector co ON l.collector_id = co.id
+      WHERE l.date_released BETWEEN ? AND ?
+        AND l.status != 'reversed'
+      ORDER BY l.date_released, co.last_name, c.full_name
+    `, [from, to]);
+    res.json({ loans, date_from: from, date_to: to });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.get('/collection-sheet', authenticateToken, async (req, res) => {
   try {
-    const { collector_id } = req.query;
-    const loans = await dbAll(`SELECT l.*, c.full_name as customer_name, c.customer_code, c.address, co.first_name || ' ' || co.last_name as collector_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id WHERE l.collector_id = ? AND l.status IN ('active','pastdue') ORDER BY c.last_name`, [collector_id]);
-    res.json({ loans, collector_id });
+    const { collector_id, date } = req.query;
+    if (!collector_id) return res.status(400).json({ error: 'Please select a collector' });
+    const targetDate = date || new Date().toISOString().split('T')[0];
+
+    // Get collector info
+    const collector = await dbGet(`SELECT id, collector_code, first_name, last_name FROM tblCollector WHERE id = ?`, [collector_id]);
+    const collectorName = collector ? `${collector.last_name}, ${collector.first_name}`.toUpperCase() : 'UNASSIGNED';
+
+    // Get active/pastdue loans with collected amounts for the date
+    const loans = await dbAll(`
+      SELECT l.id, l.loan_code, l.customer_id, l.loan_type, l.principal, l.amortization,
+        l.date_released, l.date_maturity, l.balance, l.total_paid, l.status, l.insurance,
+        COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown') as customer_name,
+        c.customer_code,
+        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status='active') as collected_today
+      FROM tblLoan l
+      LEFT JOIN tblCustomer c ON l.customer_id = c.id
+      WHERE l.collector_id = ? AND LOWER(l.status) IN ('active', 'pastdue') AND COALESCE(l.balance, 0) > 0
+      ORDER BY c.full_name ASC
+    `, [targetDate, collector_id]);
+
+    // Compute days past due for each loan
+    const refDate = new Date(targetDate + 'T00:00:00');
+    loans.forEach(l => {
+      let dpd = 0;
+      if (l.date_maturity) {
+        const mat = new Date(l.date_maturity + 'T00:00:00');
+        if (refDate > mat) {
+          dpd = Math.floor((refDate - mat) / (1000 * 60 * 60 * 24));
+        }
+      }
+      l.days_past_due = Math.max(0, dpd);
+    });
+
+    // Calculate summary totals
+    const totalCollection = loans.reduce((s, l) => s + (l.collected_today || 0), 0);
+
+    res.json({
+      loans,
+      collector_id,
+      date: targetDate,
+      collector: { id: collector?.id, name: collectorName },
+      summary: {
+        totalCollection,
+        fieldRelease: 0,
+        totalExpense: 0,
+        grandTotal: totalCollection
+      },
+      signatures: {
+        checkedBy: 'MARILYN O. RELOBA',
+        encodedBy: 'IT/ACCOUNTING CLERK',
+        approvedBy: 'VICTORIO L. RELOBA JR.'
+      }
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

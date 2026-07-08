@@ -1,13 +1,13 @@
 node_modules/
 .env
-<<<<<<< HEAD
-*.db-shm
-=======
 
 # Database Files and Backups
-server/melann.db*
+*.db
+*.db-wal
+*.db-shm
 *.bak
+server/melann.db*
+melann.db*
 
 # System at Agent Logs
 .omx/
->>>>>>> reportmodule-edit-shan
