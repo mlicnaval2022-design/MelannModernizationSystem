@@ -7,9 +7,9 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const DEFAULT_SOURCE = '\\\\SERVERPC\\LendingV2Melan\\db\\jcashdb.mdb';
 const DEFAULT_FROM = '2016-01-01';
-const DEFAULT_TO = '2026-06-24';
-const EXCLUDED_STATUS = new Set(['fully paid', 'fullypaid', 'paid', 'reversed', 'reversing']);
-const REVERSED_STATUS = new Set(['reversed', 'reversing']);
+const DEFAULT_TO = '2026-07-09';
+const EXCLUDED_LOAN_STATUS = new Set(['fully paid', 'fullypaid', 'full paid', 'fullpaid', 'paid', 'reverse', 'reversed', 'reversing']);
+const REVERSED_STATUS = new Set(['reverse', 'reversed', 'reversing']);
 const IMPORT_REMARK_PREFIX = 'Imported read-only from jcashdb.mdb';
 
 const args = new Map();
@@ -88,7 +88,7 @@ function isGoodStatus(value) {
 }
 
 function notExcludedStatus(value) {
-  return !EXCLUDED_STATUS.has(normalizeStatus(value));
+  return !EXCLUDED_LOAN_STATUS.has(normalizeStatus(value));
 }
 
 function notReversedStatus(value) {
@@ -359,7 +359,7 @@ function readAccessImportRows() {
       const goodRecent = `(${prefix}DateRelease >= #06/25/2026# AND (${prefix}LoanStatus IN ('Good','Good Status') OR ${prefix}Status IN ('Good','Good Status')))`;
       return `(${fullyPaid} OR ${goodRecent}) AND (IsNull(${prefix}Status) OR ${prefix}Status NOT IN ('Reversed','Reversing')) AND (IsNull(${prefix}LoanStatus) OR ${prefix}LoanStatus NOT IN ('Reversed','Reversing')) AND ${prefix}DateRelease >= #${fromDate}# AND ${prefix}DateRelease <= #${toDate}#`;
     }
-    return `${prefix}LoanStatus='Good' AND ${prefix}Status='Good' AND ${prefix}DateRelease >= #01/01/2016# AND ${prefix}DateRelease <= #06/24/2026# AND ${balanceExprFor(prefix)} > 0`;
+    return `${prefix}LoanStatus='Good' AND ${prefix}Status='Good' AND ${prefix}DateRelease >= #${fromDate}# AND ${prefix}DateRelease <= #${toDate}# AND (IsNull(${prefix}Status) OR ${prefix}Status NOT IN ('Fully Paid','FullyPaid','Full Paid','FullPaid','Paid','Reverse','Reversed','Reversing')) AND (IsNull(${prefix}LoanStatus) OR ${prefix}LoanStatus NOT IN ('Fully Paid','FullyPaid','Full Paid','FullPaid','Paid','Reverse','Reversed','Reversing')) AND ${balanceExprFor(prefix)} > 0`;
   };
   const loanWhere = loanWhereFor();
   const queries = {
@@ -509,12 +509,8 @@ function mapLoan(row) {
     loan_code: String(pick(row, ['Loan Code', 'LoanCode', 'Loan ID', 'LoanID', 'Loan Ref', 'LoanRef']) || '').trim(),
     customer_code: String(pick(row, ['Customer Code', 'CustomerCode', 'CustCode', 'Client Code', 'ClientCode', 'CCode', 'Code']) || '').trim(),
     collector_name: pick(row, ['Collector', 'Collector Name']),
-    loan_type: pick(row, ['Loan Type', 'LoanType', 'Type']) || 'Good',
+    loan_type: { '1': 'Reloan', '2': 'Emergency', '3': 'Recon', '4': 'New' }[String(pick(row, ['Loan Type', 'LoanType', 'Type'])).trim()] || pick(row, ['Loan Type', 'LoanType', 'Type']) || 'Good',
     date_released: toDateOnly(pick(row, ['Date Release', 'Date Released', 'DateRelease', 'Release Date', 'Loan Date', 'LoanDate', 'Date'])),
-    date_maturity: toDateOnly(pick(row, ['Maturity Date', 'Maturity', 'Date Maturity'])),
-    principal,
-    total_amortization: total,
-    loan_period: toNumber(pick(row, ['Loan Period', 'Period', 'Terms', 'Days'])),
     interest_rate: toNumber(pick(row, ['Interest Rate', 'InterestRate', 'Rate'])),
     amortization: toNumber(pick(row, ['Payment per day', 'Payment Per Day', 'Amortization', 'Daily Payment'])),
     balance,
