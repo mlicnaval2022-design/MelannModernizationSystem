@@ -33,6 +33,7 @@ export default function Customers() {
   const [soaLoading, setSoaLoading] = useState(false)
   const [soaTab, setSoaTab] = useState('summary')
   const [selectedLoanForPayments, setSelectedLoanForPayments] = useState(null)
+  const [penaltyLoan, setPenaltyLoan] = useState(null)
   const [printModeLoan, setPrintModeLoan] = useState(null)
 
   useEffect(() => {
@@ -108,7 +109,9 @@ export default function Customers() {
       try {
         const cicReq = await API.get(`/cic/readiness/${id}`);
         cicStatus = cicReq.data;
-      } catch (err) {}
+      } catch {
+        cicStatus = null;
+      }
       setSoaData({ ...r.data, cicStatus });
     } catch {
       alert('Failed to load SOA data');
@@ -141,12 +144,156 @@ export default function Customers() {
   };
 
   const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
+  const formatMoneyExact = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const formatPhp = (value) => `PHP ${Number(value || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
+  const formatPhpExact = (value) => `PHP ${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatMoneyExactDeduction = (value) => Number(value || 0) > 0 ? `-${formatMoneyExact(value)}` : formatMoneyExact(0);
+  const formatPhpDeduction = (value) => Number(value || 0) > 0 ? `-${formatPhpExact(value)}` : formatPhpExact(0);
   const formatDateLong = (value) => {
     if (!value) return '-';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
     return date.toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' });
+  };
+  const formatDateNumeric = (value) => {
+    if (!value) return '-';
+    const date = parseLocalDate(value);
+    if (!date) return value;
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${month}-${day}-${date.getFullYear()}`;
+  };
+  const formatDateShort = (value) => {
+    if (!value) return '-';
+    const date = parseLocalDate(value);
+    if (!date) return value;
+    return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+  };
+  const parseLocalDate = (value) => {
+    if (!value) return null;
+    const text = String(value).slice(0, 10);
+    const parts = text.split('-').map(Number);
+    if (parts.length === 3 && parts.every(Boolean)) {
+      return new Date(parts[0], parts[1] - 1, parts[2]);
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+  const addMonths = (date, months) => {
+    const result = new Date(date);
+    const day = result.getDate();
+    result.setMonth(result.getMonth() + months);
+    if (result.getDate() !== day) result.setDate(0);
+    return result;
+  };
+  const addDays = (date, days) => {
+    const result = new Date(date);
+    result.setDate(result.getDate() + days);
+    return result;
+  };
+  const isGoodPayment = (payment) => {
+    const statusText = String(payment.status || payment.payment_status || 'active').toLowerCase();
+    return !['cancelled', 'canceled', 'void', 'reversed', 'bad', 'bounced'].includes(statusText);
+  };
+  const getLoanPayments = (loan) => (soaData?.payments || [])
+    .filter(p => p.loan_code === loan?.loan_code && isGoodPayment(p))
+    .map(p => ({ ...p, paidDate: parseLocalDate(p.date_paid), amount: Number(p.amount_paid || 0) }))
+    .filter(p => p.paidDate)
+    .sort((a, b) => a.paidDate - b.paidDate);
+  const getPenaltyComputation = (loan) => {
+    const dueDate = parseLocalDate(loan?.date_maturity);
+    const datePrepared = new Date();
+    const principal = Number(loan?.principal || 0);
+    const interestAmount = Number(loan?.interest_amount || 0);
+    const registeredOutstanding = Number(loan?.total_amortization || 0) || principal + interestAmount || Number(loan?.balance || 0);
+    const payments = getLoanPayments(loan);
+
+    if (!dueDate) {
+      return {
+        dueDate,
+        datePrepared,
+        registeredOutstanding,
+        paymentsBeforeDue: 0,
+        beginningOverdueBalance: registeredOutstanding,
+        rows: [],
+        remainingOverdueBalance: registeredOutstanding,
+        totalPenalty: 0,
+        updatedAmountDue: registeredOutstanding
+      };
+    }
+
+    const paymentsBeforeDue = payments
+      .filter(p => p.paidDate <= dueDate)
+      .reduce((sum, p) => sum + p.amount, 0);
+    let beginningBalance = Math.max(0, registeredOutstanding - paymentsBeforeDue);
+    const monthlyPeriods = [];
+    const rows = [];
+    let totalPenalty = 0;
+
+    if (beginningBalance > 0 && datePrepared > dueDate) {
+      let periodStart = new Date(dueDate);
+      while (periodStart < datePrepared) {
+        const nextBoundary = addMonths(periodStart, 1);
+        const periodEnd = nextBoundary < datePrepared ? addDays(nextBoundary, -1) : new Date(datePrepared);
+        const paymentMade = payments
+          .filter(p => p.paidDate > periodStart && p.paidDate <= periodEnd)
+          .reduce((sum, p) => sum + p.amount, 0);
+
+        monthlyPeriods.push({
+          periodStart,
+          periodEnd,
+          paymentMade
+        });
+
+        periodStart = nextBoundary;
+      }
+
+      let groupStartIndex = 0;
+      for (let index = 0; index < monthlyPeriods.length; index += 1) {
+        const period = monthlyPeriods[index];
+        const isFirstMonth = index === 0;
+        const hasPayment = period.paymentMade > 0;
+        const isLastMonth = index === monthlyPeriods.length - 1;
+
+        if (!isFirstMonth && !hasPayment && !isLastMonth) continue;
+
+        const groupPeriods = monthlyPeriods.slice(groupStartIndex, index + 1);
+        const paymentMade = groupPeriods.reduce((sum, item) => sum + item.paymentMade, 0);
+        const penaltyBase = Math.max(0, beginningBalance - paymentMade);
+        const monthlyPenalty = penaltyBase * 0.05;
+        const months = groupPeriods.length;
+        const penaltySubtotal = monthlyPenalty * months;
+
+        rows.push({
+          periodNo: rows.length + 1,
+          periodStart: groupPeriods[0].periodStart,
+          periodEnd: groupPeriods[groupPeriods.length - 1].periodEnd,
+          beginningBalance,
+          paymentMade,
+          penaltyBase,
+          monthlyPenalty,
+          months,
+          penaltySubtotal
+        });
+
+        totalPenalty += penaltySubtotal;
+        beginningBalance = penaltyBase;
+        groupStartIndex = index + 1;
+        if (beginningBalance <= 0) break;
+      }
+    }
+
+    return {
+      dueDate,
+      datePrepared,
+      registeredOutstanding,
+      paymentsBeforeDue,
+      beginningOverdueBalance: Math.max(0, registeredOutstanding - paymentsBeforeDue),
+      rows,
+      remainingOverdueBalance: beginningBalance,
+      totalPenalty,
+      updatedAmountDue: beginningBalance + totalPenalty
+    };
   };
 
   return (
@@ -332,21 +479,17 @@ export default function Customers() {
                 const sortedPayments = soaData.payments 
                   ? [...soaData.payments].filter(p => printModeLoan ? p.loan_code === printModeLoan.loan_code : true).sort((a, b) => new Date(b.date_paid) - new Date(a.date_paid)) 
                   : [];
+                const printLedgerPayments = [...sortedPayments].sort((a, b) => new Date(a.date_paid) - new Date(b.date_paid));
                 const totalLoanAmt = printModeLoan ? Number(currentLoan.total_amortization || currentLoan.principal || 0) : validLoans.reduce((sum, l) => sum + Number(l.total_amortization || l.principal || 0), 0);
                 const outstandingBal = printModeLoan ? Number(currentLoan.balance || 0) : activeLoans.reduce((sum, l) => sum + Number(l.balance || 0), 0);
+                const totalRunningBalance = printLedgerPayments.length > 0 ? Number(printLedgerPayments[printLedgerPayments.length - 1].balance_after || 0) : outstandingBal;
                 const totalPaid = sortedPayments.reduce((sum, p) => sum + Number(p.amount_paid || 0), 0);
                 const lastPayment = sortedPayments.length > 0 ? new Date(sortedPayments[0].date_paid).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '-';
                 const nextDueDate = (printModeLoan ? [printModeLoan] : activeLoans).length > 0 && (printModeLoan || activeLoans[0]).date_maturity ? new Date((printModeLoan || activeLoans[0]).date_maturity).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '-';
                 const memberSince = soaData.created_at ? new Date(soaData.created_at).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '-';
                 const accountStatus = (currentLoan.id ? getLoanStatusLabel(currentLoan) : soaData.status) || '-';
                 const soaNumber = `SOA-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${soaData.customer_code || soaData.id}`;
-                const customerAddress = [soaData.address, soaData.sitio, soaData.purok, soaData.brgy, soaData.city, soaData.province, soaData.zip_code].filter(Boolean).join(', ');
-                const serviceFee = Number(currentLoan.service_fee || 0);
-                const insurance = Number(currentLoan.insurance || 0);
-                const notarialFee = Number(currentLoan.notarial_fee || 0);
-                const filingFee = Number(currentLoan.filing_fee || 0);
-                const totalDeductions = Number(currentLoan.total_deductions || 0);
-                const otherCharges = Math.max(totalDeductions - serviceFee - insurance - notarialFee - filingFee, 0);
+                const penaltyComputation = getPenaltyComputation(currentLoan);
                 const profileSections = [
                   { title: 'Personal Information', fields: [['Customer Code', soaData.customer_code], ['Classification', soaData.customer_classification], ['Full Name', soaData.full_name], ['Gender', soaData.gender], ['Birth Date', soaData.birth_date], ['Civil Status', soaData.civil_status], ['Nationality', soaData.nationality], ['Status', soaData.status]] },
                   { title: 'Address Information', fields: [['Address', [soaData.address, soaData.sitio, soaData.purok, soaData.brgy, soaData.city].filter(Boolean).join(', ')], ['Province', soaData.province], ['Zip Code', soaData.zip_code], ['Home Status', soaData.home_status]] },
@@ -682,12 +825,12 @@ export default function Customers() {
                       </div>
                     )}
 
-                    <div className="f-soa-section" style={{marginBottom: 0}}>
+                    <div className="f-soa-section">
                       <div className="f-soa-sec-header">
                         <i className="bi bi-receipt"></i> PAYMENT HISTORY (LEDGER)
                       </div>
                       <div className="f-soa-sec-body f-soa-no-pad">
-                        <table className="f-soa-ledger-table-new">
+                        <table className="f-soa-ledger-table-new f-soa-payment-ledger-table">
                           <thead>
                             <tr>
                               <th><i className="bi bi-calendar3"></i> DATE</th>
@@ -698,9 +841,9 @@ export default function Customers() {
                             </tr>
                           </thead>
                           <tbody>
-                            {sortedPayments.length > 0 ? sortedPayments.map((p, index) => (
+                            {printLedgerPayments.length > 0 ? printLedgerPayments.map((p, index) => (
                               <tr key={p.id} className={index % 2 === 0 ? 'f-soa-row-even' : 'f-soa-row-odd'}>
-                                <td>{formatDateLong(p.date_paid)}</td>
+                                <td>{formatDateNumeric(p.date_paid)}</td>
                                 <td>{p.or_number || p.payment_code || '-'}</td>
                                 <td className="fw-bold">{formatMoney(p.amount_paid)}</td>
                                 <td>{formatMoney(p.balance_after)}</td>
@@ -710,10 +853,97 @@ export default function Customers() {
                               <tr><td colSpan="5" className="f-soa-empty">No payments found.</td></tr>
                             )}
                           </tbody>
+                          <tfoot>
+                            <tr>
+                              <td></td>
+                              <td></td>
+                              <td>
+                                <div className="f-soa-footer-text">TOTAL PAYMENTS RECEIVED</div>
+                                <div className="f-soa-footer-amount">{formatMoney(totalPaid)}</div>
+                              </td>
+                              <td>
+                                <div className="f-soa-footer-text">TOTAL RUNNING BALANCE</div>
+                                <div className="f-soa-footer-amount">{formatMoney(totalRunningBalance)}</div>
+                              </td>
+                              <td></td>
+                            </tr>
+                          </tfoot>
                         </table>
-                        <div className="f-soa-ledger-footer-new">
-                          <div className="f-soa-footer-text">TOTAL PAYMENTS RECEIVED</div>
-                          <div className="f-soa-footer-amount">{formatMoney(totalPaid)}</div>
+                      </div>
+                    </div>
+
+                    <div className="f-soa-section" style={{marginBottom: 0}}>
+                      <div className="f-soa-sec-header">
+                        <i className="bi bi-calculator"></i> PENALTY COMPUTATION
+                      </div>
+                      <div className="f-soa-sec-body f-soa-no-pad">
+                        <div className="f-soa-penalty-summary">
+                          <div>
+                            <span>Outstanding Balance</span>
+                            <strong>{formatMoneyExact(penaltyComputation.registeredOutstanding)}</strong>
+                          </div>
+                          <div>
+                            <span>Paid On/Before Due</span>
+                            <strong>{formatMoneyExact(penaltyComputation.paymentsBeforeDue)}</strong>
+                          </div>
+                          <div>
+                            <span>Beginning Overdue</span>
+                            <strong>{formatMoneyExact(penaltyComputation.beginningOverdueBalance)}</strong>
+                          </div>
+                          <div>
+                            <span>Penalty Rate</span>
+                            <strong>5% Monthly</strong>
+                          </div>
+                        </div>
+                        <div className="f-soa-penalty-meta">
+                          <span><b>Due Date:</b> {formatDateLong(currentLoan.date_maturity)}</span>
+                          <span><b>Date Prepared:</b> {formatDateLong(penaltyComputation.datePrepared)}</span>
+                          <span><b>Method:</b> Non-compounding</span>
+                        </div>
+                        <table className="f-soa-ledger-table-new f-soa-penalty-table">
+                          <thead>
+                            <tr>
+                              <th>PERIOD</th>
+                              <th>BEGINNING BALANCE</th>
+                              <th>PAYMENT MADE</th>
+                              <th>PENALTY BASE</th>
+                              <th>NO. OF MONTHS</th>
+                              <th>MONTHLY PENALTY (5%)</th>
+                              <th>PENALTY SUBTOTAL</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {penaltyComputation.rows.length > 0 ? penaltyComputation.rows.map((row, index) => (
+                              <tr key={row.periodNo} className={index % 2 === 0 ? 'f-soa-row-even' : 'f-soa-row-odd'}>
+                                <td>
+                                  Period {row.periodNo}
+                                  <span>{formatDateShort(row.periodStart)} - {formatDateShort(row.periodEnd)}</span>
+                                </td>
+                                <td>{formatMoneyExact(row.beginningBalance)}</td>
+                                <td className={row.paymentMade > 0 ? 'f-soa-penalty-payment' : ''}>{formatMoneyExactDeduction(row.paymentMade)}</td>
+                                <td className="fw-bold">{formatMoneyExact(row.penaltyBase)}</td>
+                                <td>{row.months}</td>
+                                <td>{formatMoneyExact(row.monthlyPenalty)}</td>
+                                <td className="fw-bold">{formatMoneyExact(row.penaltySubtotal)}</td>
+                              </tr>
+                            )) : (
+                              <tr><td colSpan="7" className="f-soa-empty">No penalty period to compute yet.</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                        <div className="f-soa-penalty-footer">
+                          <div>
+                            <span>Remaining Overdue Balance</span>
+                            <strong>{formatMoneyExact(penaltyComputation.remainingOverdueBalance)}</strong>
+                          </div>
+                          <div>
+                            <span>Total Penalty</span>
+                            <strong>{formatMoneyExact(penaltyComputation.totalPenalty)}</strong>
+                          </div>
+                          <div>
+                            <span>Updated Amount Due</span>
+                            <strong>{formatMoneyExact(penaltyComputation.updatedAmountDue)}</strong>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -783,7 +1013,7 @@ export default function Customers() {
 
       {/* Payment Ledger Modal - Redesigned to match reference exactly */}
       {selectedLoanForPayments && (
-        <div className="modal-overlay" style={{ zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15, 23, 42, 0.6)', padding: '20px' }} onClick={() => setSelectedLoanForPayments(null)}>
+        <div className="modal-overlay" style={{ zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15, 23, 42, 0.6)', padding: '20px' }} onClick={() => { setSelectedLoanForPayments(null); setPenaltyLoan(null); }}>
           <div className="modal-content" style={{ width: '100%', maxWidth: '1000px', backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
             
             {/* Header */}
@@ -806,7 +1036,7 @@ export default function Customers() {
                 >
                   <i className="bi bi-printer"></i> Print Statement
                 </button>
-                <button onClick={() => setSelectedLoanForPayments(null)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '28px', cursor: 'pointer', padding: '4px', lineHeight: '1' }}>&times;</button>
+                <button onClick={() => { setSelectedLoanForPayments(null); setPenaltyLoan(null); }} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '28px', cursor: 'pointer', padding: '4px', lineHeight: '1' }}>&times;</button>
               </div>
             </div>
             
@@ -970,6 +1200,15 @@ export default function Customers() {
                 <i className="bi bi-file-text" style={{ color: '#2563eb', fontSize: '20px' }}></i>
                 <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENT HISTORY</h3>
                 <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }}></div>
+                <button
+                  type="button"
+                  onClick={() => setPenaltyLoan(selectedLoanForPayments)}
+                  style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa', padding: '8px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#ffedd5'; e.currentTarget.style.borderColor = '#fdba74'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#fff7ed'; e.currentTarget.style.borderColor = '#fed7aa'; }}
+                >
+                  <i className="bi bi-calculator"></i> View Penalty
+                </button>
               </div>
 
               {/* Payment History Logic */}
@@ -1094,7 +1333,7 @@ export default function Customers() {
             <div style={{ padding: '16px 32px', backgroundColor: '#ffffff', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end' }}>
               <button 
                 type="button" 
-                onClick={() => setSelectedLoanForPayments(null)}
+                onClick={() => { setSelectedLoanForPayments(null); setPenaltyLoan(null); }}
                 style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 24px', backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', color: '#334155', transition: 'all 0.2s' }}
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = '#ffffff'}
@@ -1102,6 +1341,134 @@ export default function Customers() {
                 <i className="bi bi-x-lg"></i> Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {penaltyLoan && (
+        <div className="modal-overlay" style={{ zIndex: 100001, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15, 23, 42, 0.72)', padding: '20px' }} onClick={() => setPenaltyLoan(null)}>
+          <div className="modal-content" style={{ width: '100%', maxWidth: '960px', backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '88vh' }} onClick={e => e.stopPropagation()}>
+            {(() => {
+              const computation = getPenaltyComputation(penaltyLoan);
+
+              return (
+                <>
+                  <div style={{ padding: '24px 32px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <div style={{ width: '56px', height: '56px', borderRadius: '12px', backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ea580c', fontSize: '28px' }}>
+                        <i className="bi bi-calculator"></i>
+                      </div>
+                      <div>
+                        <h2 style={{ margin: '0 0 4px 0', fontSize: '24px', fontWeight: '700', color: '#1e293b' }}>Penalty Computation</h2>
+                        <div style={{ color: '#64748b', fontSize: '14px' }}>{soaData?.full_name?.toUpperCase() || '-'} - Loan {penaltyLoan.loan_code}</div>
+                      </div>
+                    </div>
+                    <button onClick={() => setPenaltyLoan(null)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '28px', cursor: 'pointer', padding: '4px', lineHeight: '1' }}>&times;</button>
+                  </div>
+
+                  <div style={{ padding: '28px 32px', overflowY: 'auto', backgroundColor: '#fdfdfd' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '20px' }}>
+                      <div style={{ padding: '14px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.5px' }}>Outstanding Balance</div>
+                        <div style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{formatPhpExact(computation.registeredOutstanding)}</div>
+                      </div>
+                      <div style={{ padding: '14px', backgroundColor: '#eff6ff', borderRadius: '12px', border: '1px solid #bfdbfe' }}>
+                        <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.5px' }}>Paid On/Before Due</div>
+                        <div style={{ fontSize: '18px', fontWeight: '800', color: '#2563eb' }}>{formatPhpExact(computation.paymentsBeforeDue)}</div>
+                      </div>
+                      <div style={{ padding: '14px', backgroundColor: '#fff7ed', borderRadius: '12px', border: '1px solid #fed7aa' }}>
+                        <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.5px' }}>Beginning Overdue</div>
+                        <div style={{ fontSize: '18px', fontWeight: '800', color: '#ea580c' }}>{formatPhpExact(computation.beginningOverdueBalance)}</div>
+                      </div>
+                      <div style={{ padding: '14px', backgroundColor: '#f0fdf4', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
+                        <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.5px' }}>Penalty Rate</div>
+                        <div style={{ fontSize: '18px', fontWeight: '800', color: '#16a34a' }}>5% / month</div>
+                      </div>
+                    </div>
+
+                    <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '18px 20px', marginBottom: '20px', backgroundColor: '#ffffff', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>Due Date</div>
+                        <div style={{ fontSize: '15px', fontWeight: '700', color: '#ef4444' }}>{formatDateLong(penaltyLoan.date_maturity)}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>Date Prepared</div>
+                        <div style={{ fontSize: '15px', fontWeight: '700', color: '#0f172a' }}>{formatDateLong(computation.datePrepared)}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>Method</div>
+                        <div style={{ fontSize: '15px', fontWeight: '700', color: '#0f172a' }}>Non-compounding</div>
+                      </div>
+                    </div>
+
+                    <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', backgroundColor: '#ffffff', marginBottom: '20px' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                        <thead style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
+                          <tr>
+                            <th style={{ padding: '14px 16px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>Period</th>
+                            <th style={{ padding: '14px 16px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>Beginning Balance</th>
+                            <th style={{ padding: '14px 16px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>Payment Made</th>
+                            <th style={{ padding: '14px 16px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>Penalty Base</th>
+                            <th style={{ padding: '14px 16px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>No. of Months</th>
+                            <th style={{ padding: '14px 16px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>Monthly Penalty</th>
+                            <th style={{ padding: '14px 16px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>Penalty Subtotal</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {computation.rows.length > 0 ? computation.rows.map((row, idx) => (
+                            <tr key={row.periodNo} style={{ borderBottom: idx === computation.rows.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>
+                                Period {row.periodNo}
+                                <div style={{ fontSize: '11px', fontWeight: '500', color: '#64748b', marginTop: '2px' }}>{formatDateLong(row.periodStart)} - {formatDateLong(row.periodEnd)}</div>
+                              </td>
+                              <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>{formatPhpExact(row.beginningBalance)}</td>
+                              <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: '700', color: row.paymentMade > 0 ? '#dc2626' : '#2563eb' }}>{formatPhpDeduction(row.paymentMade)}</td>
+                              <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: '700', color: '#ea580c' }}>{formatPhpExact(row.penaltyBase)}</td>
+                              <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: '700', color: '#0f172a', textAlign: 'center' }}>{row.months}</td>
+                              <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: '700', color: '#16a34a' }}>{formatPhpExact(row.monthlyPenalty)}</td>
+                              <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: '800', color: '#16a34a' }}>{formatPhpExact(row.penaltySubtotal)}</td>
+                            </tr>
+                          )) : (
+                            <tr>
+                              <td colSpan="7" style={{ padding: '36px 16px', textAlign: 'center', color: '#64748b', fontSize: '14px', fontWeight: '600' }}>
+                                No penalty period to compute yet.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+                      <div style={{ padding: '18px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.5px' }}>Remaining Overdue Balance</div>
+                        <div style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a' }}>{formatPhpExact(computation.remainingOverdueBalance)}</div>
+                      </div>
+                      <div style={{ padding: '18px', backgroundColor: '#fff7ed', borderRadius: '12px', border: '1px solid #fed7aa' }}>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.5px' }}>Total Penalty</div>
+                        <div style={{ fontSize: '20px', fontWeight: '800', color: '#ea580c' }}>{formatPhpExact(computation.totalPenalty)}</div>
+                      </div>
+                      <div style={{ padding: '18px', backgroundColor: '#ecfdf5', borderRadius: '12px', border: '1px solid #a7f3d0' }}>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.5px' }}>Updated Amount Due</div>
+                        <div style={{ fontSize: '20px', fontWeight: '800', color: '#059669' }}>{formatPhpExact(computation.updatedAmountDue)}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '16px 32px', backgroundColor: '#ffffff', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end' }}>
+                    <button 
+                      type="button" 
+                      onClick={() => setPenaltyLoan(null)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 24px', backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', color: '#334155', transition: 'all 0.2s' }}
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = '#ffffff'}
+                    >
+                      <i className="bi bi-x-lg"></i> Close
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

@@ -1061,7 +1061,7 @@ export default function Reports() {
               `}
             }
           `}</style>
-          <div id={(!selectedCollector && printMode === 'summary') ? "printable-area" : undefined} className="reports-screen-only" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 20 }}>
+          <div id={(!selectedCollector && printMode === 'summary') ? "printable-area" : undefined} className="reports-screen-only" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
           <div style={{ overflowX: 'auto' }}>
             <div style={{ marginBottom: 6, color: 'var(--blue-dark)', fontWeight: 700 }}>{transactionLabel}</div>
             <div style={{ marginBottom: 12 }} className="fw-bold text-accent">Total Released: ₱ {fmt(total_principal)}</div>
@@ -1279,7 +1279,7 @@ export default function Reports() {
               `}
             }
           `}</style>
-          <div id={(!selectedCollector && printMode === 'summary') ? "printable-area" : undefined} className="reports-screen-only" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 20 }}>
+          <div id={(!selectedCollector && printMode === 'summary') ? "printable-area" : undefined} className="reports-screen-only" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             <div style={{ overflowX: 'auto' }}>
             <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
               <div>
@@ -1855,11 +1855,12 @@ export default function Reports() {
       /* ── Classification helper (reusable, priority: PastDue > Overdue > Recon > Active) ── */
       const classifyLoan = (loan) => {
         const dpd = Math.max(0, parseInt(loan.days_past_due) || 0)
-        if (dpd >= 30) return 'pastdue'
+        if (dpd >= 45) return 'pastdue'
         if (dpd >= 1) return 'overdue'
         if ((loan.loan_type || '').toLowerCase().includes('recon')) return 'recon'
         return 'active'
       }
+      const isReconLoan = (loan) => (loan.loan_type || '').toLowerCase().includes('recon')
 
       /* ── Classify and deduplicate ── */
       const groups = { active: [], recon: [], overdue: [], pastdue: [] }
@@ -1942,28 +1943,29 @@ export default function Reports() {
           </td>
         )
         const c = entry.client
+        const rowColor = entry.color === CL.pastdue ? CL.pastdue : (isReconLoan(c) ? CL.recon : entry.color)
         return (<>
           <td style={{ ...cs, fontWeight: 600, fontSize: '7pt', textAlign: 'center', width: '5%' }}>{entry.rowNum}</td>
-          <td style={{ ...cs, fontSize: '10pt', fontWeight: 700, color: entry.color, width: '12%' }}>{c.customer_code}</td>
-          <td style={{ ...cs, color: entry.color, fontWeight: 700, fontSize: '10pt', padding: '2px 2px', lineHeight: 1.08, wordBreak: 'normal', overflowWrap: 'break-word', width: '43%' }}>{(c.customer_name || '').toUpperCase()}</td>
-          <td style={{ ...cs, textAlign: 'center', fontSize: '7pt', width: '9%' }}>{fDate(c.date_maturity)}</td>
-          <td style={{ ...cs, textAlign: 'center', fontSize: '7pt', color: entry.color, fontWeight: 600, width: '4%', paddingLeft: 0, paddingRight: 0 }}>{c.days_past_due}</td>
+          <td style={{ ...cs, fontSize: '10pt', fontWeight: 700, color: rowColor, width: '12%' }}>{c.customer_code}</td>
+          <td style={{ ...cs, color: rowColor, fontWeight: 700, fontSize: '10pt', padding: '2px 2px', lineHeight: 1.08, wordBreak: 'normal', overflowWrap: 'break-word', width: '43%' }}>{(c.customer_name || '').toUpperCase()}</td>
+          <td style={{ ...cs, textAlign: 'center', fontSize: '6pt', width: '9%', paddingLeft: 0, paddingRight: 0 }}>{fDate(c.date_maturity)}</td>
+          <td style={{ ...cs, textAlign: 'center', fontSize: '6pt', color: rowColor, fontWeight: 600, width: '4%', paddingLeft: 0, paddingRight: 0 }}>{c.days_past_due}</td>
           <td style={{ ...cs, textAlign: 'right', fontSize: '7pt', width: '8%', paddingLeft: 0 }}>{c.amortization ? Number(c.amortization).toLocaleString() : '0'}</td>
           <td style={{ ...cs, width: '19%', verticalAlign: 'bottom', paddingLeft: 2 }}>
             {c.collected_today > 0
               ? <span style={{ fontSize: '7.5pt', fontWeight: 600 }}>{peso(c.collected_today)}</span>
-              : <div style={{ height: 12, borderBottom: '1.5px solid #000' }}></div>}
+              : <div style={{ height: 12 }}></div>}
           </td>
         </>)
       }
 
-      const headerCell = { padding: '3px 1px', borderTop: '1.5px solid '+CL.navy, borderBottom: '1.5px solid '+CL.navy, fontSize: '7pt', color: CL.navy }
+      const headerCell = { padding: '3px 1px', borderTop: '1.5px solid '+CL.navy, borderBottom: '1.5px solid '+CL.navy, fontSize: '7pt', color: CL.navy, background: '#D9F0E6' }
       const colHdr = (side) => [
         <th key={side+'n'} style={{ ...headerCell, width: '5%', textAlign: 'center' }}>#</th>,
         <th key={side+'c'} style={{ ...headerCell, width: '12%', textAlign: 'left', fontSize: '9pt' }}>Code</th>,
         <th key={side+'nm'} style={{ ...headerCell, width: '43%', textAlign: 'left', padding: '3px 2px', fontSize: '9pt' }}>Client Name</th>,
-        <th key={side+'d'} style={{ ...headerCell, width: '9%', textAlign: 'center' }}>Due</th>,
-        <th key={side+'dp'} style={{ ...headerCell, width: '4%', textAlign: 'center', paddingLeft: 0, paddingRight: 0 }}>DPD</th>,
+        <th key={side+'d'} style={{ ...headerCell, width: '9%', textAlign: 'center', fontSize: '5.5pt', paddingLeft: 0, paddingRight: 0 }}>Due</th>,
+        <th key={side+'dp'} style={{ ...headerCell, width: '4%', textAlign: 'center', fontSize: '5.5pt', paddingLeft: 0, paddingRight: 0 }}>DPD</th>,
         <th key={side+'dl'} style={{ ...headerCell, width: '8%', textAlign: 'right', paddingLeft: 0, paddingRight: 0 }}>Daily</th>,
         <th key={side+'co'} style={{ ...headerCell, width: '19%', textAlign: 'center' }}>Collected</th>
       ]
@@ -2008,10 +2010,10 @@ export default function Reports() {
           </div>
         </div>
       )
-      const pageHeader = (
+      const pageHeader = (showSideBoxes = true) => (
         <div className="collection-sheet-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 20 }}>
           <div style={{ flex: '0 0 auto' }}>
-            {headerBox('DENOMINATION', [...[1000, 500, 200, 100, 50, 20, 10, 5, 1].map(denominationLine), denominationTotalLine()], 225)}
+            {showSideBoxes ? headerBox('DENOMINATION', [...[1000, 500, 200, 100, 50, 20, 10, 5, 1].map(denominationLine), denominationTotalLine()], 225) : <div style={{ width: 225 }}></div>}
           </div>
           <div style={{ flex: '1 1 auto', minWidth: 0, textAlign: 'center' }}>
             <div style={{ fontWeight: 700, fontSize: '15pt', color: CL.navy, letterSpacing: 0.2 }}>MELANN LENDING INVESTOR CORPORATION</div>
@@ -2042,14 +2044,14 @@ export default function Reports() {
             </div>
           </div>
           <div style={{ flex: '0 0 auto' }}>
-            {headerBox('DAILY CASH SUMMARY', (
+            {showSideBoxes ? headerBox('DAILY CASH SUMMARY', (
               <>
-                {['Total Collection', 'Field Release', 'Total Expense', 'Grand Total'].map(blankCashLine)}
+                {['Total Collection', 'PB/Ins/DST', 'Field Release', 'Total Expense', 'Grand Total'].map(blankCashLine)}
                 <div style={{ borderTop: '1.5px solid '+CL.navy, margin: '6px -8px -6px -8px', padding: '6px 8px 6px' }}>
                    {blankCashLine('Over / Short')}
                 </div>
               </>
-            ), 235)}
+            ), 235) : <div style={{ width: 235 }}></div>}
           </div>
         </div>
       )
@@ -2065,6 +2067,11 @@ export default function Reports() {
               <div style={{ fontSize: '7pt', color: '#666', lineHeight: 1.1, marginBottom: 18 }}>{sig.role}</div>
               <div style={{ borderBottom: '1.5px solid #000', marginBottom: 3 }}></div>
               <div style={{ fontWeight: 600, fontSize: '7pt', lineHeight: 1.1 }}>{sig.name}</div>
+              {sig.role === 'Collector' && (
+                <div style={{ fontWeight: 700, fontSize: '7pt', lineHeight: 1.1, marginTop: 4, textAlign: 'left' }}>
+                  Collection Date: {displayCollDate}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -2078,7 +2085,7 @@ export default function Reports() {
         <div id="printable-area" className="collection-sheet-print" style={{ background: '#fff', fontFamily: 'Arial, Helvetica, sans-serif' }}>
           {pages.map((page, pageIndex) => (
             <div key={pageIndex} className="collection-sheet-page" style={{ pageBreakAfter: pageIndex < pages.length - 1 ? 'always' : 'auto', breakAfter: pageIndex < pages.length - 1 ? 'page' : 'auto' }}>
-              {pageHeader}
+              {pageHeader(pageIndex === 0)}
               <div className="collection-sheet-page-body" style={{ display: 'flex', gap: 0, alignItems: 'stretch' }}>
                 <div style={{ flex: 1, minWidth: 0, borderRight: '1.5px solid #000', paddingRight: 8 }}>
                   {renderClientColumn(page.left, `L${pageIndex}`)}
