@@ -1,19 +1,22 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import API from '../services/api'
+import dayjs from 'dayjs'
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
-const today = () => new Date().toISOString().split('T')[0]
-const CATS = ['Rent', 'Utilities', 'Salaries', 'Supplies', 'Transportation', 'Miscellaneous', 'Meals', 'Gasoline', 'Short Overages', 'Cash Advance']
+const today = () => dayjs().format('YYYY-MM-DD')
+const CATS = ['Rent', 'Utilities', 'Salaries', 'Supplies', 'Transportation', 'Miscellaneous', 'Meals', 'Gasoline', 'Short Overages', 'Cash Advance', 'Pastdue Incentives', 'Docstamp', 'Bonus', 'Pres fund', 'Birthday Cash Gift', 'Birthday Cake', 'Load Employee', 'Others']
 
 const TABS = [
   { id: 'Expense', label: 'Expenses', icon: '🧾' },
   { id: 'Collectors Over', label: 'Collectors Over', icon: '💰' },
-  { id: 'Penalty', label: 'Penalty', icon: '⚠️' }
+  { id: 'Penalty', label: 'Penalty', icon: '⚠️' },
+  { id: 'Passbook', label: 'Passbook', icon: '📘' }
 ]
 
 export default function Transactions() {
   const [activeTab, setActiveTab] = useState('Expense')
   const [rows, setRows] = useState([])
   const [branches, setBranches] = useState([])
+  const [collectors, setCollectors] = useState([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ id: null, branch_id: '', transaction_date: today(), amount: '', category: '', description: '', payee: '' })
   const [saving, setSaving] = useState(false)
@@ -30,6 +33,7 @@ export default function Transactions() {
   useEffect(() => { 
     load(); 
     API.get('/branches').then(r => setBranches(r.data)) 
+    API.get('/collectors').then(r => setCollectors(r.data))
   }, [])
 
   const handleClear = () => {
@@ -43,7 +47,7 @@ export default function Transactions() {
   }
 
   const handleSave = async () => {
-    if (!form.amount || !form.transaction_date || !form.description || (activeTab === 'Expense' && !form.category)) {
+    if (!form.amount || !form.transaction_date || (activeTab === 'Expense' && !form.category)) {
       setError('Please fill in all required fields (*)');
       return;
     }
@@ -151,7 +155,7 @@ export default function Transactions() {
         </div>
 
         {/* Form Section */}
-        <div style={{ padding: '20px 25px' }}>
+        <form style={{ padding: '20px 25px' }} onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
           {error && <div style={{ color: 'white', background: '#ef4444', padding: '10px', borderRadius: '4px', marginBottom: '15px' }}>⚠️ {error}</div>}
           
           <div style={{ display: 'flex', gap: '20px', marginBottom: '15px' }}>
@@ -159,13 +163,7 @@ export default function Transactions() {
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#334155' }}>Date <span style={{color: 'red'}}>*</span></label>
               <input type="date" className="form-control" style={{ background: '#fff' }} value={form.transaction_date} onChange={e=>setForm({...form, transaction_date: e.target.value})} />
             </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#334155' }}>Branch</label>
-              <select className="form-control" style={{ background: '#fff' }} value={form.branch_id} onChange={e=>setForm({...form, branch_id: e.target.value})}>
-                 <option value="">Select Branch...</option>
-                 {branches.map(b => <option value={b.id} key={b.id}>{b.branch_name}</option>)}
-              </select>
-            </div>
+
             {activeTab === 'Expense' && (
               <div style={{ flex: 1 }}>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#334155' }}>Category <span style={{color: 'red'}}>*</span></label>
@@ -186,36 +184,40 @@ export default function Transactions() {
           
           <div style={{ display: 'flex', gap: '20px', marginBottom: '25px' }}>
             <div style={{ flex: 2 }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#334155' }}>Particulars / Description <span style={{color: 'red'}}>*</span></label>
-              <input type="text" className="form-control" style={{ background: '#fff' }} value={form.description} onChange={e=>setForm({...form, description: e.target.value})} placeholder="Enter particulars / description" />
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#334155' }}>
+                {(activeTab === 'Collectors Over' || activeTab === 'Penalty' || activeTab === 'Passbook') ? 'Collector' : 'Particulars / Description'}
+              </label>
+              {(activeTab === 'Collectors Over' || activeTab === 'Penalty' || activeTab === 'Passbook') ? (
+                <select className="form-control" style={{ background: '#fff' }} value={form.description} onChange={e=>setForm({...form, description: e.target.value})}>
+                  <option value="">Select Collector...</option>
+                  {collectors.map(c => <option value={`${c.first_name} ${c.last_name}`} key={c.id}>{c.last_name}, {c.first_name}</option>)}
+                </select>
+              ) : (
+                <input type="text" className="form-control" style={{ background: '#fff' }} value={form.description} onChange={e=>setForm({...form, description: e.target.value})} placeholder="Enter particulars / description" />
+              )}
             </div>
-            {activeTab === 'Expense' && (
-              <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#334155' }}>Payee / Reference</label>
-                <input type="text" className="form-control" style={{ background: '#fff' }} value={form.payee} onChange={e=>setForm({...form, payee: e.target.value})} placeholder="Optional" />
-              </div>
-            )}
+
           </div>
 
           {/* Buttons */}
           <div style={{ display: 'flex', gap: '10px', borderBottom: '1px solid #e2e8f0', paddingBottom: '20px' }}>
-            <button className="btn" style={{ background: '#1d4ed8', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 'bold' }} onClick={handleClear}>
+            <button type="button" className="btn" style={{ background: '#1d4ed8', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 'bold' }} onClick={handleClear}>
               <span>➕</span> Add New
             </button>
-            <button className="btn" style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 'bold' }} onClick={handleClear}>
+            <button type="button" className="btn" style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 'bold' }} onClick={handleClear}>
               <span>🔄</span> Clear
             </button>
-            <button className="btn" style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 'bold' }} onClick={handleSave} disabled={saving}>
+            <button type="submit" className="btn" style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 'bold' }} disabled={saving}>
               <span>{saving ? '⏳' : '💾'}</span> Save
             </button>
-            <button className="btn" style={{ background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 'bold' }} onClick={handleSave}>
+            <button type="button" className="btn" style={{ background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 'bold' }} onClick={handleSave}>
               <span>✏️</span> Edit
             </button>
-            <button className="btn" style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 'bold' }} onClick={handleDelete}>
+            <button type="button" className="btn" style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 'bold' }} onClick={handleDelete}>
               <span>🗑️</span> Delete
             </button>
           </div>
-        </div>
+        </form>
 
         {/* Table and Filters */}
         <div style={{ padding: '20px 25px' }}>
@@ -238,16 +240,16 @@ export default function Transactions() {
                 <tr style={{ background: '#f8fafc', color: '#334155', borderBottom: '2px solid #e2e8f0' }}>
                   <th style={{ padding: '10px', textAlign: 'left', background: '#f8fafc' }}>ID ↕</th>
                   {activeTab === 'Expense' && <th style={{ padding: '10px', textAlign: 'left', background: '#f8fafc' }}>Category ↕</th>}
-                  <th style={{ padding: '10px', textAlign: 'left', background: '#f8fafc' }}>Particulars ↕</th>
+                  <th style={{ padding: '10px', textAlign: 'left', background: '#f8fafc' }}>
+                    {(activeTab === 'Collectors Over' || activeTab === 'Penalty' || activeTab === 'Passbook') ? 'Collector' : 'Particulars'} ↕
+                  </th>
                   <th style={{ padding: '10px', textAlign: 'left', background: '#f8fafc' }}>Date ↕</th>
                   <th style={{ padding: '10px', textAlign: 'right', background: '#f8fafc' }}>Amount ↕</th>
-                  {activeTab === 'Expense' && <th style={{ padding: '10px', textAlign: 'left', background: '#f8fafc' }}>Payee ↕</th>}
-                  <th style={{ padding: '10px', textAlign: 'left', background: '#f8fafc' }}>Branch ↕</th>
                 </tr>
               </thead>
               <tbody>
-                {loading ? <tr><td colSpan={7} style={{textAlign: 'center', padding: '20px'}}>⏳ Loading...</td></tr> :
-                 filteredRows.length === 0 ? <tr><td colSpan={7} style={{textAlign: 'center', padding: '20px', color: '#94a3b8'}}>No {activeTab.toLowerCase()} records found.</td></tr> :
+                {loading ? <tr><td colSpan={activeTab === 'Expense' ? 5 : 4} style={{textAlign: 'center', padding: '20px'}}>⏳ Loading...</td></tr> :
+                 filteredRows.length === 0 ? <tr><td colSpan={activeTab === 'Expense' ? 5 : 4} style={{textAlign: 'center', padding: '20px', color: '#94a3b8'}}>No {activeTab.toLowerCase()} records found.</td></tr> :
                  filteredRows.map(r => (
                   <tr key={r.id} onClick={() => selectRow(r)} style={{ cursor: 'pointer', background: form.id === r.id ? '#eff6ff' : 'transparent', borderBottom: '1px solid #e2e8f0' }}>
                     <td style={{ padding: '10px', color: '#3b82f6' }}>
@@ -258,8 +260,6 @@ export default function Transactions() {
                     <td style={{ padding: '10px', color: '#334155' }}>{r.description}</td>
                     <td style={{ padding: '10px', color: '#64748b' }}>{r.transaction_date}</td>
                     <td style={{ padding: '10px', color: '#2563eb', fontWeight: 'bold', textAlign: 'right' }}>₱{fmt(r.amount)}</td>
-                    {activeTab === 'Expense' && <td style={{ padding: '10px', color: '#64748b' }}>{r.payee || '—'}</td>}
-                    <td style={{ padding: '10px', color: '#64748b' }}>{r.branch_name || '—'}</td>
                   </tr>
                 ))}
               </tbody>

@@ -370,7 +370,7 @@ export default function Loans() {
                       ? <tr><td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>No payments yet</td></tr>
                       : detailLoan.payments.map(p => (
                         <tr key={p.id} style={{ borderTop: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '16px 20px', color: '#3b82f6', fontWeight: 700, fontFamily: 'monospace' }}>{p.payment_code || '---'}</td>
+                          <td style={{ padding: '16px 20px', color: '#3b82f6', fontWeight: 700, fontFamily: 'monospace' }}>{p.or_number || p.payment_code || '---'}</td>
                           <td style={{ padding: '16px 20px', color: '#334155' }}>{p.date_paid}</td>
                           <td style={{ padding: '16px 20px', color: '#0f172a', fontWeight: 800 }}>₱ {fmt(p.amount_paid)}</td>
                           <td style={{ padding: '16px 20px', color: '#475569' }}>₱ {fmt(p.balance_after)}</td>
@@ -392,7 +392,7 @@ export default function Loans() {
                   {(detailLoan.payments || []).length > 0 && (
                     <tfoot style={{ background: '#f8fafc', borderTop: '1px solid #f1f5f9' }}>
                       <tr>
-                        <td colSpan={3} style={{ padding: '20px', color: '#1d4ed8', fontSize: 14, fontWeight: 800 }}>TOTAL PAID</td>
+                        <td colSpan={2} style={{ padding: '20px', color: '#1d4ed8', fontSize: 14, fontWeight: 800, textAlign: 'right' }}>TOTAL PAID</td>
                         <td style={{ padding: '20px', color: '#1d4ed8', fontSize: 15, fontWeight: 800 }}>₱ {fmt(detailLoan.payments.filter(p => p.status === 'active').reduce((s, p) => s + p.amount_paid, 0))}</td>
                         <td colSpan={2}></td>
                       </tr>

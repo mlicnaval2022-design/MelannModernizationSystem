@@ -12,7 +12,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
 
     let pCond = `p.date_paid = ? AND p.status = 'active'`;
     let lCond = `l.date_released = ? AND l.status IN ('active', 'fully_paid')`;
-    let eCond = `e.expense_date = ? AND e.status = 'active'`;
+    let eCond = `e.transaction_date = ? AND e.status = 'active'`;
     let cbCond = `entry_date = ?`;
 
     const pParams = [date];
@@ -25,7 +25,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
       pParams.push(branch_id);
       lCond += ` AND l.branch_id = ?`;
       lParams.push(branch_id);
-      eCond += ` AND e.branch_id = ?`;
+      eCond += ` AND (e.branch_id = ? OR e.branch_id = '' OR e.branch_id IS NULL)`;
       eParams.push(branch_id);
       cbCond += ` AND branch_id = ?`;
       cbParams.push(branch_id);
@@ -45,7 +45,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
 
     // 2. Loan Releases
     const releases = await dbAll(`
-      SELECT l.id, l.customer_id, l.loan_code, l.principal, l.net_proceeds, l.loan_type, l.date_released, l.created_at, l.dcr_id,
+      SELECT l.id, l.customer_id, l.loan_code, l.principal, l.net_proceeds, l.loan_type, l.date_released, l.created_at, l.dcr_id, l.service_fee, l.insurance, l.balance,
              c.customer_code, c.first_name, c.last_name, u.full_name as encoded_by,
              co.first_name || ' ' || co.last_name as collector_name
       FROM tblLoan l
@@ -63,6 +63,10 @@ router.get('/summary', authenticateToken, async (req, res) => {
       LEFT JOIN tblUser u ON t.created_by = u.id
       WHERE ${eCond.replace(/e\./g, 't.')}
     `, eParams);
+
+    const expenses = transactions.filter(t => t.transaction_type === 'Expense' || t.transaction_type === 'expense' || !t.transaction_type);
+    const passbooks = transactions.filter(t => t.transaction_type === 'Passbook');
+    const penalties = transactions.filter(t => t.transaction_type === 'Penalty');
 
     // 4. Bank Transactions
     const bankTx = await dbAll(`SELECT * FROM tblCashOnBank WHERE ${cbCond}`, cbParams);
@@ -82,7 +86,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
     const existingDcr = await dbGet(dcrQuery, dcrParams);
 
     // Compute totals
-    const total_collections = collections.reduce((acc, c) => acc + c.amount_paid, 0);
+    const total_collections = collections.reduce((acc, c) => acc + c.amount_paid, 0) + passbooks.reduce((acc, p) => acc + p.amount, 0) + penalties.reduce((acc, p) => acc + p.amount, 0);
     // Use principal for display, net_proceeds for actual cash out
     const display_total_releases = releases.reduce((acc, r) => acc + (r.principal || 0), 0);
     const cash_out_releases = releases.reduce((acc, r) => acc + (r.net_proceeds || 0), 0);
@@ -120,7 +124,9 @@ router.get('/summary', authenticateToken, async (req, res) => {
     const ledger = [
       ...collections.map(c => ({ type: 'Collection', ref: c.or_number, code: c.customer_code, name: `${c.first_name} ${c.last_name}`, amount: c.amount_paid, user: c.encoded_by, time: c.created_at, dcr_id: c.dcr_id })),
       ...releases.map(r => ({ type: 'Loan Release', ref: r.loan_code, code: r.customer_code, name: `${r.first_name} ${r.last_name}`, amount: r.principal, user: r.encoded_by, time: r.created_at, dcr_id: r.dcr_id })),
-      ...expenses.map(e => ({ type: 'Expense', ref: e.category, code: '—', name: e.payee || '—', amount: e.amount, user: e.encoded_by, time: e.created_at, remarks: e.description, dcr_id: e.dcr_id }))
+      ...expenses.map(e => ({ type: 'Expense', ref: e.category, code: '—', name: e.payee || '—', amount: e.amount, user: e.encoded_by, time: e.created_at, remarks: e.description, dcr_id: e.dcr_id })),
+      ...passbooks.map(p => ({ type: 'Passbook', ref: '—', code: '—', name: p.description, amount: p.amount, user: p.encoded_by, time: p.created_at, remarks: 'Passbook Collection', dcr_id: p.dcr_id })),
+      ...penalties.map(p => ({ type: 'Penalty', ref: '—', code: '—', name: p.description, amount: p.amount, user: p.encoded_by, time: p.created_at, remarks: 'Penalty Collection', dcr_id: p.dcr_id }))
     ].sort((a, b) => new Date(b.time) - new Date(a.time));
 
     res.json({
@@ -143,6 +149,9 @@ router.get('/summary', authenticateToken, async (req, res) => {
       collections,
       releases,
       transactions,
+      expenses,
+      passbooks,
+      penalties,
       deposits,
       withdrawals,
       bankCharges,
@@ -151,7 +160,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Error fetching DCR summary' });
+    res.status(500).json({ error: err.message, stack: err.stack });
   }
 });
 
@@ -204,7 +213,7 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
     // Recalculate totals server-side
     let pCond = `p.date_paid = ? AND p.status = 'active'`;
     let lCond = `l.date_released = ? AND l.status IN ('active', 'fully_paid')`;
-    let eCond = `e.expense_date = ? AND e.status = 'active'`;
+    let eCond = `e.transaction_date = ? AND e.status = 'active'`;
     let cbCond = `entry_date = ?`;
 
     const pParams = [date];
