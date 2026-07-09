@@ -16,6 +16,7 @@ export default function FullyPaid({ search = '' }) {
   const [evalLoading, setEvalLoading] = useState(false);
   const [evalCustomer, setEvalCustomer] = useState(null);
   const [penaltyApproved, setPenaltyApproved] = useState(false);
+  const [showPaymentHistory, setShowPaymentHistory] = useState(false);
 
   // Reloan Modal State
   const [reloanModalOpen, setReloanModalOpen] = useState(false);
@@ -46,6 +47,7 @@ export default function FullyPaid({ search = '' }) {
     setEvalModal(true);
     setEvalLoading(true);
     setPenaltyApproved(false);
+    setShowPaymentHistory(false);
     try {
       const res = await API.get(`/customers/${customer.id}/credit-eval`);
       setEvalData(res.data);
@@ -244,9 +246,20 @@ export default function FullyPaid({ search = '' }) {
                   <div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: 28 }}>
                       <section style={{ border: '1px solid #bfdbfe', borderRadius: 12, padding: 18, background: '#fff' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 14, color: '#0f4fbf', fontSize: 22, fontWeight: 800, margin: '4px 8px 16px' }}>
-                          <span style={{ width: 40, height: 40, borderRadius: 8, background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>*</span>
-                          LOAN HISTORY SUMMARY
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '4px 8px 16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 14, color: '#0f4fbf', fontSize: 22, fontWeight: 800 }}>
+                            <span style={{ width: 40, height: 40, borderRadius: 8, background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>*</span>
+                            LOAN HISTORY SUMMARY
+                          </div>
+                          {evalData.payments && evalData.payments.length > 0 && (
+                            <button 
+                              className="btn btn-primary btn-sm" 
+                              onClick={() => setShowPaymentHistory(true)}
+                              style={{ borderRadius: 6, fontWeight: 'bold' }}
+                            >
+                              View Loan Payment History
+                            </button>
+                          )}
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
                           <div style={{ border: '1px solid #dbe7f6', borderRadius: 8, padding: '4px 14px' }}>{statLeft.map(item => <StatRow key={item[3]} item={item} />)}</div>
@@ -309,6 +322,57 @@ export default function FullyPaid({ search = '' }) {
             <div style={{ marginTop: 26, borderTop: '1px solid #dbe7f6', background: '#f8fbff', padding: '20px 100px', display: 'flex', alignItems: 'center', gap: 16, color: '#475569', fontSize: 15 }}>
               <span style={{ width: 28, height: 28, borderRadius: 14, background: '#2563eb', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>i</span>
               This evaluation is based on the borrower's payment history and account activity. Please review all details before taking action.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPaymentHistory && evalData && evalData.last_loan && (
+        <div className="modal-overlay" style={{ background: 'rgba(15, 23, 42, 0.6)', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 9999 }}>
+          <div className="modal" style={{ width: 'min(800px, 96vw)', maxHeight: '92vh', overflow: 'auto', borderRadius: '14px', border: '1px solid #dbe7f6', boxShadow: '0 24px 70px rgba(15, 23, 42, 0.25)', padding: 0, background: '#fff' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #d7e3f2', background: '#f8fbff' }}>
+              <div>
+                <h3 style={{ margin: 0, color: '#0b1f44', fontSize: 20, fontWeight: 800 }}>Payment History</h3>
+                <div style={{ marginTop: 4, color: '#64748b', fontSize: 14 }}>Latest Loan: {evalData.last_loan.loan_code || evalData.last_loan.id} - PHP {fmt(evalData.last_loan.total_amortization)}</div>
+              </div>
+              <button className="btn-close" onClick={() => setShowPaymentHistory(false)} style={{ fontSize: 28, color: '#475569', background: 'transparent', border: 'none', cursor: 'pointer' }}>x</button>
+            </div>
+            <div style={{ padding: '24px' }}>
+              <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#f1f5f9', textAlign: 'left' }}>
+                    <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Date Paid</th>
+                    <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Payment Code</th>
+                    <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Amount</th>
+                    <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Receipt No</th>
+                    <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {evalData.payments && evalData.payments.length > 0 ? evalData.payments.map(p => (
+                    <tr key={p.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '12px' }}>{new Date(p.date_paid).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                      <td style={{ padding: '12px', fontWeight: 'bold', color: '#3b82f6', fontFamily: 'monospace' }}>{p.payment_code || 'N/A'}</td>
+                      <td style={{ padding: '12px', fontWeight: 'bold' }}>PHP {fmt(p.amount_paid)}</td>
+                      <td style={{ padding: '12px' }}>{p.or_number || 'N/A'}</td>
+                      <td style={{ padding: '12px' }}>
+                        <span style={{ 
+                          padding: '4px 8px', 
+                          borderRadius: '4px', 
+                          fontSize: '12px', 
+                          fontWeight: 'bold',
+                          background: p.status === 'paid' ? '#dcfce7' : '#fee2e2',
+                          color: p.status === 'paid' ? '#166534' : '#991b1b'
+                        }}>
+                          {p.status.toUpperCase()}
+                        </span>
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr><td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>No payments found for this loan.</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

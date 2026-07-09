@@ -3,9 +3,12 @@ import { useSearchParams } from 'react-router-dom'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import '../soa.css'
+import '../soa-v2.css'
 import '../customers.css'
+import '../customers-v2.css'
 import CustomerWizard from '../components/CustomerWizard'
 import logoImg from '../assets/logo.png'
+import { Users, CheckCircle, XCircle, Calendar, Search, Filter, FileText, Phone, Mail, MapPin, User, MoreVertical, BarChart2, Plus, Printer, X, PieChart, List, Wallet, Scale, CalendarDays, CalendarClock, Info } from 'lucide-react'
 
 export default function Customers() {
   const { user } = useAuth()
@@ -21,6 +24,9 @@ export default function Customers() {
   }, [searchParams])
 
   const [status, setStatus] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
+  const [collectorFilter, setCollectorFilter] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
   const [loading, setLoading] = useState(true)
   const [metrics, setMetrics] = useState(null)
   const [page, setPage] = useState(1)
@@ -79,7 +85,7 @@ export default function Customers() {
   const load = () => {
     setLoading(true)
     Promise.all([
-      API.get('/customers', { params: { search, status } }),
+      API.get('/customers', { params: { search, status, branch_id: branchFilter, collector_id: collectorFilter } }),
       API.get('/reports/customers-metrics')
     ]).then(([rCust, rMet]) => {
       setRows(rCust.data)
@@ -87,7 +93,7 @@ export default function Customers() {
     }).finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [search, status])
+  useEffect(() => { load() }, [search, status, branchFilter, collectorFilter])
   useEffect(() => {
     API.get('/branches').then(r => setBranches(r.data))
     API.get('/collectors').then(r => setCollectors(r.data))
@@ -150,131 +156,191 @@ export default function Customers() {
   };
 
   return (
-    <div className="customers-container">
-      
-      {/* Top Metrics Row */}
-      <div className="metrics-row">
-        <div className="metric-card">
-          <div className="metric-icon" style={{ background: '#eff6ff', color: '#3b82f6' }}>👥</div>
-          <div className="metric-info">
-            <h4>Total Customers</h4>
-            <h2>{metrics ? metrics.total_customers : 0}</h2>
-            <p style={{ color: '#10b981' }}>+{metrics ? metrics.new_this_month : 0} this month</p>
+    <div className="customers-v2-container">
+      <div className="page-header" style={{ marginBottom: '24px' }}>
+        <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#0f172a', margin: '0 0 4px 0' }}>Customers</h1>
+        <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+      </div>
+
+      {/* Metrics Row */}
+      <div className="metrics-v2-row">
+        <div className="metric-v2-card">
+          <div className="metric-v2-icon-wrap purple">
+            <Users size={24} />
           </div>
+          <div className="metric-v2-content">
+            <div className="metric-v2-title">Total Customers</div>
+            <div className="metric-v2-value">{metrics ? metrics.total_customers.toLocaleString() : '...'}</div>
+            <div className="metric-v2-sub text-green">↑ {metrics ? metrics.new_this_month : 0} this month</div>
+          </div>
+          <div className="metric-v2-chart-icon"><BarChart2 size={16} /></div>
         </div>
-        <div className="metric-card">
-          <div className="metric-icon" style={{ background: '#f0fdf4', color: '#10b981' }}>✓</div>
-          <div className="metric-info">
-            <h4>Active Customers</h4>
-            <h2>{metrics ? metrics.active_customers : 0}</h2>
-            <p style={{ color: 'var(--text-muted)' }}>{metrics && metrics.total_customers > 0 ? Math.round((metrics.active_customers/metrics.total_customers)*100) : 0}% of total</p>
+
+        <div className="metric-v2-card active-card">
+          <div className="metric-v2-icon-wrap green">
+            <CheckCircle size={24} />
           </div>
+          <div className="metric-v2-content">
+            <div className="metric-v2-title">Active Customers</div>
+            <div className="metric-v2-value">{metrics ? metrics.active_customers.toLocaleString() : '...'}</div>
+            <div className="metric-v2-sub text-gray">
+              {metrics && metrics.total_customers > 0 ? Math.round((metrics.active_customers / metrics.total_customers) * 100) : 0}% of total
+            </div>
+          </div>
+          <div className="metric-v2-chart-icon"><BarChart2 size={16} /></div>
         </div>
-        <div className="metric-card">
-          <div className="metric-icon" style={{ background: '#fef2f2', color: '#ef4444' }}>✕</div>
-          <div className="metric-info">
-            <h4>Inactive Customers</h4>
-            <h2>{metrics ? metrics.inactive_customers : 0}</h2>
-            <p style={{ color: 'var(--text-muted)' }}>{metrics && metrics.total_customers > 0 ? Math.round((metrics.inactive_customers/metrics.total_customers)*100) : 0}% of total</p>
+
+        <div className="metric-v2-card">
+          <div className="metric-v2-icon-wrap red">
+            <XCircle size={24} />
           </div>
+          <div className="metric-v2-content">
+            <div className="metric-v2-title">Inactive Customers</div>
+            <div className="metric-v2-value">{metrics ? metrics.inactive_customers.toLocaleString() : '...'}</div>
+            <div className="metric-v2-sub text-gray">
+              {metrics && metrics.total_customers > 0 ? Math.round((metrics.inactive_customers / metrics.total_customers) * 100) : 0}% of total
+            </div>
+          </div>
+          <div className="metric-v2-chart-icon"><BarChart2 size={16} /></div>
         </div>
-        <div className="metric-card">
-          <div className="metric-icon" style={{ background: '#fefce8', color: '#eab308' }}>📅</div>
-          <div className="metric-info">
-            <h4>New This Month</h4>
-            <h2>{metrics ? metrics.new_this_month : 0}</h2>
-            {(() => {
-              const diff = metrics ? (metrics.new_this_month - metrics.new_last_month) : 0;
-              return <p style={{ color: diff >= 0 ? '#10b981' : '#ef4444' }}>{diff >= 0 ? `+${diff}` : diff} vs last month</p>;
-            })()}
+
+        <div className="metric-v2-card">
+          <div className="metric-v2-icon-wrap blue">
+            <Calendar size={24} />
           </div>
+          <div className="metric-v2-content">
+            <div className="metric-v2-title">New This Month</div>
+            <div className="metric-v2-value">{metrics ? metrics.new_this_month.toLocaleString() : '...'}</div>
+            <div className="metric-v2-sub text-green">↑ {metrics ? metrics.new_this_month : 0} vs last month</div>
+          </div>
+          <div className="metric-v2-chart-icon"><BarChart2 size={16} /></div>
         </div>
       </div>
 
       {/* Toolbar */}
-      <div className="customers-toolbar table-actions">
-        <div className="toolbar-left">
-          <div className="search-box">
-            <span>🔍</span>
+      <div className="toolbar-v2">
+        <div className="toolbar-v2-left">
+          <div className="toolbar-v2-search">
+            <Search />
             <input placeholder="Search customers..." value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
           </div>
-          <select className="toolbar-select" value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
+          <select className="toolbar-v2-select" value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
             <option value="">Status: All</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
             <option value="hold">Hold</option>
             <option value="reversed">Reversed</option>
           </select>
-          <button className="toolbar-btn-secondary">⚙️ More Filters</button>
+          <button className="toolbar-v2-btn toolbar-v2-btn-outline" onClick={() => setShowFilters(!showFilters)}>
+            <Filter size={16} /> More Filters
+          </button>
         </div>
-        <div className="toolbar-right">
-          <button className="toolbar-btn-secondary" onClick={handlePrint}>🖨️ Export PDF</button>
-          <button className="toolbar-btn-primary" onClick={openNew}>+ New Customer</button>
+        <div className="toolbar-v2-right">
+          <button className="toolbar-v2-btn toolbar-v2-btn-outline" onClick={handlePrint}>
+            <FileText size={16} /> Export PDF
+          </button>
+          <button className="toolbar-v2-btn toolbar-v2-btn-primary" onClick={openNew}>
+            <Plus size={16} /> New Customer
+          </button>
         </div>
       </div>
 
+      {showFilters && (
+        <div className="more-filters-bar" style={{ display: 'flex', gap: '15px', padding: '15px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+          <div className="filter-group">
+            <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '4px' }}>Branch</label>
+            <select className="toolbar-select" value={branchFilter} onChange={e => { setBranchFilter(e.target.value); setPage(1); }} style={{ width: '200px' }}>
+              <option value="">All Branches</option>
+              {branches.map(b => (
+                <option key={b.id} value={b.id}>{b.branch_name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="filter-group">
+            <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '4px' }}>Collector</label>
+            <select className="toolbar-select" value={collectorFilter} onChange={e => { setCollectorFilter(e.target.value); setPage(1); }} style={{ width: '200px' }}>
+              <option value="">All Collectors</option>
+              {collectors.map(c => (
+                <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="filter-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
+            <button className="btn btn-secondary btn-sm" onClick={() => { setBranchFilter(''); setCollectorFilter(''); }}>Clear</button>
+          </div>
+        </div>
+      )}
+
       {/* Data Table */}
-      <div className="customers-table-container">
-        <table className="customers-table">
+      <div className="table-v2-container">
+        <table className="table-v2">
           <thead>
             <tr>
-              <th>Customer</th>
-              <th>Contact Info</th>
-              <th>Location</th>
-              <th>Collector</th>
-              <th>Status</th>
-              <th className="table-actions-header">Actions</th>
+              <th>CUSTOMER</th>
+              <th>CONTACT INFO</th>
+              <th>LOCATION</th>
+              <th>COLLECTOR</th>
+              <th>STATUS</th>
+              <th>ACTIONS</th>
             </tr>
           </thead>
           <tbody>
             {loading ? <tr><td colSpan={6} style={{textAlign:'center', padding: '40px'}}>⏳ Loading...</td></tr>
-              : currentRows.length === 0 ? <tr><td colSpan={6} style={{textAlign:'center', padding: '40px', color: 'var(--text-muted)'}}>No customers found</td></tr>
-              : currentRows.map(r => (
-                <tr key={r.id}>
-                  <td>
-                    <div className="customer-cell">
-                      <div className="customer-avatar">{getInitials(r.full_name)}</div>
-                      <div>
-                        <div className="customer-name">{r.full_name}</div>
-                        <div className="customer-id">{r.customer_code}</div>
+              : currentRows.length === 0 ? <tr><td colSpan={6} style={{textAlign:'center', padding: '40px', color: '#64748b'}}>No customers found</td></tr>
+              : currentRows.map(r => {
+                const initials = (r.first_name?.[0] || '') + (r.last_name?.[0] || '');
+                const cleanInitials = initials || r.full_name?.substring(0, 2).toUpperCase() || 'AJ';
+                
+                return (
+                  <tr key={r.id}>
+                    <td>
+                      <div className="cell-customer">
+                        <div className="avatar-v2">{cleanInitials}</div>
+                        <div>
+                          <div className="customer-name-v2">{r.full_name}</div>
+                          <div className="customer-id-v2">#{r.customer_code}</div>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="contact-cell">
-                      <div>{r.contact || '—'}</div>
-                      <div style={{fontSize: 11, marginTop: 4}}>{r.email || '—'}</div>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="address-cell">
-                      <div>{[r.address, r.sitio, r.purok, r.brgy].filter(v => v && v.toUpperCase() !== 'N/A').join(', ') || '—'}</div>
-                      <div style={{fontSize: 11, marginTop: 4}}>{r.city || '—'}</div>
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{ fontSize: 13, color: '#475569' }}>
-                      {r.collector_name || 'Unassigned'}
-                    </div>
-                  </td>
-                  <td>
-                    {r.status === 'active' ? (
-                      <span className="status-badge status-active"><div className="status-dot"></div> Active</span>
-                    ) : r.status === 'hold' ? (
-                      <span className="status-badge" style={{ background: '#fef2f2', color: '#ef4444', borderColor: '#fca5a5' }}><div className="status-dot" style={{ background: '#ef4444' }}></div> Hold</span>
-                    ) : r.status === 'FULLY PAID' || r.status === 'fully paid' ? (
-                      <span className="status-badge" style={{ background: '#f0fdf4', color: '#10b981', borderColor: '#a7f3d0' }}><div className="status-dot" style={{ background: '#10b981' }}></div> FULLY PAID</span>
-                    ) : (
-                      <span className="status-badge status-inactive"><div className="status-dot"></div> {r.status}</span>
-                    )}
-                  </td>
-                  <td className="table-actions-col">
-                    <div className="table-actions">
-                      <button className="action-btn action-soa" onClick={() => openSoa(r.id)}>SOA</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td>
+                      <div className="cell-info-row">
+                        <Phone />
+                        {r.contact || 'NONE'}
+                      </div>
+                      <div className="cell-info-row">
+                        <Mail />
+                        {r.email || 'NONE'}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cell-info-row" style={{ alignItems: 'flex-start' }}>
+                        <MapPin style={{ marginTop: '2px' }} />
+                        <div style={{ maxWidth: '200px', lineHeight: '1.4' }}>{r.address || '—'}</div>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cell-info-row">
+                        <User />
+                        {r.collector_name || 'Unassigned'}
+                      </div>
+                    </td>
+                    <td>
+                      <div className={`cell-status ${r.status?.toLowerCase().replace(' ', '') || 'inactive'}`}>
+                        <div className={`status-dot ${r.status?.toLowerCase().replace(' ', '') || 'inactive'}`}></div>
+                        {r.status || 'Unknown'}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="cell-actions">
+                        <button className="btn-soa-v2" onClick={() => openSoa(r.id)}>SOA</button>
+                        <button className="btn-soa-v2" onClick={() => openEdit(r)}>
+                          Edit Information
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
           </tbody>
         </table>
 
@@ -315,15 +381,26 @@ export default function Customers() {
       
       {soaModal && (
         <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setSoaModal(false)}>
-          <div className="soa-modal">
-            <div className="soa-modal-header">
-              <div className="soa-modal-title-wrapper">
-                <div className="soa-icon-box">SOA</div>
-                Statement of Account
+          <div className="soa-modal-v2">
+            <div className="soa-header-v2">
+              <div className="soa-header-left-v2">
+                <div className="soa-icon-box-v2">
+                  <FileText size={28} />
+                  SOA
+                </div>
+                <div>
+                  <h2 className="soa-title-v2">Statement of Account</h2>
+                  <p className="soa-subtitle-v2">Official statement of your account with Melann Lending</p>
+                </div>
               </div>
-              <button className="modal-close" onClick={() => setSoaModal(false)}>x</button>
+              <div className="soa-header-right-v2">
+                <button className="soa-close-icon" onClick={() => setSoaModal(false)}><X size={24} /></button>
+                <div className="soa-date-v2">Date: <span>{new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})}</span></div>
+                <div className="soa-preview-note-v2">Print preview: Legal portrait, 1 page expected</div>
+              </div>
             </div>
-            <div className="modal-body" style={{ padding: '30px', background: '#f8fafc' }} id="printable-area">
+
+            <div className="soa-body-v2" id="printable-area">
               {soaLoading ? <div className="text-center" style={{ padding: 40 }}>Loading SOA Data...</div> : soaData ? (() => {
                 const loans = soaData.loans || [];
                 const validLoans = loans.filter(l => ['active', 'pastdue', 'fullpaid'].includes(l.status));
@@ -354,61 +431,134 @@ export default function Customers() {
                   { title: 'Business Information', fields: [['Business Type', soaData.business_type], ['Occupation', soaData.occupation], ['Business Name', soaData.business_name], ['Monthly Income', soaData.income_per_month ? formatPhp(soaData.income_per_month) : ''], ['Monthly Expense', soaData.expenses_per_month ? formatPhp(soaData.expenses_per_month) : ''], ['Loan Purpose', soaData.loan_purpose], ['Collateral', soaData.collateral], ['Branch', soaData.branch_name], ['Collector', soaData.collector_name]] },
                   { title: 'ID Information', fields: [['ID Type', soaData.id_type], ['ID Number', soaData.id_number], ['Issue Date', soaData.id_issue_date], ['Expiry Date', soaData.id_expiry_date], ['Issued By', soaData.id_issued_by], ['Place of Issue', soaData.id_place_of_issue]] },
                 ];
+                
+                const initials = (soaData.first_name?.[0] || '') + (soaData.last_name?.[0] || '');
+                const cleanInitials = initials || soaData.full_name?.substring(0, 2).toUpperCase() || 'AJ';
 
                 return (
                   <>
                   <style media="print">{`@page { size: ${soaTab === 'profile' ? '13in 8.5in' : '8.5in 13in'}; margin: ${soaTab === 'profile' ? '0.25in 0.12in 0.25in 0.35in' : '0.3in 0.3in 0.3in 0.45in'}; }`}</style>
                   <div className="printable-soa-wrapper">
-                    <div className="soa-top-header">
-                      <div className="print-brand-container">
-                        <div>
-                          <h2 className="soa-brand-name">MELANN LENDING</h2>
-                          <p className="soa-subtitle">STATEMENT OF ACCOUNT</p>
-                        </div>
+                    <div className="soa-brand-v2">
+                      <div>
+                        <h2 className="soa-brand-name-v2">MELANN LENDING</h2>
+                        <p className="soa-brand-sub-v2">STATEMENT OF ACCOUNT</p>
                       </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div className="soa-date screen-only">Date: <span>{new Date().toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'})}</span></div>
-                        <div className="soa-print-preview-note screen-only">
-                          Print preview: {soaTab === 'profile' ? 'Legal landscape, 1 page' : `Legal portrait, ${sortedPayments.length > 20 ? 'may continue to page 2' : '1 page expected'}`}
-                        </div>
-                        <div className="screen-only" style={{ display: 'flex', gap: 10, marginTop: 10, justifyContent: 'flex-end' }}>
-                          <button className="soa-print-btn" style={{ background: '#64748b' }} onClick={() => setSoaModal(false)}>Close</button>
-                          <button className="soa-print-btn" onClick={() => window.print()}>Print</button>
-                        </div>
+                      <div className="soa-actions-v2 screen-only">
+                        <button className="soa-btn-outline-v2" onClick={() => setSoaModal(false)}>
+                          Back
+                        </button>
+                        <button className="soa-btn-primary-v2" onClick={() => window.print()}>
+                          <Printer size={16} /> Print
+                        </button>
                       </div>
                     </div>
 
-                    <div className="soa-tabs screen-only">
-                      {[['summary', 'Summary'], ['profile', 'Profile'], ['history', 'Loans & Payments History']].map(([id, label]) => (
-                        <button key={id} type="button" className={`soa-tab ${soaTab === id ? 'active' : ''}`} onClick={() => setSoaTab(id)}>{label}</button>
+                    <div className="soa-tabs-v2 screen-only">
+                      {[['summary', 'Summary', PieChart], ['profile', 'Profile', User], ['history', 'Loans & Payments History', List]].map(([id, label, Icon]) => (
+                        <button key={id} type="button" className={`soa-tab-v2 ${soaTab === id ? 'active' : ''}`} onClick={() => setSoaTab(id)}>
+                          <Icon size={18} /> {label}
+                        </button>
                       ))}
                     </div>
 
                     {soaTab === 'summary' && (
                       <>
-                        <div className="soa-card soa-info-wrapper print-card">
-                          <div className="print-tab print-tab-dark">CUSTOMER INFORMATION</div>
-                          <div className="soa-info-left">
-                            {soaData.photo_client || soaData.photo_id_front ? (
-                              <img src={getImageUrl(soaData.photo_client || soaData.photo_id_front)} className="soa-avatar" alt="Customer Avatar" style={{ objectFit: 'contain', background: '#f8fafc', border: '1px solid #e2e8f0' }} />
-                            ) : (
-                              <div className="soa-avatar">{getInitials(soaData.full_name)}</div>
-                            )}
-                            <div className="soa-info-grid" style={{ gridTemplateColumns: soaData.photo_business_proof ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)' }}>
-                              <div className="soa-info-item"><div><div className="soa-info-label" style={{display:'flex', alignItems:'center', gap:5}}>Customer Name {soaData.cicStatus && <span title={soaData.cicStatus.status === 'Ready' ? 'CIC Ready' : `CIC Incomplete: ${soaData.cicStatus.missingFields?.join(', ')}`} style={{fontSize: 12, cursor:'help'}}>{soaData.cicStatus.status === 'Ready' ? '🟢' : '🟡'}</span>}</div><div className="soa-info-val" style={{ textTransform: 'uppercase' }}>{soaData.full_name}</div><div className="soa-info-label" style={{ marginTop: 10 }}>Contact</div><div className="soa-info-val">{soaData.contact || '-'}</div></div></div>
-                              <div className="soa-info-item"><div><div className="soa-info-label">Customer Code</div><div className="soa-info-val">{soaData.customer_code}</div><div className="soa-info-label" style={{ marginTop: 10 }}>Customer Status</div><div className={soaData.status === 'inactive' ? 'soa-badge-inactive' : 'soa-badge-active'}>{soaData.status || '-'}</div></div></div>
-                              <div className="soa-info-item"><div><div className="soa-info-label">Address</div><div className="soa-info-val">{[soaData.address, soaData.sitio, soaData.purok, soaData.brgy, soaData.city].filter(Boolean).join(', ') || '-'}</div><div className="soa-info-label" style={{ marginTop: 10 }}>Member Since</div><div className="soa-info-val">{memberSince}</div></div></div>
-                              {soaData.photo_business_proof && (
-                                <div className="soa-info-item"><div><div className="soa-info-label">Store / Business Photo</div><div style={{ cursor: 'pointer' }} onClick={() => setPreviewImage(getImageUrl(soaData.photo_business_proof))}><img src={getImageUrl(soaData.photo_business_proof)} alt="Store" style={{ height: 60, borderRadius: 6, marginTop: 4, border: '1px solid #e2e8f0', objectFit: 'cover' }} /></div></div></div>
-                              )}
+                        <div className="soa-card-v2 print-card">
+                          <div className="soa-cust-info-v2">
+                            <div className="soa-avatar-v2">{cleanInitials}</div>
+                            <div className="soa-info-grid-v2">
+                              <div>
+                                <div className="soa-label-v2">Customer Name</div>
+                                <div className="soa-val-v2">{soaData.full_name} <CheckCircle size={16} color="#eab308" fill="#fef08a" /></div>
+                                <div className="soa-label-v2">Contact</div>
+                                <div className="soa-val-sub-v2"><Phone size={14} /> {soaData.contact || 'NONE'}</div>
+                              </div>
+                              <div>
+                                <div className="soa-label-v2">Customer Code</div>
+                                <div className="soa-val-v2" style={{ fontSize: 18 }}>{soaData.customer_code}</div>
+                                <div className="soa-label-v2">Customer Status</div>
+                                <div className="soa-status-badge-v2"><div className="dot"></div> {soaData.status || 'Active'}</div>
+                              </div>
+                              <div>
+                                <div className="soa-label-v2">Address</div>
+                                <div className="soa-val-v2" style={{ fontSize: 14, lineHeight: 1.4 }}>{[soaData.address, soaData.sitio, soaData.purok, soaData.brgy, soaData.city].filter(Boolean).join(', ') || '-'}</div>
+                                <div className="soa-label-v2">Member Since</div>
+                                <div className="soa-val-sub-v2"><CalendarDays size={14} /> {memberSince}</div>
+                              </div>
                             </div>
                           </div>
-                          <div className="soa-gauge-wrapper"><div className="soa-gauge"><div className="soa-gauge-label">Outstanding<br/>Balance</div><div className="soa-gauge-val">{formatPhp(outstandingBal)}</div><div className="soa-gauge-sub">As of {new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})}</div></div></div>
+                          
+                          <div className="soa-divider-v2"></div>
+                          
+                          <div className="soa-chart-v2">
+                            <div className="soa-chart-label-v2">OUTSTANDING BALANCE</div>
+                            <div className="donut-v2">
+                              <div className="donut-inner-v2">
+                                <div className="donut-val-v2">{formatPhp(outstandingBal)}</div>
+                                <div className="donut-sub-v2">As of {new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})}</div>
+                              </div>
+                              <div className="donut-dot-v2"></div>
+                            </div>
+                          </div>
                         </div>
 
-                        <div className="soa-summary-row">
-                          <div className="soa-card soa-summary-card print-card"><div className="print-tab print-tab-green">LOAN SUMMARY</div><div className="soa-summary-grid"><div><div className="soa-summary-label">Total Loan Amount</div><div className="soa-summary-val">{formatPhp(totalLoanAmt)}</div></div><div><div className="soa-summary-label">Total Paid</div><div className="soa-summary-val green">{formatPhp(totalPaid)}</div></div><div><div className="soa-summary-label">Outstanding Balance</div><div className="soa-summary-val blue">{formatPhp(outstandingBal)}</div></div></div></div>
-                          <div className="soa-card soa-summary-card print-card"><div className="print-tab print-tab-blue">PAYMENT SUMMARY</div><div className="soa-summary-grid"><div><div className="soa-summary-label">Total Payments</div><div className="soa-summary-val green">{sortedPayments.length}</div></div><div><div className="soa-summary-label">Last Payment</div><div className="soa-summary-val" style={{ fontSize: 16 }}>{lastPayment}</div></div><div><div className="soa-summary-label">Next Due Date</div><div className="soa-summary-val" style={{ fontSize: 16 }}>{nextDueDate}</div></div></div></div>
+                        <div className="soa-metrics-row-v2 print-card">
+                          <div className="soa-metric-card-v2 blue">
+                            <div className="soa-metric-icon-v2"><Wallet size={24} /></div>
+                            <div>
+                              <div className="soa-metric-label-v2">Total Loan Amount</div>
+                              <div className="soa-metric-val-v2">{formatPhp(totalLoanAmt)}</div>
+                            </div>
+                          </div>
+                          <div className="soa-metric-card-v2 green">
+                            <div className="soa-metric-icon-v2"><CheckCircle size={24} /></div>
+                            <div>
+                              <div className="soa-metric-label-v2">Total Paid</div>
+                              <div className="soa-metric-val-v2 green">{formatPhp(totalPaid)}</div>
+                            </div>
+                          </div>
+                          <div className="soa-metric-card-v2 purple">
+                            <div className="soa-metric-icon-v2"><Scale size={24} /></div>
+                            <div>
+                              <div className="soa-metric-label-v2">Outstanding Balance</div>
+                              <div className="soa-metric-val-v2 blue">{formatPhp(outstandingBal)}</div>
+                            </div>
+                          </div>
+                          <div className="soa-metric-card-v2 orange">
+                            <div className="soa-metric-icon-v2"><FileText size={24} /></div>
+                            <div>
+                              <div className="soa-metric-label-v2">Total Payments</div>
+                              <div className="soa-metric-val-v2 orange">{sortedPayments.length}</div>
+                            </div>
+                          </div>
+                          <div className="soa-metric-card-v2 pink">
+                            <div className="soa-metric-icon-v2"><CalendarDays size={24} /></div>
+                            <div>
+                              <div className="soa-metric-label-v2">Last Payment</div>
+                              <div className="soa-metric-val-v2 pink" style={{ fontSize: 16 }}>{lastPayment}</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="soa-due-card-v2 print-card">
+                          <div className="soa-due-icon-v2"><CalendarClock size={24} /></div>
+                          <div className="soa-due-content-v2">
+                            <div className="label">Next Due Date</div>
+                            <div className="val">{nextDueDate}</div>
+                          </div>
+                          <div className="soa-due-divider"></div>
+                          <div className="soa-due-text">Stay on track! You have an upcoming due date.</div>
+                          
+                          <svg className="soa-due-bg-waves" width="400" height="100" viewBox="0 0 400 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M0 60C100 60 150 20 250 20C350 20 400 80 400 80" stroke="#bfdbfe" strokeWidth="2"/>
+                            <path d="M0 80C120 80 180 40 280 40C380 40 400 60 400 60" stroke="#bfdbfe" strokeWidth="1"/>
+                          </svg>
+                        </div>
+
+                        <div className="soa-alert-v2 screen-only">
+                          <div className="soa-alert-icon-v2"><Info size={16} /></div>
+                          <div className="soa-alert-text-v2">Thank you for keeping your account active. For any concerns, please contact your collector or visit our office.</div>
                         </div>
                       </>
                     )}
@@ -1099,7 +1249,7 @@ export default function Customers() {
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = '#ffffff'}
               >
-                <i className="bi bi-x-lg"></i> Close
+                <i className="bi bi-arrow-left"></i> Back
               </button>
             </div>
           </div>
