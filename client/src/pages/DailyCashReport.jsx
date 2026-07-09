@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import API from '../services/api';
 import dayjs from 'dayjs';
 
@@ -50,11 +50,21 @@ export default function DailyCashReport() {
   if (!data) return null;
 
   // Group collections by collector for "4. COLLECTIONS"
-  const collByCollector = data.collections.reduce((acc, c) => {
+  const collByCollector = (data.collections || []).reduce((acc, c) => {
     const name = c.collector_name || 'Unassigned';
     acc[name] = (acc[name] || 0) + c.amount_paid;
     return acc;
   }, {});
+
+  (data.passbooks || []).forEach(p => {
+    const name = p.description || 'Unassigned';
+    collByCollector[name] = (collByCollector[name] || 0) + p.amount;
+  });
+
+  (data.penalties || []).forEach(p => {
+    const name = p.description || 'Unassigned';
+    collByCollector[name] = (collByCollector[name] || 0) + p.amount;
+  });
 
   const bankCharges = data.bankCharges || [];
   const interest = data.interest || [];
@@ -336,25 +346,36 @@ export default function DailyCashReport() {
                 </tr>
               </thead>
               <tbody>
-                {data.releases.map((r, i) => (
-                  <tr key={i}>
-                    <td>{i + 1}</td>
-                    <td>{r.loan_code.replace('LN-','')}</td>
-                    <td style={{fontWeight: 600}}>{r.last_name}, {r.first_name}</td>
-                    <td>{r.collector_name || 'Unassigned'}</td>
-                    <td style={{textAlign:'center'}}>
-                      <span className={`badge-type type-${(r.loan_type || 'new').toLowerCase()}`}>{r.loan_type || 'NEW'}</span>
-                    </td>
-                    <td className="text-right">{(r.principal || 0).toFixed(2)}</td>
-                    <td className="text-right">0.00</td>
-                    <td className="text-right">0.00</td>
-                    <td className="text-right">0.00</td>
-                    <td className="text-right">0.00</td>
-                    <td className="text-right">0.00</td>
-                    <td className="text-right">0.00</td>
-                  </tr>
-                ))}
-                {data.releases.length === 0 && <tr><td colSpan={12} style={{textAlign:'center', padding: 20}}>No loan releases.</td></tr>}
+                {(() => {
+                  if (data.releases.length === 0) {
+                    return <tr><td colSpan={12} style={{textAlign:'center', padding: 20}}>No loan releases.</td></tr>;
+                  }
+
+                  const sortedReleases = [...data.releases].sort((a, b) => {
+                    const cA = a.collector_name || 'Unassigned';
+                    const cB = b.collector_name || 'Unassigned';
+                    return cA.localeCompare(cB);
+                  });
+
+                  return sortedReleases.map((r, i) => (
+                    <tr key={r.id}>
+                      <td>{i + 1}</td>
+                      <td>{r.loan_code.replace('LN-','')}</td>
+                      <td style={{fontWeight: 600}}>{r.last_name}, {r.first_name}</td>
+                      <td>{r.collector_name || 'Unassigned'}</td>
+                      <td style={{textAlign:'center'}}>
+                        <span className={`badge-type type-${(r.loan_type || 'new').toLowerCase()}`}>{r.loan_type || 'NEW'}</span>
+                      </td>
+                      <td className="text-right">{(r.principal || 0).toFixed(2)}</td>
+                      <td className="text-right">{(r.service_fee || 0).toFixed(2)}</td>
+                      <td className="text-right">{(r.insurance || 0).toFixed(2)}</td>
+                      <td className="text-right">0.00</td>
+                      <td className="text-right">0.00</td>
+                      <td className="text-right">0.00</td>
+                      <td className="text-right">{(r.balance || 0).toFixed(2)}</td>
+                    </tr>
+                  ));
+                })()}
                 <tr className="dcr-footer-row">
                   <td colSpan={5}>TOTAL LOAN RELEASES</td>
                   <td className="text-right">₱{fmt(data.display_total_releases)}</td>
@@ -516,7 +537,7 @@ export default function DailyCashReport() {
       <div className="dcr-signatures">
         <div className="dcr-sign-box">
           <div className="dcr-sign-name">MARILYN O. RELOBA</div>
-          <div className="dcr-sign-title">Cashier</div>
+          <div className="dcr-sign-title">Branch Manager</div>
           <div className="dcr-sign-date">{dayjs(date).format('MMMM D, YYYY')} {dayjs().format('h:mm A')}</div>
         </div>
         <div className="dcr-sign-box">
@@ -526,7 +547,7 @@ export default function DailyCashReport() {
         </div>
         <div className="dcr-sign-box">
           <div className="dcr-sign-name">ANNA LIZA R. RODRIGUEZ</div>
-          <div className="dcr-sign-title">Operations Manager</div>
+          <div className="dcr-sign-title">Executive Vice-President</div>
           <div className="dcr-sign-date">{dayjs(date).format('MMMM D, YYYY')} {dayjs().format('h:mm A')}</div>
         </div>
       </div>

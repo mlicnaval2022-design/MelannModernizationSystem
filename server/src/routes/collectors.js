@@ -36,4 +36,29 @@ router.put('/:id', authenticateToken, requireRole('admin', 'manager'), async (re
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+router.post('/assign-loan', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const { loan_id, new_collector_id } = req.body;
+    if (!loan_id || !new_collector_id) return res.status(400).json({ error: 'Missing parameters' });
+    
+    const loan = await dbGet('SELECT customer_id FROM tblLoan WHERE id = ?', [loan_id]);
+    if (!loan) return res.status(404).json({ error: 'Loan not found' });
+    
+    await dbRun(`UPDATE tblLoan SET collector_id = ? WHERE id = ?`, [new_collector_id, loan_id]);
+    await dbRun(`UPDATE tblCustomer SET collector_id = ? WHERE id = ?`, [new_collector_id, loan.customer_id]);
+    
+    res.json({ message: 'Collector assigned successfully' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/:id', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const activeLoans = (await dbGet(`SELECT COUNT(*) as count FROM tblLoan WHERE collector_id = ? AND status = 'active'`, [req.params.id])).count;
+    if (activeLoans > 0) return res.status(400).json({ error: 'Cannot delete collector with active loans. Please reassign them first.' });
+    
+    await dbRun(`UPDATE tblCollector SET is_active = 0 WHERE id = ?`, [req.params.id]);
+    res.json({ message: 'Collector deleted successfully' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;

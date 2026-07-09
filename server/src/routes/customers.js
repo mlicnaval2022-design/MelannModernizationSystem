@@ -131,13 +131,26 @@ router.get('/list/fully-paid', authenticateToken, async (req, res) => {
       WHERE c.status = 'FULLY PAID'
     `);
     
+    const today = new Date().toISOString().split('T')[0];
     for (let c of fullyPaid) {
       const stats = await dbGet(`SELECT COUNT(*) as total_sched, SUM(CASE WHEN s.status='paid' AND date_paid > due_date THEN 1 ELSE 0 END) as late FROM tblAmortizationSchedule s JOIN tblLoan l ON s.loan_id=l.id WHERE l.customer_id=?`, [c.id]);
       const pastDues = await dbGet(`SELECT COUNT(*) as pd FROM tblLoan WHERE customer_id=? AND status='pastdue'`, [c.id]);
       
-      let score = 100;
-      if (stats && stats.total_sched > 0) score -= ((stats.late || 0) * 2);
-      if (pastDues) score -= ((pastDues.pd || 0) * 20);
+      const lastLoan = await dbGet(`
+        SELECT * FROM tblLoan WHERE customer_id = ?
+        ORDER BY COALESCE(date_released, created_at) DESC, id DESC LIMIT 1`, [c.id]);
+      const payments = lastLoan
+        ? await dbAll(`SELECT * FROM tblPayment WHERE loan_id = ? AND status != 'reversed' ORDER BY date_paid ASC, id ASC`, [lastLoan.id])
+        : [];
+      
+      const consistency = lastLoan ? getPaymentConsistency(lastLoan, payments) : getPaymentConsistency({}, []);
+      
+      const daysOverdue = lastLoan && lastLoan.date_maturity && Number(lastLoan.balance || 0) > 0
+        ? Math.max(0, daysBetween(lastLoan.date_maturity, today))
+        : 0;
+
+      let score = 100 - ((stats && stats.late ? stats.late : 0) * 2) - ((pastDues && pastDues.pd ? pastDues.pd : 0) * 20) + consistency.score_adjustment;
+      if (daysOverdue > 0) score -= Math.min(40, daysOverdue * 2);
       c.credit_score = Math.max(0, score);
     }
     res.json(fullyPaid);
@@ -148,7 +161,7 @@ router.get('/list/fully-paid', authenticateToken, async (req, res) => {
 
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const { search, status, branch_id } = req.query;
+    const { search, status, branch_id, collector_id } = req.query;
     let q = `
       SELECT c.*, b.branch_name,
         COALESCE(
@@ -186,6 +199,7 @@ router.get('/', authenticateToken, async (req, res) => {
     if (search) { q += ` AND (c.full_name LIKE ? OR c.customer_code LIKE ? OR c.contact LIKE ?)`; p.push(`%${search}%`, `%${search}%`, `%${search}%`); }
     if (status) { q += ` AND c.status = ?`; p.push(status); }
     if (branch_id) { q += ` AND c.branch_id = ?`; p.push(branch_id); }
+    if (collector_id) { q += ` AND c.collector_id = ?`; p.push(collector_id); }
     q += ` ORDER BY c.last_name, c.first_name`;
     res.json(await dbAll(q, p));
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
@@ -362,7 +376,8 @@ router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
         penalty_rate: penaltyRate,
         recommended_penalty: recommendedPenalty,
         requires_manager_approval: recommendedPenalty > 0
-      }
+      },
+      payments: payments
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

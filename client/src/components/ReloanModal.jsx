@@ -51,11 +51,20 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
   const [remarks, setRemarks] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const [internalCustomerId, setInternalCustomerId] = useState(null);
+  const [internalCustomer, setInternalCustomer] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+
+  const activeCustomerId = customerId || internalCustomerId;
+  const activeCustomer = customer || internalCustomer;
+
   const fetchReloanData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await API.get(`/customers/${customerId}/reloan-eval`);
+      const res = await API.get(`/customers/${activeCustomerId}/reloan-eval`);
       setData(res.data);
       if (loanType === 'Recon') {
         setDesiredAmount(current => current || res.data.active_balance || '');
@@ -67,14 +76,13 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
     } finally {
       setLoading(false);
     }
-  }, [customerId]);
+  }, [activeCustomerId, loanType]);
 
   useEffect(() => {
     if (isOpen) {
-      if (customerId) {
+      if (activeCustomerId) {
         fetchReloanData();
       } else {
-        setError('Missing customer details. Please select a valid customer.');
         setLoading(false);
       }
     } else {
@@ -85,9 +93,13 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
       setInterestRate('15');
       setDateRelease(toInputDate(new Date()));
       setDesiredAmount('');
+      setInternalCustomerId(null);
+      setInternalCustomer(null);
+      setSearchQuery('');
+      setSearchResults([]);
       setLoading(true); // Reset loading state for next open
     }
-  }, [isOpen, customerId, fetchReloanData]);
+  }, [isOpen, activeCustomerId, fetchReloanData]);
 
   const computed = useMemo(() => {
     const today = new Date();
@@ -144,9 +156,32 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
 
   if (!isOpen) return null;
 
-  const clientName = customer?.client_name || customer?.full_name || 'Selected customer';
-  const customerCode = customer?.customer_code || customerId || '';
-  const collectorName = customer?.collector_name || 'Select collector';
+  const handleCustomerSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    try {
+      const res = await API.get('/customers', { params: { search: searchQuery } });
+      let results = res.data || [];
+      const exactMatch = results.find(c => c.customer_code === searchQuery.trim());
+      if (exactMatch) {
+        results = [exactMatch];
+      }
+      setSearchResults(results);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const selectCustomer = (c) => {
+    setInternalCustomer(c);
+    setInternalCustomerId(c.id);
+  };
+
+  const clientName = activeCustomer?.client_name || activeCustomer?.full_name || 'Selected customer';
+  const customerCode = activeCustomer?.customer_code || activeCustomerId || '';
+  const collectorName = activeCustomer?.collector_name || 'Select collector';
   const isEligible = loanType === 'Recon' ? true : data?.is_eligible !== false;
 
   const handleKeyDown = (e) => {
@@ -178,7 +213,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
               <span>●</span>
             </div>
             <div>
-              <h2>REGULAR LOAN FILE MAINTENANCE</h2>
+              <h2>LOAN</h2>
               <p>Create and manage regular loan records</p>
             </div>
           </div>
@@ -192,10 +227,67 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
         </div>
 
         <div className="reloan-body">
-          {loading ? (
+          {!activeCustomerId ? (
+            <div className="reloan-customer-search" style={{ padding: '20px' }}>
+              <h3 style={{ marginBottom: '15px' }}>Select Customer</h3>
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                <input 
+                  type="text" 
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleCustomerSearch()}
+                  placeholder="Search by name, code..."
+                  style={{ flex: 1, padding: '10px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                />
+                <button type="button" onClick={handleCustomerSearch} className="reloan-primary" style={{ padding: '0 20px', minWidth: 'auto' }}>
+                  {searching ? '...' : 'Search'}
+                </button>
+              </div>
+              
+              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                {searchResults.length > 0 ? (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid #cbd5e1' }}>
+                        <th style={{ padding: '10px' }}>Code</th>
+                        <th style={{ padding: '10px' }}>Name</th>
+                        <th style={{ padding: '10px' }}>Status</th>
+                        <th style={{ padding: '10px' }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {searchResults.map(c => (
+                        <tr key={c.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                          <td style={{ padding: '10px' }}>{c.customer_code}</td>
+                          <td style={{ padding: '10px', fontWeight: 'bold' }}>{c.full_name}</td>
+                          <td style={{ padding: '10px' }}>{c.status}</td>
+                          <td style={{ padding: '10px', textAlign: 'right' }}>
+                            <button type="button" onClick={() => selectCustomer(c)} className="btn btn-sm btn-primary" style={{ padding: '4px 12px', fontSize: '12px' }}>Select</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  searchQuery && !searching && <p style={{ color: '#64748b' }}>No customers found.</p>
+                )}
+              </div>
+            </div>
+          ) : loading ? (
             <div className="reloan-state">
               <div className="reloan-spinner" />
               <span>Loading reloan file...</span>
+            </div>
+          ) : !isEligible ? (
+            <div style={{ padding: '60px 40px', textAlign: 'center', background: '#fef2f2', borderRadius: '8px', margin: '20px', border: '1px solid #fecaca' }}>
+              <div style={{ fontSize: '48px', marginBottom: '15px' }}>⚠️</div>
+              <h2 style={{ margin: '0 0 10px 0', color: '#991b1b', fontSize: '24px' }}>Cannot Proceed</h2>
+              <p style={{ color: '#7f1d1d', fontSize: '18px', fontWeight: '500', marginBottom: '30px' }}>
+                Remaining balance: {peso(data?.active_balance || 0)}
+              </p>
+              <button type="button" onClick={() => { if (!customerId) { setInternalCustomerId(null); setInternalCustomer(null); } else { onClose(); } }} className="btn btn-primary" style={{ padding: '10px 30px', margin: '0 auto', display: 'inline-flex', background: '#ef4444', border: 'none', color: 'white', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                {customerId ? 'Close' : 'Go Back'}
+              </button>
             </div>
           ) : (
             <>
@@ -218,6 +310,18 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
                     </div>
                   </label>
 
+                  <div className="reloan-split">
+                    <label className="reloan-field">
+                      <span>Loan Type</span>
+                      <select disabled>
+                        <option>{loanType}</option>
+                      </select>
+                    </label>
+                    <label className="reloan-field">
+                      <span>Terms (Days) <b>*</b></span>
+                      <input type="number" min="1" value={loanTerm} onChange={e => setLoanTerm(e.target.value)} required />
+                    </label>
+                  </div>
                   <label className="reloan-field">
                     <span>Principal <b>*</b></span>
                     <div className="reloan-money-input">
