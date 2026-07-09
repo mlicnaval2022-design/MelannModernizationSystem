@@ -1147,13 +1147,17 @@ export default function Customers() {
                           </thead>
                           <tbody>
                             {loanPayments.map((p, idx) => { 
+                              const isReversed = p.status === 'reversed';
                               const isFullyPaid = p.status === 'active' && Number(p.balance_after) <= 0; 
                               const isPartial = p.status === 'active' && Number(p.balance_after) > 0;
                               
                               // Pill styles
                               let pillBg = '#f1f5f9', pillColor = '#64748b', pillIcon = 'bi-circle';
-                              if (isFullyPaid) { pillBg = '#f3e8ff'; pillColor = '#9333ea'; pillIcon = 'bi-check-circle'; }
-                              else if (isPartial) { pillBg = '#dcfce7'; pillColor = '#16a34a'; pillIcon = 'bi-check-circle'; }
+                              let statusText = 'Active';
+                              
+                              if (isReversed) { pillBg = '#fee2e2'; pillColor = '#ef4444'; pillIcon = 'bi-x-circle'; statusText = 'Reversed'; }
+                              else if (isFullyPaid) { pillBg = '#f3e8ff'; pillColor = '#9333ea'; pillIcon = 'bi-check-circle'; statusText = 'Fully Paid'; }
+                              else if (isPartial) { pillBg = '#dcfce7'; pillColor = '#16a34a'; pillIcon = 'bi-check-circle'; statusText = 'Active'; }
                               
                               return (
                                 <tr key={p.id} style={{ borderBottom: idx === loanPayments.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
@@ -1166,12 +1170,14 @@ export default function Customers() {
                                       </div>
                                     </div>
                                   </td>
-                                  <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '500', color: '#2563eb' }}>{p.or_number || p.loan_code}</td>
+                                  <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '500', color: '#2563eb' }}>
+                                    {p.payment_code && p.payment_code !== 'N/A' ? p.payment_code : (p.or_number && p.or_number !== 'N/A' ? p.or_number : 'N/A')}
+                                  </td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>{formatPhp(p.amount_paid)}</td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>{formatPhp(p.balance_after)}</td>
                                   <td style={{ padding: '16px 24px', textAlign: 'center' }}>
                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '9999px', backgroundColor: pillBg, color: pillColor, fontSize: '12px', fontWeight: '600' }}>
-                                      <i className={`bi ${pillIcon}`}></i> {isFullyPaid ? 'Fully Paid' : 'Active'}
+                                      <i className={`bi ${pillIcon}`}></i> {statusText}
                                     </span>
                                   </td>
                                 </tr>

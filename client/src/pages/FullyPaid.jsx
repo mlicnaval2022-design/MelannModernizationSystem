@@ -361,8 +361,8 @@ export default function FullyPaid({ search = '' }) {
                           borderRadius: '4px', 
                           fontSize: '12px', 
                           fontWeight: 'bold',
-                          background: p.status === 'paid' ? '#dcfce7' : '#fee2e2',
-                          color: p.status === 'paid' ? '#166534' : '#991b1b'
+                          background: (p.status === 'paid' || p.status === 'active') ? '#dcfce7' : '#fee2e2',
+                          color: (p.status === 'paid' || p.status === 'active') ? '#166534' : '#991b1b'
                         }}>
                           {p.status.toUpperCase()}
                         </span>

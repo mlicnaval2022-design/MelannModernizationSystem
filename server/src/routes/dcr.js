@@ -98,7 +98,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
     const total_bank_interest = interest.reduce((acc, b) => acc + b.amount, 0);
 
     // Beginning Cash
-    let prevDcrQuery = `SELECT actual_cash_count, ending_cash_on_bank FROM tblDailyCashReport WHERE report_date < ?`;
+    let prevDcrQuery = `SELECT actual_cash_count, ending_cash_on_bank, ytd_beg_releases, ytd_beg_collections, ytd_beg_expenses, total_releases, total_collections, total_expenses FROM tblDailyCashReport WHERE report_date < ?`;
     let prevDcrParams = [date];
     if (branch_id) {
       prevDcrQuery += ` AND branch_id = ?`;
@@ -109,6 +109,10 @@ router.get('/summary', authenticateToken, async (req, res) => {
     
     const beginning_cash = prevDcr ? prevDcr.actual_cash_count : 0;
     const beginning_cash_on_bank = prevDcr ? prevDcr.ending_cash_on_bank : 0;
+    
+    const ytd_beg_releases_default = prevDcr ? (prevDcr.ytd_beg_releases || 0) + (prevDcr.total_releases || 0) : 0;
+    const ytd_beg_collections_default = prevDcr ? (prevDcr.ytd_beg_collections || 0) + (prevDcr.total_collections || 0) : 0;
+    const ytd_beg_expenses_default = prevDcr ? (prevDcr.ytd_beg_expenses || 0) + (prevDcr.total_expenses || 0) : 0;
 
     // Cash on Hand formula
     const cash_available = beginning_cash + total_collections + total_adjustments + total_withdrawals;
@@ -129,11 +133,13 @@ router.get('/summary', authenticateToken, async (req, res) => {
       ...penalties.map(p => ({ type: 'Penalty', ref: '—', code: '—', name: p.description, amount: p.amount, user: p.encoded_by, time: p.created_at, remarks: 'Penalty Collection', dcr_id: p.dcr_id }))
     ].sort((a, b) => new Date(b.time) - new Date(a.time));
 
-    res.json({
       date,
       dcr: existingDcr,
       beginning_cash,
       beginning_cash_on_bank,
+      ytd_beg_releases_default,
+      ytd_beg_collections_default,
+      ytd_beg_expenses_default,
       total_collections,
       display_total_releases,
       cash_out_releases,
@@ -193,7 +199,7 @@ router.get('/loan-releases', authenticateToken, async (req, res) => {
 // Close Day
 router.post('/close', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   try {
-    const { date, branch_id, denom } = req.body;
+    const { date, branch_id, denom, ytd_beg_releases, ytd_beg_collections, ytd_beg_expenses } = req.body;
     
     // Check if already closed
     let existingQuery = `SELECT * FROM tblDailyCashReport WHERE report_date = ?`;
@@ -287,15 +293,15 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
         expected_ending_cash, ending_cash_on_bank, total_cash_position,
         total_deposits, total_withdrawals, total_bank_charges, total_bank_interest,
         count_1000, count_500, count_200, count_100, count_50, count_20, count_coins,
-        actual_cash_count, variance, status, closed_by
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        actual_cash_count, variance, status, closed_by, ytd_beg_releases, ytd_beg_collections, ytd_beg_expenses
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `, [
       dcr_number, branch_id, date, beginning_cash, total_collections, cash_out_releases, total_expenses,
       other_income, other_disbursements,
       expected_ending_cash, ending_cash_on_bank, total_cash_position,
       total_deposits, total_withdrawals, total_bank_charges, total_bank_interest,
       denom.count_1000, denom.count_500, denom.count_200, denom.count_100, denom.count_50, denom.count_20, denom.count_coins,
-      actual_cash_count, variance, 'CLOSED', req.user.id
+      actual_cash_count, variance, 'CLOSED', req.user.id, ytd_beg_releases || 0, ytd_beg_collections || 0, ytd_beg_expenses || 0
     ]);
 
     const dcrId = result.lastID;
