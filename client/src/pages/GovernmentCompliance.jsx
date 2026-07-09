@@ -3,6 +3,8 @@ import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import './GovernmentCompliance.css';
 
+const apiOrigin = API.defaults.baseURL.replace('/api', '');
+
 const AGENCIES = {
   CIC: {
     label: 'FOR CIC',
@@ -281,8 +283,8 @@ export default function GovernmentCompliance() {
                     <td><div className="gc-actions">
                       {canWrite && <button className="btn btn-sm btn-secondary" onClick={() => openForm(row)}>Edit</button>}
                       {canWrite && <button className="btn btn-sm btn-secondary" onClick={() => setUploadTarget({ row, document_type: config.attachments[0], replace: false })}>Upload</button>}
-                      {firstAttachment(row) && <a className="btn btn-sm btn-secondary" href={`http://localhost:5001${firstAttachment(row).file_url}`} target="_blank" rel="noreferrer">View</a>}
-                      {firstAttachment(row) && <a className="btn btn-sm btn-secondary" href={`http://localhost:5001${firstAttachment(row).file_url}`} download>Download</a>}
+                      {firstAttachment(row) && <a className="btn btn-sm btn-secondary" href={`${apiOrigin}${firstAttachment(row).file_url}`} target="_blank" rel="noreferrer">View</a>}
+                      {firstAttachment(row) && <a className="btn btn-sm btn-secondary" href={`${apiOrigin}${firstAttachment(row).file_url}`} download>Download</a>}
                       {canWrite && firstAttachment(row) && <button className="btn btn-sm btn-secondary" onClick={() => setUploadTarget({ row, document_type: firstAttachment(row).document_type, replace: true })}>Replace</button>}
                       <button className="btn btn-sm btn-secondary" onClick={() => window.print()}>Print</button>
                       <button className="btn btn-sm btn-secondary" onClick={() => openHistory(row)}>{active === 'SEC' ? 'Timeline' : 'History'}</button>

@@ -133,6 +133,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
       ...penalties.map(p => ({ type: 'Penalty', ref: '—', code: '—', name: p.description, amount: p.amount, user: p.encoded_by, time: p.created_at, remarks: 'Penalty Collection', dcr_id: p.dcr_id }))
     ].sort((a, b) => new Date(b.time) - new Date(a.time));
 
+    res.json({
       date,
       dcr: existingDcr,
       beginning_cash,
