@@ -131,7 +131,7 @@ export default function Loans() {
           <input id="loan-search" className="form-control" placeholder="Search name, code, loan#..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <button id="btn-release-loan" className="btn btn-primary" onClick={openReleaseModal} style={{ marginRight: '8px' }}>🚀 NEW LOAN APPROVED</button>
-        <button className="btn btn-dark" onClick={() => { setLoanActionType('New Loan'); setReloanCustomer(null); setReloanModalOpen(true); }}>+ Add Loan</button>
+        <button className="btn btn-dark" onClick={() => { setLoanActionType('Reloan'); setReloanCustomer(null); setReloanModalOpen(true); }}>+ Add Loan</button>
       </div>
 
       <div className="custom-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '15px', overflowX: 'auto', paddingBottom: '5px' }}>
