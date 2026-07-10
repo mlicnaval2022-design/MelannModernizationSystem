@@ -310,18 +310,8 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
                     </div>
                   </label>
 
-                  <div className="reloan-split">
-                    <label className="reloan-field">
-                      <span>Loan Type</span>
-                      <select disabled>
-                        <option>{loanType}</option>
-                      </select>
-                    </label>
-                    <label className="reloan-field">
-                      <span>Terms (Days) <b>*</b></span>
-                      <input type="number" min="1" value={loanTerm} onChange={e => setLoanTerm(e.target.value)} required />
-                    </label>
-                  </div>
+
+
                   <label className="reloan-field">
                     <span>Principal <b>*</b></span>
                     <div className="reloan-money-input">

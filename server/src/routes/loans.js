@@ -29,7 +29,7 @@ router.get('/sheet/collection', authenticateToken, async (req, res) => {
       FROM tblLoan l
       JOIN tblCustomer c ON l.customer_id = c.id
       WHERE l.collector_id = ? AND LOWER(l.status) IN ('active', 'pastdue') AND COALESCE(l.balance, 0) > 0
-      ORDER BY c.full_name ASC
+      ORDER BY CAST(c.customer_code AS INTEGER) ASC, c.customer_code ASC
     `, [targetDate, collector_id]);
     
     const summary = {

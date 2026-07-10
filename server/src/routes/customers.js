@@ -519,6 +519,11 @@ router.put('/:id', authenticateToken, async (req, res) => {
     
     const setClause = updateCols.map(c => c === 'updated_at' ? "updated_at=datetime('now')" : `${c}=?`).join(', ');
     await dbRun(`UPDATE tblCustomer SET ${setClause} WHERE id=?`, vals);
+    
+    if (collector_id) {
+      await dbRun(`UPDATE tblLoan SET collector_id = ? WHERE customer_id = ? AND status = 'active'`, [collector_id, req.params.id]);
+    }
+
     res.json({ message: 'Customer updated' });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
