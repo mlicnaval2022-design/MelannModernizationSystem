@@ -109,7 +109,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
     const interest = Number(interestRate || 0);
     const charges = 0;
     const interestAmount = principal * (interest / 100);
-    const totalForRelease = Math.max(principal - charges, 0);
+    const totalForRelease = Math.max(principal + interestAmount - charges, 0);
     const totalAmount = principal + interestAmount;
     const paymentPerDay = terms > 0 ? Math.ceil(totalAmount / terms) : 0;
 

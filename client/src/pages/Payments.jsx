@@ -47,6 +47,7 @@ export default function Payments() {
   const [form, setForm] = useState({ amount_paid: '', date_paid: today(), remarks: '' })
   const [saving, setSaving] = useState(false)
   const [notification, setNotification] = useState(null)
+  const [confirmModal, setConfirmModal] = useState(null)
   
   const scannerRef = useRef(null)
   const amountInputRef = useRef(null)
@@ -149,9 +150,15 @@ export default function Payments() {
       if (scannerRef.current) scannerRef.current.focus()
     } catch (err) {
       if (err.response?.status === 409 && err.response?.data?.is_duplicate) {
-        if (window.confirm(err.response.data.error + '\n\nDo you want to post it anyway?')) {
-          await handlePost(null, true)
-        }
+        setConfirmModal({
+          message: err.response.data.error,
+          subMessage: 'Do you want to post it anyway?',
+          onConfirm: async () => {
+            setConfirmModal(null)
+            await handlePost(null, true)
+          },
+          onCancel: () => setConfirmModal(null)
+        })
       } else {
         setNotification({ type: 'danger', message: err.response?.data?.error || 'Error posting payment' })
       }
@@ -832,6 +839,79 @@ export default function Payments() {
             </div>
           </div>
         </div>      )}
+
+      {/* Custom Confirm Modal */}
+      {confirmModal && (
+        <div className="modal-overlay" style={{ zIndex: 10000 }} onMouseDown={e => e.target === e.currentTarget && confirmModal.onCancel && confirmModal.onCancel()}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '16px',
+            padding: '36px 32px 28px',
+            maxWidth: '460px',
+            width: '90%',
+            textAlign: 'center',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)',
+            animation: 'paymentConfirmIn 0.2s ease-out'
+          }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: '50%',
+              background: '#fffbeb',
+              color: '#f59e0b',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '28px', margin: '0 auto 18px auto',
+              border: '2px solid #fde68a'
+            }}>
+              ⚠
+            </div>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>
+              Duplicate Payment Detected
+            </h3>
+            <p style={{ color: '#64748b', fontSize: '14px', lineHeight: 1.6, margin: '0 0 6px 0' }}>
+              {confirmModal.message}
+            </p>
+            {confirmModal.subMessage && (
+              <p style={{ color: '#475569', fontSize: '14px', fontWeight: 600, margin: '0 0 28px 0' }}>
+                {confirmModal.subMessage}
+              </p>
+            )}
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                onClick={confirmModal.onCancel}
+                style={{
+                  padding: '10px 28px', borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '14px',
+                  cursor: 'pointer', transition: 'all 0.15s'
+                }}
+                onMouseEnter={e => { e.target.style.background = '#f8fafc'; e.target.style.borderColor = '#cbd5e1' }}
+                onMouseLeave={e => { e.target.style.background = '#fff'; e.target.style.borderColor = '#e2e8f0' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmModal.onConfirm}
+                style={{
+                  padding: '10px 28px', borderRadius: '8px', border: 'none',
+                  background: '#f59e0b',
+                  color: '#fff', fontWeight: 600, fontSize: '14px',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                  boxShadow: '0 2px 8px rgba(245,158,11,0.3)'
+                }}
+                onMouseEnter={e => { e.target.style.background = '#d97706' }}
+                onMouseLeave={e => { e.target.style.background = '#f59e0b' }}
+              >
+                Yes, Post Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes paymentConfirmIn {
+          from { opacity: 0; transform: scale(0.9) translateY(-10px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+      `}</style>
     </div>
   )
 }

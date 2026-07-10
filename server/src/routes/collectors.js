@@ -13,7 +13,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const collector = await dbGet(`SELECT co.*, b.branch_name FROM tblCollector co LEFT JOIN tblBranch b ON co.branch_id = b.id WHERE co.id = ?`, [req.params.id]);
     if (!collector) return res.status(404).json({ error: 'Collector not found' });
-    const loans = await dbAll(`SELECT l.*, c.full_name as customer_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id WHERE l.collector_id = ? AND l.status = 'active'`, [req.params.id]);
+    const loans = await dbAll(`SELECT l.*, c.full_name as customer_name, c.customer_code FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id WHERE l.collector_id = ? AND l.status = 'active'`, [req.params.id]);
     res.json({ ...collector, loans });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
