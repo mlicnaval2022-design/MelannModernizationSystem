@@ -423,8 +423,11 @@ router.get('/:id/reloan-eval', authenticateToken, async (req, res) => {
 
     const is_fully_paid = customer.status === 'FULLY PAID';
     const no_active_loan = !activeOrPastDueLoans || activeOrPastDueLoans.count === 0;
-    const no_outstanding_balance = !activeOrPastDueLoans || activeOrPastDueLoans.total_balance === 0;
+    const no_outstanding_balance = !activeOrPastDueLoans || !activeOrPastDueLoans.total_balance || activeOrPastDueLoans.total_balance <= 0;
     const is_good_standing = is_fully_paid && no_active_loan && no_outstanding_balance;
+
+    // Allow new loan if there's no outstanding balance, even if customer status isn't 'FULLY PAID'
+    const can_proceed = no_outstanding_balance;
 
     const last_loan = stats && stats.last_loan_amount ? stats.last_loan_amount : 0;
     
@@ -445,6 +448,7 @@ router.get('/:id/reloan-eval', authenticateToken, async (req, res) => {
       collection_efficiency: collection_efficiency,
       active_balance: activeOrPastDueLoans ? activeOrPastDueLoans.total_balance : 0,
       is_eligible: is_good_standing,
+      can_proceed: can_proceed,
       recommendations: {
         conservative: conservative,
         standard: standard,

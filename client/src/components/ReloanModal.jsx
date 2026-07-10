@@ -182,7 +182,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
   const clientName = activeCustomer?.client_name || activeCustomer?.full_name || 'Selected customer';
   const customerCode = activeCustomer?.customer_code || activeCustomerId || '';
   const collectorName = activeCustomer?.collector_name || 'Select collector';
-  const isEligible = loanType === 'Recon' ? true : data?.is_eligible !== false;
+  const isEligible = loanType === 'Recon' ? true : (data?.can_proceed !== false && data?.can_proceed !== undefined) || data?.is_eligible !== false;
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
