@@ -15,6 +15,25 @@ const yesterday = () => {
   return toDateInputValue(d)
 }
 const displayDate = value => value ? new Date(`${value}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '-'
+const shortDate = value => value ? new Date(`${value}T00:00:00`).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '-'
+const fmtMoney = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const calculateAge = birthDate => {
+  if (!birthDate) return '-'
+  const birth = new Date(`${birthDate}T00:00:00`)
+  if (Number.isNaN(birth.getTime())) return '-'
+  const today = new Date()
+  let age = today.getFullYear() - birth.getFullYear()
+  const monthDiff = today.getMonth() - birth.getMonth()
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age -= 1
+  return age
+}
+const addDays = (value, days) => {
+  if (!value) return ''
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return ''
+  date.setDate(date.getDate() + Number(days || 0))
+  return toDateInputValue(date)
+}
 const getMonthRange = (year, month) => {
   const y = Number(year)
   const m = Number(month)
@@ -249,6 +268,7 @@ const REPORT_TYPES = [
   { key: 'full-paid', label: '✅ Full Paid Loans', desc: 'Fully paid loan accounts' },
   { key: 'loan-type', label: '📊 Loan Type Summary', desc: 'Summary by loan type and status' },
   { key: 'collection-sheet', label: '📋 Collection Sheet', desc: 'Per-collector active loan list' },
+  { key: 'disclosure-statement', label: 'Disclosure Statement', desc: 'Client disclosure for every reloan' },
   { key: 'monitoring-summary', label: '🚨 Monitoring Summary', desc: 'Alerts, escalations, PTPs, and resolutions' },
 ]
 
@@ -259,7 +279,7 @@ export default function Reports() {
   const [releaseSubTab, setReleaseSubTab] = useState('daily')
   const [monthlySubTab, setMonthlySubTab] = useState('by-collector')
   const [releaseMonthlySubTab, setReleaseMonthlySubTab] = useState('by-collector')
-  const [params, setParams] = useState({ date_from: yesterday(), date_to: yesterday(), year: new Date().getFullYear(), month: new Date().getMonth() + 1, collection_month: 'all', collection_cycle_type: '30', collection_cycle: 'all', release_cycle_type: '30', release_cycle: 'all', days_ahead: 30, collector_id: '' })
+  const [params, setParams] = useState({ date_from: yesterday(), date_to: yesterday(), year: new Date().getFullYear(), month: new Date().getMonth() + 1, collection_month: 'all', collection_cycle_type: '30', collection_cycle: 'all', release_cycle_type: '30', release_cycle: 'all', days_ahead: 30, collector_id: '', disclosure_search: '', disclosure_loan_id: '' })
   const [collectors, setCollectors] = useState([])
   const [collectorsLoaded, setCollectorsLoaded] = useState(false)
   const [data, setData] = useState(null)
@@ -303,6 +323,7 @@ export default function Reports() {
       run(key, nextParams)
     }
     if (key === 'collection-sheet') { loadCollectors(); setParams(p => ({ ...p, date: toDateInputValue(new Date()) })) }
+    if (key === 'disclosure-statement') { setParams(p => ({ ...p, disclosure_loan_id: '' })) }
   }
 
   const run = async (reportKey = active, reportParams = params, subTab = collectionSubTab) => {
@@ -322,6 +343,13 @@ export default function Reports() {
         if (subTab === 'monthly') {
           const range = getMonthlyReleaseRange(finalParams)
           finalParams = { ...finalParams, date_from: range.date_from, date_to: range.date_to }
+        }
+      }
+      if (reportKey === 'disclosure-statement') {
+        endpoint = 'disclosure-statement'
+        finalParams = {
+          search: finalParams.disclosure_search,
+          loan_id: finalParams.disclosure_loan_id,
         }
       }
       const r = await API.get(`/reports/${endpoint}`, { params: finalParams })
@@ -463,12 +491,327 @@ export default function Reports() {
         </div>
       </>
     )
+    if (active === 'disclosure-statement') return (
+      <>
+        <div className="form-group" style={{ minWidth: 320 }}>
+          <label className="form-label">Client Code / Name</label>
+          <input
+            type="text"
+            className="form-control"
+            placeholder="Search client code or name..."
+            value={params.disclosure_search}
+            onChange={e => setParams(p => ({ ...p, disclosure_search: e.target.value, disclosure_loan_id: '' }))}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && params.disclosure_search.trim()) run('disclosure-statement', params)
+            }}
+          />
+        </div>
+        {data?.loan_options?.length > 1 && (
+          <div className="form-group" style={{ minWidth: 260 }}>
+            <label className="form-label">Reloan / Loan</label>
+            <select
+              className="form-control"
+              value={params.disclosure_loan_id || data.loan?.id || ''}
+              onChange={e => {
+                const nextParams = { ...params, disclosure_loan_id: e.target.value }
+                setParams(nextParams)
+                run('disclosure-statement', nextParams)
+              }}
+            >
+              {data.loan_options.map(loan => (
+                <option key={loan.id} value={loan.id}>
+                  {loan.loan_code} - {loan.loan_type || 'Loan'} - {shortDate(loan.date_released)}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </>
+    )
     return null
   }
 
   const renderResult = () => {
     if (loading) return <div className="empty-state"><p>⏳ Generating report...</p></div>
     if (!data) return <div className="empty-state"><div className="empty-icon">📊</div><p>Set your parameters and click Run Report</p></div>
+
+    if (active === 'disclosure-statement') {
+      const loan = data.loan || {}
+      const totalLoan = Number(loan.total_amortization || loan.principal || 0)
+      const principal = Number(loan.principal || 0)
+      const interestRate = Number(loan.interest_rate || 0)
+      const loanPeriod = Number(loan.loan_period || 0)
+      const amortization = Number(loan.amortization || 0)
+      const maturityDate = loan.date_maturity || addDays(loan.date_released, loanPeriod)
+      const fullName = loan.customer_name || [loan.last_name, loan.first_name, loan.middle_name].filter(Boolean).join(', ')
+      const phone = [loan.contact, loan.secondary_contact].filter(Boolean).join('/')
+      const businessNature = loan.business_type || loan.business_name || loan.occupation || '-'
+      const purpose = loan.loan_purpose || loan.remarks || 'Additional Capital'
+      const idDocument = [loan.id_type, loan.id_number].filter(Boolean).join(' - ') || '-'
+      const collateral = loan.collateral || '-'
+      const netProceed = Number(loan.net_proceeds || principal)
+      const charges = Number(loan.service_fee || 0) + Number(loan.insurance || 0) + Number(loan.notarial_fee || 0) + Number(loan.filing_fee || 0) + Number(loan.total_deductions || 0)
+      const rawSchedule = data.schedule || []
+      const schedule = rawSchedule.length > 0 ? rawSchedule.map((item, idx) => {
+        const amount = Number(item.amount_due || amortization || 0)
+        const paidThrough = rawSchedule.slice(0, idx + 1).reduce((sum, row) => sum + Number(row.amount_due || amortization || 0), 0)
+        return { no: item.period_number || idx + 1, date: item.due_date, amount, balance: Math.max(totalLoan - paidThrough, 0) }
+      }) : Array.from({ length: Math.max(loanPeriod, 1) }, (_, idx) => {
+        const count = Math.max(loanPeriod, 1)
+        const isLast = idx === count - 1
+        const amount = isLast ? Math.max(totalLoan - (amortization * idx), 0) : amortization
+        return { no: idx + 1, date: addDays(loan.date_released, idx + 1), amount, balance: Math.max(totalLoan - (amortization * idx) - amount, 0) }
+      })
+      const scheduleRowsPerColumn = Math.ceil(schedule.length / 3)
+      const scheduleColumns = [
+        schedule.slice(0, scheduleRowsPerColumn),
+        schedule.slice(scheduleRowsPerColumn, scheduleRowsPerColumn * 2),
+        schedule.slice(scheduleRowsPerColumn * 2),
+      ]
+      const field = (label, value, strong = false) => (
+        <div className="ds-field">
+          <span>{label}</span>
+          <b className={strong ? 'ds-strong' : ''}>{value || '-'}</b>
+        </div>
+      )
+      const section = (title, children) => (
+        <section className="ds-section">
+          <div className="ds-section-title">{title}</div>
+          <div className="ds-section-body">{children}</div>
+        </section>
+      )
+
+      return (
+        <div id="printable-area" className="disclosure-print">
+          <style>{`
+            .disclosure-print { background: #fff; color: #293344; font-family: Arial, Helvetica, sans-serif; max-width: 1120px; margin: 0 auto; border: 1px solid #d7e0ec; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08); }
+            .ds-header { display: flex; justify-content: space-between; gap: 24px; align-items: center; background: #11244a; color: #fff; border-left: 14px solid #f6bd13; padding: 28px 40px; }
+            .ds-company { font-size: 34px; font-weight: 900; letter-spacing: 2px; line-height: 1; }
+            .ds-sub { margin-top: 10px; color: #cbd5e1; font-size: 15px; }
+            .ds-badge { border: 1px solid #355587; border-radius: 10px; padding: 12px 22px; text-align: center; min-width: 270px; background: rgba(255,255,255,0.04); }
+            .ds-badge-title { font-size: 22px; font-weight: 900; letter-spacing: 1px; }
+            .ds-badge-id { margin-top: 6px; color: #f6bd13; font-size: 17px; font-weight: 900; }
+            .ds-body { padding: 20px 30px 72px; }
+            .ds-section { border: 1px solid #d9e2ef; border-radius: 8px; margin-bottom: 16px; overflow: hidden; break-inside: avoid; }
+            .ds-section-title { background: #142b57; color: #fff; padding: 9px 18px; font-size: 17px; font-weight: 900; letter-spacing: 0.8px; text-transform: uppercase; }
+            .ds-section-body { padding: 16px 22px; }
+            .ds-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; }
+            .ds-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 20px; }
+            .ds-field { display: grid; grid-template-columns: 160px 1fr; align-items: end; gap: 10px; font-size: 14px; min-height: 24px; }
+            .ds-field span { color: #667085; font-weight: 800; }
+            .ds-field b { border-bottom: 1px solid #d5dde8; min-height: 20px; color: #293344; font-weight: 600; }
+            .ds-field .ds-strong { font-weight: 900; }
+            .ds-charge-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; margin-top: 16px; overflow: hidden; border-radius: 6px; background: #eef3f8; }
+            .ds-charge-strip .ds-field { grid-template-columns: 1fr auto; padding: 8px 12px; }
+            .ds-charge-strip .ds-field b { border-bottom: 0; text-align: right; }
+            .ds-schedule { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+            .ds-schedule table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            .ds-schedule th { color: #142b57; font-weight: 900; border-bottom: 1px solid #d9e2ef; padding: 6px 4px; }
+            .ds-schedule td { border-bottom: 1px solid #edf1f6; padding: 5px 4px; text-align: center; }
+            .ds-schedule .money { text-align: right; font-weight: 700; }
+            .ds-schedule .balance { color: #df4b43; }
+            .ds-disclosure-head { display: flex; justify-content: space-between; color: #667085; font-size: 13px; margin-bottom: 18px; }
+            .ds-signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin: 42px 0 20px; }
+            .ds-signature { text-align: center; color: #7a8699; font-size: 11px; }
+            .ds-line { border-top: 1px solid #142b57; margin-bottom: 8px; height: 1px; }
+            .ds-ack { font-size: 12px; line-height: 1.45; font-weight: 800; margin: 18px 0; }
+            .ds-clause { font-size: 12px; line-height: 1.5; font-style: italic; color: #3f4a5c; }
+            .ds-borrower { display: grid; grid-template-columns: 1fr 220px; gap: 80px; margin: 34px 20px 8px; }
+            .ds-footer { display: flex; justify-content: space-between; background: #11244a; color: #dbe5f4; padding: 12px 40px; font-size: 12px; font-weight: 800; }
+            @media print {
+              @page { size: legal portrait; margin: 0.16in 0.14in 0.22in 0.14in; }
+              body { margin: 0 !important; background: #fff !important; }
+              .sidebar, .navbar, .reports-sidebar, .reports-screen-only, .card-title { display: none !important; }
+              .content, .card, .table-wrapper { margin: 0 !important; padding: 0 !important; border: 0 !important; box-shadow: none !important; overflow: visible !important; }
+              #printable-area.disclosure-print {
+                display: flex !important;
+                flex-direction: column !important;
+                width: 8.22in !important;
+                height: 13.62in !important;
+                max-width: none !important;
+                border: 1.5px solid #1f365f !important;
+                box-shadow: none !important;
+                margin: 0 !important;
+                overflow: hidden !important;
+              }
+              .ds-header { flex: 0 0 auto !important; padding: 0.18in 0.32in !important; gap: 0.16in !important; border-left-width: 0.09in !important; }
+              .ds-company { font-size: 22pt !important; letter-spacing: 1.1px !important; }
+              .ds-sub { margin-top: 0.045in !important; font-size: 8.8pt !important; }
+              .ds-badge { min-width: 2.35in !important; padding: 0.08in 0.14in !important; border: 1.5px solid #45699d !important; border-radius: 0.08in !important; }
+              .ds-badge-title { font-size: 15pt !important; }
+              .ds-badge-id { margin-top: 0.03in !important; font-size: 11.5pt !important; }
+              .ds-body { flex: 1 1 auto !important; min-height: 0 !important; display: flex !important; flex-direction: column !important; padding: 0.1in 0.25in 0.05in !important; overflow: hidden !important; }
+              .ds-section { margin-bottom: 0.07in !important; border: 1.5px solid #9aabc4 !important; border-radius: 0.06in !important; break-inside: avoid !important; }
+              .ds-section:last-of-type { flex: 1 1 auto !important; display: flex !important; flex-direction: column !important; min-height: 2.5in !important; margin-bottom: 0.04in !important; }
+              .ds-section-title { padding: 0.035in 0.12in !important; font-size: 10.6pt !important; letter-spacing: 0.35px !important; }
+              .ds-section-body { padding: 0.065in 0.12in !important; }
+              .ds-section:last-of-type .ds-section-body { flex: 1 1 auto !important; display: flex !important; flex-direction: column !important; padding-bottom: 0.075in !important; }
+              .ds-grid-2 { gap: 0.06in 0.2in !important; }
+              .ds-grid-3 { gap: 0.06in 0.16in !important; }
+              .ds-field { grid-template-columns: 1.14in 1fr !important; gap: 0.05in !important; font-size: 8pt !important; min-height: 0.15in !important; }
+              .ds-field b { min-height: 0.125in !important; border-bottom: 1.4px solid #a9b7ca !important; }
+              .ds-charge-strip { margin-top: 0.055in !important; border: 1.2px solid #c3cfdd !important; border-radius: 0.04in !important; }
+              .ds-charge-strip .ds-field { padding: 0.028in 0.065in !important; grid-template-columns: 1fr auto !important; font-size: 7.4pt !important; }
+              .ds-charge-strip .ds-field b { border-bottom: 0 !important; }
+              .ds-schedule { gap: 0.07in !important; }
+              .ds-schedule table { font-size: 7.35pt !important; }
+              .ds-schedule th { border-bottom: 0.9px solid #d5dce8 !important; padding: 0.023in 0.015in !important; line-height: 1.08 !important; }
+              .ds-schedule td { border-bottom: 0.35px solid #f1f4f8 !important; padding: 0.016in 0.015in !important; line-height: 1.06 !important; }
+              .ds-schedule table:not(:last-child) { border-right: 1.2px solid #9fb0c8 !important; padding-right: 0.05in !important; }
+              .ds-disclosure-head { font-size: 7.4pt !important; margin-bottom: 0.04in !important; }
+              .ds-section:last-of-type .ds-grid-2 { gap: 0.035in 0.18in !important; }
+              .ds-section:last-of-type .ds-field { font-size: 7.5pt !important; min-height: 0.13in !important; }
+              .ds-section:last-of-type .ds-field b { min-height: 0.105in !important; }
+              .ds-signatures { gap: 0.16in !important; margin: 0.36in 0 0.12in !important; }
+              .ds-signature { font-size: 6.7pt !important; }
+              .ds-line { border-top: 1.4px solid #253a61 !important; margin-bottom: 0.04in !important; }
+              .ds-ack { font-size: 7.15pt !important; line-height: 1.1 !important; margin: 0.075in 0 !important; }
+              .ds-clause { font-size: 6.9pt !important; line-height: 1.1 !important; }
+              .ds-borrower { grid-template-columns: 1fr 1.45in !important; gap: 0.5in !important; margin: auto 0.15in 0 !important; padding-top: 0.18in !important; }
+              .ds-footer { flex: 0 0 auto !important; margin-top: auto !important; padding: 0.045in 0.32in !important; font-size: 7.4pt !important; }
+              * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            }
+          `}</style>
+          <div className="ds-header">
+            <div>
+              <div className="ds-company">MELANN LENDING INVESTOR CORP.</div>
+              <div className="ds-sub">Ormoc City</div>
+              <div className="ds-sub">(On Loans/Credit Transaction As required under R.A. 3765, Truth in Lending Act)</div>
+            </div>
+            <div className="ds-badge">
+              <div className="ds-badge-title">DISCLOSURE STATEMENT</div>
+              <div className="ds-badge-id">Loan ID: {loan.loan_code || loan.id}</div>
+            </div>
+          </div>
+
+          <div className="ds-body">
+            {section('Client Information', (
+              <div className="ds-grid-2">
+                <div>
+                  {field('Name', fullName, true)}
+                  {field('Code', loan.customer_code)}
+                  {field('Address', loan.address)}
+                  {field('Age', calculateAge(loan.birth_date))}
+                  {field('Nature of Business', businessNature)}
+                </div>
+                <div>
+                  {field('Phone Number', phone)}
+                  {field('Birthday', shortDate(loan.birth_date))}
+                  {field('Gender', loan.gender)}
+                  {field('Purpose of Loan', purpose)}
+                  {field('Email Address', loan.email)}
+                  {field('FB Account', loan.fb_account || loan.messenger_account)}
+                  {field('ID Document', idDocument)}
+                </div>
+              </div>
+            ))}
+
+            {section('Loan Information', (
+              <>
+                <div className="ds-grid-3">
+                  <div>
+                    {field('Date Release', shortDate(loan.date_released))}
+                    {field('Maturity', shortDate(maturityDate))}
+                    {field('Total Regular Loan Balance', fmtMoney(totalLoan), true)}
+                    {field('Emergency Balance', fmtMoney(0))}
+                  </div>
+                  <div>
+                    {field('Loan Period', loanPeriod)}
+                    {field('Principal', fmtMoney(principal), true)}
+                    {field('Loan Total', fmtMoney(totalLoan), true)}
+                    {field('Amortization', fmtMoney(totalLoan), true)}
+                  </div>
+                  <div>
+                    {field('Total Interest %', `${interestRate.toFixed(2)}%`, true)}
+                    {field('Payment / Day', fmtMoney(amortization), true)}
+                    {field('Loan Type', loan.loan_type)}
+                    {field('Loan Status', loan.status, true)}
+                  </div>
+                </div>
+                <div className="ds-charge-strip">
+                  {field('Insurance', fmtMoney(loan.insurance))}
+                  {field('Delivery', fmtMoney(0))}
+                  {field('Collection', fmtMoney(0))}
+                  {field('Service fee', fmtMoney(loan.service_fee))}
+                  {field('Total Charges', fmtMoney(charges), true)}
+                  {field('Passbook', fmtMoney(0))}
+                  {field('Penalty', fmtMoney(0))}
+                  {field('Prev.Balance', fmtMoney(0))}
+                  {field('Total Payment', fmtMoney(loan.total_paid))}
+                  {field('Net Proceed', fmtMoney(netProceed), true)}
+                </div>
+                <div className="ds-grid-2" style={{ marginTop: 10 }}>
+                  {field('Monthly Effective Interest Rate:', '12.00%', true)}
+                  {field('Collateral:', collateral, true)}
+                </div>
+                <div style={{ marginTop: 10, fontSize: 12 }}>Conditional Charges (if applicable) &nbsp; Late Payment Penalty: &nbsp; 5% per month on the remaining balance</div>
+              </>
+            ))}
+
+            {section('Amortization Schedule', (
+              <div className="ds-schedule">
+                {scheduleColumns.map((column, columnIndex) => (
+                  <table key={columnIndex}>
+                    <thead>
+                      <tr><th>No.</th><th>Date</th><th>Amortization</th><th>Running Balance<br />(Principal)</th></tr>
+                    </thead>
+                    <tbody>
+                      {column.map(row => (
+                        <tr key={row.no}>
+                          <td>{row.no}</td>
+                          <td>{shortDate(row.date)}</td>
+                          <td className="money">{fmtMoney(row.amount)}</td>
+                          <td className="money balance">{fmtMoney(row.balance)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ))}
+              </div>
+            ))}
+
+            {section('Disclosure Statement', (
+              <>
+                <div className="ds-disclosure-head">
+                  <span>(On Loans/Credit Transaction As required under R.A. 3765, Truth in Lending Act)</span>
+                  <b>Loan ID: {loan.loan_code || loan.id}</b>
+                </div>
+                <div className="ds-grid-2">
+                  <div>
+                    {field('Name', fullName, true)}
+                    {field('Address', loan.address)}
+                  </div>
+                  <div>
+                    {field('Birthday', shortDate(loan.birth_date))}
+                    {field('Nationality', loan.nationality || 'Filipino')}
+                    {field('Gender', loan.gender)}
+                  </div>
+                </div>
+                <div style={{ color: '#142b57', fontWeight: 900, marginTop: 22 }}>CERTIFIED CORRECT:</div>
+                <div className="ds-signatures">
+                  {[1, 2, 3].map(item => (
+                    <div className="ds-signature" key={item}>
+                      <div className="ds-line"></div>
+                      Signature of Authorized Representative<br />Over Printed Name / Position
+                    </div>
+                  ))}
+                </div>
+                <div className="ds-ack">I ACKNOWLEDGE RECEIPT OF A COPY OF THIS STATEMENT PRIOR TO THE CONSUMMATION OF THE CREDIT TRANSACTION AND THAT I UNDERSTAND AND FULLY AGREE TO THE TERMS AND CONDITIONS THEREOF:</div>
+                <div className="ds-clause">In the event of borrower's death during the active period of the loan, the total unpaid balance of the loan will be deemed paid, provided that the account is not in a past due status. This clause does not apply in cases of death, resulting from war, natural calamities, natural disaster, criminal acts, illegal activities, participation in extreme sports, substance abuse and suicide.</div>
+                <div className="ds-borrower">
+                  <div className="ds-signature"><div className="ds-line"></div>Signature of Borrower Over Printed Name</div>
+                  <div className="ds-signature"><div className="ds-line"></div>Date</div>
+                </div>
+              </>
+            ))}
+          </div>
+          <div className="ds-footer">
+            <span>{shortDate(new Date().toISOString().split('T')[0])} &nbsp;&nbsp; {new Date().toLocaleTimeString('en-US')}</span>
+            <span>Page 1 of 1</span>
+          </div>
+        </div>
+      )
+    }
 
     if (active === 'collection-report') {
       const { payments = [], total } = data
@@ -2187,7 +2530,7 @@ export default function Reports() {
             {renderSubTabs()}
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               {renderParams()}
-              <button id="btn-run-report" className="btn btn-primary" onClick={() => run(active, params, active === 'monthly-releases' ? releaseSubTab : collectionSubTab)} disabled={loading}>{loading ? '⏳ Running...' : '▶ Run Report'}</button>
+              <button id="btn-run-report" className="btn btn-primary" onClick={() => run(active, params, active === 'monthly-releases' ? releaseSubTab : collectionSubTab)} disabled={loading || (active === 'disclosure-statement' && !params.disclosure_search.trim() && !params.disclosure_loan_id)}>{loading ? '⏳ Running...' : '▶ Run Report'}</button>
               {data && (
                 <div style={{ display: 'flex', gap: 8 }}>
                   {['collection-report', 'monthly-releases', 'past-due', 'payments-reversed', 'full-paid'].includes(active) ? (
@@ -2196,7 +2539,7 @@ export default function Reports() {
                       <button className="btn btn-secondary" onClick={() => handlePrint('detailed')}>🖨️ Print Detailed</button>
                     </>
                   ) : (
-                    <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>🖨️ Print</button>
+                    <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>{active === 'disclosure-statement' ? 'Print Disclosure' : '🖨️ Print'}</button>
                   )}
                 </div>
               )}
