@@ -766,8 +766,8 @@
     justify-content: space-between;
     align-items: flex-start;
     border-bottom: 2px solid #0b297a;
-    padding-bottom: 12px;
-    margin-bottom: 15px;
+    padding-bottom: 8px;
+    margin-bottom: 9px;
     break-inside: avoid;
     page-break-inside: avoid;
   }
@@ -775,12 +775,12 @@
   .f-soa-header-left {
     display: flex;
     align-items: center;
-    gap: 15px;
+    gap: 10px;
   }
 
   .f-soa-logo {
-    width: 100px;
-    height: 100px;
+    width: 86px;
+    height: 86px;
     object-fit: contain;
   }
 
@@ -789,7 +789,7 @@
   }
 
   .f-soa-company h2 {
-    font-size: 26px;
+    font-size: 24px;
     color: #0b297a;
     margin: 0;
     font-weight: 900;
@@ -797,16 +797,16 @@
   }
 
   .f-soa-company h3 {
-    font-size: 15px;
-    color: #64748b;
-    margin: 2px 0 10px 0;
-    font-weight: 600;
+    font-size: 13px;
+    color: #1f2937;
+    margin: 1px 0 6px 0;
+    font-weight: 800;
     letter-spacing: 1px;
   }
 
   .f-soa-contact p {
     font-size: 11px;
-    color: #475569;
+    color: #111827;
     margin: 0;
     line-height: 1.4;
     display: flex;
@@ -819,15 +819,15 @@
   }
 
   .f-soa-header-right {
-    padding-top: 10px;
+    padding-top: 5px;
     width: 250px;
   }
 
   .f-soa-header-right table {
     font-size: 11px;
-    color: #0f172a;
+    color: #000000;
     border-collapse: separate;
-    border-spacing: 0 4px;
+    border-spacing: 0 2px;
     width: 100%;
   }
 
@@ -837,7 +837,8 @@
   }
 
   .f-soa-header-right table td:first-child {
-    font-weight: 500;
+    color: #111827;
+    font-weight: 700;
     width: 90px;
   }
 
@@ -845,8 +846,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 15px;
-    margin: 20px 0 25px 0;
+    gap: 12px;
+    margin: 11px 0 14px 0;
   }
 
   .f-soa-title-line {
@@ -865,7 +866,7 @@
 
   .f-soa-title {
     text-align: center;
-    font-size: 26px;
+    font-size: 23px;
     color: #0b297a;
     font-weight: 900;
     letter-spacing: 1px;
@@ -874,9 +875,9 @@
   }
 
   .f-soa-section {
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
-    margin-bottom: 20px;
+    border: 1.25px solid #64748b;
+    border-radius: 4px;
+    margin-bottom: 10px;
     overflow: hidden;
     background: white;
     break-inside: auto;
@@ -886,9 +887,9 @@
   .f-soa-sec-header {
     background: #0b297a;
     color: white;
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 700;
-    padding: 8px 12px;
+    padding: 5px 9px;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -897,19 +898,19 @@
   }
 
   .f-soa-loan-info {
-    padding: 15px;
+    padding: 7px 9px;
   }
 
   .f-soa-grid-3 {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    gap: 15px;
+    gap: 8px;
   }
   
   .f-soa-grid-3 table:nth-child(1),
   .f-soa-grid-3 table:nth-child(2) {
-    border-right: 1px solid #e2e8f0;
-    padding-right: 15px;
+    border-right: 1.25px solid #94a3b8;
+    padding-right: 8px;
   }
 
   .f-soa-grid-3 table {
@@ -934,6 +935,15 @@
     color: #475569;
   }
 
+  .f-soa-grid-3 table td {
+    padding: 2px 2px;
+    line-height: 1.12;
+  }
+
+  .f-soa-grid-3 table td:first-child {
+    width: 96px;
+  }
+
   .f-soa-ledger-table-new {
     width: 100%;
     border-collapse: collapse;
@@ -942,12 +952,13 @@
   .f-soa-ledger-table-new th {
     background: #f8fafc;
     color: #0b297a;
-    font-size: 10px;
+    font-size: 8.5px;
     font-weight: 800;
-    padding: 8px 10px;
-    text-align: left;
+    padding: 4px 6px;
+    text-align: center;
     text-transform: uppercase;
-    border-bottom: 1px solid #e2e8f0;
+    border: 1px solid #94a3b8;
+    line-height: 1.1;
   }
   
   .f-soa-ledger-table-new th i {
@@ -956,9 +967,18 @@
   }
 
   .f-soa-ledger-table-new td {
-    padding: 6px 10px;
-    font-size: 10px;
+    padding: 3px 6px;
+    font-size: 8.8px;
     color: #0f172a;
+    text-align: center;
+    vertical-align: middle;
+    border: 1px solid #cbd5e1;
+    line-height: 1.12;
+  }
+
+  .f-soa-payment-ledger-table th:first-child,
+  .f-soa-payment-ledger-table td:first-child {
+    text-align: left;
   }
 
   .f-soa-row-even {
@@ -970,49 +990,151 @@
   }
   
   .f-soa-ledger-table-new tr {
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid #cbd5e1;
   }
   
   .f-soa-ledger-table-new tr:last-child {
     border-bottom: none;
   }
 
+  .f-soa-payment-ledger-table tfoot td {
+    background: #0b297a;
+    color: white;
+    border-color: #0b297a !important;
+    padding: 5px 6px;
+    text-align: center;
+  }
+
   .f-soa-status-badge {
     background: #f0fdf4;
     color: #166534;
-    padding: 3px 8px;
+    padding: 2px 6px;
     border-radius: 12px;
-    font-size: 10px;
+    font-size: 8.5px;
     font-weight: 600;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    border: 1px solid #bcf0da;
+    gap: 3px;
+    border: 1px solid #86efac;
   }
 
   .f-soa-ledger-footer-new {
     background: #0b297a;
     color: white;
-    padding: 10px 15px;
-    display: flex;
-    justify-content: space-between;
+    padding: 6px 10px;
+    display: grid;
+    grid-template-columns: 20% 24% 18% 24% 14%;
     align-items: center;
   }
 
   .f-soa-footer-text {
-    font-size: 12px;
+    font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
   }
 
   .f-soa-footer-amount {
-    font-size: 16px;
+    font-size: 13px;
     font-weight: 800;
+  }
+
+  .f-soa-ledger-running-total {
+    text-align: center;
+  }
+
+  .f-soa-ledger-payment-total {
+    text-align: center;
+  }
+
+  .f-soa-penalty-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-bottom: 1px solid #94a3b8;
+  }
+
+  .f-soa-penalty-summary div {
+    padding: 5px 7px;
+    border-right: 1px solid #94a3b8;
+    text-align: center;
+  }
+
+  .f-soa-penalty-summary div:last-child {
+    border-right: none;
+  }
+
+  .f-soa-penalty-summary span,
+  .f-soa-penalty-footer span {
+    display: block;
+    color: #475569;
+    font-size: 7.8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+    line-height: 1.05;
+  }
+
+  .f-soa-penalty-summary strong {
+    color: #0f172a;
+    font-size: 9px;
+    font-weight: 800;
+  }
+
+  .f-soa-penalty-meta {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    padding: 4px 7px;
+    color: #0f172a;
+    font-size: 8.3px;
+    border-bottom: 1px solid #94a3b8;
+    text-align: center;
+    line-height: 1.1;
+  }
+
+  .f-soa-penalty-table td:first-child span {
+    display: block;
+    color: #0f172a;
+    font-size: 7.8px;
+    font-weight: 700;
+    margin-top: 1px;
+    line-height: 1.12;
+  }
+
+  .f-soa-penalty-payment {
+    color: #dc2626 !important;
+    font-weight: 800;
+  }
+
+  .f-soa-penalty-footer {
+    background: #0b297a;
+    color: white;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .f-soa-penalty-footer div {
+    padding: 6px 8px;
+    border-right: 1px solid rgba(255,255,255,0.25);
+    text-align: center;
+  }
+
+  .f-soa-penalty-footer div:last-child {
+    border-right: none;
+  }
+
+  .f-soa-penalty-footer span {
+    color: #dbeafe;
+  }
+
+  .f-soa-penalty-footer strong {
+    color: white;
+    font-size: 12px;
+    font-weight: 900;
   }
 
   .f-soa-thank-you {
     text-align: center;
-    margin-top: 20px;
+    margin-top: 10px;
   }
   
   .f-soa-thank-you p {
@@ -1020,7 +1142,73 @@
     font-style: italic;
     font-size: 13px;
     font-weight: 600;
-    line-height: 1.4;
+    line-height: 1.25;
     margin: 0;
+  }
+
+  body.soa-print-statement .formal-soa-print,
+  body.soa-print-statement .formal-soa-print td,
+  body.soa-print-statement .formal-soa-print th,
+  body.soa-print-statement .formal-soa-print strong {
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.soa-print-statement .formal-soa-print .f-soa-company h2,
+  body.soa-print-statement .formal-soa-print .f-soa-title,
+  body.soa-print-statement .formal-soa-print .f-soa-header-right td:last-child,
+  body.soa-print-statement .formal-soa-print .f-soa-ledger-table-new th {
+    color: #061f66 !important;
+  }
+
+  body.soa-print-statement .formal-soa-print .f-soa-sec-header,
+  body.soa-print-statement .formal-soa-print .f-soa-sec-header *,
+  body.soa-print-statement .formal-soa-print .f-soa-ledger-footer-new,
+  body.soa-print-statement .formal-soa-print .f-soa-ledger-footer-new *,
+  body.soa-print-statement .formal-soa-print .f-soa-payment-ledger-table tfoot td,
+  body.soa-print-statement .formal-soa-print .f-soa-payment-ledger-table tfoot td *,
+  body.soa-print-statement .formal-soa-print .f-soa-penalty-footer,
+  body.soa-print-statement .formal-soa-print .f-soa-penalty-footer * {
+    color: #fff !important;
+  }
+
+  body.soa-print-statement .formal-soa-print .f-soa-section {
+    border-color: #111827 !important;
+    border-width: 1.5px !important;
+  }
+
+  body.soa-print-statement .formal-soa-print .f-soa-grid-3 table:nth-child(1),
+  body.soa-print-statement .formal-soa-print .f-soa-grid-3 table:nth-child(2),
+  body.soa-print-statement .formal-soa-print .f-soa-penalty-summary div,
+  body.soa-print-statement .formal-soa-print .f-soa-penalty-footer div {
+    border-color: #374151 !important;
+  }
+
+  body.soa-print-statement .formal-soa-print .f-soa-ledger-table-new th,
+  body.soa-print-statement .formal-soa-print .f-soa-ledger-table-new td {
+    border-color: #4b5563 !important;
+    border-width: 1.15px !important;
+  }
+
+  body.soa-print-statement .formal-soa-print .f-soa-grid-3 table td:first-child,
+  body.soa-print-statement .formal-soa-print .f-soa-grid-3 table td:nth-child(2),
+  body.soa-print-statement .formal-soa-print .f-soa-penalty-summary span,
+  body.soa-print-statement .formal-soa-print .f-soa-penalty-meta,
+  body.soa-print-statement .formal-soa-print .f-soa-penalty-table td:first-child span,
+  body.soa-print-statement .formal-soa-print .f-soa-contact p,
+  body.soa-print-statement .formal-soa-print .f-soa-company h3 {
+    color: #111827 !important;
+    font-weight: 800;
+  }
+
+  body.soa-print-statement .formal-soa-print .f-soa-penalty-payment {
+    color: #b91c1c !important;
+  }
+
+  body.soa-print-statement .formal-soa-print .f-soa-status-badge,
+  body.soa-print-statement .formal-soa-print .f-soa-status-badge * {
+    color: #14532d !important;
+    border-color: #16a34a !important;
   }
 }

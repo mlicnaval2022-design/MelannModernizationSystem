@@ -304,6 +304,90 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+router.get('/disclosure-statement', authenticateToken, async (req, res) => {
+  try {
+    const search = String(req.query.search || '').trim();
+    const selectedLoanId = req.query.loan_id ? Number(req.query.loan_id) : null;
+
+    if (!search && !selectedLoanId) {
+      return res.status(400).json({ error: 'Search client code or name first' });
+    }
+
+    const baseSelect = `
+      SELECT
+        l.*,
+        c.customer_code,
+        c.first_name,
+        c.last_name,
+        c.middle_name,
+        c.full_name as customer_name,
+        c.address,
+        c.contact,
+        c.secondary_contact,
+        c.birth_date,
+        c.gender,
+        c.occupation,
+        c.business_type,
+        c.business_name,
+        c.loan_purpose,
+        c.email,
+        c.fb_account,
+        c.messenger_account,
+        c.id_type,
+        c.id_number,
+        c.nationality,
+        c.collateral,
+        b.branch_name,
+        co.first_name || ' ' || co.last_name as collector_name
+      FROM tblLoan l
+      JOIN tblCustomer c ON l.customer_id = c.id
+      LEFT JOIN tblBranch b ON l.branch_id = b.id
+      LEFT JOIN tblCollector co ON l.collector_id = co.id
+    `;
+
+    const loans = selectedLoanId
+      ? await dbAll(`${baseSelect} WHERE l.id = ?`, [selectedLoanId])
+      : await dbAll(`
+          ${baseSelect}
+          WHERE c.customer_code LIKE ?
+             OR c.full_name LIKE ?
+             OR c.first_name LIKE ?
+             OR c.last_name LIKE ?
+          ORDER BY
+            CASE WHEN LOWER(l.loan_type) LIKE '%re%loan%' THEN 0 ELSE 1 END,
+            DATE(l.date_released) DESC,
+            l.id DESC
+          LIMIT 12
+        `, [`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`]);
+
+    if (loans.length === 0) {
+      return res.status(404).json({ error: 'No client or loan found for disclosure statement' });
+    }
+
+    const loan = loans[0];
+    const schedule = await dbAll(`
+      SELECT period_number, due_date, amount_due, amount_paid, status
+      FROM tblAmortizationSchedule
+      WHERE loan_id = ?
+      ORDER BY period_number ASC
+    `, [loan.id]);
+
+    res.json({
+      loan,
+      schedule,
+      loan_options: loans.map(item => ({
+        id: item.id,
+        loan_code: item.loan_code,
+        loan_type: item.loan_type,
+        date_released: item.date_released,
+        principal: item.principal,
+        total_amortization: item.total_amortization,
+        status: item.status,
+      })),
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.get('/monitoring-summary', authenticateToken, async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
