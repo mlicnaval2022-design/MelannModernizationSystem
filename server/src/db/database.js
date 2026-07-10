@@ -517,6 +517,15 @@ async function initializeDatabase() {
       related_id INTEGER,
       created_at TEXT DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS tblDcrYtdOverride (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      report_date TEXT NOT NULL,
+      branch_id INTEGER,
+      ytd_beg_releases REAL DEFAULT 0,
+      ytd_beg_collections REAL DEFAULT 0,
+      ytd_beg_expenses REAL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
   `;
 
   await dbExec(schema);
