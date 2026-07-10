@@ -34,6 +34,18 @@ const addDays = (value, days) => {
   date.setDate(date.getDate() + Number(days || 0))
   return toDateInputValue(date)
 }
+const addCollectionDaysSkippingSunday = (value, days) => {
+  if (!value) return ''
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return ''
+  let counted = 0
+  const target = Number(days || 0)
+  while (counted < target) {
+    date.setDate(date.getDate() + 1)
+    if (date.getDay() !== 0) counted += 1
+  }
+  return toDateInputValue(date)
+}
 const getMonthRange = (year, month) => {
   const y = Number(year)
   const m = Number(month)
@@ -539,7 +551,7 @@ export default function Reports() {
       const interestRate = Number(loan.interest_rate || 0)
       const loanPeriod = Number(loan.loan_period || 0)
       const amortization = Number(loan.amortization || 0)
-      const maturityDate = loan.date_maturity || addDays(loan.date_released, loanPeriod)
+      const maturityDate = loan.date_maturity || addCollectionDaysSkippingSunday(loan.date_released, loanPeriod)
       const fullName = loan.customer_name || [loan.last_name, loan.first_name, loan.middle_name].filter(Boolean).join(', ')
       const phone = [loan.contact, loan.secondary_contact].filter(Boolean).join('/')
       const businessNature = loan.business_type || loan.business_name || loan.occupation || '-'
@@ -552,12 +564,23 @@ export default function Reports() {
       const schedule = rawSchedule.length > 0 ? rawSchedule.map((item, idx) => {
         const amount = Number(item.amount_due || amortization || 0)
         const paidThrough = rawSchedule.slice(0, idx + 1).reduce((sum, row) => sum + Number(row.amount_due || amortization || 0), 0)
-        return { no: item.period_number || idx + 1, date: item.due_date, amount, balance: Math.max(totalLoan - paidThrough, 0) }
+        const periodNumber = Number(item.period_number || idx + 1)
+        return {
+          no: periodNumber,
+          date: addCollectionDaysSkippingSunday(loan.date_released, periodNumber) || item.due_date,
+          amount,
+          balance: Math.max(totalLoan - paidThrough, 0),
+        }
       }) : Array.from({ length: Math.max(loanPeriod, 1) }, (_, idx) => {
         const count = Math.max(loanPeriod, 1)
         const isLast = idx === count - 1
         const amount = isLast ? Math.max(totalLoan - (amortization * idx), 0) : amortization
-        return { no: idx + 1, date: addDays(loan.date_released, idx + 1), amount, balance: Math.max(totalLoan - (amortization * idx) - amount, 0) }
+        return {
+          no: idx + 1,
+          date: addCollectionDaysSkippingSunday(loan.date_released, idx + 1),
+          amount,
+          balance: Math.max(totalLoan - (amortization * idx) - amount, 0),
+        }
       })
       const scheduleRowsPerColumn = Math.ceil(schedule.length / 3)
       const scheduleColumns = [
