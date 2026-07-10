@@ -14,6 +14,7 @@ export default function DailyCashReport() {
   const [checklistSaving, setChecklistSaving] = useState(false);
   const [selectedClients, setSelectedClients] = useState(new Set());
   const [sendingTo, setSendingTo] = useState(null);
+  const [ytdSaving, setYtdSaving] = useState(false);
   
   // Denominations - kept for closing the day, though hidden from print view
   const [, setDenom] = useState({
@@ -174,6 +175,26 @@ export default function DailyCashReport() {
       alert(err?.response?.data?.error || 'Failed to send clients');
     } finally {
       setSendingTo(null);
+    }
+  };
+
+  const handleSaveYtd = async () => {
+    setYtdSaving(true);
+    try {
+      await API.post('/dcr/save-ytd', {
+        date,
+        branch_id: branchId,
+        ytd_beg_releases: ytdReleases,
+        ytd_beg_collections: ytdCollections,
+        ytd_beg_expenses: ytdExpenses
+      });
+      alert('YTD balances saved successfully.');
+      loadData();
+    } catch (err) {
+      alert('Failed to save YTD balances.');
+      console.error(err);
+    } finally {
+      setYtdSaving(false);
     }
   };
 
@@ -596,6 +617,18 @@ export default function DailyCashReport() {
               </tr>
             </tbody>
           </table>
+          {!data.dcr && (
+            <div style={{ marginTop: '15px', textAlign: 'right' }}>
+              <button 
+                type="button" 
+                onClick={handleSaveYtd} 
+                disabled={ytdSaving}
+                style={{ padding: '8px 16px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: ytdSaving ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              >
+                {ytdSaving ? 'Saving...' : '💾 Save YTD Balances'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

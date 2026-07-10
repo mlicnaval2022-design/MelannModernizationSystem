@@ -110,9 +110,15 @@ router.get('/summary', authenticateToken, async (req, res) => {
     const beginning_cash = prevDcr ? prevDcr.actual_cash_count : 0;
     const beginning_cash_on_bank = prevDcr ? prevDcr.ending_cash_on_bank : 0;
     
-    const ytd_beg_releases_default = prevDcr ? (prevDcr.ytd_beg_releases || 0) + (prevDcr.total_releases || 0) : 0;
-    const ytd_beg_collections_default = prevDcr ? (prevDcr.ytd_beg_collections || 0) + (prevDcr.total_collections || 0) : 0;
-    const ytd_beg_expenses_default = prevDcr ? (prevDcr.ytd_beg_expenses || 0) + (prevDcr.total_expenses || 0) : 0;
+    let ytdOverrideQuery = `SELECT * FROM tblDcrYtdOverride WHERE report_date = ?`;
+    let ytdOverrideParams = [date];
+    if (branch_id) { ytdOverrideQuery += ` AND branch_id = ?`; ytdOverrideParams.push(branch_id); }
+    else { ytdOverrideQuery += ` AND branch_id IS NULL`; }
+    const ytdOverride = await dbGet(ytdOverrideQuery, ytdOverrideParams).catch(() => null);
+
+    const ytd_beg_releases_default = ytdOverride ? ytdOverride.ytd_beg_releases : (prevDcr ? (prevDcr.ytd_beg_releases || 0) + (prevDcr.total_releases || 0) : 0);
+    const ytd_beg_collections_default = ytdOverride ? ytdOverride.ytd_beg_collections : (prevDcr ? (prevDcr.ytd_beg_collections || 0) + (prevDcr.total_collections || 0) : 0);
+    const ytd_beg_expenses_default = ytdOverride ? ytdOverride.ytd_beg_expenses : (prevDcr ? (prevDcr.ytd_beg_expenses || 0) + (prevDcr.total_expenses || 0) : 0);
 
     // Cash on Hand formula
     const cash_available = beginning_cash + total_collections + total_adjustments + total_withdrawals;
@@ -194,6 +200,36 @@ router.get('/loan-releases', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error fetching loan releases' });
+  }
+});
+
+// Save YTD Overrides
+router.post('/save-ytd', authenticateToken, async (req, res) => {
+  try {
+    const { date, branch_id, ytd_beg_releases, ytd_beg_collections, ytd_beg_expenses } = req.body;
+    if (!date) return res.status(400).json({ error: 'Date is required' });
+
+    let existingQuery = `SELECT id FROM tblDcrYtdOverride WHERE report_date = ?`;
+    let existingParams = [date];
+    if (branch_id) {
+      existingQuery += ` AND branch_id = ?`;
+      existingParams.push(branch_id);
+    } else {
+      existingQuery += ` AND branch_id IS NULL`;
+    }
+
+    const existing = await dbGet(existingQuery, existingParams).catch(() => null);
+
+    if (existing) {
+      await dbRun(`UPDATE tblDcrYtdOverride SET ytd_beg_releases = ?, ytd_beg_collections = ?, ytd_beg_expenses = ? WHERE id = ?`, [ytd_beg_releases || 0, ytd_beg_collections || 0, ytd_beg_expenses || 0, existing.id]);
+    } else {
+      await dbRun(`INSERT INTO tblDcrYtdOverride (report_date, branch_id, ytd_beg_releases, ytd_beg_collections, ytd_beg_expenses) VALUES (?, ?, ?, ?, ?)`, [date, branch_id || null, ytd_beg_releases || 0, ytd_beg_collections || 0, ytd_beg_expenses || 0]);
+    }
+
+    res.json({ success: true, message: 'YTD balances saved successfully.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error saving YTD balances' });
   }
 });
 

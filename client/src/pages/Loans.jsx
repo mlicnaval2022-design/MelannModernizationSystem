@@ -55,7 +55,7 @@ export default function Loans() {
     if (filterCollector && (r.collector_name || 'Unassigned') !== filterCollector) return false;
     if (filterType && r.loan_type !== filterType) return false;
     return true;
-  });
+  }).sort((a, b) => (a.customer_name || '').localeCompare(b.customer_name || ''));
 
   const uniqueCollectors = [...new Set(rows.map(r => r.collector_name || 'Unassigned'))].sort();
   const uniqueTypes = [...new Set(rows.map(r => r.loan_type))].sort();
