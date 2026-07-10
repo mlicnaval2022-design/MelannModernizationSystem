@@ -28,6 +28,11 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
     const now = new Date();
+    
+    // Find the most recent date that has active collections
+    const latestPaymentDateRes = await dbGet(`SELECT MAX(date_paid) as max_date FROM tblPayment WHERE status='active'`);
+    const latestPaymentDate = latestPaymentDateRes?.max_date || today;
+
     const epoch = new Date('2026-01-01T00:00:00Z');
     const diffDays = Math.floor((now - epoch) / (1000 * 60 * 60 * 24));
     const cycleIndex = Math.floor(diffDays / 45);
@@ -50,6 +55,8 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       total_pastdue_amount: (await dbGet(`SELECT COALESCE(SUM(balance), 0) as total FROM tblLoan WHERE date_maturity < ? AND status NOT IN ('fullpaid','reversed')`, [today])).total,
       total_fullpaid: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='fullpaid'`)).c,
       collections_today: (await dbGet(`SELECT COALESCE(SUM(amount_paid),0) as total FROM tblPayment WHERE date_paid=? AND status='active'`, [today])).total,
+      collections_yesterday: (await dbGet(`SELECT COALESCE(SUM(amount_paid),0) as total FROM tblPayment WHERE date_paid=? AND status='active'`, [latestPaymentDate])).total,
+      yesterday_str: latestPaymentDate,
       releases_today: (await dbGet(`SELECT COALESCE(SUM(principal),0) as total FROM tblLoan WHERE date_released=? AND status != 'reversed'`, [today])).total,
       loans_released_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE date_released=? AND status != 'reversed'`, [today])).c,
       total_portfolio: (await dbGet(`SELECT COALESCE(SUM(balance),0) as total FROM tblLoan WHERE status IN ('active','pastdue')`)).total,

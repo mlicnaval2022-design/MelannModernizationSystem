@@ -699,11 +699,17 @@ async function upsertLoan(sqlite, loan, customerId, collectorId) {
   ];
 
   if (existing) {
+    const updateValues = [
+      customerId, 1, loan.loan_type || 'Good', loan.principal || 0, loan.interest_rate || 0,
+      interestAmount, loan.loan_period || 0, dateReleased, loan.date_maturity, loan.amortization || 0,
+      total || 0, loan.principal || 0, balance || 0, totalPaid, status, remarks
+    ];
+
     await sqlite.run(
-      `UPDATE tblLoan SET customer_id=?, collector_id=?, branch_id=?, loan_type=?, principal=?, interest_rate=?,
+      `UPDATE tblLoan SET customer_id=?, branch_id=?, loan_type=?, principal=?, interest_rate=?,
        interest_amount=?, loan_period=?, date_released=?, date_maturity=?, amortization=?, total_amortization=?,
        net_proceeds=?, balance=?, total_paid=?, status=?, remarks=?, updated_at=datetime('now') WHERE id=?`,
-      [...values, existing.id]
+      [...updateValues, existing.id]
     );
     return existing.id;
   }

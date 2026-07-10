@@ -12,6 +12,10 @@ export default function Loans() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('active') // Default to active loans
   const [loading, setLoading] = useState(true)
+
+  // Filters
+  const [filterCollector, setFilterCollector] = useState('')
+  const [filterType, setFilterType] = useState('')
   
   const [detailModal, setDetailModal] = useState(false)
   const [detailLoan, setDetailLoan] = useState(null)
@@ -39,8 +43,22 @@ export default function Loans() {
     setReloanModalOpen(true);
   }
 
-  const load = () => { setLoading(true); API.get('/loans', { params: { search, status } }).then(r => setRows(r.data)).finally(() => setLoading(false)) }
+  const load = () => { 
+    setLoading(true); 
+    API.get('/loans', { params: { search, status } })
+       .then(r => setRows(r.data))
+       .finally(() => setLoading(false)) 
+  }
   useEffect(() => { load() }, [search, status])
+
+  const filteredRows = rows.filter(r => {
+    if (filterCollector && (r.collector_name || 'Unassigned') !== filterCollector) return false;
+    if (filterType && r.loan_type !== filterType) return false;
+    return true;
+  });
+
+  const uniqueCollectors = [...new Set(rows.map(r => r.collector_name || 'Unassigned'))].sort();
+  const uniqueTypes = [...new Set(rows.map(r => r.loan_type))].sort();
 
   const getImageUrl = (path) => {
     if (!path) return '';
@@ -149,6 +167,21 @@ export default function Loans() {
         <FullyPaid search={search} />
       ) : (
         <>
+          <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', alignItems: 'center' }}>
+            <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#64748b' }}>Filters:</span>
+            <select className="form-control" style={{ width: '200px', padding: '6px 12px' }} value={filterCollector} onChange={e => setFilterCollector(e.target.value)}>
+              <option value="">All Collectors</option>
+              {uniqueCollectors.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select className="form-control" style={{ width: '200px', padding: '6px 12px' }} value={filterType} onChange={e => setFilterType(e.target.value)}>
+              <option value="">All Loan Types</option>
+              {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            {(filterCollector || filterType) && (
+              <button className="btn btn-secondary btn-sm" onClick={() => { setFilterCollector(''); setFilterType(''); }}>Clear</button>
+            )}
+          </div>
+
           <div className="card">
           <div className="table-wrapper">
             <table className="data-table">
@@ -157,8 +190,8 @@ export default function Loans() {
               </thead>
             <tbody>
               {loading ? <tr className="loading-row"><td colSpan={10}>⏳ Loading...</td></tr>
-                : rows.length === 0 ? <tr><td colSpan={10} className="empty-state">No loans found</td></tr>
-                : rows.map(r => (
+                : filteredRows.length === 0 ? <tr><td colSpan={10} className="empty-state">No loans found</td></tr>
+                : filteredRows.map(r => (
                   <tr key={r.id}>
                     <td><span className="mono">{r.loan_code}</span></td>
                     <td>
