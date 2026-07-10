@@ -21,6 +21,10 @@ export default function DailyCashReport() {
     count_50: 0, count_20: 0, count_coins: 0
   });
 
+  const [ytdReleases, setYtdReleases] = useState(0);
+  const [ytdCollections, setYtdCollections] = useState(0);
+  const [ytdExpenses, setYtdExpenses] = useState(0);
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -28,6 +32,11 @@ export default function DailyCashReport() {
       setBranches(bRes.data);
       const res = await API.get(`/dcr/summary?date=${date}&branch_id=${branchId}`);
       setData(res.data);
+      
+      setYtdReleases(res.data.dcr?.ytd_beg_releases ?? res.data.ytd_beg_releases_default ?? 0);
+      setYtdCollections(res.data.dcr?.ytd_beg_collections ?? res.data.ytd_beg_collections_default ?? 0);
+      setYtdExpenses(res.data.dcr?.ytd_beg_expenses ?? res.data.ytd_beg_expenses_default ?? 0);
+
       if (res.data.dcr) {
         setDenom({
           count_1000: res.data.dcr.count_1000, count_500: res.data.dcr.count_500,
@@ -366,13 +375,13 @@ export default function DailyCashReport() {
                       <td style={{textAlign:'center'}}>
                         <span className={`badge-type type-${(r.loan_type || 'new').toLowerCase()}`}>{r.loan_type || 'NEW'}</span>
                       </td>
-                      <td className="text-right">{(r.principal || 0).toFixed(2)}</td>
-                      <td className="text-right">{(r.service_fee || 0).toFixed(2)}</td>
-                      <td className="text-right">{(r.insurance || 0).toFixed(2)}</td>
+                      <td className="text-right">{fmt(r.principal)}</td>
+                      <td className="text-right">{fmt(r.service_fee)}</td>
+                      <td className="text-right">{fmt(r.insurance)}</td>
                       <td className="text-right">0.00</td>
                       <td className="text-right">0.00</td>
                       <td className="text-right">0.00</td>
-                      <td className="text-right">{(r.balance || 0).toFixed(2)}</td>
+                      <td className="text-right">{fmt(r.balance)}</td>
                     </tr>
                   ));
                 })()}
@@ -398,7 +407,7 @@ export default function DailyCashReport() {
                 <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
                 <tbody>
                   {data.expenses.map((e, i) => (
-                    <tr key={i}><td>{e.category}</td><td className="text-right">{(e.amount || 0).toFixed(2)}</td></tr>
+                    <tr key={i}><td>{e.category}</td><td className="text-right">{fmt(e.amount)}</td></tr>
                   ))}
                   {data.expenses.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No expenses recorded.</td></tr>}
                   <tr className="dcr-footer-row"><td style={{color: '#ea580c'}}>TOTAL EXPENSES</td><td className="text-right" style={{color: '#ea580c'}}>₱{fmt(data.total_expenses)}</td></tr>
@@ -424,7 +433,7 @@ export default function DailyCashReport() {
               <table className="dcr-table">
                 <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
                 <tbody>
-                  {withdrawal.map((w, i) => <tr key={i}><td>{w.reference_no}</td><td className="text-right">{(w.amount || 0).toFixed(2)}</td></tr>)}
+                  {withdrawal.map((w, i) => <tr key={i}><td>{w.reference_no}</td><td className="text-right">{fmt(w.amount)}</td></tr>)}
                   {withdrawal.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No withdrawal recorded.</td></tr>}
                   <tr className="dcr-footer-row"><td style={{color: '#9333ea'}}>TOTAL WITHDRAWAL</td><td className="text-right" style={{color: '#9333ea'}}>₱{fmt(data.total_withdrawals)}</td></tr>
                 </tbody>
@@ -437,7 +446,7 @@ export default function DailyCashReport() {
               <table className="dcr-table">
                 <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
                 <tbody>
-                  {deposit.map((d, i) => <tr key={i}><td>{d.reference_no}</td><td className="text-right">{(d.amount || 0).toFixed(2)}</td></tr>)}
+                  {deposit.map((d, i) => <tr key={i}><td>{d.reference_no}</td><td className="text-right">{fmt(d.amount)}</td></tr>)}
                   {deposit.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No deposit recorded.</td></tr>}
                   <tr className="dcr-footer-row"><td>TOTAL DEPOSIT</td><td className="text-right">₱{fmt(data.total_deposits)}</td></tr>
                 </tbody>
@@ -450,7 +459,7 @@ export default function DailyCashReport() {
               <table className="dcr-table">
                 <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
                 <tbody>
-                  {bankCharges.map((b, i) => <tr key={i}><td>{b.reference_no}</td><td className="text-right">{(b.amount || 0).toFixed(2)}</td></tr>)}
+                  {bankCharges.map((b, i) => <tr key={i}><td>{b.reference_no}</td><td className="text-right">{fmt(b.amount)}</td></tr>)}
                   {bankCharges.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No bank charges recorded.</td></tr>}
                   <tr className="dcr-footer-row"><td style={{color:'#ef4444'}}>TOTAL BANK CHARGES</td><td className="text-right" style={{color:'#ef4444'}}>₱{fmt(data.total_bank_charges)}</td></tr>
                 </tbody>
@@ -463,7 +472,7 @@ export default function DailyCashReport() {
               <table className="dcr-table">
                 <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
                 <tbody>
-                  {interest.map((int, i) => <tr key={i}><td>{int.reference_no}</td><td className="text-right">{(int.amount || 0).toFixed(2)}</td></tr>)}
+                  {interest.map((int, i) => <tr key={i}><td>{int.reference_no}</td><td className="text-right">{fmt(int.amount)}</td></tr>)}
                   {interest.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No interest recorded.</td></tr>}
                   <tr className="dcr-footer-row"><td style={{color:'#16a34a'}}>TOTAL INTEREST</td><td className="text-right" style={{color:'#16a34a'}}>₱{fmt(data.total_bank_interest)}</td></tr>
                 </tbody>
@@ -481,7 +490,7 @@ export default function DailyCashReport() {
               <thead><tr><th>Collector</th><th className="text-right">Amount</th></tr></thead>
               <tbody>
                 {Object.entries(collByCollector).map(([name, amount], i) => (
-                  <tr key={i}><td>{name}</td><td className="text-right">{amount.toFixed(2)}</td></tr>
+                  <tr key={i}><td>{name}</td><td className="text-right">{fmt(amount)}</td></tr>
                 ))}
                 {Object.keys(collByCollector).length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No collections recorded.</td></tr>}
                 <tr className="dcr-footer-row"><td style={{color: '#16a34a'}}>TOTAL COLLECTIONS</td><td className="text-right" style={{color: '#16a34a'}}>₱{fmt(data.total_collections)}</td></tr>
@@ -523,6 +532,8 @@ export default function DailyCashReport() {
             </div>
           </div>
 
+
+
           <div className="dcr-section" style={{ background: '#f8fafc', padding: 15 }}>
             <div style={{ fontWeight: 800, color: '#1d4ed8', fontSize: 11, marginBottom: 10 }}>NOTES</div>
             <ul style={{ margin: 0, paddingLeft: 15, fontSize: 10, color: '#334155', lineHeight: 1.6 }}>
@@ -531,6 +542,60 @@ export default function DailyCashReport() {
               <li>Please review all figures before closing the day.</li>
             </ul>
           </div>
+        </div>
+      </div>
+
+      <div className="dcr-section" style={{ marginTop: '20px' }}>
+        <h3 className="dcr-section-title">10. YTD OVERALL TRANSACTIONS</h3>
+        <div style={{ padding: '10px 15px' }}>
+          <table className="dcr-table" style={{ marginTop: '10px' }}>
+            <thead>
+              <tr>
+                <th>CATEGORY</th>
+                <th className="text-right">BEGINNING BALANCE</th>
+                <th className="text-right">TODAY</th>
+                <th className="text-right">ENDING BALANCE</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ fontWeight: 700 }}>Total Releases</td>
+                <td className="text-right">
+                  {data.dcr ? (
+                    <span>₱{fmt(ytdReleases)}</span>
+                  ) : (
+                    <input type="number" value={ytdReleases} onChange={e => setYtdReleases(Number(e.target.value))} style={{ textAlign: 'right', width: '100px', border: '1px solid #cbd5e1', padding: '4px', borderRadius: '4px' }} />
+                  )}
+                </td>
+                <td className="text-right">₱{fmt(data.display_total_releases)}</td>
+                <td className="text-right bold" style={{ color: '#1d4ed8' }}>₱{fmt(Number(ytdReleases) + data.display_total_releases)}</td>
+              </tr>
+              <tr>
+                <td style={{ fontWeight: 700 }}>Total Collections</td>
+                <td className="text-right">
+                  {data.dcr ? (
+                    <span>₱{fmt(ytdCollections)}</span>
+                  ) : (
+                    <input type="number" value={ytdCollections} onChange={e => setYtdCollections(Number(e.target.value))} style={{ textAlign: 'right', width: '100px', border: '1px solid #cbd5e1', padding: '4px', borderRadius: '4px' }} />
+                  )}
+                </td>
+                <td className="text-right">₱{fmt(data.total_collections)}</td>
+                <td className="text-right bold" style={{ color: '#16a34a' }}>₱{fmt(Number(ytdCollections) + data.total_collections)}</td>
+              </tr>
+              <tr>
+                <td style={{ fontWeight: 700 }}>Total Expenses</td>
+                <td className="text-right">
+                  {data.dcr ? (
+                    <span>₱{fmt(ytdExpenses)}</span>
+                  ) : (
+                    <input type="number" value={ytdExpenses} onChange={e => setYtdExpenses(Number(e.target.value))} style={{ textAlign: 'right', width: '100px', border: '1px solid #cbd5e1', padding: '4px', borderRadius: '4px' }} />
+                  )}
+                </td>
+                <td className="text-right">₱{fmt(data.total_expenses)}</td>
+                <td className="text-right bold" style={{ color: '#ef4444' }}>₱{fmt(Number(ytdExpenses) + data.total_expenses)}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 

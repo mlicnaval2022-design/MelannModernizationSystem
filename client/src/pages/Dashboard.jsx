@@ -63,8 +63,8 @@ export default function Dashboard() {
 
         <div className="metric-card-v2">
           <div className="header">
-            <span>Collections Today</span>
-            <h3>₱ {fmt(data.collections_today)}</h3>
+            <span>Collection as of {data.yesterday_str}</span>
+            <h3>₱ {fmt(data.collections_yesterday)}</h3>
             <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Target: ₱100,000</span>
           </div>
           <div className="metric-icon-circle" style={{ background: '#3b82f6', color: 'white' }}>⬇️</div>
