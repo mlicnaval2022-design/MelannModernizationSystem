@@ -40,7 +40,7 @@ export default function FullyPaid({ search = '' }) {
     (r.client_name || '').toLowerCase().includes(search.toLowerCase()) || 
     (r.customer_code || '').toLowerCase().includes(search.toLowerCase()) ||
     (r.collector_name || '').toLowerCase().includes(search.toLowerCase())
-  );
+  ).sort((a, b) => (a.client_name || '').localeCompare(b.client_name || ''));
 
   const openEval = async (customer) => {
     setEvalCustomer(customer);
