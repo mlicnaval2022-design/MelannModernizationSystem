@@ -17,6 +17,23 @@ router.post('/hand', authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+router.put('/hand/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { branch_id, entry_date, opening_balance, total_collections, total_releases, total_expenses } = req.body;
+    const closing = (opening_balance || 0) + (total_collections || 0) - (total_releases || 0) - (total_expenses || 0);
+    await dbRun(`UPDATE tblCashOnHand SET branch_id = ?, entry_date = ?, opening_balance = ?, total_collections = ?, total_releases = ?, total_expenses = ?, closing_balance = ?, updated_by = ? WHERE id = ?`, [branch_id, entry_date, opening_balance || 0, total_collections || 0, total_releases || 0, total_expenses || 0, closing, req.user.id, id]);
+    res.json({ success: true, closing_balance: closing });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/hand/:id', authenticateToken, async (req, res) => {
+  try {
+    await dbRun(`DELETE FROM tblCashOnHand WHERE id = ?`, [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.get('/bank', authenticateToken, async (req, res) => {
   try { res.json(await dbAll(`SELECT c.*, b.branch_name FROM tblCashOnBank c LEFT JOIN tblBranch b ON c.branch_id = b.id ORDER BY c.entry_date DESC LIMIT 30`)); }
   catch (err) { res.status(500).json({ error: err.message }); }
@@ -27,6 +44,22 @@ router.post('/bank', authenticateToken, async (req, res) => {
     const { branch_id, bank_name, account_number, entry_date, amount, transaction_type, reference_no } = req.body;
     const result = await dbRun(`INSERT INTO tblCashOnBank (branch_id, bank_name, account_number, entry_date, amount, transaction_type, reference_no, created_by) VALUES (?,?,?,?,?,?,?,?)`, [branch_id, bank_name, account_number, entry_date, amount, transaction_type, reference_no, req.user.id]);
     res.status(201).json({ id: result.lastID });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/bank/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { branch_id, bank_name, account_number, entry_date, amount, transaction_type, reference_no } = req.body;
+    await dbRun(`UPDATE tblCashOnBank SET branch_id = ?, bank_name = ?, account_number = ?, entry_date = ?, amount = ?, transaction_type = ?, reference_no = ?, updated_by = ? WHERE id = ?`, [branch_id, bank_name, account_number, entry_date, amount, transaction_type, reference_no, req.user.id, id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/bank/:id', authenticateToken, async (req, res) => {
+  try {
+    await dbRun(`DELETE FROM tblCashOnBank WHERE id = ?`, [req.params.id]);
+    res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
