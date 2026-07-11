@@ -139,7 +139,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
     setSubmitting(true);
     setError('');
     try {
-      await API.post(`/customers/${customerId}/reloan`, {
+      await API.post(`/customers/${activeCustomerId}/reloan`, {
         principal: Number(desiredAmount),
         loan_period: Number(loanTerm),
         interest_rate: Number(interestRate || 0),

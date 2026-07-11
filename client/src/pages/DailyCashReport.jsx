@@ -76,6 +76,11 @@ export default function DailyCashReport() {
     collByCollector[name] = (collByCollector[name] || 0) + p.amount;
   });
 
+  (data.collectorsOver || []).forEach(c => {
+    const name = c.description || 'Unassigned';
+    collByCollector[name] = (collByCollector[name] || 0) + c.amount;
+  });
+
   const bankCharges = data.bankCharges || [];
   const interest = data.interest || [];
   const withdrawal = data.withdrawals || [];

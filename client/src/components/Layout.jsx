@@ -50,7 +50,10 @@ export default function Layout() {
           time: 'Compliance',
           color: n.severity === 'danger' ? '#ef4444' : n.severity === 'warning' ? '#f59e0b' : '#3b82f6'
         }))
-        if (complianceNotes.length) setNotifications(prev => [...complianceNotes, ...prev])
+        if (complianceNotes.length) setNotifications(prev => {
+          const ids = new Set(prev.map(p => p.id))
+          return [...complianceNotes.filter(n => !ids.has(n.id)), ...prev]
+        })
       })
       .catch(() => {})
 
@@ -63,7 +66,10 @@ export default function Layout() {
           time: 'Monitoring',
           color: '#ef4444' // red for alerts
         }))
-        if (monNotes.length) setNotifications(prev => [...monNotes, ...prev])
+        if (monNotes.length) setNotifications(prev => {
+          const ids = new Set(prev.map(p => p.id))
+          return [...monNotes.filter(n => !ids.has(n.id)), ...prev]
+        })
       })
       .catch(() => {})
   }, [])

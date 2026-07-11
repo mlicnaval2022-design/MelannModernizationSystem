@@ -67,6 +67,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
     const expenses = transactions.filter(t => t.transaction_type === 'Expense' || t.transaction_type === 'expense' || !t.transaction_type);
     const passbooks = transactions.filter(t => t.transaction_type === 'Passbook');
     const penalties = transactions.filter(t => t.transaction_type === 'Penalty');
+    const collectorsOver = transactions.filter(t => t.transaction_type === 'Collectors Over');
 
     // 4. Bank Transactions
     const bankTx = await dbAll(`SELECT * FROM tblCashOnBank WHERE ${cbCond}`, cbParams);
@@ -86,7 +87,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
     const existingDcr = await dbGet(dcrQuery, dcrParams);
 
     // Compute totals
-    const total_collections = collections.reduce((acc, c) => acc + c.amount_paid, 0) + passbooks.reduce((acc, p) => acc + p.amount, 0) + penalties.reduce((acc, p) => acc + p.amount, 0);
+    const total_collections = collections.reduce((acc, c) => acc + c.amount_paid, 0) + passbooks.reduce((acc, p) => acc + p.amount, 0) + penalties.reduce((acc, p) => acc + p.amount, 0) + collectorsOver.reduce((acc, c) => acc + c.amount, 0);
     // Use principal for display, net_proceeds for actual cash out
     const display_total_releases = releases.reduce((acc, r) => acc + (r.principal || 0), 0);
     const cash_out_releases = releases.reduce((acc, r) => acc + (r.net_proceeds || 0), 0);
@@ -136,7 +137,8 @@ router.get('/summary', authenticateToken, async (req, res) => {
       ...releases.map(r => ({ type: 'Loan Release', ref: r.loan_code, code: r.customer_code, name: `${r.first_name} ${r.last_name}`, amount: r.principal, user: r.encoded_by, time: r.created_at, dcr_id: r.dcr_id })),
       ...expenses.map(e => ({ type: 'Expense', ref: e.category, code: '—', name: e.payee || '—', amount: e.amount, user: e.encoded_by, time: e.created_at, remarks: e.description, dcr_id: e.dcr_id })),
       ...passbooks.map(p => ({ type: 'Passbook', ref: '—', code: '—', name: p.description, amount: p.amount, user: p.encoded_by, time: p.created_at, remarks: 'Passbook Collection', dcr_id: p.dcr_id })),
-      ...penalties.map(p => ({ type: 'Penalty', ref: '—', code: '—', name: p.description, amount: p.amount, user: p.encoded_by, time: p.created_at, remarks: 'Penalty Collection', dcr_id: p.dcr_id }))
+      ...penalties.map(p => ({ type: 'Penalty', ref: '—', code: '—', name: p.description, amount: p.amount, user: p.encoded_by, time: p.created_at, remarks: 'Penalty Collection', dcr_id: p.dcr_id })),
+      ...collectorsOver.map(c => ({ type: 'Collectors Over', ref: '—', code: '—', name: c.description || 'Unassigned', amount: c.amount, user: c.encoded_by, time: c.created_at, remarks: 'Collectors Over', dcr_id: c.dcr_id }))
     ].sort((a, b) => new Date(b.time) - new Date(a.time));
 
     res.json({
@@ -165,6 +167,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
       expenses,
       passbooks,
       penalties,
+      collectorsOver,
       deposits,
       withdrawals,
       bankCharges,
