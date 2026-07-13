@@ -73,14 +73,77 @@ export default function Customers() {
   };
 
   const getLoanStatusLabel = (loan) => {
-    if (loan?.loan_type === 'Re-Loan' || loan?.loan_type === 'Reloan' || loan?.status === 'reloan_pending') return 'Reloan';
-    if (!loan?.status) return '—';
+    if (!loan) return '—';
+    if (['active', 'approved'].includes(loan.status?.toLowerCase()) && loan.date_maturity) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const maturity = new Date(loan.date_maturity);
+      maturity.setHours(0, 0, 0, 0);
+      const diffDays = Math.ceil((today.getTime() - maturity.getTime()) / (1000 * 3600 * 24));
+      
+      if (diffDays > 45) return 'Pastdue';
+      if (diffDays >= 1) return 'Overdue';
+    }
+    const type = loan.loan_type?.toLowerCase() || '';
+    if (type === 're-loan' || type === 'reloan' || loan.status === 'reloan_pending') return 'Reloan';
+    if (type === 'recon') return 'Recon';
+    if (!loan.status) return '—';
     return loan.status.replace(/_/g, ' ');
   };
 
   const getLoanStatusClass = (loan) => {
-    if (loan?.loan_type === 'Re-Loan' || loan?.loan_type === 'Reloan' || loan?.status === 'reloan_pending') return 'reloan';
-    return loan?.status || 'unknown';
+    if (!loan) return 'unknown';
+    if (['active', 'approved'].includes(loan.status?.toLowerCase()) && loan.date_maturity) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const maturity = new Date(loan.date_maturity);
+      maturity.setHours(0, 0, 0, 0);
+      const diffDays = Math.ceil((today.getTime() - maturity.getTime()) / (1000 * 3600 * 24));
+      
+      if (diffDays > 45) return 'pastdue';
+      if (diffDays >= 1) return 'overdue';
+    }
+    const type = loan.loan_type?.toLowerCase() || '';
+    if (type === 're-loan' || type === 'reloan' || loan.status === 'reloan_pending') return 'reloan';
+    return loan.status || 'unknown';
+  };
+
+  const getCalculatedCustomerStatus = (data) => {
+    if (!data) return 'Active';
+    if (!data.loans || data.loans.length === 0) return data.status || 'Active';
+    
+    const activeLoan = data.loans.find(l => !['fullpaid', 'closed', 'rejected', 'cancelled', 'reversed'].includes(l.status?.toLowerCase()));
+    
+    if (!activeLoan) return data.status || 'Active';
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    let isPastdue = false;
+    let isOverdue = false;
+    
+    if (activeLoan.date_maturity) {
+      const maturity = new Date(activeLoan.date_maturity);
+      maturity.setHours(0, 0, 0, 0);
+      
+      const diffTime = today.getTime() - maturity.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 3600 * 24));
+      
+      if (diffDays > 45) {
+        isPastdue = true;
+      } else if (diffDays >= 1) {
+        isOverdue = true;
+      }
+    }
+    
+    if (isPastdue) return 'Pastdue';
+    if (isOverdue) return 'Overdue';
+    
+    const lType = activeLoan.loan_type?.toLowerCase() || '';
+    if (lType === 're-loan' || lType === 'reloan') return 'Reloan';
+    if (lType === 'recon') return 'Recon';
+    
+    return 'Active';
   };
 
   const load = () => {
@@ -616,12 +679,12 @@ export default function Customers() {
                                 <div className="soa-val-v2">{soaData.full_name} <CheckCircle size={16} color="#eab308" fill="#fef08a" /></div>
                                 <div className="soa-label-v2">Contact</div>
                                 <div className="soa-val-sub-v2"><Phone size={14} /> {soaData.contact || 'NONE'}</div>
+                                <div className="soa-label-v2">Customer Status</div>
+                                <div className="soa-status-badge-v2"><div className="dot"></div> {getCalculatedCustomerStatus(soaData)}</div>
                               </div>
                               <div>
                                 <div className="soa-label-v2">Customer Code</div>
                                 <div className="soa-val-v2" style={{ fontSize: 18 }}>{soaData.customer_code}</div>
-                                <div className="soa-label-v2">Customer Status</div>
-                                <div className="soa-status-badge-v2"><div className="dot"></div> {soaData.status || 'Active'}</div>
                               </div>
                               <div>
                                 <div className="soa-label-v2">Address</div>
@@ -1412,8 +1475,8 @@ export default function Customers() {
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '500', color: '#2563eb' }}>
                                     {p.payment_code && p.payment_code !== 'N/A' ? p.payment_code : (p.or_number && p.or_number !== 'N/A' ? p.or_number : 'N/A')}
                                   </td>
-                                  <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>{formatPhp(p.amount_paid)}</td>
-                                  <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>{formatPhp(p.balance_after)}</td>
+                                  <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: isReversed ? '#94a3b8' : '#0f172a', textDecoration: isReversed ? 'line-through' : 'none' }}>{formatPhp(p.amount_paid)}</td>
+                                  <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: isReversed ? '#94a3b8' : '#0f172a', textDecoration: isReversed ? 'line-through' : 'none' }}>{formatPhp(p.balance_after)}</td>
                                   <td style={{ padding: '16px 24px', textAlign: 'center' }}>
                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '9999px', backgroundColor: pillBg, color: pillColor, fontSize: '12px', fontWeight: '600' }}>
                                       <i className={`bi ${pillIcon}`}></i> {statusText}

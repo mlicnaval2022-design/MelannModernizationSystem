@@ -11,3 +11,7 @@ melann.db*
 
 # System at Agent Logs
 .omx/
+server/melann.db-wal
+server/melann.db-wal
+server/melann.db-wal
+server/melann.db-wal

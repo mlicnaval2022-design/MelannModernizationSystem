@@ -200,7 +200,12 @@ router.get('/', authenticateToken, async (req, res) => {
     if (status) { q += ` AND c.status = ?`; p.push(status); }
     if (branch_id) { q += ` AND c.branch_id = ?`; p.push(branch_id); }
     if (collector_id) { q += ` AND c.collector_id = ?`; p.push(collector_id); }
-    q += ` ORDER BY c.last_name, c.first_name`;
+    if (search) { 
+      q += ` ORDER BY CASE WHEN c.customer_code = ? THEN 0 ELSE 1 END, c.last_name, c.first_name`; 
+      p.push(search.trim());
+    } else {
+      q += ` ORDER BY c.last_name, c.first_name`;
+    }
     res.json(await dbAll(q, p));
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });

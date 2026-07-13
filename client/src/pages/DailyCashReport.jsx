@@ -76,11 +76,17 @@ export default function DailyCashReport() {
     collByCollector[name] = (collByCollector[name] || 0) + p.amount;
   });
 
+  (data.collectorsOver || []).forEach(c => {
+    const name = c.description || 'Unassigned';
+    collByCollector[name] = (collByCollector[name] || 0) + c.amount;
+  });
+
   const bankCharges = data.bankCharges || [];
   const interest = data.interest || [];
   const withdrawal = data.withdrawals || [];
   const deposit = data.deposits || [];
   const adjustments = data.adjustments || [];
+  const collectorsOverList = data.collectorsOver || [];
 
   const handleExportExcel = () => {
     // Basic CSV Export
@@ -437,68 +443,87 @@ export default function DailyCashReport() {
             </div>
             
             {/* 3. ADJUSTMENTS */}
-            <div className="dcr-section">
-              <h3 className="dcr-section-title" style={{color: '#ea580c'}}>3. ADJUSTMENTS</h3>
-              <table className="dcr-table">
-                <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
-                <tbody>
-                  {adjustments.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No adjustments recorded.</td></tr>}
-                  <tr className="dcr-footer-row"><td style={{color: '#ea580c'}}>TOTAL ADJUSTMENTS</td><td className="text-right" style={{color: '#ea580c'}}>₱0.00</td></tr>
-                </tbody>
-              </table>
-            </div>
+            {adjustments.length > 0 && (
+              <div className="dcr-section">
+                <h3 className="dcr-section-title" style={{color: '#ea580c'}}>ADJUSTMENTS</h3>
+                <table className="dcr-table">
+                  <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
+                  <tbody>
+                    <tr className="dcr-footer-row"><td style={{color: '#ea580c'}}>TOTAL ADJUSTMENTS</td><td className="text-right" style={{color: '#ea580c'}}>₱0.00</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* 5. WITHDRAWAL */}
-            <div className="dcr-section">
-              <h3 className="dcr-section-title" style={{color: '#9333ea'}}>5. WITHDRAWAL</h3>
-              <table className="dcr-table">
-                <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
-                <tbody>
-                  {withdrawal.map((w, i) => <tr key={i}><td>{w.reference_no}</td><td className="text-right">{fmt(w.amount)}</td></tr>)}
-                  {withdrawal.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No withdrawal recorded.</td></tr>}
-                  <tr className="dcr-footer-row"><td style={{color: '#9333ea'}}>TOTAL WITHDRAWAL</td><td className="text-right" style={{color: '#9333ea'}}>₱{fmt(data.total_withdrawals)}</td></tr>
-                </tbody>
-              </table>
-            </div>
+            {withdrawal.length > 0 && (
+              <div className="dcr-section">
+                <h3 className="dcr-section-title" style={{color: '#9333ea'}}>WITHDRAWAL</h3>
+                <table className="dcr-table">
+                  <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
+                  <tbody>
+                    {withdrawal.map((w, i) => <tr key={i}><td>{w.reference_no}</td><td className="text-right">{fmt(w.amount)}</td></tr>)}
+                    <tr className="dcr-footer-row"><td style={{color: '#9333ea'}}>TOTAL WITHDRAWAL</td><td className="text-right" style={{color: '#9333ea'}}>₱{fmt(data.total_withdrawals)}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* 6. DEPOSIT */}
-            <div className="dcr-section">
-              <h3 className="dcr-section-title" style={{color: '#1d4ed8'}}>6. DEPOSIT</h3>
-              <table className="dcr-table">
-                <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
-                <tbody>
-                  {deposit.map((d, i) => <tr key={i}><td>{d.reference_no}</td><td className="text-right">{fmt(d.amount)}</td></tr>)}
-                  {deposit.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No deposit recorded.</td></tr>}
-                  <tr className="dcr-footer-row"><td>TOTAL DEPOSIT</td><td className="text-right">₱{fmt(data.total_deposits)}</td></tr>
-                </tbody>
-              </table>
-            </div>
+            {deposit.length > 0 && (
+              <div className="dcr-section">
+                <h3 className="dcr-section-title" style={{color: '#1d4ed8'}}>DEPOSIT</h3>
+                <table className="dcr-table">
+                  <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
+                  <tbody>
+                    {deposit.map((d, i) => <tr key={i}><td>{d.reference_no}</td><td className="text-right">{fmt(d.amount)}</td></tr>)}
+                    <tr className="dcr-footer-row"><td>TOTAL DEPOSIT</td><td className="text-right">₱{fmt(data.total_deposits)}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* 7. BANK CHARGES */}
-            <div className="dcr-section">
-              <h3 className="dcr-section-title" style={{color: '#ef4444'}}>7. BANK CHARGES</h3>
-              <table className="dcr-table">
-                <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
-                <tbody>
-                  {bankCharges.map((b, i) => <tr key={i}><td>{b.reference_no}</td><td className="text-right">{fmt(b.amount)}</td></tr>)}
-                  {bankCharges.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No bank charges recorded.</td></tr>}
-                  <tr className="dcr-footer-row"><td style={{color:'#ef4444'}}>TOTAL BANK CHARGES</td><td className="text-right" style={{color:'#ef4444'}}>₱{fmt(data.total_bank_charges)}</td></tr>
-                </tbody>
-              </table>
-            </div>
+            {bankCharges.length > 0 && (
+              <div className="dcr-section">
+                <h3 className="dcr-section-title" style={{color: '#ef4444'}}>BANK CHARGES</h3>
+                <table className="dcr-table">
+                  <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
+                  <tbody>
+                    {bankCharges.map((b, i) => <tr key={i}><td>{b.reference_no}</td><td className="text-right">{fmt(b.amount)}</td></tr>)}
+                    <tr className="dcr-footer-row"><td style={{color:'#ef4444'}}>TOTAL BANK CHARGES</td><td className="text-right" style={{color:'#ef4444'}}>₱{fmt(data.total_bank_charges)}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* 8. INTEREST */}
-            <div className="dcr-section">
-              <h3 className="dcr-section-title" style={{color: '#16a34a'}}>8. INTEREST</h3>
-              <table className="dcr-table">
-                <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
-                <tbody>
-                  {interest.map((int, i) => <tr key={i}><td>{int.reference_no}</td><td className="text-right">{fmt(int.amount)}</td></tr>)}
-                  {interest.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No interest recorded.</td></tr>}
-                  <tr className="dcr-footer-row"><td style={{color:'#16a34a'}}>TOTAL INTEREST</td><td className="text-right" style={{color:'#16a34a'}}>₱{fmt(data.total_bank_interest)}</td></tr>
-                </tbody>
-              </table>
-            </div>
+            {interest.length > 0 && (
+              <div className="dcr-section">
+                <h3 className="dcr-section-title" style={{color: '#16a34a'}}>INTEREST</h3>
+                <table className="dcr-table">
+                  <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
+                  <tbody>
+                    {interest.map((int, i) => <tr key={i}><td>{int.reference_no}</td><td className="text-right">{fmt(int.amount)}</td></tr>)}
+                    <tr className="dcr-footer-row"><td style={{color:'#16a34a'}}>TOTAL INTEREST</td><td className="text-right" style={{color:'#16a34a'}}>₱{fmt(data.total_bank_interest)}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* COLLECTORS OVER */}
+            {collectorsOverList.length > 0 && (
+              <div className="dcr-section">
+                <h3 className="dcr-section-title" style={{color: '#f59e0b'}}>COLLECTORS OVER</h3>
+                <table className="dcr-table">
+                  <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
+                  <tbody>
+                    {collectorsOverList.map((c, i) => <tr key={i}><td>{c.description || 'Unassigned'}</td><td className="text-right">{fmt(c.amount)}</td></tr>)}
+                    <tr className="dcr-footer-row"><td style={{color:'#f59e0b'}}>TOTAL COLLECTORS OVER</td><td className="text-right" style={{color:'#f59e0b'}}>₱{fmt(collectorsOverList.reduce((sum, c) => sum + (Number(c.amount) || 0), 0))}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
 

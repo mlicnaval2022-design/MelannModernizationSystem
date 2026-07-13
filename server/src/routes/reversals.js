@@ -31,7 +31,7 @@ router.get('/client/:customer_code/payments', authenticateToken, async (req, res
   try {
     const { customer_code } = req.params;
     
-    const customer = await dbGet('SELECT id, full_name, customer_code FROM tblCustomer WHERE customer_code = ?', [customer_code]);
+    const customer = await dbGet('SELECT id, full_name, customer_code FROM tblCustomer WHERE customer_code = ? OR id = ?', [customer_code, customer_code]);
     if (!customer) return res.status(404).json({ error: 'Client Code not found.' });
 
     const q = `
@@ -43,10 +43,10 @@ router.get('/client/:customer_code/payments', authenticateToken, async (req, res
       JOIN tblLoan l ON p.loan_id = l.id
       LEFT JOIN tblCollector co ON p.collector_id = co.id
       LEFT JOIN tblUser u ON p.encoded_by = u.id
-      WHERE c.customer_code = ?
+      WHERE c.id = ?
       ORDER BY p.date_paid DESC, p.id DESC
     `;
-    const payments = await dbAll(q, [customer_code]);
+    const payments = await dbAll(q, [customer.id]);
 
     res.json({ customer, payments });
   } catch (err) { res.status(500).json({ error: err.message }); }
