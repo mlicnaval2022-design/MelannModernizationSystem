@@ -1130,7 +1130,11 @@ export default function Customers() {
                               <tr key={row.periodNo} className={index % 2 === 0 ? 'f-soa-row-even' : 'f-soa-row-odd'}>
                                 <td>
                                   Period {row.periodNo}
-                                  <span>{formatDateShort(row.periodStart)} - {formatDateShort(row.periodEnd)}</span>
+                                  <span className="f-soa-penalty-period-range">
+                                    <span>{formatDateLong(row.periodStart)}</span>
+                                    <em>to</em>
+                                    <span>{formatDateLong(row.periodEnd)}</span>
+                                  </span>
                                 </td>
                                 <td>{formatMoneyExact(row.beginningBalance)}</td>
                                 <td className={row.paymentMade > 0 ? 'f-soa-penalty-payment' : ''}>{formatMoneyExactDeduction(row.paymentMade)}</td>
@@ -1638,7 +1642,11 @@ export default function Customers() {
                             <tr key={row.periodNo} style={{ borderBottom: idx === computation.rows.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
                               <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>
                                 Period {row.periodNo}
-                                <div style={{ fontSize: '11px', fontWeight: '500', color: '#64748b', marginTop: '2px' }}>{formatDateLong(row.periodStart)} - {formatDateLong(row.periodEnd)}</div>
+                                <div style={{ fontSize: '11px', fontWeight: '500', color: '#64748b', marginTop: '2px', lineHeight: '1.35' }}>
+                                  <div>{formatDateLong(row.periodStart)}</div>
+                                  <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>to</div>
+                                  <div>{formatDateLong(row.periodEnd)}</div>
+                                </div>
                               </td>
                               <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>{formatPhpExact(row.beginningBalance)}</td>
                               <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: '700', color: row.paymentMade > 0 ? '#dc2626' : '#2563eb' }}>{formatPhpDeduction(row.paymentMade)}</td>

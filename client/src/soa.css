@@ -1100,6 +1100,25 @@
     line-height: 1.12;
   }
 
+  .f-soa-penalty-table td:first-child .f-soa-penalty-period-range {
+    line-height: 1.2;
+  }
+
+  .f-soa-penalty-table td:first-child .f-soa-penalty-period-range span {
+    margin-top: 0;
+  }
+
+  .f-soa-penalty-table td:first-child .f-soa-penalty-period-range em {
+    display: block;
+    color: #64748b;
+    font-size: 6.8px;
+    font-style: normal;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    line-height: 1.1;
+    text-transform: uppercase;
+  }
+
   .f-soa-penalty-payment {
     color: #dc2626 !important;
     font-weight: 800;
