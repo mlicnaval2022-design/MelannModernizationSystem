@@ -179,18 +179,21 @@ router.get('/', authenticateToken, async (req, res) => {
             LIMIT 1
           )
         ) as collector_name,
-        EXISTS(
-          SELECT 1 FROM tblLoan l
-          WHERE l.customer_id = c.id
-            AND l.loan_type IN ('Re-Loan', 'Reloan')
-            AND l.status NOT IN ('reversed', 'rejected', 'fullpaid')
-        ) as has_open_reloan,
-        EXISTS(
-          SELECT 1 FROM tblLoan l
-          WHERE l.customer_id = c.id
-            AND l.loan_type = 'Recon'
-            AND l.status NOT IN ('reversed', 'rejected', 'fullpaid')
-        ) as has_open_recon
+        (
+           SELECT date_maturity FROM tblLoan l 
+           WHERE l.customer_id = c.id AND l.status NOT IN ('fullpaid', 'closed', 'rejected', 'cancelled', 'reversed')
+           ORDER BY CASE WHEN l.status IN ('active', 'pastdue', 'overdue', 'approved') THEN 0 ELSE 1 END, created_at DESC LIMIT 1
+        ) as active_loan_maturity,
+        (
+           SELECT loan_type FROM tblLoan l 
+           WHERE l.customer_id = c.id AND l.status NOT IN ('fullpaid', 'closed', 'rejected', 'cancelled', 'reversed')
+           ORDER BY CASE WHEN l.status IN ('active', 'pastdue', 'overdue', 'approved') THEN 0 ELSE 1 END, created_at DESC LIMIT 1
+        ) as active_loan_type,
+        (
+           SELECT status FROM tblLoan l 
+           WHERE l.customer_id = c.id AND l.status NOT IN ('fullpaid', 'closed', 'rejected', 'cancelled', 'reversed')
+           ORDER BY CASE WHEN l.status IN ('active', 'pastdue', 'overdue', 'approved') THEN 0 ELSE 1 END, created_at DESC LIMIT 1
+        ) as active_loan_status
       FROM tblCustomer c
       LEFT JOIN tblBranch b ON c.branch_id = b.id
       LEFT JOIN tblCollector co ON c.collector_id = co.id
@@ -206,7 +209,32 @@ router.get('/', authenticateToken, async (req, res) => {
     } else {
       q += ` ORDER BY c.last_name, c.first_name`;
     }
-    res.json(await dbAll(q, p));
+    const rows = await dbAll(q, p);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const finalRows = rows.map(r => {
+      let displayStatus = r.status || 'Active';
+      if (r.active_loan_status) {
+        let isPastdue = false;
+        let isOverdue = false;
+        if (r.active_loan_maturity) {
+          const maturity = new Date(r.active_loan_maturity);
+          maturity.setHours(0,0,0,0);
+          const diffDays = Math.ceil((today.getTime() - maturity.getTime()) / (1000 * 3600 * 24));
+          if (diffDays > 45) isPastdue = true;
+          else if (diffDays >= 1) isOverdue = true;
+        }
+        if (isPastdue) displayStatus = 'Pastdue';
+        else if (isOverdue) displayStatus = 'Overdue';
+        else {
+          const lType = (r.active_loan_type || '').toLowerCase();
+          if (lType === 're-loan' || lType === 'reloan') displayStatus = 'Reloan';
+          else if (lType === 'recon') displayStatus = 'Recon';
+        }
+      }
+      return { ...r, display_status: displayStatus };
+    });
+    res.json(finalRows);
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 
