@@ -631,8 +631,12 @@ export default function Reports() {
             .ds-schedule .money { text-align: right; font-weight: 700; }
             .ds-schedule .balance { color: #df4b43; }
             .ds-disclosure-head { display: flex; justify-content: space-between; color: #667085; font-size: 13px; margin-bottom: 18px; }
-            .ds-signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin: 42px 0 20px; }
+            .ds-signatures { display: grid; grid-template-columns: minmax(260px, 360px); justify-content: center; margin: 28px 0 20px; }
             .ds-signature { text-align: center; color: #7a8699; font-size: 11px; }
+            .ds-certified-signature { position: relative; padding-top: 48px; }
+            .ds-manager-signature-img { position: absolute; left: 50%; bottom: 30px; width: 170px; max-height: 76px; transform: translateX(-50%); object-fit: contain; }
+            .ds-signer-name { color: #000; font-weight: 900; letter-spacing: 0.4px; }
+            .ds-signer-position { color: #3f4a5c; font-weight: 700; margin-top: 2px; }
             .ds-line { border-top: 1px solid #142b57; margin-bottom: 8px; height: 1px; }
             .ds-ack { font-size: 12px; line-height: 1.45; font-weight: 800; margin: 18px 0; }
             .ds-clause { font-size: 12px; line-height: 1.5; font-style: italic; color: #3f4a5c; }
@@ -682,8 +686,12 @@ export default function Reports() {
               .ds-section:last-of-type .ds-grid-2 { gap: 0.035in 0.18in !important; }
               .ds-section:last-of-type .ds-field { font-size: 7.5pt !important; min-height: 0.13in !important; }
               .ds-section:last-of-type .ds-field b { min-height: 0.105in !important; }
-              .ds-signatures { gap: 0.16in !important; margin: 0.36in 0 0.12in !important; }
+              .ds-signatures { grid-template-columns: 2.65in !important; margin: 0.16in 0 0.08in !important; }
               .ds-signature { font-size: 6.7pt !important; }
+              .ds-certified-signature { padding-top: 0.45in !important; }
+              .ds-manager-signature-img { bottom: 0.19in !important; width: 1.55in !important; max-height: 0.58in !important; }
+              .ds-signer-name { letter-spacing: 0.15px !important; }
+              .ds-signer-position { margin-top: 0.01in !important; }
               .ds-line { border-top: 1.4px solid #253a61 !important; margin-bottom: 0.04in !important; }
               .ds-ack { font-size: 7.15pt !important; line-height: 1.1 !important; margin: 0.075in 0 !important; }
               .ds-clause { font-size: 6.9pt !important; line-height: 1.1 !important; }
@@ -809,12 +817,12 @@ export default function Reports() {
                 </div>
                 <div style={{ color: '#142b57', fontWeight: 900, marginTop: 22 }}>CERTIFIED CORRECT:</div>
                 <div className="ds-signatures">
-                  {[1, 2, 3].map(item => (
-                    <div className="ds-signature" key={item}>
-                      <div className="ds-line"></div>
-                      Signature of Authorized Representative<br />Over Printed Name / Position
-                    </div>
-                  ))}
+                  <div className="ds-signature ds-certified-signature">
+                    <img className="ds-manager-signature-img" src="/marilyn-reloba-signature.png" alt="" />
+                    <div className="ds-line"></div>
+                    <div className="ds-signer-name">MARILYN O. RELOBA</div>
+                    <div className="ds-signer-position">Branch Manager</div>
+                  </div>
                 </div>
                 <div className="ds-ack">I ACKNOWLEDGE RECEIPT OF A COPY OF THIS STATEMENT PRIOR TO THE CONSUMMATION OF THE CREDIT TRANSACTION AND THAT I UNDERSTAND AND FULLY AGREE TO THE TERMS AND CONDITIONS THEREOF:</div>
                 <div className="ds-clause">In the event of borrower's death during the active period of the loan, the total unpaid balance of the loan will be deemed paid, provided that the account is not in a past due status. This clause does not apply in cases of death, resulting from war, natural calamities, natural disaster, criminal acts, illegal activities, participation in extreme sports, substance abuse and suicide.</div>
