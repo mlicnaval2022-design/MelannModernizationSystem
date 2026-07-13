@@ -224,12 +224,22 @@ router.get('/', authenticateToken, async (req, res) => {
           if (diffDays > 45) isPastdue = true;
           else if (diffDays >= 1) isOverdue = true;
         }
-        if (isPastdue) displayStatus = 'Pastdue';
-        else if (isOverdue) displayStatus = 'Overdue';
-        else {
+        
+        if (isPastdue) {
+          displayStatus = 'Pastdue';
+        } else if (isOverdue) {
+          displayStatus = 'Overdue';
+        } else {
           const lType = (r.active_loan_type || '').toLowerCase();
-          if (lType === 're-loan' || lType === 'reloan') displayStatus = 'Reloan';
-          else if (lType === 'recon') displayStatus = 'Recon';
+          const lStatus = (r.active_loan_status || '').toLowerCase();
+          if (lType === 're-loan' || lType === 'reloan' || lStatus === 'reloan_pending') {
+            displayStatus = 'Reloan';
+          } else if (lType === 'recon') {
+            displayStatus = 'Recon';
+          } else {
+            displayStatus = String(r.active_loan_status).replace(/_/g, ' ');
+            displayStatus = displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1);
+          }
         }
       }
       return { ...r, display_status: displayStatus };
