@@ -270,6 +270,89 @@ export default function Payments() {
     }
   }
 
+  const [reverseLoanClientCode, setReverseLoanClientCode] = useState('')
+  const [reverseLoanCustomer, setReverseLoanCustomer] = useState(null)
+  const [reverseLoansList, setReverseLoansList] = useState([])
+  const [selectedLoanIds, setSelectedLoanIds] = useState([])
+  const [reverseLoanLoading, setReverseLoanLoading] = useState(false)
+  const [reverseLoanMessage, setReverseLoanMessage] = useState(null)
+  const [previewReverseLoanModal, setPreviewReverseLoanModal] = useState(false)
+
+  const handleReverseLoanSearch = async (e) => {
+    e.preventDefault()
+    setReverseLoanCustomer(null)
+    setReverseLoansList([])
+    setSelectedLoanIds([])
+    setReverseLoanMessage(null)
+
+    if (!reverseLoanClientCode) {
+      setReverseLoanMessage({ type: 'danger', message: 'Please enter a Client Code.' })
+      return
+    }
+
+    setReverseLoanLoading(true)
+    try {
+      const { data } = await API.get(`/loans`, { params: { search: reverseLoanClientCode.trim() } })
+      const exactMatches = data.filter(l => String(l.customer_code).toLowerCase() === String(reverseLoanClientCode.trim()).toLowerCase())
+      if (exactMatches.length > 0) {
+        setReverseLoanCustomer({ customer_code: exactMatches[0].customer_code, full_name: exactMatches[0].customer_name })
+        setReverseLoansList(exactMatches)
+      } else {
+        setReverseLoanMessage({ type: 'danger', message: 'No loan records found for this exact client code.' })
+      }
+    } catch (err) {
+      setReverseLoanMessage({ type: 'danger', message: err.response?.data?.error || 'Error finding loans.' })
+    } finally {
+      setReverseLoanLoading(false)
+    }
+  }
+
+  const clearReverseLoanSearch = () => {
+    setReverseLoanClientCode('')
+    setReverseLoanCustomer(null)
+    setReverseLoansList([])
+    setSelectedLoanIds([])
+    setReverseLoanMessage(null)
+  }
+
+  const handleSelectAllLoans = (e) => {
+    if (e.target.checked) {
+      const activeIds = reverseLoansList.filter(l => l.status !== 'reversed').map(l => l.id)
+      setSelectedLoanIds(activeIds)
+    } else {
+      setSelectedLoanIds([])
+    }
+  }
+
+  const handleSelectLoan = (id) => {
+    setSelectedLoanIds(prev => 
+      prev.includes(id) ? prev.filter(pid => pid !== id) : [...prev, id]
+    )
+  }
+
+  const handlePreviewReverseLoan = () => {
+    if (selectedLoanIds.length === 0) {
+      setReverseLoanMessage({ type: 'danger', message: 'Please select at least one loan to preview reversal.' })
+      return
+    }
+    setPreviewReverseLoanModal(true)
+  }
+
+  const handleReverseLoanBatch = async () => {
+    if (selectedLoanIds.length === 0 || !canReversePayment) return
+
+    try {
+      await Promise.all(selectedLoanIds.map(id => 
+        API.put(`/loans/${id}/status`, { status: 'reversed' })
+      ))
+      setReverseLoanMessage({ type: 'success', message: 'Loans reversed successfully.' })
+      setPreviewReverseLoanModal(false)
+      await handleReverseLoanSearch({ preventDefault: () => {} })
+    } catch (err) {
+      setReverseLoanMessage({ type: 'danger', message: err.response?.data?.error || 'Error processing loan reversal.' })
+    }
+  }
+
   const formatCurrency = value => `₱${fmt(value)}`
   const formatPaymentDate = value => {
     if (!value) return ''
@@ -311,13 +394,18 @@ export default function Payments() {
           Encode Payment
         </button>
         {canReversePayment && (
-          <button className={`payment-tab ${activeTab === 'reverse' ? 'active' : ''}`} onClick={() => setActiveTab('reverse')}>
-            Reverse Payment
-          </button>
+          <>
+            <button className={`payment-tab ${activeTab === 'reverse' ? 'active' : ''}`} onClick={() => setActiveTab('reverse')}>
+              Reverse Payment
+            </button>
+            <button className={`payment-tab ${activeTab === 'reverse-loan' ? 'active' : ''}`} onClick={() => setActiveTab('reverse-loan')}>
+              Reverse Loan
+            </button>
+          </>
         )}
       </div>
 
-      {activeTab === 'encode' ? (
+      {activeTab === 'encode' && (
       <div className="payments-card">
         <div className="payments-card-header">
           <span className="icon">💳</span>
@@ -630,7 +718,9 @@ export default function Payments() {
         </div>
 
       </div>
-      ) : (
+      )}
+
+      {activeTab === 'reverse' && (
         <div className="reverse-payment-shell">
           <div className="reverse-payment-header">
             <div className="reverse-title-wrap">
@@ -771,6 +861,172 @@ export default function Payments() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'reverse-loan' && (
+        <div className="reverse-payment-shell">
+          <div className="reverse-payment-header">
+            <div className="reverse-title-wrap">
+              <span className="reverse-title-icon">↩</span>
+              <div>
+                <h2>Reverse Loan</h2>
+                <p>Search and reverse existing loans safely.</p>
+              </div>
+            </div>
+          </div>
+
+          {reverseLoanMessage && (
+            <div className={`reverse-alert ${reverseLoanMessage.type}`}>{reverseLoanMessage.message}</div>
+          )}
+
+          <div className="reverse-main-grid" style={{ gridTemplateColumns: '1fr' }}>
+            <form className="reverse-search-card" onSubmit={handleReverseLoanSearch} style={{ maxWidth: '400px', margin: '0 auto 20px auto' }}>
+              <h3><span>⌕</span> Search Client</h3>
+              <label>Client Code <b>*</b></label>
+              <div className="reverse-field">
+                <span>♙</span>
+                <input value={reverseLoanClientCode} onChange={e => setReverseLoanClientCode(e.target.value.replace(/\D/g, ''))} placeholder="1598" autoFocus />
+                {reverseLoanClientCode && <em>✓</em>}
+              </div>
+              <small>Enter the client code to fetch all their loans.</small>
+
+              <button type="submit" className="reverse-search-btn" disabled={reverseLoanLoading} style={{ marginTop: '16px' }}>
+                {reverseLoanLoading ? 'Searching...' : '⌕ Search Loans'}
+              </button>
+            </form>
+
+            <div className="reverse-details-card" style={{ gridColumn: 'span 1' }}>
+              <div className="reverse-section-title">
+                <h3><span>▤</span> Loan History</h3>
+                {reverseLoanCustomer && (
+                  <span className="reverse-status posted" style={{ background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1' }}>
+                    {reverseLoanCustomer.full_name} ({reverseLoanCustomer.customer_code})
+                  </span>
+                )}
+              </div>
+
+              {reverseLoanCustomer ? (
+                <div style={{ overflowX: 'auto', padding: '0 20px 20px 20px' }}>
+                  <table className="data-table" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                        <th style={{ padding: '12px', width: '40px' }}>
+                          <input 
+                            type="checkbox" 
+                            onChange={handleSelectAllLoans}
+                            checked={reverseLoansList.length > 0 && selectedLoanIds.length === reverseLoansList.filter(l => l.status !== 'reversed').length && reverseLoansList.filter(l => l.status !== 'reversed').length > 0}
+                            disabled={reverseLoansList.filter(l => l.status !== 'reversed').length === 0}
+                          />
+                        </th>
+                        <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>Loan Code</th>
+                        <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>Type</th>
+                        <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>Principal</th>
+                        <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>Amortization</th>
+                        <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>Date Released</th>
+                        <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reverseLoansList.length === 0 ? (
+                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No loans found for this client.</td></tr>
+                      ) : reverseLoansList.map(l => {
+                        const isReversed = l.status === 'reversed';
+                        const isSelected = selectedLoanIds.includes(l.id);
+                        return (
+                          <tr key={l.id} style={{ borderBottom: '1px solid #f1f5f9', background: isSelected ? '#eff6ff' : 'transparent', opacity: isReversed ? 0.6 : 1 }}>
+                            <td style={{ padding: '12px' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={isSelected} 
+                                onChange={() => handleSelectLoan(l.id)}
+                                disabled={isReversed}
+                              />
+                            </td>
+                            <td style={{ padding: '12px', fontWeight: 700, fontFamily: 'monospace', color: '#3b82f6' }}>{l.loan_code}</td>
+                            <td style={{ padding: '12px', color: '#334155' }}>{l.loan_type}</td>
+                            <td style={{ padding: '12px', color: '#334155', fontWeight: 600 }}>{formatCurrency(l.principal)}</td>
+                            <td style={{ padding: '12px', color: '#334155', fontWeight: 600 }}>{formatCurrency(l.amortization)}</td>
+                            <td style={{ padding: '12px', color: '#334155' }}>{formatDate(l.date_released)}</td>
+                            <td style={{ padding: '12px' }}>
+                              <span style={{ 
+                                padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 700,
+                                background: isReversed ? '#fee2e2' : '#dcfce7', color: isReversed ? '#ef4444' : '#16a34a'
+                              }}>
+                                {isReversed ? 'REVERSED' : l.status.toUpperCase()}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="reverse-empty-state">
+                  <span>⌕</span>
+                  <strong>No client selected</strong>
+                  <p>Search using a client code to view their loans.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {reverseLoanCustomer && (
+            <div style={{ position: 'sticky', bottom: 0, background: '#fff', padding: '16px 30px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 -10px 15px -3px rgba(0,0,0,0.05)', borderRadius: '0 0 16px 16px', zIndex: 10 }}>
+              <div style={{ display: 'flex', gap: '40px', alignItems: 'center' }}>
+                <div>
+                  <span style={{ display: 'block', fontSize: '13px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Selected Loans</span>
+                  <strong style={{ fontSize: '20px', color: '#0f172a' }}>{selectedLoanIds.length}</strong>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '16px' }}>
+                <button className="reverse-clear-btn" onClick={clearReverseLoanSearch} style={{ border: '1px solid #e2e8f0', background: '#f8fafc', padding: '12px 24px', fontSize: '14px', borderRadius: '8px', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>× Clear</button>
+                <button 
+                  className="reverse-preview-btn" 
+                  onClick={handlePreviewReverseLoan} 
+                  disabled={selectedLoanIds.length === 0}
+                  style={{ background: selectedLoanIds.length > 0 ? '#1d4ed8' : '#cbd5e1', color: '#fff', border: 'none', padding: '12px 32px', fontSize: '15px', borderRadius: '8px', fontWeight: 700, cursor: selectedLoanIds.length > 0 ? 'pointer' : 'not-allowed', transition: 'all 0.2s', boxShadow: selectedLoanIds.length > 0 ? '0 4px 6px -1px rgba(29, 78, 216, 0.3)' : 'none' }}
+                >
+                  ◉ Preview Reversal
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {previewReverseLoanModal && (
+        <div className="modal-overlay" onClick={() => setPreviewReverseLoanModal(false)}>
+          <div className="modal-content" style={{ maxWidth: 600, background: '#ffffff', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header" style={{ padding: '24px 30px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
+              <h3 style={{ margin: 0, fontSize: '20px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{color: '#ef4444'}}>◉</span> Preview Loan Reversal</h3>
+              <button className="close-btn" style={{ background: 'transparent', border: 'none', fontSize: '28px', cursor: 'pointer', color: '#94a3b8', lineHeight: 1 }} onClick={() => setPreviewReverseLoanModal(false)}>×</button>
+            </div>
+            <div className="modal-body" style={{ padding: '30px', maxHeight: '70vh', overflowY: 'auto' }}>
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
+                <p style={{ margin: 0, color: '#1e3a8a', fontSize: 14, lineHeight: '1.5' }}>
+                  You are about to reverse <strong>{selectedLoanIds.length}</strong> loan(s) for <strong style={{textTransform: 'uppercase'}}>{reverseLoanCustomer?.full_name}</strong> ({reverseLoanCustomer?.customer_code}).
+                  The status of these loans will be changed to reversed.
+                </p>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '30px' }}>
+                <button 
+                  onClick={() => setPreviewReverseLoanModal(false)}
+                  style={{ padding: '12px 24px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#475569', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleReverseLoanBatch}
+                  style={{ padding: '12px 32px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(239, 68, 68, 0.3)' }}
+                >
+                  Confirm Reverse Loans
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

@@ -263,4 +263,19 @@ router.post('/:id/reject-reloan', authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+router.delete('/:id', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const loan_id = req.params.id;
+    const loan = await dbGet('SELECT * FROM tblLoan WHERE id = ?', [loan_id]);
+    if (!loan) return res.status(404).json({ error: 'Loan not found' });
+    
+    await dbRun('DELETE FROM tblLoan WHERE id = ?', [loan_id]);
+    await dbRun('DELETE FROM tblCreditInvestigation WHERE loan_id = ?', [loan_id]);
+    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, 
+      [req.user.id, req.user.username, 'DELETE', 'LOAN', loan_id, `Deleted loan ${loan.loan_code}`]);
+    
+    res.json({ message: 'Loan deleted successfully' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;

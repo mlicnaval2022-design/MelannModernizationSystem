@@ -107,6 +107,16 @@ export default function CreditScoring() {
     finally { setSaving(false) }
   }
 
+  const handleDeleteApp = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this application?')) return;
+    try {
+      await API.delete(`/loans/${id}`);
+      load();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error deleting application');
+    }
+  };
+
   const getCreditAssessment = () => {
     if (!ciLoan) return { score: 0, level: '🔴 Very High Risk', recommendation: 'DECLINE', redFlags: 0, disposableIncome: 0, color: 'var(--accent-danger)' };
     
@@ -305,6 +315,14 @@ export default function CreditScoring() {
                         <button style={{ padding: '6px 12px', background: '#ecfdf5', color: '#10b981', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }} onClick={() => openManagerReview(r)}>Review App</button>
                       ) : (
                         <button style={{ padding: '6px 12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }} onClick={() => openCI(r)}>View CI</button>
+                      )}
+                      {(hasRole('admin') || hasRole('manager')) && (
+                        <button 
+                          style={{ padding: '6px 12px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }} 
+                          onClick={() => handleDeleteApp(r.id)}
+                        >
+                          Delete
+                        </button>
                       )}
                     </div>
                   </td>
