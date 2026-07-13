@@ -535,9 +535,9 @@ export default function Customers() {
                       </div>
                     </td>
                     <td>
-                      <div className={`cell-status ${r.status?.toLowerCase().replace(' ', '') || 'inactive'}`}>
-                        <div className={`status-dot ${r.status?.toLowerCase().replace(' ', '') || 'inactive'}`}></div>
-                        {r.status || 'Unknown'}
+                      <div className={`cell-status ${r.display_status?.toLowerCase().replace(' ', '') || r.status?.toLowerCase().replace(' ', '') || 'inactive'}`}>
+                        <div className={`status-dot ${r.display_status?.toLowerCase().replace(' ', '') || r.status?.toLowerCase().replace(' ', '') || 'inactive'}`}></div>
+                        {r.display_status || r.status || 'Unknown'}
                       </div>
                     </td>
                     <td>
@@ -679,12 +679,12 @@ export default function Customers() {
                                 <div className="soa-val-v2">{soaData.full_name} <CheckCircle size={16} color="#eab308" fill="#fef08a" /></div>
                                 <div className="soa-label-v2">Contact</div>
                                 <div className="soa-val-sub-v2"><Phone size={14} /> {soaData.contact || 'NONE'}</div>
-                                <div className="soa-label-v2">Customer Status</div>
-                                <div className="soa-status-badge-v2"><div className="dot"></div> {getCalculatedCustomerStatus(soaData)}</div>
                               </div>
                               <div>
                                 <div className="soa-label-v2">Customer Code</div>
                                 <div className="soa-val-v2" style={{ fontSize: 18 }}>{soaData.customer_code}</div>
+                                <div className="soa-label-v2">Customer Status</div>
+                                <div className="soa-status-badge-v2"><div className="dot"></div> {getCalculatedCustomerStatus(soaData)}</div>
                               </div>
                               <div>
                                 <div className="soa-label-v2">Address</div>
