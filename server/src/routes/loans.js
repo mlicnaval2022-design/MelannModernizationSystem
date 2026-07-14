@@ -187,7 +187,7 @@ router.post('/:id/manager-decision', authenticateToken, requireRole('admin', 'ma
     const { decision, remarks, approved_amount } = req.body;
 
     if (decision === 'approve') {
-      await dbRun(`UPDATE tblLoan SET status='approved', updated_at=datetime('now') WHERE id=?`, [loan_id]);
+      await dbRun(`UPDATE tblLoan SET status='active', updated_at=datetime('now') WHERE id=?`, [loan_id]);
       await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'APPROVE', 'LOAN', loan_id, `Manager Approved Loan`]);
     } else if (decision === 'reject') {
       await dbRun(`UPDATE tblLoan SET status='rejected', remarks=?, updated_at=datetime('now') WHERE id=?`, [remarks || '', loan_id]);
@@ -201,11 +201,29 @@ router.post('/:id/manager-decision', authenticateToken, requireRole('admin', 'ma
       
       const newRemarks = loan.remarks ? `${loan.remarks} | Reduced: ${remarks}` : `Reduced: ${remarks}`;
       
-      await dbRun(`UPDATE tblLoan SET principal=?, interest_amount=?, amortization=?, total_amortization=?, balance=?, net_proceeds=?, remarks=?, status='approved', updated_at=datetime('now') WHERE id=?`, 
+      await dbRun(`UPDATE tblLoan SET principal=?, interest_amount=?, amortization=?, total_amortization=?, balance=?, net_proceeds=?, remarks=?, status='active', updated_at=datetime('now') WHERE id=?`, 
         [newPrincipal, interest_amount, amortization, total_amortization, total_amortization, net_proceeds, newRemarks, loan_id]);
       await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REDUCE', 'LOAN', loan_id, `Manager Reduced Loan to ${newPrincipal}: ${remarks}`]);
     } else {
       return res.status(400).json({ error: 'Invalid decision' });
+    }
+
+    if (decision === 'approve' || decision === 'reduce') {
+      const updatedLoan = await dbGet('SELECT * FROM tblLoan WHERE id = ?', [loan_id]);
+      const date_released = new Date().toISOString().split('T')[0];
+      const date_maturity = computeMaturityDate(date_released, updatedLoan.loan_period || 45);
+      
+      await dbRun(`UPDATE tblLoan SET date_released=?, date_maturity=? WHERE id=?`, [date_released, date_maturity, loan_id]);
+      const schedule = generateAmortizationSchedule(updatedLoan.id, date_released, updatedLoan.loan_period || 45, updatedLoan.amortization);
+      for (const s of schedule) {
+        await dbRun(`INSERT INTO tblAmortizationSchedule (loan_id, period_number, due_date, amount_due, status) VALUES (?,?,?,?,?)`, [s.loan_id, s.period_number, s.due_date, s.amount_due, s.status]);
+      }
+      
+      const cust = await dbGet('SELECT status FROM tblCustomer WHERE id = ?', [updatedLoan.customer_id]);
+      await dbRun(`UPDATE tblCustomer SET status='active', updated_at=datetime('now') WHERE id=?`, [updatedLoan.customer_id]);
+      await dbRun(`INSERT INTO tblCustomerStatusHistory (customer_id, previous_status, new_status, changed_by, remarks) VALUES (?, ?, ?, ?, ?)`,
+        [updatedLoan.customer_id, cust ? cust.status : '', 'active', req.user.id, `Loan auto-released on approval: ${updatedLoan.loan_code}`]);
+      await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'RELEASE', 'LOAN', updatedLoan.id, `Loan Auto-Released on Manager Approval`]);
     }
 
     res.json({ message: 'Manager decision recorded successfully' });

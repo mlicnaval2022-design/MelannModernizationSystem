@@ -527,16 +527,32 @@ router.post('/', authenticateToken, async (req, res) => {
     const placeholders = cols.map(() => '?').join(',');
     const result = await dbRun(`INSERT INTO tblCustomer (${cols.join(',')}) VALUES (${placeholders})`, vals);
     
-    // Auto-create CI Application (pending loan)
+    // Auto-create CI Application (pending loan) or Active (Re-Loan)
     const maxLoan = await dbGet("SELECT MAX(CAST(REPLACE(loan_code, 'LN-', '') AS INTEGER)) as c FROM tblLoan");
     const loan_code = `LN-${String((maxLoan?.c || 0) + 1).padStart(6, '0')}`;
     const date_released = new Date().toISOString().split('T')[0];
     const principal = Number(proposed_principal) || 0;
-    const amortization = principal > 0 ? (principal * 1.15) / 45 : 0;
+    
+    const parsedLoanType = req.body.loan_type === 'Re-Loan' ? 'Re-Loan' : 'New';
+    const loanStatus = parsedLoanType === 'Re-Loan' ? 'active' : 'pending';
+    
+    const interestRate = 15;
+    const loanPeriod = 45;
+    const interestAmount = principal * (interestRate / 100);
+    const totalAmortization = principal + interestAmount;
+    const amortization = principal > 0 ? Math.ceil(totalAmortization / 39) : 0;
+    const dateMaturity = computeMaturityDate(date_released, loanPeriod);
 
-    await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, loan_period, date_released, amortization, status, remarks, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [loan_code, result.lastID, collector_id, branch_id, 'New', principal, 15, 45, date_released, amortization, 'pending', loan_purpose, req.user.id]
+    const loanInsert = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, net_proceeds, balance, status, remarks, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [loan_code, result.lastID, collector_id, branch_id, parsedLoanType, principal, interestRate, interestAmount, loanPeriod, date_released, dateMaturity, amortization, totalAmortization, principal, totalAmortization, loanStatus, loan_purpose, req.user.id]
     );
+
+    if (loanStatus === 'active') {
+      const schedule = generateAmortizationSchedule(loanInsert.lastID, date_released, loanPeriod, amortization);
+      for (const s of schedule) {
+        await dbRun(`INSERT INTO tblAmortizationSchedule (loan_id, period_number, due_date, amount_due, status) VALUES (?,?,?,?,?)`, [s.loan_id, s.period_number, s.due_date, s.amount_due, s.status]);
+      }
+    }
 
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'CUSTOMER', result.lastID, `Created: ${full_name}`]);
     res.status(201).json({ id: result.lastID, customer_code, full_name });

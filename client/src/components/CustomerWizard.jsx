@@ -20,7 +20,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
     contact: '', secondary_contact: '', email: '', confirm_email: '', fb_account: '', messenger_account: '', preferred_contact_method: 'Call / SMS', preferred_contact_time_from: '', preferred_contact_time_to: '', contact_notes: '',
     business_type: 'Sari-Sari Store', occupation: 'Retail', business_name: '', business_address: '', business_years: '', business_months: '', income_per_month: '', business_employees: '', business_ownership: 'Sole Proprietorship', business_permit: 'Yes', permit_date_issued: '', permit_place_issued: '', permit_no: '',
     id_type: 'Philippine Identification (PhilID)', id_number: '', id_issue_date: '', id_expiry_date: '', id_issued_by: 'PSA', id_place_of_issue: '', tin_number: '', sss_number: '', id_notes: '',
-    proposed_principal: '', loan_purpose: '', branch_id: '', collector_id: '',
+    proposed_principal: '', loan_purpose: '', branch_id: '', collector_id: '', loan_type: 'New Loan',
     photo_id_front: null, photo_id_back: null, photo_business_proof: null, photo_client: null
   });
 
@@ -483,6 +483,12 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
             <select className="form-control" value={form.collector_id} onChange={e => setForm({...form, collector_id: e.target.value})}>
               <option value="">Select Collector</option>
               {collectors.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+            </select>
+          </div>
+          <div className="form-group"><label>Loan Type *</label>
+            <select className="form-control" value={form.loan_type || 'New Loan'} onChange={e => setForm({...form, loan_type: e.target.value})}>
+              <option value="New Loan">New Loan</option>
+              <option value="Re-Loan">Re-Loan</option>
             </select>
           </div>
           <div className="form-group"><label>Proposed Principal Amount *</label>
