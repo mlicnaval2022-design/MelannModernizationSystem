@@ -57,8 +57,14 @@ router.post('/', authenticateToken, async (req, res) => {
     await dbRun(`UPDATE tblLoan SET balance=?, total_paid=total_paid+?, status=?, updated_at=datetime('now') WHERE id=?`, [balance_after, amount_paid, newStatus, loan_id]);
     
     if (newStatus === 'fullpaid') {
-      const activeLoansCount = await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE customer_id = ? AND status IN ('active', 'pending', 'approved', 'for_approval')`, [loan.customer_id]);
-      if (activeLoansCount.c === 0) {
+      const openLoansCount = await dbGet(`
+        SELECT COUNT(*) as c
+        FROM tblLoan
+        WHERE customer_id = ?
+          AND LOWER(COALESCE(status, '')) NOT IN ('fullpaid', 'closed', 'rejected', 'cancelled', 'reversed')
+          AND COALESCE(balance, 0) > 0
+      `, [loan.customer_id]);
+      if (openLoansCount.c === 0) {
         const cust = await dbGet(`SELECT status FROM tblCustomer WHERE id = ?`, [loan.customer_id]);
         if (cust && cust.status !== 'FULLY PAID') {
           await dbRun(`UPDATE tblCustomer SET status='FULLY PAID' WHERE id=?`, [loan.customer_id]);

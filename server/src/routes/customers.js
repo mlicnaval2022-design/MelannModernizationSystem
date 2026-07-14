@@ -129,6 +129,19 @@ router.get('/list/fully-paid', authenticateToken, async (req, res) => {
       FROM tblCustomer c
       LEFT JOIN tblCollector co ON c.collector_id = co.id
       WHERE c.status = 'FULLY PAID'
+        AND EXISTS (
+          SELECT 1
+          FROM tblLoan paid
+          WHERE paid.customer_id = c.id
+            AND LOWER(COALESCE(paid.status, '')) = 'fullpaid'
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM tblLoan open_loan
+          WHERE open_loan.customer_id = c.id
+            AND LOWER(COALESCE(open_loan.status, '')) NOT IN ('fullpaid', 'closed', 'rejected', 'cancelled', 'reversed')
+            AND COALESCE(open_loan.balance, 0) > 0
+        )
     `);
     
     const today = new Date().toISOString().split('T')[0];
@@ -696,6 +709,19 @@ router.post('/:id/status', authenticateToken, requireRole('admin', 'manager'), a
     const { status, remarks } = req.body;
     const customer = await dbGet('SELECT * FROM tblCustomer WHERE id = ?', [req.params.id]);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
+
+    if (String(status || '').toUpperCase() === 'FULLY PAID') {
+      const openLoansCount = await dbGet(`
+        SELECT COUNT(*) as c
+        FROM tblLoan
+        WHERE customer_id = ?
+          AND LOWER(COALESCE(status, '')) NOT IN ('fullpaid', 'closed', 'rejected', 'cancelled', 'reversed')
+          AND COALESCE(balance, 0) > 0
+      `, [req.params.id]);
+      if (openLoansCount.c > 0) {
+        return res.status(400).json({ error: 'Cannot set customer to Fully Paid while there is an open loan balance.' });
+      }
+    }
     
     await dbRun(`UPDATE tblCustomer SET status=?, updated_at=datetime('now') WHERE id=?`, [status, req.params.id]);
     await dbRun(`INSERT INTO tblCustomerStatusHistory (customer_id, previous_status, new_status, changed_by, remarks) VALUES (?, ?, ?, ?, ?)`, 
