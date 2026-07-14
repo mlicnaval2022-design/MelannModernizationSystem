@@ -476,7 +476,7 @@ export default function Loans() {
         customerId={reloanCustomer?.id}
         customer={reloanCustomer}
         loanType={loanActionType}
-        onSuccess={() => {
+        onReloanSubmitted={() => {
           setReloanModalOpen(false);
           load();
         }}
