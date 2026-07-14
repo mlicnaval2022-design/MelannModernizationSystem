@@ -651,7 +651,7 @@ router.post('/:id/penalty', authenticateToken, requireRole('admin', 'manager'), 
 
 router.post('/:id/reloan', authenticateToken, async (req, res) => {
   try {
-    const { principal, loan_period, interest_rate, date_released, loan_type, previous_balance, remarks } = req.body;
+    const { principal, loan_period, interest_rate, date_released, loan_type, previous_balance, remarks, source_approved_loan_id } = req.body;
     const customer = await dbGet('SELECT * FROM tblCustomer WHERE id = ?', [req.params.id]);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
     
@@ -677,6 +677,17 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
       const schedule = generateAmortizationSchedule(result.lastID, releaseDate, period, amortization);
       for (const s of schedule) {
         await dbRun(`INSERT INTO tblAmortizationSchedule (loan_id, period_number, due_date, amount_due, status) VALUES (?,?,?,?,?)`, [s.loan_id, s.period_number, s.due_date, s.amount_due, s.status]);
+      }
+      if (source_approved_loan_id) {
+        await dbRun(`
+          UPDATE tblLoan
+          SET status='closed',
+              remarks=COALESCE(NULLIF(remarks, ''), 'Approved application converted to active loan'),
+              updated_at=datetime('now')
+          WHERE id=?
+            AND customer_id=?
+            AND status='approved'
+        `, [source_approved_loan_id, customer.id]);
       }
       await dbRun(`UPDATE tblCustomer SET status='active', updated_at=datetime('now') WHERE id=?`, [customer.id]);
       await dbRun(`INSERT INTO tblCustomerStatusHistory (customer_id, previous_status, new_status, changed_by, remarks) VALUES (?, ?, ?, ?, ?)`,

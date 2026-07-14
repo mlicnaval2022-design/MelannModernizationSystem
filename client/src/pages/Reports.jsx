@@ -121,6 +121,103 @@ const COLLECTION_STATUS_GROUPS = [
   { key: 'overdue', label: 'Overdue', color: '#EF6C00' },
   { key: 'pastdue', label: 'Past Due', color: '#D71920' },
 ]
+const REPORT_PRINT_CLARITY_CSS = `
+  @media print {
+    #printable-area,
+    #printable-area * {
+      color-adjust: exact !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    #printable-area {
+      color: #111827 !important;
+      font-weight: 500 !important;
+    }
+
+    #printable-area .data-table,
+    #printable-area table.data-table,
+    #printable-area .table-responsive-print {
+      border-color: #334155 !important;
+      box-shadow: none !important;
+    }
+
+    #printable-area .data-table {
+      border-collapse: collapse !important;
+    }
+
+    #printable-area .data-table th {
+      background: #e5e7eb !important;
+      color: #0f172a !important;
+      border: 1.35px solid #334155 !important;
+      font-weight: 900 !important;
+      text-shadow: none !important;
+    }
+
+    #printable-area .data-table td {
+      color: #111827 !important;
+      border: 1.15px solid #475569 !important;
+      font-weight: 600 !important;
+      text-shadow: none !important;
+    }
+
+    #printable-area .data-table tbody tr:nth-child(even) td {
+      background: #f8fafc !important;
+    }
+
+    #printable-area .data-table tfoot td,
+    #printable-area .data-table tfoot th,
+    #printable-area tr[style*="GRAND"],
+    #printable-area .fw-bold {
+      color: #0f172a !important;
+      font-weight: 900 !important;
+    }
+
+    #printable-area .text-success,
+    #printable-area .text-accent,
+    #printable-area td[style*="#16a34a"],
+    #printable-area span[style*="#16a34a"] {
+      color: #047857 !important;
+      font-weight: 900 !important;
+    }
+
+    #printable-area .text-danger,
+    #printable-area td[style*="#dc2626"],
+    #printable-area span[style*="#dc2626"] {
+      color: #b91c1c !important;
+      font-weight: 900 !important;
+    }
+
+    #printable-area .mono,
+    #printable-area .tag,
+    #printable-area .badge {
+      color: #0f172a !important;
+      border-color: #475569 !important;
+      font-weight: 800 !important;
+    }
+
+    #printable-area h1,
+    #printable-area h2,
+    #printable-area h3,
+    #printable-area .modal-title {
+      color: #0f172a !important;
+      font-weight: 900 !important;
+    }
+
+    #printable-area div[style*="#64748b"],
+    #printable-area div[style*="var(--text-muted)"],
+    #printable-area span[style*="#64748b"],
+    #printable-area .nav-section-label {
+      color: #334155 !important;
+      font-weight: 700 !important;
+    }
+
+    #printable-area div[style*="borderBottom"],
+    #printable-area div[style*="border-bottom"] {
+      border-color: #334155 !important;
+    }
+  }
+`
 const classifyCollectionAccount = account => {
   const dpd = Math.max(0, parseInt(account?.days_past_due ?? account?.days_overdue, 10) || 0)
   if (dpd >= 45) return 'pastdue'
@@ -879,6 +976,43 @@ export default function Reports() {
                 th, td { min-width: 0 !important; font-size: 9px !important; padding: 3px 4px !important; }
                 th div { font-size: 9px !important; }
                 .table-responsive-print { overflow: visible !important; }
+                .monthly-collection-fit-print {
+                  border-radius: 0 !important;
+                  overflow: visible !important;
+                  width: 100% !important;
+                }
+                .monthly-collection-fit-print table {
+                  table-layout: fixed !important;
+                  width: 100% !important;
+                  min-width: 0 !important;
+                  zoom: 1 !important;
+                }
+                .monthly-collection-fit-print th,
+                .monthly-collection-fit-print td {
+                  font-size: 6.4px !important;
+                  line-height: 1.05 !important;
+                  padding: 1.5px 2px !important;
+                  min-width: 0 !important;
+                  white-space: normal !important;
+                  overflow-wrap: anywhere !important;
+                }
+                .monthly-collection-fit-print th:first-child,
+                .monthly-collection-fit-print td:first-child {
+                  width: 10.5% !important;
+                  text-align: left !important;
+                }
+                .monthly-collection-fit-print th:not(:first-child),
+                .monthly-collection-fit-print td:not(:first-child) {
+                  width: 6.88% !important;
+                  text-align: right !important;
+                }
+                .monthly-collection-fit-print .period-range-print {
+                  display: none !important;
+                }
+                .monthly-collection-fit-print .fw-bold,
+                .monthly-collection-fit-print .fw-600 {
+                  font-weight: 800 !important;
+                }
                 .monthly-print-detailed { display: none !important; }
                 ${printMode === 'detailed' ? `
                 .monthly-print-summary { display: none !important; }
@@ -944,7 +1078,7 @@ export default function Reports() {
                 )}
               </div>
             )}
-            <div className="table-responsive-print" style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+            <div className={`table-responsive-print ${params.collection_cycle_type === '30' ? 'monthly-collection-fit-print' : ''}`} style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
               <table className="data-table" style={{ minWidth: Math.max(760, 220 + matrix.periods.length * 150 + 150) }}>
                 <thead>
                   <tr>
@@ -952,7 +1086,7 @@ export default function Reports() {
                     {matrix.periods.map(period => (
                       <th key={period.key} className="text-right" title={period.rangeLabel} style={{ minWidth: 150 }}>
                         <div>{period.label}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, textTransform: 'none', letterSpacing: 0 }}>{period.rangeLabel}</div>
+                        <div className="period-range-print" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, textTransform: 'none', letterSpacing: 0 }}>{period.rangeLabel}</div>
                       </th>
                     ))}
                     <th className="text-right" style={{ minWidth: 150 }}>Total Collection</th>
@@ -2626,6 +2760,7 @@ export default function Reports() {
           .badge { padding: 2px 6px !important; font-size: 9px !important; }
           .modal-header, .modal-body { padding: 12px !important; }
         }
+        ${REPORT_PRINT_CLARITY_CSS}
       `}</style>
       <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 16 }}>
         <div className="card" style={{ padding: '12px 8px', height: 'fit-content' }}>

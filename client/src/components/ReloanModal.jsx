@@ -39,7 +39,7 @@ const getRecommendedAmount = data => {
   return data.recommendations?.standard || data.last_loan_amount || '';
 };
 
-const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan', onReloanSubmitted }) => {
+const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan', sourceApprovedLoanId = null, onReloanSubmitted }) => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -150,7 +150,8 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
         interest_rate: Number(interestRate || 0),
         date_released: dateRelease,
         loan_type: internalLoanType,
-        previous_balance: Number(previousBalance || 0)
+        previous_balance: Number(previousBalance || 0),
+        source_approved_loan_id: sourceApprovedLoanId
       });
       setShowSuccess(true);
     } catch (err) {
