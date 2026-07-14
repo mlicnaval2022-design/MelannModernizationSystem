@@ -265,10 +265,21 @@ export default function FullyPaid({ search = '' }) {
                           <div style={{ border: '1px solid #dbe7f6', borderRadius: 8, padding: '4px 14px' }}>{statLeft.map(item => <StatRow key={item[3]} item={item} />)}</div>
                           <div style={{ border: '1px solid #dbe7f6', borderRadius: 8, padding: '4px 14px' }}>{statRight.map(item => <StatRow key={item[3]} item={item} />)}</div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 16, border: '1px solid #fecaca', background: '#fff1f2', color: '#dc2626', borderRadius: 8, padding: '14px 18px', fontSize: 15, fontWeight: 800 }}>
-                          <span style={{ width: 34, height: 34, borderRadius: 17, background: '#dc2626', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>!</span>
-                          Payment Pattern: {evalData.payment_consistency?.label || 'No payment history'}
-                        </div>
+                          {(() => {
+                            const risk = evalData.payment_consistency?.risk || 'neutral';
+                            let styles = { border: '#fecaca', bg: '#fff1f2', text: '#dc2626', icon: '!' };
+                            if (risk === 'excellent' || risk === 'good') {
+                              styles = { border: '#bbf7d0', bg: '#f0fdf4', text: '#16a34a', icon: '✓' };
+                            } else if (risk === 'fair' || risk === 'neutral') {
+                              styles = { border: '#fde68a', bg: '#fffbeb', text: '#d97706', icon: '⚠' };
+                            }
+                            return (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 16, border: `1px solid ${styles.border}`, background: styles.bg, color: styles.text, borderRadius: 8, padding: '14px 18px', fontSize: 15, fontWeight: 800 }}>
+                                <span style={{ width: 34, height: 34, minWidth: 34, borderRadius: 17, background: styles.text, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{styles.icon}</span>
+                                Payment Pattern: {evalData.payment_consistency?.label || 'No payment history'}
+                              </div>
+                            );
+                          })()}
                       </section>
 
                       <aside style={{ border: '1px solid #bfdbfe', borderRadius: 12, padding: 22, background: 'linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)', textAlign: 'center' }}>

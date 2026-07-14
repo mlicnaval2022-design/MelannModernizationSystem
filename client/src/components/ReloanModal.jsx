@@ -419,14 +419,14 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
 
                   <div className="reloan-balance-row">
                     <div className="reloan-soft-icon violet">⟲</div>
-                    <div>
-                      <span>OLD BALANCE</span>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#334155', letterSpacing: '0.5px' }}>OLD BALANCE</span>
                       <input 
                         type="number" 
                         value={previousBalance} 
                         onChange={(e) => setPreviousBalance(e.target.value)} 
                         placeholder="0.00"
-                        style={{ border: 'none', borderBottom: '1px solid #cbd5e1', background: 'transparent', width: '100px', fontSize: '18px', fontWeight: 'bold', outline: 'none', color: '#1e293b' }}
+                        style={{ border: 'none', borderBottom: '2px solid #cbd5e1', background: 'transparent', width: '120px', fontSize: '18px', fontWeight: 'bold', outline: 'none', color: '#1e293b', marginTop: '2px' }}
                       />
                     </div>
                   </div>
