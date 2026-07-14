@@ -115,6 +115,29 @@ const getMonthlyReleaseRange = params => {
     date_to: (periods[periods.length - 1] || fallback).date_to,
   }
 }
+const COLLECTION_STATUS_GROUPS = [
+  { key: 'active', label: 'Active', color: '#1F2933' },
+  { key: 'recon', label: 'Recon', color: '#1565C0' },
+  { key: 'overdue', label: 'Overdue', color: '#EF6C00' },
+  { key: 'pastdue', label: 'Past Due', color: '#D71920' },
+]
+const classifyCollectionAccount = account => {
+  const dpd = Math.max(0, parseInt(account?.days_past_due ?? account?.days_overdue, 10) || 0)
+  if (dpd >= 45) return 'pastdue'
+  if (dpd >= 1) return 'overdue'
+  if ((account?.loan_type || '').toLowerCase().includes('recon')) return 'recon'
+  return 'active'
+}
+const groupCollectionAccounts = accounts => COLLECTION_STATUS_GROUPS.map(group => ({
+  ...group,
+  rows: (accounts || [])
+    .filter(account => classifyCollectionAccount(account) === group.key)
+    .sort((a, b) =>
+      String(a.customer_name || '').localeCompare(String(b.customer_name || '')) ||
+      String(a.date_paid || '').localeCompare(String(b.date_paid || '')) ||
+      String(a.loan_code || '').localeCompare(String(b.loan_code || ''))
+    )
+}))
 const getCollectorRows = payments => Object.entries(payments.reduce((acc, p) => {
   const name = p.collector_name || 'Unassigned'
   if (!acc[name]) acc[name] = { collector: name, payment_count: 0, total_amount: 0, payments: [] }
@@ -2223,14 +2246,6 @@ export default function Reports() {
       const collectionDate = params.date || toDateInputValue(new Date())
       const displayCollDate = new Date(collectionDate + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
 
-      /* ── Classification helper (reusable, priority: PastDue > Overdue > Recon > Active) ── */
-      const classifyLoan = (loan) => {
-        const dpd = Math.max(0, parseInt(loan.days_past_due) || 0)
-        if (dpd >= 45) return 'pastdue'
-        if (dpd >= 1) return 'overdue'
-        if ((loan.loan_type || '').toLowerCase().includes('recon')) return 'recon'
-        return 'active'
-      }
       const isReconLoan = (loan) => (loan.loan_type || '').toLowerCase().includes('recon')
 
       /* ── Classify and deduplicate ── */
@@ -2240,7 +2255,7 @@ export default function Reports() {
         if (seen.has(l.id)) return
         seen.add(l.id)
         l.days_past_due = Math.max(0, parseInt(l.days_past_due) || 0)
-        groups[classifyLoan(l)].push(l)
+        groups[classifyCollectionAccount(l)].push(l)
       })
       Object.values(groups).forEach(arr => arr.sort((a, b) => (a.customer_name || '').localeCompare(b.customer_name || '')))
 
@@ -2528,6 +2543,40 @@ export default function Reports() {
     return <pre style={{ fontSize: 12, color: 'var(--text-muted)' }}>{JSON.stringify(data, null, 2)}</pre>
   }
 
+  const renderCollectionPaymentRows = () => {
+    const groups = groupCollectionAccounts(selectedCollector?.payments || [])
+    if (groups.every(group => group.rows.length === 0)) {
+      return <tr><td colSpan={7} className="empty-state">No payment details</td></tr>
+    }
+
+    return groups.flatMap(group => {
+      const header = (
+        <tr key={`${group.key}-header`}>
+          <td colSpan={7} style={{ background: group.color, color: '#fff', fontWeight: 700, padding: '7px 12px', textTransform: 'uppercase', letterSpacing: 0.2 }}>
+            {group.label} - {group.rows.length} {group.rows.length === 1 ? 'Client' : 'Clients'}
+          </td>
+        </tr>
+      )
+      const empty = group.rows.length === 0 ? (
+        <tr key={`${group.key}-empty`}>
+          <td colSpan={7} className="empty-state" style={{ padding: '8px 12px', textAlign: 'center' }}>No clients in this classification</td>
+        </tr>
+      ) : null
+      const rows = group.rows.map(p => (
+        <tr key={`${group.key}-${p.id}`}>
+          <td className="mono">{p.customer_code || '-'}</td>
+          <td>{p.date_paid}</td>
+          <td className="fw-600">{p.customer_name || '-'}</td>
+          <td className="mono">{p.or_number || '-'}</td>
+          <td className="mono">{p.loan_code || '-'}</td>
+          <td className="text-right text-success fw-bold">₱ {fmt(p.amount_paid)}</td>
+          <td className="text-right">₱ {fmt(p.balance_after)}</td>
+        </tr>
+      ))
+      return empty ? [header, empty] : [header, ...rows]
+    })
+  }
+
   return (
     <div>
       <style>{`
@@ -2688,17 +2737,7 @@ export default function Reports() {
                         <tr><th>Client Code</th><th>Date Paid</th><th>Client</th><th>OR#</th><th>Loan#</th><th className="text-right">Amount</th><th className="text-right">Bal. After</th></tr>
                       </thead>
                       <tbody>
-                        {selectedCollector.payments?.length === 0 ? <tr><td colSpan={7} className="empty-state">No payment details</td></tr> : selectedCollector.payments?.map(p => (
-                          <tr key={p.id}>
-                            <td className="mono">{p.customer_code || '-'}</td>
-                            <td>{p.date_paid}</td>
-                            <td className="fw-600">{p.customer_name || '-'}</td>
-                            <td className="mono">{p.or_number || '-'}</td>
-                            <td className="mono">{p.loan_code || '-'}</td>
-                            <td className="text-right text-success fw-bold">₱ {fmt(p.amount_paid)}</td>
-                            <td className="text-right">₱ {fmt(p.balance_after)}</td>
-                          </tr>
-                        ))}
+                        {renderCollectionPaymentRows()}
                       </tbody>
                     </>
                   )}
