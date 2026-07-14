@@ -44,6 +44,17 @@ export default function Loans() {
     setReloanModalOpen(true);
   }
 
+  const triggerAddLoan = (r) => {
+    setReloanCustomer({
+      id: r.customer_id,
+      customer_code: r.customer_code,
+      client_name: r.customer_name,
+      collector_name: r.collector_name
+    });
+    setLoanActionType('Reloan'); // Default to Reloan, modal has dropdown for New/Reloan/Recon
+    setReloanModalOpen(true);
+  }
+
   const load = () => { 
     setLoading(true); 
     API.get('/loans', { params: { search, status } })
@@ -236,6 +247,9 @@ export default function Loans() {
                             <button className="btn btn-success btn-sm" onClick={() => handleApproveReloan(r.id)}>Approve</button>
                             <button className="btn btn-danger btn-sm" onClick={() => handleRejectReloan(r.id)}>Reject</button>
                           </>
+                        )}
+                        {hasRole('admin', 'manager') && r.status === 'approved' && (
+                          <button className="btn btn-dark btn-sm" onClick={() => triggerAddLoan(r)}>Add Loan</button>
                         )}
                       </div>
                     </td>
