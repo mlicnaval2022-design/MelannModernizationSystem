@@ -557,6 +557,10 @@ async function initializeDatabase() {
     if (!customerColNames.has(c)) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN ${c} TEXT`);
   }
 
+  const loanCols = await dbAll(`PRAGMA table_info(tblLoan)`);
+  const loanColNames = new Set(loanCols.map(c => c.name));
+  if (!loanColNames.has('previous_balance')) await dbRun(`ALTER TABLE tblLoan ADD COLUMN previous_balance REAL DEFAULT 0`);
+
   const dcrCols = await dbAll(`PRAGMA table_info(tblDailyCashReport)`);
   const dcrColNames = new Set(dcrCols.map(c => c.name));
   if (!dcrColNames.has('ending_cash_on_bank')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN ending_cash_on_bank REAL DEFAULT 0`);

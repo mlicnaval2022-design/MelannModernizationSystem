@@ -977,14 +977,14 @@
   }
 
   .f-soa-penalty-table th {
-    padding: 3px 4px;
-    line-height: 1.02;
+    padding: 2px 4px;
+    line-height: 0.98;
   }
 
   .f-soa-penalty-table td {
-    padding: 2px 4px;
-    font-size: 8.2px;
-    line-height: 1.02;
+    padding: 1px 3px;
+    font-size: 8px;
+    line-height: 0.96;
   }
 
   .f-soa-payment-ledger-table th:first-child,
@@ -1105,14 +1105,14 @@
   .f-soa-penalty-table td:first-child span {
     display: block;
     color: #0f172a;
-    font-size: 7.2px;
+    font-size: 6.8px;
     font-weight: 700;
-    margin-top: 1px;
-    line-height: 1;
+    margin-top: 0;
+    line-height: 0.92;
   }
 
   .f-soa-penalty-table td:first-child .f-soa-penalty-period-range {
-    line-height: 1;
+    line-height: 0.92;
   }
 
   .f-soa-penalty-table td:first-child .f-soa-penalty-period-range span {
@@ -1122,11 +1122,11 @@
   .f-soa-penalty-table td:first-child .f-soa-penalty-period-range em {
     display: block;
     color: #64748b;
-    font-size: 6.8px;
+    font-size: 5.8px;
     font-style: normal;
     font-weight: 800;
     letter-spacing: 0.04em;
-    line-height: 1;
+    line-height: 0.9;
     text-transform: uppercase;
   }
 

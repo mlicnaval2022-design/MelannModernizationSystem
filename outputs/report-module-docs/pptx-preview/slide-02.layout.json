@@ -1,0 +1,238 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/oucbkz",
+    "id": "oucbkz",
+    "slide": 2,
+    "layoutId": "b93da528-8b86-4207-b4aa-86ced00687c0",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "ca209377-5cd1-46a1-a9f6-1a1e3ecae1b5",
+    "masterLayoutName": "Master",
+    "backgroundColor": "#FFFFFF",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "+mn-lt"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "b93da528-8b86-4207-b4aa-86ced00687c0",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "ca209377-5cd1-46a1-a9f6-1a1e3ecae1b5",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "ca209377-5cd1-46a1-a9f6-1a1e3ecae1b5",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/apgj2xgr",
+      "id": "1",
+      "bbox": [
+        72,
+        42,
+        420,
+        28
+      ],
+      "geometry": "rect",
+      "text": "REPORT MODULE DOCUMENTATION",
+      "textPreview": "REPORT MODULE DOCUMENTATION",
+      "resolvedFontSize": 13,
+      "resolvedTextStyle": {
+        "fontSize": 13,
+        "typeface": "+mn-lt",
+        "color": "#475569",
+        "bold": true,
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "REPORT MODULE DOCUMENTATION"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "REPORT MODULE DOCUMENTATION",
+          "resolvedTextStyle": {
+            "fontSize": 13,
+            "color": "#475569",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "REPORT MODULE DOCUMENTATION",
+              "fontSize": 13,
+              "color": "#475569",
+              "bold": true,
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/xsr2dcfi",
+      "id": "2",
+      "bbox": [
+        72,
+        76,
+        980,
+        86
+      ],
+      "geometry": "rect",
+      "text": "The module turns daily transactions into operational decisions",
+      "textPreview": "The module turns daily transactions into operational decisions",
+      "resolvedFontSize": 36,
+      "resolvedTextStyle": {
+        "fontSize": 36,
+        "typeface": "+mn-lt",
+        "color": "#0F172A",
+        "bold": true,
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "The module turns daily transactions into operational decisions"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "The module turns daily transactions into operational decisions",
+          "resolvedTextStyle": {
+            "fontSize": 36,
+            "color": "#0F172A",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "The module turns daily transactions into operational decisions",
+              "fontSize": 36,
+              "color": "#0F172A",
+              "bold": true,
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/wri147yx",
+      "id": "3",
+      "bbox": [
+        72,
+        168,
+        1136,
+        2
+      ],
+      "geometry": "rect",
+      "fillColor": "#CBD5E1",
+      "lineColor": "#CBD5E1",
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/axwre587",
+      "id": "4",
+      "bbox": [
+        92,
+        188,
+        1096,
+        430
+      ],
+      "geometry": "roundRect",
+      "contentType": "image/png",
+      "imageFit": "contain",
+      "imageMask": {
+        "geometry": "roundRect",
+        "adjustmentList": [
+          {
+            "name": "adj",
+            "formula": "val 1860"
+          }
+        ]
+      },
+      "asset": {
+        "assetId": "e4e72595-5c55-492b-a543-3a5afea825d9",
+        "contentType": "image/png",
+        "byteLength": 54753
+      }
+    }
+  ],
+  "composeRuns": []
+}

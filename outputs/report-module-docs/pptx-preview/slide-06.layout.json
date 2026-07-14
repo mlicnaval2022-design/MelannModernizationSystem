@@ -1,0 +1,707 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/qk5sll",
+    "id": "qk5sll",
+    "slide": 6,
+    "layoutId": "b93da528-8b86-4207-b4aa-86ced00687c0",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "ca209377-5cd1-46a1-a9f6-1a1e3ecae1b5",
+    "masterLayoutName": "Master",
+    "backgroundColor": "#FFFFFF",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "+mn-lt"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "b93da528-8b86-4207-b4aa-86ced00687c0",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "ca209377-5cd1-46a1-a9f6-1a1e3ecae1b5",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "ca209377-5cd1-46a1-a9f6-1a1e3ecae1b5",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ixojyxo3",
+      "id": "1",
+      "bbox": [
+        72,
+        42,
+        420,
+        28
+      ],
+      "geometry": "rect",
+      "text": "REPORT MODULE DOCUMENTATION",
+      "textPreview": "REPORT MODULE DOCUMENTATION",
+      "resolvedFontSize": 13,
+      "resolvedTextStyle": {
+        "fontSize": 13,
+        "typeface": "+mn-lt",
+        "color": "#475569",
+        "bold": true,
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "REPORT MODULE DOCUMENTATION"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "REPORT MODULE DOCUMENTATION",
+          "resolvedTextStyle": {
+            "fontSize": 13,
+            "color": "#475569",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "REPORT MODULE DOCUMENTATION",
+              "fontSize": 13,
+              "color": "#475569",
+              "bold": true,
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/5kf2tc7u",
+      "id": "2",
+      "bbox": [
+        72,
+        76,
+        980,
+        86
+      ],
+      "geometry": "rect",
+      "text": "Field, client-facing, and monitoring reports cover different audiences",
+      "textPreview": "Field, client-facing, and monitoring reports cover different audiences",
+      "resolvedFontSize": 36,
+      "resolvedTextStyle": {
+        "fontSize": 36,
+        "typeface": "+mn-lt",
+        "color": "#0F172A",
+        "bold": true,
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Field, client-facing, and monitoring reports cover different"
+          },
+          {
+            "index": 2,
+            "text": "audiences"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Field, client-facing, and monitoring reports cover different audiences",
+          "resolvedTextStyle": {
+            "fontSize": 36,
+            "color": "#0F172A",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Field, client-facing, and monitoring reports cover different audiences",
+              "fontSize": 36,
+              "color": "#0F172A",
+              "bold": true,
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/4j6l0769",
+      "id": "3",
+      "bbox": [
+        72,
+        168,
+        1136,
+        2
+      ],
+      "geometry": "rect",
+      "fillColor": "#CBD5E1",
+      "lineColor": "#CBD5E1",
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/vudkn2ps",
+      "id": "4",
+      "bbox": [
+        80,
+        210,
+        345,
+        330
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#F8FAFC",
+      "lineColor": "#1E3A8A",
+      "lineWidth": 1
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ut4juxo7",
+      "id": "5",
+      "bbox": [
+        80,
+        210,
+        345,
+        12
+      ],
+      "geometry": "rect",
+      "fillColor": "#1E3A8A",
+      "lineColor": "#1E3A8A",
+      "lineWidth": 0
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/hwv2ps7i",
+      "id": "6",
+      "bbox": [
+        104,
+        254,
+        296,
+        72
+      ],
+      "geometry": "rect",
+      "text": "Collection Sheet",
+      "textPreview": "Collection Sheet",
+      "resolvedFontSize": 28,
+      "resolvedTextStyle": {
+        "fontSize": 28,
+        "typeface": "+mn-lt",
+        "color": "#1E3A8A",
+        "bold": true,
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Collection Sheet"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Collection Sheet",
+          "resolvedTextStyle": {
+            "fontSize": 28,
+            "color": "#1E3A8A",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Collection Sheet",
+              "fontSize": 28,
+              "color": "#1E3A8A",
+              "bold": true,
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/gvm1wn6d",
+      "id": "7",
+      "bbox": [
+        104,
+        355,
+        296,
+        116
+      ],
+      "geometry": "rect",
+      "text": "Per-collector active loan list for field collection and printed accountability.",
+      "textPreview": "Per-collector active loan list for field collection and printed accountability.",
+      "resolvedFontSize": 21,
+      "resolvedTextStyle": {
+        "fontSize": 21,
+        "typeface": "+mn-lt",
+        "color": "#0F172A",
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Per-collector active loan list for"
+          },
+          {
+            "index": 2,
+            "text": "field collection and printed"
+          },
+          {
+            "index": 3,
+            "text": "accountability."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Per-collector active loan list for field collection and printed accountability.",
+          "resolvedTextStyle": {
+            "fontSize": 21,
+            "color": "#0F172A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Per-collector active loan list for field collection and printed accountability.",
+              "fontSize": 21,
+              "color": "#0F172A",
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/7qdkjipg",
+      "id": "8",
+      "bbox": [
+        475,
+        210,
+        345,
+        330
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#F8FAFC",
+      "lineColor": "#0F172A",
+      "lineWidth": 1
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/mp4jqdov",
+      "id": "9",
+      "bbox": [
+        475,
+        210,
+        345,
+        12
+      ],
+      "geometry": "rect",
+      "fillColor": "#0F172A",
+      "lineColor": "#0F172A",
+      "lineWidth": 0
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/c7id0bmd",
+      "id": "10",
+      "bbox": [
+        499,
+        254,
+        296,
+        72
+      ],
+      "geometry": "rect",
+      "text": "Disclosure Statement",
+      "textPreview": "Disclosure Statement",
+      "resolvedFontSize": 28,
+      "resolvedTextStyle": {
+        "fontSize": 28,
+        "typeface": "+mn-lt",
+        "color": "#0F172A",
+        "bold": true,
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Disclosure Statement"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Disclosure Statement",
+          "resolvedTextStyle": {
+            "fontSize": 28,
+            "color": "#0F172A",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Disclosure Statement",
+              "fontSize": 28,
+              "color": "#0F172A",
+              "bold": true,
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/x8re9gny",
+      "id": "11",
+      "bbox": [
+        499,
+        355,
+        296,
+        116
+      ],
+      "geometry": "rect",
+      "text": "Client loan disclosure generated from selected borrower and loan details.",
+      "textPreview": "Client loan disclosure generated from selected borrower and loan details.",
+      "resolvedFontSize": 21,
+      "resolvedTextStyle": {
+        "fontSize": 21,
+        "typeface": "+mn-lt",
+        "color": "#0F172A",
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Client loan disclosure generated"
+          },
+          {
+            "index": 2,
+            "text": "from selected borrower and"
+          },
+          {
+            "index": 3,
+            "text": "loan details."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Client loan disclosure generated from selected borrower and loan details.",
+          "resolvedTextStyle": {
+            "fontSize": 21,
+            "color": "#0F172A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Client loan disclosure generated from selected borrower and loan details.",
+              "fontSize": 21,
+              "color": "#0F172A",
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 12,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/algvy147",
+      "id": "12",
+      "bbox": [
+        870,
+        210,
+        345,
+        330
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#F8FAFC",
+      "lineColor": "#DC2626",
+      "lineWidth": 1
+    },
+    {
+      "order": 13,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/bm9w765s",
+      "id": "13",
+      "bbox": [
+        870,
+        210,
+        345,
+        12
+      ],
+      "geometry": "rect",
+      "fillColor": "#DC2626",
+      "lineColor": "#DC2626",
+      "lineWidth": 0
+    },
+    {
+      "order": 14,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ojydwrmh",
+      "id": "14",
+      "bbox": [
+        894,
+        254,
+        296,
+        72
+      ],
+      "geometry": "rect",
+      "text": "Monitoring Summary",
+      "textPreview": "Monitoring Summary",
+      "resolvedFontSize": 28,
+      "resolvedTextStyle": {
+        "fontSize": 28,
+        "typeface": "+mn-lt",
+        "color": "#DC2626",
+        "bold": true,
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Monitoring Summary"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Monitoring Summary",
+          "resolvedTextStyle": {
+            "fontSize": 28,
+            "color": "#DC2626",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Monitoring Summary",
+              "fontSize": 28,
+              "color": "#DC2626",
+              "bold": true,
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 15,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/pk7e5wn2",
+      "id": "15",
+      "bbox": [
+        894,
+        355,
+        296,
+        116
+      ],
+      "geometry": "rect",
+      "text": "Alerts, escalations, promise-to-pay data, follow-up logs, and resolutions.",
+      "textPreview": "Alerts, escalations, promise-to-pay data, follow-up logs, and resolutions.",
+      "resolvedFontSize": 21,
+      "resolvedTextStyle": {
+        "fontSize": 21,
+        "typeface": "+mn-lt",
+        "color": "#0F172A",
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Alerts, escalations,"
+          },
+          {
+            "index": 2,
+            "text": "promise-to-pay data, follow-up"
+          },
+          {
+            "index": 3,
+            "text": "logs, and resolutions."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Alerts, escalations, promise-to-pay data, follow-up logs, and resolutions.",
+          "resolvedTextStyle": {
+            "fontSize": 21,
+            "color": "#0F172A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Alerts, escalations, promise-to-pay data, follow-up logs, and resolutions.",
+              "fontSize": 21,
+              "color": "#0F172A",
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}

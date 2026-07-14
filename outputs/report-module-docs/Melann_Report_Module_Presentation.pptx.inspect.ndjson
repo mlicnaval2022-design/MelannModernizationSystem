@@ -1,0 +1,140 @@
+{"kind":"deck","id":"pr/8z88lz","name":"Deck"}
+{"kind":"layout","layoutId":"ca209377-5cd1-46a1-a9f6-1a1e3ecae1b5","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"b93da528-8b86-4207-b4aa-86ced00687c0","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/d54yhb","slide":1,"title":"Melann Lending System V2","textShapes":11}
+{"kind":"shape","id":"sh/4v2pcfap","slide":1,"bbox":[0,0,1280,720]}
+{"kind":"textbox","id":"sh/3uto3a94","slide":1,"text":"Melann Lending System V2","textPreview":"Melann Lending System V2","textChars":24,"textLines":1,"bbox":[72,70,780,42]}
+{"kind":"textbox","id":"sh/2tk7a5sj","slide":1,"text":"Report Module and Report Types","textPreview":"Report Module and Report Types","textChars":30,"textLines":1,"bbox":[72,135,760,128]}
+{"kind":"textbox","id":"sh/hsb610re","slide":1,"text":"Documentation deck covering purpose, descriptions, advantages, problems, limitations, and recommended next steps.","textPreview":"Documentation deck covering purpose, descriptions, advantages, problems, limitations, and recommended next steps.","textChars":113,"textLines":1,"bbox":[76,300,690,92]}
+{"kind":"shape","id":"sh/gr2p8vat","slide":1,"bbox":[810,126,160,86]}
+{"kind":"shape","id":"sh/fqtoza98","slide":1,"bbox":[810,126,160,10]}
+{"kind":"textbox","id":"sh/upk765sn","slide":1,"text":"Collection","textPreview":"Collection","textChars":10,"textLines":1,"bbox":[828,157,124,28]}
+{"kind":"shape","id":"sh/t4b6x0r2","slide":1,"bbox":[1000,126,160,86]}
+{"kind":"shape","id":"sh/s3ip4vah","slide":1,"bbox":[1000,126,160,10]}
+{"kind":"textbox","id":"sh/u1gvihcr","slide":1,"text":"Releases","textPreview":"Releases","textChars":8,"textLines":1,"bbox":[1018,157,124,28]}
+{"kind":"shape","id":"sh/v29wrmdw","slide":1,"bbox":[810,258,160,86]}
+{"kind":"shape","id":"sh/w3idk7uh","slide":1,"bbox":[810,258,160,10]}
+{"kind":"textbox","id":"sh/h4retcv2","slide":1,"text":"Maturity","textPreview":"Maturity","textChars":8,"textLines":1,"bbox":[828,289,124,28]}
+{"kind":"shape","id":"sh/mdgvexcf","slide":1,"bbox":[1000,258,160,86]}
+{"kind":"shape","id":"sh/nypwn2d0","slide":1,"bbox":[1000,258,160,10]}
+{"kind":"textbox","id":"sh/8zydg7ul","slide":1,"text":"DCR","textPreview":"DCR","textChars":3,"textLines":1,"bbox":[1018,289,124,28]}
+{"kind":"shape","id":"sh/907epcv6","slide":1,"bbox":[810,390,160,86]}
+{"kind":"shape","id":"sh/y9wvaxcj","slide":1,"bbox":[810,390,160,10]}
+{"kind":"textbox","id":"sh/za5cj2d4","slide":1,"text":"Reversed","textPreview":"Reversed","textChars":8,"textLines":1,"bbox":[828,421,124,28]}
+{"kind":"shape","id":"sh/321kvupk","slide":1,"bbox":[1000,390,160,86]}
+{"kind":"shape","id":"sh/21sj2poz","slide":1,"bbox":[1000,390,160,10]}
+{"kind":"textbox","id":"sh/p4j2x47q","slide":1,"text":"Monitoring","textPreview":"Monitoring","textChars":10,"textLines":1,"bbox":[1018,421,124,28]}
+{"kind":"textbox","id":"sh/43a14z65","slide":1,"text":"with DCR as separate finance report","textPreview":"with DCR as separate finance report","textChars":35,"textLines":1,"bbox":[812,538,350,32]}
+{"kind":"textbox","id":"sh/r6lkzepg","slide":1,"text":"Prepared July 14, 2026","textPreview":"Prepared July 14, 2026","textChars":22,"textLines":1,"bbox":[76,620,360,32]}
+{"kind":"notes","id":"nt/d54yhb","slide":1,"text":""}
+{"kind":"slide","id":"sl/oucbkz","slide":2,"title":"REPORT MODULE DOCUMENTATION","textShapes":2}
+{"kind":"textbox","id":"sh/apgj2xgr","slide":2,"text":"REPORT MODULE DOCUMENTATION","textPreview":"REPORT MODULE DOCUMENTATION","textChars":27,"textLines":1,"bbox":[72,42,420,28]}
+{"kind":"textbox","id":"sh/xsr2dcfi","slide":2,"text":"The module turns daily transactions into operational decisions","textPreview":"The module turns daily transactions into operational decisions","textChars":62,"textLines":1,"bbox":[72,76,980,86]}
+{"kind":"shape","id":"sh/wri147yx","slide":2,"bbox":[72,168,1136,2]}
+{"kind":"image","id":"im/axwre587","slide":2,"name":"","geometry":"roundRect","bbox":[92,188,1096,430]}
+{"kind":"notes","id":"nt/oucbkz","slide":2,"text":""}
+{"kind":"slide","id":"sl/wcga17","slide":3,"title":"REPORT MODULE DOCUMENTATION","textShapes":9}
+{"kind":"textbox","id":"sh/cn69cvmp","slide":3,"text":"REPORT MODULE DOCUMENTATION","textPreview":"REPORT MODULE DOCUMENTATION","textChars":27,"textLines":1,"bbox":[72,42,420,28]}
+{"kind":"textbox","id":"sh/bmxs3q54","slide":3,"text":"Current inventory has UI, finance, and backend-only layers","textPreview":"Current inventory has UI, finance, and backend-only layers","textChars":58,"textLines":1,"bbox":[72,76,980,86]}
+{"kind":"shape","id":"sh/qloraloj","slide":3,"bbox":[72,168,1136,2]}
+{"kind":"shape","id":"sh/pkfa1gny","slide":3,"bbox":[86,220,335,265]}
+{"kind":"textbox","id":"sh/ozm98v6t","slide":3,"text":"Visible Reports UI","textPreview":"Visible Reports UI","textChars":18,"textLines":1,"bbox":[110,248,285,58]}
+{"kind":"textbox","id":"sh/3ydszq58","slide":3,"text":"Collection, Releases, Maturity, Reversed Payments, Full Paid, Collection Sheet, Disclosure, Monitoring.","textPreview":"Collection, Releases, Maturity, Reversed Payments, Full Paid, Collection Sheet, Disclosure, Monitoring.","textChars":103,"textLines":1,"bbox":[110,324,285,118]}
+{"kind":"shape","id":"sh/2x4r6lon","slide":3,"bbox":[471,220,335,265]}
+{"kind":"textbox","id":"sh/9gzadkni","slide":3,"text":"Separate Finance Report","textPreview":"Separate Finance Report","textChars":23,"textLines":1,"bbox":[495,248,285,58]}
+{"kind":"textbox","id":"sh/8vqtkfmx","slide":3,"text":"Daily Cash Report lives outside the Reports sidebar because it has close, cash, bank, and compliance handoff workflows.","textPreview":"Daily Cash Report lives outside the Reports sidebar because it has close, cash, bank, and compliance handoff workflows.","textChars":119,"textLines":1,"bbox":[495,324,285,118]}
+{"kind":"shape","id":"sh/y5sjyx47","slide":3,"bbox":[856,220,335,265]}
+{"kind":"textbox","id":"sh/z6lk725s","slide":3,"text":"Backend / README Candidates","textPreview":"Backend / README Candidates","textChars":27,"textLines":1,"bbox":[880,248,285,58]}
+{"kind":"textbox","id":"sh/07u107md","slide":3,"text":"Loan Type Summary and Payments Encoded still appear in backend or documentation but are not current sidebar items.","textPreview":"Loan Type Summary and Payments Encoded still appear in backend or documentation but are not current sidebar items.","textChars":114,"textLines":1,"bbox":[880,324,285,118]}
+{"kind":"textbox","id":"sh/l8329cni","slide":3,"text":"Main documentation risk: users may expect reports that are documented but not currently visible, or miss DCR because it is under Finance.","textPreview":"Main documentation risk: users may expect reports that are documented but not currently visible, or miss DCR because it is under Finance.","textChars":137,"textLines":1,"bbox":[100,560,1080,50]}
+{"kind":"notes","id":"nt/wcga17","slide":3,"text":""}
+{"kind":"slide","id":"sl/azrj7x","slide":4,"title":"REPORT MODULE DOCUMENTATION","textShapes":10}
+{"kind":"textbox","id":"sh/ml07yhgj","slide":4,"text":"REPORT MODULE DOCUMENTATION","textPreview":"REPORT MODULE DOCUMENTATION","textChars":27,"textLines":1,"bbox":[72,42,420,28]}
+{"kind":"textbox","id":"sh/9or69wfa","slide":4,"text":"Collections and releases are the daily operating heartbeat","textPreview":"Collections and releases are the daily operating heartbeat","textChars":58,"textLines":1,"bbox":[72,76,980,86]}
+{"kind":"shape","id":"sh/8nip0ryp","slide":4,"bbox":[72,168,1136,2]}
+{"kind":"shape","id":"sh/zipo3mx8","slide":4,"bbox":[92,205,514,355]}
+{"kind":"textbox","id":"sh/yhg7uhgn","slide":4,"text":"Collection Report","textPreview":"Collection Report","textChars":17,"textLines":1,"bbox":[120,236,450,44]}
+{"kind":"textbox","id":"sh/lkr65cfy","slide":4,"text":"Shows daily/monthly payments by date range, grouped by collector.","textPreview":"Shows daily/monthly payments by date range, grouped by collector.","textChars":65,"textLines":1,"bbox":[120,304,448,60]}
+{"kind":"textbox","id":"sh/0jypwryt","slide":4,"text":"Advantage: fast cash collection review and collector accountability.","textPreview":"Advantage: fast cash collection review and collector accountability.","textChars":68,"textLines":1,"bbox":[120,395,448,50]}
+{"kind":"textbox","id":"sh/jet8f6xc","slide":4,"text":"Limit: depends on active payment status, correct collector links, and consistent branch filters.","textPreview":"Limit: depends on active payment status, correct collector links, and consistent branch filters.","textChars":96,"textLines":1,"bbox":[120,478,448,60]}
+{"kind":"shape","id":"sh/idk761gr","slide":4,"bbox":[674,205,514,355]}
+{"kind":"textbox","id":"sh/orq1sfyx","slide":4,"text":"Releases Report","textPreview":"Releases Report","textChars":15,"textLines":1,"bbox":[702,236,450,44]}
+{"kind":"textbox","id":"sh/pcz21kfi","slide":4,"text":"Shows loans released by date or cycle with principal totals and loan type split.","textPreview":"Shows loans released by date or cycle with principal totals and loan type split.","textChars":80,"textLines":1,"bbox":[702,304,448,60]}
+{"kind":"textbox","id":"sh/2p8jq5g7","slide":4,"text":"Advantage: monitors cash-out and production by collector.","textPreview":"Advantage: monitors cash-out and production by collector.","textChars":57,"textLines":1,"bbox":[702,395,448,50]}
+{"kind":"textbox","id":"sh/nqhkzaxc","slide":4,"text":"Limit: release totals may use principal while DCR cash-out should prefer net proceeds.","textPreview":"Limit: release totals may use principal while DCR cash-out should prefer net proceeds.","textChars":86,"textLines":1,"bbox":[702,478,448,60]}
+{"kind":"notes","id":"nt/azrj7x","slide":4,"text":""}
+{"kind":"slide","id":"sl/9csrwc","slide":5,"title":"REPORT MODULE DOCUMENTATION","textShapes":9}
+{"kind":"textbox","id":"sh/v2t87y5o","slide":5,"text":"REPORT MODULE DOCUMENTATION","textPreview":"REPORT MODULE DOCUMENTATION","textChars":27,"textLines":1,"bbox":[72,42,420,28]}
+{"kind":"textbox","id":"sh/w32pg3m9","slide":5,"text":"Exception and lifecycle reports support control work","textPreview":"Exception and lifecycle reports support control work","textChars":52,"textLines":1,"bbox":[72,76,980,86]}
+{"kind":"shape","id":"sh/x4bq98ne","slide":5,"bbox":[72,168,1136,2]}
+{"kind":"shape","id":"sh/mx07at4r","slide":5,"bbox":[108,205,1030,92]}
+{"kind":"textbox","id":"sh/ny983e5c","slide":5,"text":"Maturity Checker / Past Due","textPreview":"Maturity Checker / Past Due","textChars":27,"textLines":1,"bbox":[138,225,350,40]}
+{"kind":"textbox","id":"sh/8zipcjmx","slide":5,"text":"Prioritizes accounts by maturity range and remaining balance.","textPreview":"Prioritizes accounts by maturity range and remaining balance.","textChars":61,"textLines":1,"bbox":[520,225,560,42]}
+{"kind":"shape","id":"sh/90bq5oni","slide":5,"bbox":[108,337,1030,92]}
+{"kind":"textbox","id":"sh/y907694v","slide":5,"text":"Payments Reversed","textPreview":"Payments Reversed","textChars":17,"textLines":1,"bbox":[138,357,350,40]}
+{"kind":"textbox","id":"sh/za98ze5g","slide":5,"text":"Audits reversed payments with user, reason, customer, and amount.","textPreview":"Audits reversed payments with user, reason, customer, and amount.","textChars":65,"textLines":1,"bbox":[520,357,560,42]}
+{"kind":"shape","id":"sh/zyd4naxc","slide":5,"bbox":[108,469,1030,92]}
+{"kind":"textbox","id":"sh/ex43e5g7","slide":5,"text":"Full Paid Loans","textPreview":"Full Paid Loans","textChars":15,"textLines":1,"bbox":[138,489,350,40]}
+{"kind":"textbox","id":"sh/10vmp0fi","slide":5,"text":"Lists completed accounts for re-loan targeting and completion metrics.","textPreview":"Lists completed accounts for re-loan targeting and completion metrics.","textChars":70,"textLines":1,"bbox":[520,489,560,42]}
+{"kind":"textbox","id":"sh/0zmlgvyx","slide":5,"text":"Common limitation: these reports are only as strong as status mapping and date quality from loan/payment records.","textPreview":"Common limitation: these reports are only as strong as status mapping and date quality from loan/payment records.","textChars":113,"textLines":1,"bbox":[112,622,980,38]}
+{"kind":"notes","id":"nt/9csrwc","slide":5,"text":""}
+{"kind":"slide","id":"sl/qk5sll","slide":6,"title":"REPORT MODULE DOCUMENTATION","textShapes":8}
+{"kind":"textbox","id":"sh/ixojyxo3","slide":6,"text":"REPORT MODULE DOCUMENTATION","textPreview":"REPORT MODULE DOCUMENTATION","textChars":27,"textLines":1,"bbox":[72,42,420,28]}
+{"kind":"textbox","id":"sh/5kf2tc7u","slide":6,"text":"Field, client-facing, and monitoring reports cover different audiences","textPreview":"Field, client-facing, and monitoring reports cover different audiences","textChars":70,"textLines":1,"bbox":[72,76,980,86]}
+{"kind":"shape","id":"sh/4j6l0769","slide":6,"bbox":[72,168,1136,2]}
+{"kind":"shape","id":"sh/vudkn2ps","slide":6,"bbox":[80,210,345,330]}
+{"kind":"shape","id":"sh/ut4juxo7","slide":6,"bbox":[80,210,345,12]}
+{"kind":"textbox","id":"sh/hwv2ps7i","slide":6,"text":"Collection Sheet","textPreview":"Collection Sheet","textChars":16,"textLines":1,"bbox":[104,254,296,72]}
+{"kind":"textbox","id":"sh/gvm1wn6d","slide":6,"text":"Per-collector active loan list for field collection and printed accountability.","textPreview":"Per-collector active loan list for field collection and printed accountability.","textChars":79,"textLines":1,"bbox":[104,355,296,116]}
+{"kind":"shape","id":"sh/7qdkjipg","slide":6,"bbox":[475,210,345,330]}
+{"kind":"shape","id":"sh/mp4jqdov","slide":6,"bbox":[475,210,345,12]}
+{"kind":"textbox","id":"sh/c7id0bmd","slide":6,"text":"Disclosure Statement","textPreview":"Disclosure Statement","textChars":20,"textLines":1,"bbox":[499,254,296,72]}
+{"kind":"textbox","id":"sh/x8re9gny","slide":6,"text":"Client loan disclosure generated from selected borrower and loan details.","textPreview":"Client loan disclosure generated from selected borrower and loan details.","textChars":73,"textLines":1,"bbox":[499,355,296,116]}
+{"kind":"shape","id":"sh/algvy147","slide":6,"bbox":[870,210,345,330]}
+{"kind":"shape","id":"sh/bm9w765s","slide":6,"bbox":[870,210,345,12]}
+{"kind":"textbox","id":"sh/ojydwrmh","slide":6,"text":"Monitoring Summary","textPreview":"Monitoring Summary","textChars":18,"textLines":1,"bbox":[894,254,296,72]}
+{"kind":"textbox","id":"sh/pk7e5wn2","slide":6,"text":"Alerts, escalations, promise-to-pay data, follow-up logs, and resolutions.","textPreview":"Alerts, escalations, promise-to-pay data, follow-up logs, and resolutions.","textChars":74,"textLines":1,"bbox":[894,355,296,116]}
+{"kind":"notes","id":"nt/qk5sll","slide":6,"text":""}
+{"kind":"slide","id":"sl/alto07","slide":7,"title":"REPORT MODULE DOCUMENTATION","textShapes":2}
+{"kind":"textbox","id":"sh/x0f21gju","slide":7,"text":"REPORT MODULE DOCUMENTATION","textPreview":"REPORT MODULE DOCUMENTATION","textChars":27,"textLines":1,"bbox":[72,42,420,28]}
+{"kind":"textbox","id":"sh/axoj61k3","slide":7,"text":"DCR is the accounting-critical report","textPreview":"DCR is the accounting-critical report","textChars":37,"textLines":1,"bbox":[72,76,980,86]}
+{"kind":"shape","id":"sh/byxkz61o","slide":7,"bbox":[72,168,1136,2]}
+{"kind":"image","id":"im/tw36twri","slide":7,"name":"","geometry":"roundRect","bbox":[82,178,1116,450]}
+{"kind":"notes","id":"nt/alto07","slide":7,"text":""}
+{"kind":"slide","id":"sl/ucv6dv","slide":8,"title":"REPORT MODULE DOCUMENTATION","textShapes":7}
+{"kind":"textbox","id":"sh/sfihw7ep","slide":8,"text":"REPORT MODULE DOCUMENTATION","textPreview":"REPORT MODULE DOCUMENTATION","textChars":27,"textLines":1,"bbox":[72,42,420,28]}
+{"kind":"textbox","id":"sh/re90n2x4","slide":8,"text":"Advantages and limitations should be managed as one control surface","textPreview":"Advantages and limitations should be managed as one control surface","textChars":67,"textLines":1,"bbox":[72,76,980,86]}
+{"kind":"shape","id":"sh/qd0zuxwz","slide":8,"bbox":[72,168,1136,2]}
+{"kind":"shape","id":"sh/1kbitcfm","slide":8,"bbox":[92,213,20,20]}
+{"kind":"textbox","id":"sh/0j2h07e1","slide":8,"text":"Advantages: centralized access, collector grouping, print-friendly output, DCR reconciliation, and monitoring visibility.","textPreview":"Advantages: centralized access, collector grouping, print-friendly output, DCR reconciliation, and monitoring visibility.","textChars":121,"textLines":1,"bbox":[130,205,980,48]}
+{"kind":"shape","id":"sh/fit0rmxg","slide":8,"bbox":[92,289,20,20]}
+{"kind":"textbox","id":"sh/ehkzyhwv","slide":8,"text":"Limitations: report inventory mismatch across README, backend routes, and visible UI.","textPreview":"Limitations: report inventory mismatch across README, backend routes, and visible UI.","textChars":85,"textLines":1,"bbox":[130,281,980,48]}
+{"kind":"shape","id":"sh/ho7ihsf2","slide":8,"bbox":[92,365,20,20]}
+{"kind":"textbox","id":"sh/wnyhoneh","slide":8,"text":"DCR gaps: branch filtering, bank formulas, server-side close totals, DCR numbering, and exact legacy parity.","textPreview":"DCR gaps: branch filtering, bank formulas, server-side close totals, DCR numbering, and exact legacy parity.","textChars":108,"textLines":1,"bbox":[130,357,980,48]}
+{"kind":"shape","id":"sh/i1o7mpsf","slide":8,"bbox":[92,441,20,20]}
+{"kind":"textbox","id":"sh/32x8fu90","slide":8,"text":"Export risk: browser print works, but critical reports may need controlled server-generated PDF/export paths.","textPreview":"Export risk: browser print works, but critical reports may need controlled server-generated PDF/export paths.","textChars":109,"textLines":1,"bbox":[130,433,980,48]}
+{"kind":"shape","id":"sh/436pozal","slide":8,"bbox":[92,517,20,20]}
+{"kind":"textbox","id":"sh/54fqh4rq","slide":8,"text":"Data risk: statuses, dates, branch, collector, and reversal reasons must be encoded consistently.","textPreview":"Data risk: statuses, dates, branch, collector, and reversal reasons must be encoded consistently.","textChars":97,"textLines":1,"bbox":[130,509,980,48]}
+{"kind":"notes","id":"nt/ucv6dv","slide":8,"text":""}
+{"kind":"slide","id":"sl/wl4g31","slide":9,"title":"REPORT MODULE DOCUMENTATION","textShapes":15}
+{"kind":"textbox","id":"sh/knatcjyt","slide":9,"text":"REPORT MODULE DOCUMENTATION","textPreview":"REPORT MODULE DOCUMENTATION","textChars":27,"textLines":1,"bbox":[72,42,420,28]}
+{"kind":"textbox","id":"sh/jm1s3yh8","slide":9,"text":"Recommended next steps before production hardening","textPreview":"Recommended next steps before production hardening","textChars":50,"textLines":1,"bbox":[72,76,980,86]}
+{"kind":"shape","id":"sh/ilsbatgn","slide":9,"bbox":[72,168,1136,2]}
+{"kind":"shape","id":"sh/xkja1oz2","slide":9,"bbox":[100,195,54,54]}
+{"kind":"textbox","id":"sh/wjat8jih","slide":9,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[100,205,54,30]}
+{"kind":"textbox","id":"sh/vi1szehw","slide":9,"text":"Normalize inventory and labels","textPreview":"Normalize inventory and labels","textChars":30,"textLines":1,"bbox":[180,193,520,34]}
+{"kind":"textbox","id":"sh/ah8b690r","slide":9,"text":"Align README, Reports UI, backend routes, and DCR placement.","textPreview":"Align README, Reports UI, backend routes, and DCR placement.","textChars":60,"textLines":1,"bbox":[180,231,870,34]}
+{"kind":"shape","id":"sh/9gzax4z6","slide":9,"bbox":[100,300,54,54]}
+{"kind":"textbox","id":"sh/8fqt4zil","slide":9,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[100,310,54,30]}
+{"kind":"textbox","id":"sh/exgny5wf","slide":9,"text":"Make backend totals authoritative","textPreview":"Make backend totals authoritative","textChars":33,"textLines":1,"bbox":[180,298,520,34]}
+{"kind":"textbox","id":"sh/zyp47ax0","slide":9,"text":"Use formula services for DCR and cash-impacting reports.","textPreview":"Use formula services for DCR and cash-impacting reports.","textChars":56,"textLines":1,"bbox":[180,336,870,34]}
+{"kind":"shape","id":"sh/0zy50ve5","slide":9,"bbox":[100,405,54,54]}
+{"kind":"textbox","id":"sh/107690fq","slide":9,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[100,415,54,30]}
+{"kind":"textbox","id":"sh/q9wnulw3","slide":9,"text":"Add branch-aware tests","textPreview":"Add branch-aware tests","textChars":22,"textLines":1,"bbox":[180,403,520,34]}
+{"kind":"textbox","id":"sh/ru543qxo","slide":9,"text":"Protect reports used for cash and collector accountability.","textPreview":"Protect reports used for cash and collector accountability.","textChars":59,"textLines":1,"bbox":[180,441,870,34]}
+{"kind":"shape","id":"sh/cve5wve9","slide":9,"bbox":[100,510,54,54]}
+{"kind":"textbox","id":"sh/dwnm50fu","slide":9,"text":"4","textPreview":"4","textChars":1,"textLines":1,"bbox":[100,520,54,30]}
+{"kind":"textbox","id":"sh/25cnqlw7","slide":9,"text":"Decide backend-only reports","textPreview":"Decide backend-only reports","textChars":27,"textLines":1,"bbox":[180,508,520,34]}
+{"kind":"textbox","id":"sh/3654zqxs","slide":9,"text":"Bring Loan Type and Payments Encoded into UI or remove from docs.","textPreview":"Bring Loan Type and Payments Encoded into UI or remove from docs.","textChars":65,"textLines":1,"bbox":[180,546,870,34]}
+{"kind":"textbox","id":"sh/7yhsbi98","slide":9,"text":"Target outcome: screen, print, export, and persisted audit totals all tell the same story.","textPreview":"Target outcome: screen, print, export, and persisted audit totals all tell the same story.","textChars":90,"textLines":1,"bbox":[96,635,1000,34]}
+{"kind":"notes","id":"nt/wl4g31","slide":9,"text":""}

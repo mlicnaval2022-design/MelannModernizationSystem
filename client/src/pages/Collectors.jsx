@@ -12,6 +12,7 @@ export default function Collectors() {
   const [form, setForm] = useState({ first_name: '', last_name: '', branch_id: '', assigned_to: '', supervisor: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [successModal, setSuccessModal] = useState(null)
 
   const [confirmModal, setConfirmModal] = useState(null)
 
@@ -97,9 +98,16 @@ export default function Collectors() {
   const handleSave = async (e) => {
     e.preventDefault(); setError(''); setSaving(true)
     try {
+      const collectorName = `${form.first_name} ${form.last_name}`.trim()
       if (editing) await API.put(`/collectors/${editing.id}`, { ...form, is_active: 1 })
       else await API.post('/collectors', form)
       setModal(false); load()
+      setSuccessModal({
+        title: editing ? 'Collector Updated' : 'Collector Created',
+        message: editing
+          ? `${collectorName} information has been saved successfully.`
+          : `${collectorName} has been created successfully.`
+      })
     } catch (err) { setError(err.response?.data?.error || 'Error saving') }
     finally { setSaving(false) }
   }
@@ -253,6 +261,51 @@ export default function Collectors() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Modal */}
+      {successModal && (
+        <div className="modal-overlay" style={{ zIndex: 10000 }} onMouseDown={e => e.target === e.currentTarget && setSuccessModal(null)}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '16px',
+            padding: '34px 32px 28px',
+            maxWidth: '420px',
+            width: '90%',
+            textAlign: 'center',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)',
+            animation: 'fadeInScale 0.2s ease-out'
+          }}>
+            <div style={{
+              width: 58,
+              height: 58,
+              borderRadius: '50%',
+              background: 'rgba(16,185,129,0.12)',
+              color: '#10b981',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '30px',
+              fontWeight: 800,
+              margin: '0 auto 18px auto'
+            }}>
+              ✓
+            </div>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>
+              {successModal.title}
+            </h3>
+            <p style={{ color: '#64748b', fontSize: '14px', lineHeight: 1.6, margin: '0 0 28px 0' }}>
+              {successModal.message}
+            </p>
+            <button
+              onClick={() => setSuccessModal(null)}
+              className="btn btn-primary"
+              style={{ minWidth: 120, justifyContent: 'center' }}
+            >
+              OK
+            </button>
           </div>
         </div>
       )}

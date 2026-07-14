@@ -1,0 +1,752 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/azrj7x",
+    "id": "azrj7x",
+    "slide": 4,
+    "layoutId": "b93da528-8b86-4207-b4aa-86ced00687c0",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "ca209377-5cd1-46a1-a9f6-1a1e3ecae1b5",
+    "masterLayoutName": "Master",
+    "backgroundColor": "#FFFFFF",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "+mn-lt"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "b93da528-8b86-4207-b4aa-86ced00687c0",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "ca209377-5cd1-46a1-a9f6-1a1e3ecae1b5",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "ca209377-5cd1-46a1-a9f6-1a1e3ecae1b5",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ml07yhgj",
+      "id": "1",
+      "bbox": [
+        72,
+        42,
+        420,
+        28
+      ],
+      "geometry": "rect",
+      "text": "REPORT MODULE DOCUMENTATION",
+      "textPreview": "REPORT MODULE DOCUMENTATION",
+      "resolvedFontSize": 13,
+      "resolvedTextStyle": {
+        "fontSize": 13,
+        "typeface": "+mn-lt",
+        "color": "#475569",
+        "bold": true,
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "REPORT MODULE DOCUMENTATION"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "REPORT MODULE DOCUMENTATION",
+          "resolvedTextStyle": {
+            "fontSize": 13,
+            "color": "#475569",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "REPORT MODULE DOCUMENTATION",
+              "fontSize": 13,
+              "color": "#475569",
+              "bold": true,
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/9or69wfa",
+      "id": "2",
+      "bbox": [
+        72,
+        76,
+        980,
+        86
+      ],
+      "geometry": "rect",
+      "text": "Collections and releases are the daily operating heartbeat",
+      "textPreview": "Collections and releases are the daily operating heartbeat",
+      "resolvedFontSize": 36,
+      "resolvedTextStyle": {
+        "fontSize": 36,
+        "typeface": "+mn-lt",
+        "color": "#0F172A",
+        "bold": true,
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Collections and releases are the daily operating heartbeat"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Collections and releases are the daily operating heartbeat",
+          "resolvedTextStyle": {
+            "fontSize": 36,
+            "color": "#0F172A",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Collections and releases are the daily operating heartbeat",
+              "fontSize": 36,
+              "color": "#0F172A",
+              "bold": true,
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/8nip0ryp",
+      "id": "3",
+      "bbox": [
+        72,
+        168,
+        1136,
+        2
+      ],
+      "geometry": "rect",
+      "fillColor": "#CBD5E1",
+      "lineColor": "#CBD5E1",
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/zipo3mx8",
+      "id": "4",
+      "bbox": [
+        92,
+        205,
+        514,
+        355
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#F8FAFC",
+      "lineColor": "#CBD5E1",
+      "lineWidth": 1
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/yhg7uhgn",
+      "id": "5",
+      "bbox": [
+        120,
+        236,
+        450,
+        44
+      ],
+      "geometry": "rect",
+      "text": "Collection Report",
+      "textPreview": "Collection Report",
+      "resolvedFontSize": 30,
+      "resolvedTextStyle": {
+        "fontSize": 30,
+        "typeface": "+mn-lt",
+        "color": "#16A34A",
+        "bold": true,
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Collection Report"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Collection Report",
+          "resolvedTextStyle": {
+            "fontSize": 30,
+            "color": "#16A34A",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Collection Report",
+              "fontSize": 30,
+              "color": "#16A34A",
+              "bold": true,
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/lkr65cfy",
+      "id": "6",
+      "bbox": [
+        120,
+        304,
+        448,
+        60
+      ],
+      "geometry": "rect",
+      "text": "Shows daily/monthly payments by date range, grouped by collector.",
+      "textPreview": "Shows daily/monthly payments by date range, grouped by collector.",
+      "resolvedFontSize": 22,
+      "resolvedTextStyle": {
+        "fontSize": 22,
+        "typeface": "+mn-lt",
+        "color": "#0F172A",
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Shows daily/monthly payments by date range,"
+          },
+          {
+            "index": 2,
+            "text": "grouped by collector."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Shows daily/monthly payments by date range, grouped by collector.",
+          "resolvedTextStyle": {
+            "fontSize": 22,
+            "color": "#0F172A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Shows daily/monthly payments by date range, grouped by collector.",
+              "fontSize": 22,
+              "color": "#0F172A",
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/0jypwryt",
+      "id": "7",
+      "bbox": [
+        120,
+        395,
+        448,
+        50
+      ],
+      "geometry": "rect",
+      "text": "Advantage: fast cash collection review and collector accountability.",
+      "textPreview": "Advantage: fast cash collection review and collector accountability.",
+      "resolvedFontSize": 20,
+      "resolvedTextStyle": {
+        "fontSize": 20,
+        "typeface": "+mn-lt",
+        "color": "#475569",
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Advantage: fast cash collection review and collector"
+          },
+          {
+            "index": 2,
+            "text": "accountability."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Advantage: fast cash collection review and collector accountability.",
+          "resolvedTextStyle": {
+            "fontSize": 20,
+            "color": "#475569",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Advantage: fast cash collection review and collector accountability.",
+              "fontSize": 20,
+              "color": "#475569",
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/jet8f6xc",
+      "id": "8",
+      "bbox": [
+        120,
+        478,
+        448,
+        60
+      ],
+      "geometry": "rect",
+      "text": "Limit: depends on active payment status, correct collector links, and consistent branch filters.",
+      "textPreview": "Limit: depends on active payment status, correct collector links, and consistent branch filters.",
+      "resolvedFontSize": 19,
+      "resolvedTextStyle": {
+        "fontSize": 19,
+        "typeface": "+mn-lt",
+        "color": "#DC2626",
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Limit: depends on active payment status, correct"
+          },
+          {
+            "index": 2,
+            "text": "collector links, and consistent branch filters."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Limit: depends on active payment status, correct collector links, and consistent branch filters.",
+          "resolvedTextStyle": {
+            "fontSize": 19,
+            "color": "#DC2626",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Limit: depends on active payment status, correct collector links, and consistent branch filters.",
+              "fontSize": 19,
+              "color": "#DC2626",
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/idk761gr",
+      "id": "9",
+      "bbox": [
+        674,
+        205,
+        514,
+        355
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#F8FAFC",
+      "lineColor": "#CBD5E1",
+      "lineWidth": 1
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/orq1sfyx",
+      "id": "10",
+      "bbox": [
+        702,
+        236,
+        450,
+        44
+      ],
+      "geometry": "rect",
+      "text": "Releases Report",
+      "textPreview": "Releases Report",
+      "resolvedFontSize": 30,
+      "resolvedTextStyle": {
+        "fontSize": 30,
+        "typeface": "+mn-lt",
+        "color": "#1E3A8A",
+        "bold": true,
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Releases Report"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Releases Report",
+          "resolvedTextStyle": {
+            "fontSize": 30,
+            "color": "#1E3A8A",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Releases Report",
+              "fontSize": 30,
+              "color": "#1E3A8A",
+              "bold": true,
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/pcz21kfi",
+      "id": "11",
+      "bbox": [
+        702,
+        304,
+        448,
+        60
+      ],
+      "geometry": "rect",
+      "text": "Shows loans released by date or cycle with principal totals and loan type split.",
+      "textPreview": "Shows loans released by date or cycle with principal totals and loan type split.",
+      "resolvedFontSize": 22,
+      "resolvedTextStyle": {
+        "fontSize": 22,
+        "typeface": "+mn-lt",
+        "color": "#0F172A",
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Shows loans released by date or cycle with"
+          },
+          {
+            "index": 2,
+            "text": "principal totals and loan type split."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Shows loans released by date or cycle with principal totals and loan type split.",
+          "resolvedTextStyle": {
+            "fontSize": 22,
+            "color": "#0F172A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Shows loans released by date or cycle with principal totals and loan type split.",
+              "fontSize": 22,
+              "color": "#0F172A",
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 12,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/2p8jq5g7",
+      "id": "12",
+      "bbox": [
+        702,
+        395,
+        448,
+        50
+      ],
+      "geometry": "rect",
+      "text": "Advantage: monitors cash-out and production by collector.",
+      "textPreview": "Advantage: monitors cash-out and production by collector.",
+      "resolvedFontSize": 20,
+      "resolvedTextStyle": {
+        "fontSize": 20,
+        "typeface": "+mn-lt",
+        "color": "#475569",
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Advantage: monitors cash-out and production by"
+          },
+          {
+            "index": 2,
+            "text": "collector."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Advantage: monitors cash-out and production by collector.",
+          "resolvedTextStyle": {
+            "fontSize": 20,
+            "color": "#475569",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Advantage: monitors cash-out and production by collector.",
+              "fontSize": 20,
+              "color": "#475569",
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 13,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/nqhkzaxc",
+      "id": "13",
+      "bbox": [
+        702,
+        478,
+        448,
+        60
+      ],
+      "geometry": "rect",
+      "text": "Limit: release totals may use principal while DCR cash-out should prefer net proceeds.",
+      "textPreview": "Limit: release totals may use principal while DCR cash-out should prefer net proceeds.",
+      "resolvedFontSize": 19,
+      "resolvedTextStyle": {
+        "fontSize": 19,
+        "typeface": "+mn-lt",
+        "color": "#DC2626",
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Limit: release totals may use principal while DCR"
+          },
+          {
+            "index": 2,
+            "text": "cash-out should prefer net proceeds."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Limit: release totals may use principal while DCR cash-out should prefer net proceeds.",
+          "resolvedTextStyle": {
+            "fontSize": 19,
+            "color": "#DC2626",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Limit: release totals may use principal while DCR cash-out should prefer net proceeds.",
+              "fontSize": 19,
+              "color": "#DC2626",
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}

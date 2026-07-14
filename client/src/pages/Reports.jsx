@@ -284,6 +284,15 @@ const getReleaseCollectorRows = loans => Object.entries(loans.reduce((acc, l) =>
   .map(([, row]) => ({ ...row, loans: row.loans.sort((a, b) => String(a.date_released || '').localeCompare(String(b.date_released || '')) || String(a.customer_name || '').localeCompare(String(b.customer_name || ''))) }))
   .sort((a, b) => a.collector.localeCompare(b.collector))
 
+const loanPrincipal = loan => Number(loan?.principal || 0)
+const loanInterest = loan => {
+  const explicitInterest = Number(loan?.interest_amount || 0)
+  if (explicitInterest > 0) return explicitInterest
+  const paidOverPrincipal = Number(loan?.total_paid || 0) - loanPrincipal(loan)
+  return paidOverPrincipal > 0 ? paidOverPrincipal : 0
+}
+const loanTotalAmount = loan => loanPrincipal(loan) + loanInterest(loan)
+
 const getMaturityCollectorRows = loans => Object.entries(loans.reduce((acc, l) => {
   const name = l.collector_name || 'Unassigned'
   if (!acc[name]) {
@@ -1510,12 +1519,85 @@ export default function Reports() {
         return (
           <>
             <style>{`
+              .release-overall-screen {
+                width: 100%;
+                max-width: 100%;
+                overflow-x: hidden !important;
+              }
+              .release-overall-chart {
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                overflow: hidden;
+              }
+              .release-overall-chart > div,
+              .release-overall-chart svg {
+                max-width: 100%;
+              }
+              .release-overall-screen table {
+                table-layout: fixed;
+                width: 100%;
+                min-width: 0 !important;
+              }
+              .release-overall-screen th,
+              .release-overall-screen td {
+                min-width: 0 !important;
+                padding: 8px 6px !important;
+                font-size: 11px;
+                line-height: 1.15;
+                white-space: normal;
+                overflow-wrap: anywhere;
+              }
+              .release-overall-screen th:first-child,
+              .release-overall-screen td:first-child {
+                width: 11%;
+                text-align: left;
+              }
+              .release-overall-screen th:not(:first-child),
+              .release-overall-screen td:not(:first-child) {
+                width: auto;
+              }
+              .release-overall-screen .period-range-print {
+                display: none;
+              }
+              .release-overall-screen .text-success {
+                white-space: nowrap;
+                font-size: 11px;
+              }
+              @media (max-width: 1200px) {
+                .release-overall-screen th,
+                .release-overall-screen td,
+                .release-overall-screen .text-success {
+                  font-size: 10px;
+                }
+                .release-overall-screen th,
+                .release-overall-screen td {
+                  padding: 7px 4px !important;
+                }
+              }
               @media print {
                 @page { size: landscape; margin: 10mm; }
                 table { min-width: auto !important; width: 100% !important; zoom: 0.9; }
                 th, td { min-width: 0 !important; font-size: 9px !important; padding: 3px 4px !important; }
                 th div { font-size: 9px !important; }
                 .table-responsive-print { overflow: visible !important; }
+                .release-overall-screen {
+                  border-radius: 0 !important;
+                  overflow: visible !important;
+                  width: 100% !important;
+                }
+                .release-overall-screen table {
+                  table-layout: fixed !important;
+                  width: 100% !important;
+                  min-width: 0 !important;
+                  zoom: 1 !important;
+                }
+                .release-overall-screen th,
+                .release-overall-screen td {
+                  font-size: 6.4px !important;
+                  line-height: 1.05 !important;
+                  padding: 1.5px 2px !important;
+                }
                 .release-monthly-print-detailed { display: none !important; }
                 ${printMode === 'detailed' ? `
                 .release-monthly-print-summary { display: none !important; }
@@ -1536,18 +1618,49 @@ export default function Reports() {
               </div>
               <div className="fw-bold text-success">Grand Total: ₱ {fmt(total_principal)}</div>
             </div>
-            <div className="table-responsive-print" style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
-              <table className="data-table" style={{ minWidth: Math.max(760, 220 + matrix.periods.length * 150 + 150) }}>
+            {releaseMonthlySubTab === 'overall' && (
+              <div className="release-overall-chart" style={{ marginBottom: 20, height: 350, background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '16px 16px 0 0' }}>
+                {matrix.periods.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={350} minWidth={300} minHeight={300}>
+                    <BarChart data={matrix.periods.map(p => ({ name: p.label, amount: matrix.periodTotals[p.key]?.amount || 0 }))} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="barGradientReleaseMonthly" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f59e0b" stopOpacity={1}/>
+                          <stop offset="100%" stopColor="#fbbf24" stopOpacity={0.6}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `â‚±${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
+                      <Tooltip
+                        cursor={{ fill: 'rgba(245, 158, 11, 0.08)' }}
+                        contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }}
+                        formatter={(val) => [`â‚± ${fmt(val)}`, 'Total Released']}
+                        labelStyle={{ color: '#0f172a', fontWeight: 700, marginBottom: 6, fontSize: 13 }}
+                      />
+                      <Bar dataKey="amount" fill="url(#barGradientReleaseMonthly)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={1000} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="empty-state">No data for chart</div>
+                )}
+              </div>
+            )}
+            <div
+              className={`table-responsive-print ${releaseMonthlySubTab === 'overall' ? 'release-overall-screen' : ''}`}
+              style={{ overflowX: releaseMonthlySubTab === 'overall' ? 'hidden' : 'auto', border: '1px solid var(--border)', borderRadius: 8 }}
+            >
+              <table className="data-table" style={{ minWidth: releaseMonthlySubTab === 'overall' ? 0 : Math.max(760, 220 + matrix.periods.length * 150 + 150), width: releaseMonthlySubTab === 'overall' ? '100%' : undefined }}>
                 <thead>
                   <tr>
-                    <th style={{ minWidth: 220 }}>{releaseMonthlySubTab === 'by-collector' ? 'Collector' : 'Summary'}</th>
+                    <th style={{ minWidth: releaseMonthlySubTab === 'overall' ? 0 : 220 }}>{releaseMonthlySubTab === 'by-collector' ? 'Collector' : 'Summary'}</th>
                     {matrix.periods.map(period => (
-                      <th key={period.key} className="text-right" title={period.rangeLabel} style={{ minWidth: 150 }}>
+                      <th key={period.key} className="text-right" title={period.rangeLabel} style={{ minWidth: releaseMonthlySubTab === 'overall' ? 0 : 150 }}>
                         <div>{period.label}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, textTransform: 'none', letterSpacing: 0 }}>{period.rangeLabel}</div>
+                        <div className="period-range-print" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, textTransform: 'none', letterSpacing: 0 }}>{period.rangeLabel}</div>
                       </th>
                     ))}
-                    <th className="text-right" style={{ minWidth: 150 }}>Total Release Amount</th>
+                    <th className="text-right" style={{ minWidth: releaseMonthlySubTab === 'overall' ? 0 : 150 }}>Total Release Amount</th>
                   </tr>
                 </thead>
                 {releaseMonthlySubTab === 'by-collector' ? (
@@ -1773,7 +1886,7 @@ export default function Reports() {
                     </BarChart>
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={350} minWidth={300} minHeight={300}>
                     <BarChart data={chartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
                       <defs>
                         <linearGradient id="barGradientRelease" x1="0" y1="0" x2="0" y2="1">
@@ -2206,19 +2319,23 @@ export default function Reports() {
       const reportFrom = data.date_from || params.date_from
       const reportTo = data.date_to || params.date_to
       const totalPrincipal = loans.reduce((s, l) => s + Number(l.principal || 0), 0)
+      const totalInterest = loans.reduce((s, l) => s + loanInterest(l), 0)
+      const totalLoanAmount = loans.reduce((s, l) => s + loanTotalAmount(l), 0)
 
       const fullPaidCollectorRows = Object.entries(loans.reduce((acc, l) => {
         const name = l.collector_name || 'Unassigned'
-        if (!acc[name]) acc[name] = { collector: name, loan_count: 0, total_principal: 0, loans: [] }
+        if (!acc[name]) acc[name] = { collector: name, loan_count: 0, total_principal: 0, total_interest: 0, total_loan_amount: 0, loans: [] }
         acc[name].loan_count += 1
         acc[name].total_principal += Number(l.principal || 0)
+        acc[name].total_interest += loanInterest(l)
+        acc[name].total_loan_amount += loanTotalAmount(l)
         acc[name].loans.push(l)
         return acc
       }, {}))
         .map(([, row]) => ({ ...row, loans: row.loans.sort((a, b) => String(a.updated_at || '').localeCompare(String(b.updated_at || '')) || String(a.customer_name || '').localeCompare(String(b.customer_name || ''))) }))
         .sort((a, b) => a.collector.localeCompare(b.collector))
 
-      const chartData = fullPaidCollectorRows.map(r => ({ name: r.collector, amount: r.total_principal })).sort((a, b) => b.amount - a.amount)
+      const chartData = fullPaidCollectorRows.map(r => ({ name: r.collector, amount: r.total_loan_amount })).sort((a, b) => b.amount - a.amount)
 
       let transactionLabel = reportFrom === reportTo
         ? `Fully Paid Date: ${displayDate(reportFrom)}`
@@ -2242,16 +2359,18 @@ export default function Reports() {
           <div id={(!selectedCollector && printMode === 'summary') ? "printable-area" : undefined} className="fullpaid-screen-only" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             <div style={{ overflowX: 'auto' }}>
               <div style={{ marginBottom: 6, color: 'var(--blue-dark)', fontWeight: 700 }}>{transactionLabel}</div>
-              <div style={{ marginBottom: 12, color: '#16a34a', fontWeight: 700 }}>Total Principal: ₱ {fmt(totalPrincipal)}</div>
+              <div style={{ marginBottom: 12, color: '#16a34a', fontWeight: 700 }}>Total Loan Amount: &#8369; {fmt(totalLoanAmount)}</div>
               <table className="data-table">
-                <thead><tr><th>Collector</th><th className="text-right">No. of Clients</th><th className="text-right">Total Principal</th></tr></thead>
-                <tbody>{fullPaidCollectorRows.length === 0 ? <tr><td colSpan={3} className="empty-state">No fully paid clients found</td></tr> : fullPaidCollectorRows.map(row => <tr key={row.collector} onClick={() => setSelectedCollector(row)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedCollector(row) }} tabIndex={0} title="View fully paid details" style={{ cursor: 'pointer' }}><td className="fw-600">{row.collector}</td><td className="text-right">{row.loan_count}</td><td className="text-right fw-bold" style={{ color: '#16a34a' }}>₱ {fmt(row.total_principal)}</td></tr>)}</tbody>
+                <thead><tr><th>Collector</th><th className="text-right">No. of Clients</th><th className="text-right">Total Principal</th><th className="text-right">Interest</th><th className="text-right">Total Loan Amount</th></tr></thead>
+                <tbody>{fullPaidCollectorRows.length === 0 ? <tr><td colSpan={5} className="empty-state">No fully paid clients found</td></tr> : fullPaidCollectorRows.map(row => <tr key={row.collector} onClick={() => setSelectedCollector(row)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedCollector(row) }} tabIndex={0} title="View fully paid details" style={{ cursor: 'pointer' }}><td className="fw-600">{row.collector}</td><td className="text-right">{row.loan_count}</td><td className="text-right fw-bold" style={{ color: '#16a34a' }}>&#8369; {fmt(row.total_principal)}</td><td className="text-right fw-bold">&#8369; {fmt(row.total_interest)}</td><td className="text-right fw-bold" style={{ color: '#16a34a' }}>&#8369; {fmt(row.total_loan_amount)}</td></tr>)}</tbody>
                 {fullPaidCollectorRows.length > 0 && (
                   <tfoot>
                     <tr style={{ background: 'rgba(22,163,74,0.04)', borderTop: '2px solid var(--border)' }}>
                       <td className="fw-bold" style={{ color: 'var(--blue-dark)' }}>GRAND TOTAL</td>
                       <td className="text-right fw-bold">{fullPaidCollectorRows.reduce((sum, r) => sum + r.loan_count, 0)}</td>
-                      <td className="text-right fw-bold" style={{ color: '#16a34a', fontSize: '14px' }}>₱ {fmt(totalPrincipal)}</td>
+                      <td className="text-right fw-bold" style={{ color: '#16a34a', fontSize: '14px' }}>&#8369; {fmt(totalPrincipal)}</td>
+                      <td className="text-right fw-bold" style={{ fontSize: '14px' }}>&#8369; {fmt(totalInterest)}</td>
+                      <td className="text-right fw-bold" style={{ color: '#16a34a', fontSize: '14px' }}>&#8369; {fmt(totalLoanAmount)}</td>
                     </tr>
                   </tfoot>
                 )}
@@ -2275,7 +2394,7 @@ export default function Reports() {
                       <Tooltip 
                         cursor={{ fill: 'rgba(22, 163, 74, 0.08)' }} 
                         contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }} 
-                        formatter={(val) => [`₱ ${fmt(val)}`, 'Total Principal']} 
+                        formatter={(val) => [`${String.fromCharCode(8369)} ${fmt(val)}`, 'Total Loan Amount']}
                         labelStyle={{ color: '#0f172a', fontWeight: 700, marginBottom: 6, fontSize: 13 }} 
                       />
                       <Bar dataKey="amount" fill="url(#barGradientFullPaid)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={1000} />
@@ -2291,7 +2410,8 @@ export default function Reports() {
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
               <h2 style={{ margin: 0, color: '#16a34a' }}>Fully Paid Loans Report</h2>
               <div style={{ fontSize: 14, color: '#64748b' }}>{transactionLabel}</div>
-              <div style={{ fontSize: 16, fontWeight: 'bold', color: '#16a34a', marginTop: 6 }}>Grand Total Principal: ₱ {fmt(totalPrincipal)}</div>
+              <div style={{ fontSize: 16, fontWeight: 'bold', color: '#16a34a', marginTop: 6 }}>Grand Total Loan Amount: &#8369; {fmt(totalLoanAmount)}</div>
+              <div style={{ fontSize: 13, color: '#334155', marginTop: 4 }}>Principal: &#8369; {fmt(totalPrincipal)} &nbsp;|&nbsp; Interest: &#8369; {fmt(totalInterest)}</div>
             </div>
             {fullPaidCollectorRows.length === 0 ? <div className="empty-state">No fully paid clients found</div> : fullPaidCollectorRows.map(row => (
               <div key={row.collector} style={{ marginBottom: 30, pageBreakInside: 'avoid' }}>
@@ -2299,12 +2419,12 @@ export default function Reports() {
                   <div style={{ fontSize: 18, fontWeight: 'bold', color: 'var(--blue-dark)' }}>{row.collector}</div>
                   <div style={{ fontSize: 14, fontWeight: 'bold' }}>
                     Clients: {row.loan_count} &nbsp;|&nbsp;
-                    Total Principal: <span style={{ color: '#16a34a' }}>₱ {fmt(row.total_principal)}</span>
+                    Total Loan Amount: <span style={{ color: '#16a34a' }}>&#8369; {fmt(row.total_loan_amount)}</span>
                   </div>
                 </div>
                 <table className="data-table" style={{ width: '100%', fontSize: 12 }}>
                   <thead>
-                    <tr><th style={{ textAlign: 'left' }}>Client Code</th><th style={{ textAlign: 'left' }}>Client</th><th style={{ textAlign: 'left' }}>Loan#</th><th>Date Released</th><th className="text-right">Principal</th><th className="text-right">Total Paid</th></tr>
+                    <tr><th style={{ textAlign: 'left' }}>Client Code</th><th style={{ textAlign: 'left' }}>Client</th><th style={{ textAlign: 'left' }}>Loan#</th><th>Date Released</th><th className="text-right">Principal</th><th className="text-right">Interest</th><th className="text-right">Total Loan Amount</th><th className="text-right">Total Paid</th></tr>
                   </thead>
                   <tbody>
                     {row.loans?.map(l => (
@@ -2313,8 +2433,10 @@ export default function Reports() {
                         <td className="fw-600">{l.customer_name || '-'}</td>
                         <td className="mono">{l.loan_code || '-'}</td>
                         <td>{l.date_released}</td>
-                        <td className="text-right fw-bold" style={{ color: '#16a34a' }}>₱ {fmt(l.principal)}</td>
-                        <td className="text-right fw-bold text-success">₱ {fmt(l.total_paid)}</td>
+                        <td className="text-right fw-bold" style={{ color: '#16a34a' }}>&#8369; {fmt(l.principal)}</td>
+                        <td className="text-right fw-bold">&#8369; {fmt(loanInterest(l))}</td>
+                        <td className="text-right fw-bold" style={{ color: '#16a34a' }}>&#8369; {fmt(loanTotalAmount(l))}</td>
+                        <td className="text-right fw-bold text-success">&#8369; {fmt(l.total_paid)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2861,7 +2983,7 @@ export default function Reports() {
       </div>
       {selectedCollector && (
         <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setSelectedCollector(null)}>
-          <div className="modal modal-print-area" id="printable-area" style={{ maxWidth: 980 }}>
+          <div className="modal modal-print-area" id="printable-area" style={{ maxWidth: active === 'full-paid' ? 1180 : 980 }}>
             <div className="modal-header">
               <span className="modal-title">{active === 'full-paid' ? 'Fully Paid Details' : active === 'payments-reversed' ? 'Reversed Payment Details' : (active === 'monthly-releases' || active === 'loan-type') ? 'Release Details' : active === 'past-due' ? 'Maturity Details' : 'Collection Details'} - {selectedCollector.collector}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -2870,7 +2992,7 @@ export default function Reports() {
               </div>
             </div>
             <div className="modal-body">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: active === 'full-paid' ? 'repeat(5, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
                 <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-soft, #f8fafc)' }}>
                   <div className="nav-section-label" style={{ marginBottom: 4 }}>Collector</div>
                   <div className="fw-bold">{selectedCollector.collector}</div>
@@ -2883,6 +3005,18 @@ export default function Reports() {
                   <div className="nav-section-label" style={{ marginBottom: 4 }}>{active === 'payments-reversed' ? 'Total Reversed' : (active === 'monthly-releases' || active === 'loan-type') ? 'Total Released' : active === 'past-due' ? 'Total Balance' : active === 'full-paid' ? 'Total Principal' : 'Total Collection'}</div>
                   <div className={`fw-bold ${active === 'payments-reversed' ? '' : 'text-success'}`} style={active === 'payments-reversed' ? { color: '#dc2626' } : {}}>₱ {fmt(active === 'past-due' ? selectedCollector.total_balance : (selectedCollector.total_amount || selectedCollector.total_principal))}</div>
                 </div>
+                {active === 'full-paid' && (
+                  <>
+                    <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-soft, #f8fafc)' }}>
+                      <div className="nav-section-label" style={{ marginBottom: 4 }}>Interest</div>
+                      <div className="fw-bold">&#8369; {fmt(selectedCollector.total_interest || 0)}</div>
+                    </div>
+                    <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-soft, #f8fafc)' }}>
+                      <div className="nav-section-label" style={{ marginBottom: 4 }}>Total Loan Amount</div>
+                      <div className="fw-bold text-success">&#8369; {fmt(selectedCollector.total_loan_amount || 0)}</div>
+                    </div>
+                  </>
+                )}
               </div>
               <div style={{ maxHeight: '55vh', overflow: 'auto' }} className="modal-print-ready">
                 <table className="data-table">
@@ -2948,17 +3082,19 @@ export default function Reports() {
                    ) : active === 'full-paid' ? (
                     <>
                       <thead>
-                        <tr><th>Client Code</th><th>Client</th><th>Loan#</th><th>Date Released</th><th className="text-right">Principal</th><th className="text-right">Total Paid</th></tr>
+                        <tr><th>Client Code</th><th>Client</th><th>Loan#</th><th>Date Released</th><th className="text-right">Principal</th><th className="text-right">Interest</th><th className="text-right">Total Loan Amount</th><th className="text-right">Total Paid</th></tr>
                       </thead>
                       <tbody>
-                        {selectedCollector.loans?.length === 0 ? <tr><td colSpan={6} className="empty-state">No fully paid details</td></tr> : selectedCollector.loans?.map(l => (
+                        {selectedCollector.loans?.length === 0 ? <tr><td colSpan={8} className="empty-state">No fully paid details</td></tr> : selectedCollector.loans?.map(l => (
                           <tr key={l.id}>
                             <td className="mono">{l.customer_code || '-'}</td>
                             <td className="fw-600">{l.customer_name || '-'}</td>
                             <td className="mono">{l.loan_code || '-'}</td>
                             <td>{l.date_released}</td>
-                            <td className="text-right fw-bold" style={{ color: '#16a34a' }}>₱ {fmt(l.principal)}</td>
-                            <td className="text-right fw-bold text-success">₱ {fmt(l.total_paid)}</td>
+                            <td className="text-right fw-bold" style={{ color: '#16a34a' }}>&#8369; {fmt(l.principal)}</td>
+                            <td className="text-right fw-bold">&#8369; {fmt(loanInterest(l))}</td>
+                            <td className="text-right fw-bold text-success">&#8369; {fmt(loanTotalAmount(l))}</td>
+                            <td className="text-right fw-bold text-success">&#8369; {fmt(l.total_paid)}</td>
                           </tr>
                         ))}
                       </tbody>
