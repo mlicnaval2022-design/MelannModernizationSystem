@@ -161,6 +161,7 @@ async function initializeDatabase() {
       total_deductions REAL DEFAULT 0,
       net_proceeds REAL DEFAULT 0,
       balance REAL DEFAULT 0,
+      previous_balance REAL DEFAULT 0,
       total_paid REAL DEFAULT 0,
       status TEXT DEFAULT 'active',
       or_number TEXT,
