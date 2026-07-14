@@ -83,6 +83,7 @@ async function initializeDatabase() {
       last_name TEXT NOT NULL,
       branch_id INTEGER,
       assigned_to TEXT,
+      supervisor TEXT,
       is_active INTEGER DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now'))
     );
