@@ -20,18 +20,18 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
 router.post('/', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   try {
-    const { first_name, last_name, branch_id } = req.body;
+    const { first_name, last_name, branch_id, assigned_to } = req.body;
     const maxCol = await dbGet("SELECT MAX(CAST(REPLACE(collector_code, 'COL-', '') AS INTEGER)) as c FROM tblCollector");
     const collector_code = `COL-${String((maxCol?.c || 0) + 1).padStart(4, '0')}`;
-    const result = await dbRun(`INSERT INTO tblCollector (collector_code, first_name, last_name, branch_id) VALUES (?,?,?,?)`, [collector_code, first_name, last_name, branch_id]);
+    const result = await dbRun(`INSERT INTO tblCollector (collector_code, first_name, last_name, branch_id, assigned_to) VALUES (?,?,?,?,?)`, [collector_code, first_name, last_name, branch_id, assigned_to]);
     res.status(201).json({ id: result.lastID, collector_code });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.put('/:id', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   try {
-    const { first_name, last_name, branch_id, is_active } = req.body;
-    await dbRun(`UPDATE tblCollector SET first_name=?, last_name=?, branch_id=?, is_active=? WHERE id=?`, [first_name, last_name, branch_id, is_active ?? 1, req.params.id]);
+    const { first_name, last_name, branch_id, assigned_to, is_active } = req.body;
+    await dbRun(`UPDATE tblCollector SET first_name=?, last_name=?, branch_id=?, assigned_to=?, is_active=? WHERE id=?`, [first_name, last_name, branch_id, assigned_to, is_active ?? 1, req.params.id]);
     res.json({ message: 'Collector updated' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
