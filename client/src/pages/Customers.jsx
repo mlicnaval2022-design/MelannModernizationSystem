@@ -1114,6 +1114,15 @@ export default function Customers() {
                           <span><b>Method:</b> Non-compounding</span>
                         </div>
                         <table className="f-soa-ledger-table-new f-soa-penalty-table">
+                          <colgroup>
+                            <col style={{ width: '15.5%' }} />
+                            <col style={{ width: '14.5%' }} />
+                            <col style={{ width: '11.5%' }} />
+                            <col style={{ width: '12.5%' }} />
+                            <col style={{ width: '10%' }} />
+                            <col style={{ width: '18%' }} />
+                            <col style={{ width: '18%' }} />
+                          </colgroup>
                           <thead>
                             <tr>
                               <th>PERIOD</th>
@@ -1131,9 +1140,9 @@ export default function Customers() {
                                 <td>
                                   Period {row.periodNo}
                                   <span className="f-soa-penalty-period-range">
-                                    <span>{formatDateLong(row.periodStart)}</span>
+                                    <span>{formatDateShort(row.periodStart)}</span>
                                     <em>to</em>
-                                    <span>{formatDateLong(row.periodEnd)}</span>
+                                    <span>{formatDateShort(row.periodEnd)}</span>
                                   </span>
                                 </td>
                                 <td>{formatMoneyExact(row.beginningBalance)}</td>
@@ -1643,9 +1652,9 @@ export default function Customers() {
                               <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>
                                 Period {row.periodNo}
                                 <div style={{ fontSize: '11px', fontWeight: '500', color: '#64748b', marginTop: '2px', lineHeight: '1.35' }}>
-                                  <div>{formatDateLong(row.periodStart)}</div>
+                                  <div>{formatDateShort(row.periodStart)}</div>
                                   <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>to</div>
-                                  <div>{formatDateLong(row.periodEnd)}</div>
+                                  <div>{formatDateShort(row.periodEnd)}</div>
                                 </div>
                               </td>
                               <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>{formatPhpExact(row.beginningBalance)}</td>
