@@ -31,6 +31,7 @@ export default function Loans() {
   const [reloanCustomer, setReloanCustomer] = useState(null)
   const [loanActionType, setLoanActionType] = useState('')
   const [reloanModalOpen, setReloanModalOpen] = useState(false)
+  const [confirmModal, setConfirmModal] = useState(null)
 
   const triggerRecon = (r) => {
     setReloanCustomer({
@@ -90,10 +91,21 @@ export default function Loans() {
     finally { setSaving(false) }
   }
 
-  const handleReverse = async (id) => {
-    if (!confirm('Reverse this loan and all its payments?')) return
-    try { await API.post(`/reversals/loan/${id}`); load() }
-    catch (err) { alert(err.response?.data?.error || 'Error reversing loan') }
+  const handleReverse = (id) => {
+    setConfirmModal({
+      message: 'Reverse this loan and all its payments?',
+      subMessage: 'This action cannot be undone and will mark the loan and all associated payments as reversed.',
+      onConfirm: async () => {
+        setConfirmModal(null)
+        try { 
+          await API.post(`/reversals/loan/${id}`); 
+          load();
+        } catch (err) { 
+          alert(err.response?.data?.error || 'Error reversing loan');
+        }
+      },
+      onCancel: () => setConfirmModal(null)
+    })
   }
 
   const handleApproveReloan = async (id) => {
@@ -481,6 +493,71 @@ export default function Loans() {
           load();
         }}
       />
+      {/* Custom Confirm Modal */}
+      {confirmModal && (
+        <div className="modal-overlay" style={{ zIndex: 10000 }} onMouseDown={e => e.target === e.currentTarget && confirmModal.onCancel && confirmModal.onCancel()}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '16px',
+            padding: '36px 32px 28px',
+            maxWidth: '460px',
+            width: '90%',
+            textAlign: 'center',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)',
+            animation: 'paymentConfirmIn 0.2s ease-out'
+          }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: '50%',
+              background: '#fffbeb',
+              color: '#f59e0b',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '28px', margin: '0 auto 18px auto',
+              border: '2px solid #fde68a'
+            }}>
+              ⚠
+            </div>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>
+              Confirm Reversal
+            </h3>
+            <p style={{ color: '#64748b', fontSize: '14px', lineHeight: 1.6, margin: '0 0 6px 0' }}>
+              {confirmModal.message}
+            </p>
+            {confirmModal.subMessage && (
+              <p style={{ color: '#475569', fontSize: '14px', fontWeight: 600, margin: '0 0 28px 0' }}>
+                {confirmModal.subMessage}
+              </p>
+            )}
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                onClick={confirmModal.onCancel}
+                style={{
+                  padding: '10px 28px', borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '14px',
+                  cursor: 'pointer', transition: 'all 0.15s'
+                }}
+                onMouseEnter={e => { e.target.style.background = '#f8fafc'; e.target.style.borderColor = '#cbd5e1' }}
+                onMouseLeave={e => { e.target.style.background = '#fff'; e.target.style.borderColor = '#e2e8f0' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmModal.onConfirm}
+                style={{
+                  padding: '10px 28px', borderRadius: '8px', border: 'none',
+                  background: '#f59e0b',
+                  color: '#fff', fontWeight: 600, fontSize: '14px',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                  boxShadow: '0 2px 8px rgba(245,158,11,0.3)'
+                }}
+                onMouseEnter={e => { e.target.style.background = '#d97706' }}
+                onMouseLeave={e => { e.target.style.background = '#f59e0b' }}
+              >
+                Confirm Reverse
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
