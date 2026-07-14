@@ -15,6 +15,7 @@ export default function DailyCashReport() {
   const [selectedClients, setSelectedClients] = useState(new Set());
   const [sendingTo, setSendingTo] = useState(null);
   const [ytdSaving, setYtdSaving] = useState(false);
+  const [alertModal, setAlertModal] = useState(null);
   
   // Denominations - kept for closing the day, though hidden from print view
   const [, setDenom] = useState({
@@ -169,17 +170,17 @@ export default function DailyCashReport() {
 
   const handleSendTo = async (agency) => {
     if (selectedClients.size === 0) {
-      alert('Please select at least one client before sending.');
+      setAlertModal({ type: 'warning', title: 'Action Required', message: 'Please select at least one client before sending.' });
       return;
     }
     setSendingTo(agency);
     try {
       const clientsToSend = checklistRows.filter(r => selectedClients.has(r.loan_id));
       await API.post('/government-compliance/send-clients', { agency, clients: clientsToSend });
-      alert('Selected loan release records have been successfully sent.');
+      setAlertModal({ type: 'success', title: 'Success!', message: 'Selected loan release records have been successfully sent.' });
       setSelectedClients(new Set());
     } catch (err) {
-      alert(err?.response?.data?.error || 'Failed to send clients');
+      setAlertModal({ type: 'error', title: 'Error', message: err?.response?.data?.error || 'Failed to send clients' });
     } finally {
       setSendingTo(null);
     }
@@ -763,6 +764,29 @@ export default function DailyCashReport() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+
+      {/* Modern Alert Popup Modal */}
+      {alertModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '30px', width: '90%', maxWidth: '400px', textAlign: 'center', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', animation: 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }}>
+            <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: alertModal.type === 'success' ? '#dcfce7' : alertModal.type === 'error' ? '#fee2e2' : '#fef9c3', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto', fontSize: '32px' }}>
+              {alertModal.type === 'success' ? '✅' : alertModal.type === 'error' ? '❌' : '⚠️'}
+            </div>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '22px', color: '#0f172a', fontWeight: '800' }}>{alertModal.title}</h3>
+            <p style={{ margin: '0 0 28px 0', color: '#475569', fontSize: '15px', lineHeight: '1.5' }}>{alertModal.message}</p>
+            <button onClick={() => setAlertModal(null)} style={{ background: '#0f172a', color: '#fff', border: 'none', padding: '14px 24px', borderRadius: '10px', fontSize: '16px', fontWeight: '700', cursor: 'pointer', width: '100%', transition: 'all 0.2s', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+              Got it
+            </button>
+          </div>
+          <style>{`
+            @keyframes popIn {
+              from { opacity: 0; transform: scale(0.9) translateY(10px); }
+              to { opacity: 1; transform: scale(1) translateY(0); }
+            }
+          `}</style>
         </div>
       )}
 
