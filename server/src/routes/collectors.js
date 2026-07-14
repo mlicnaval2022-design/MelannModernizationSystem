@@ -21,8 +21,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
 router.post('/', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   try {
     const { first_name, last_name, branch_id } = req.body;
-    const count = (await dbGet('SELECT COUNT(*) as c FROM tblCollector')).c;
-    const collector_code = `COL-${String(count + 1).padStart(4, '0')}`;
+    const maxCol = await dbGet("SELECT MAX(CAST(REPLACE(collector_code, 'COL-', '') AS INTEGER)) as c FROM tblCollector");
+    const collector_code = `COL-${String((maxCol?.c || 0) + 1).padStart(4, '0')}`;
     const result = await dbRun(`INSERT INTO tblCollector (collector_code, first_name, last_name, branch_id) VALUES (?,?,?,?)`, [collector_code, first_name, last_name, branch_id]);
     res.status(201).json({ id: result.lastID, collector_code });
   } catch (err) { res.status(500).json({ error: err.message }); }

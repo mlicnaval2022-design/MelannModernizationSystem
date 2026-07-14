@@ -96,8 +96,8 @@ router.post('/', authenticateToken, async (req, res) => {
     const { interest_amount, total_amortization, amortization } = computeAmortization(principal, interest_rate || 0, 45);
     const date_maturity = computeMaturityDate(date_released, 45);
     const { service_fee, total_deductions, net_proceeds } = computeNetProceeds(principal, 0, 0, 0, 0);
-    const count = (await dbGet('SELECT COUNT(*) as c FROM tblLoan')).c;
-    const loan_code = `LN-${String(count + 1).padStart(6, '0')}`;
+    const maxLoan = await dbGet("SELECT MAX(CAST(REPLACE(loan_code, 'LN-', '') AS INTEGER)) as c FROM tblLoan");
+    const loan_code = `LN-${String((maxLoan?.c || 0) + 1).padStart(6, '0')}`;
     const loan_status = status || 'pending';
     const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, service_fee, insurance, notarial_fee, filing_fee, total_deductions, net_proceeds, balance, or_number, remarks, created_by, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [loan_code, customer_id, collector_id, branch_id || null, loan_type || 'New', principal, interest_rate || 0, interest_amount, 45, date_released, date_maturity, amortization, total_amortization, 0, 0, 0, 0, 0, net_proceeds, total_amortization, '', remarks, req.user.id, loan_status]);
