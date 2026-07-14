@@ -193,8 +193,15 @@ export default function CreditScoring() {
     } catch (e) { console.error(e); }
   }
 
-  const handleCISave = async (endorsement) => {
-    if (!confirm(`Are you sure you want to ${endorsement.toUpperCase()} this application?`)) return;
+  const [confirmModal, setConfirmModal] = useState({ show: false, action: null });
+
+  const handleCISave = (endorsement) => {
+    setConfirmModal({ show: true, action: endorsement });
+  }
+
+  const confirmSaveCI = async () => {
+    const endorsement = confirmModal.action;
+    setConfirmModal({ show: false, action: null });
     try {
       await API.post(`/loans/${ciLoan.id}/ci`, { ...ciForm, endorsement });
       setCiModal(false);
@@ -204,6 +211,41 @@ export default function CreditScoring() {
 
   return (
     <div>
+      {/* Confirmation Modal */}
+      {confirmModal.show && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 400, padding: 30, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', animation: 'slideUp 0.3s ease-out' }}>
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#fffbeb', color: '#f59e0b', fontSize: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 15px' }}>
+                ⚠️
+              </div>
+              <h3 style={{ margin: 0, color: '#0f172a', fontSize: 20, fontWeight: 700 }}>Confirm Action</h3>
+              <p style={{ color: '#64748b', marginTop: 10, fontSize: 15 }}>
+                Are you sure you want to <strong>{confirmModal.action?.toUpperCase().replace('_', ' ')}</strong> this application?
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button 
+                onClick={() => setConfirmModal({ show: false, action: null })} 
+                style={{ flex: 1, padding: '12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                onMouseOver={e => e.target.style.background = '#e2e8f0'}
+                onMouseOut={e => e.target.style.background = '#f1f5f9'}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmSaveCI} 
+                style={{ flex: 1, padding: '12px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.3)' }}
+                onMouseOver={e => e.target.style.background = '#2563eb'}
+                onMouseOut={e => e.target.style.background = '#3b82f6'}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
