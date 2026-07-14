@@ -648,7 +648,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
     const period = Number(loan_period) || 45;
     const interestRate = Number(interest_rate) || 0;
     const normalizedLoanType = loan_type === 'Recon' ? 'Recon' : 'Re-Loan';
-    const loanStatus = normalizedLoanType === 'Recon' ? 'pending' : 'active';
+    const loanStatus = 'active';
     const actionName = normalizedLoanType === 'Recon' ? 'RECON_APP' : 'RELOAN_APP';
     const defaultRemarks = normalizedLoanType === 'Recon' ? 'Auto-created via Recon application' : 'Auto-created via Re-Loan application';
     const interestAmount = amount * (interestRate / 100);
@@ -666,7 +666,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
       }
       await dbRun(`UPDATE tblCustomer SET status='active', updated_at=datetime('now') WHERE id=?`, [customer.id]);
       await dbRun(`INSERT INTO tblCustomerStatusHistory (customer_id, previous_status, new_status, changed_by, remarks) VALUES (?, ?, ?, ?, ?)`,
-        [customer.id, customer.status, 'active', req.user.id, `Re-Loan activated: ${loan_code}`]);
+        [customer.id, customer.status, 'active', req.user.id, `${normalizedLoanType} activated: ${loan_code}`]);
     }
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, actionName, 'CUSTOMER', customer.id, `${normalizedLoanType} application created: ${loan_code} for ₱${amount}`]);
     res.json({ message: loanStatus === 'active' ? `${normalizedLoanType} saved to Active Loans successfully` : `${normalizedLoanType} application submitted successfully`, loan_code, status: loanStatus });
