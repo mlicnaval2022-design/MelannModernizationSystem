@@ -9,7 +9,7 @@ export default function Collectors() {
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ first_name: '', last_name: '', branch_id: '', assigned_to: '' })
+  const [form, setForm] = useState({ first_name: '', last_name: '', branch_id: '', assigned_to: '', supervisor: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -22,8 +22,8 @@ export default function Collectors() {
   const load = () => { setLoading(true); API.get('/collectors').then(r => setRows(r.data)).finally(() => setLoading(false)) }
   useEffect(() => { load(); API.get('/branches').then(r => setBranches(r.data)) }, [])
 
-  const openNew = () => { setEditing(null); setForm({ first_name: '', last_name: '', branch_id: '', assigned_to: '' }); setError(''); setModal(true) }
-  const openEdit = (r) => { setEditing(r); setForm({ first_name: r.first_name || '', last_name: r.last_name || '', branch_id: r.branch_id || '', assigned_to: r.assigned_to || '' }); setError(''); setModal(true) }
+  const openNew = () => { setEditing(null); setForm({ first_name: '', last_name: '', branch_id: '', assigned_to: '', supervisor: '' }); setError(''); setModal(true) }
+  const openEdit = (r) => { setEditing(r); setForm({ first_name: r.first_name || '', last_name: r.last_name || '', branch_id: r.branch_id || '', assigned_to: r.assigned_to || '', supervisor: r.supervisor || '' }); setError(''); setModal(true) }
 
   const [editingLoanId, setEditingLoanId] = useState(null)
 
@@ -112,13 +112,14 @@ export default function Collectors() {
       <div className="card">
         <div className="table-wrapper">
           <table className="data-table">
-            <thead><tr><th>Code</th><th>Name</th><th>Assigned To</th><th>Active Loans</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Code</th><th>Name</th><th>Supervisor</th><th>Assigned To</th><th>Active Loans</th><th>Actions</th></tr></thead>
             <tbody>
               {loading ? <tr className="loading-row"><td colSpan={5}>⏳ Loading...</td></tr>
                 : [...rows].sort((a,b) => a.id - b.id).map(r => (
                   <tr key={r.id}>
                     <td><span className="mono">{r.collector_code}</span></td>
                     <td className="fw-600">{r.first_name} {r.last_name}</td>
+                    <td>{r.supervisor || '—'}</td>
                     <td>{r.assigned_to || '—'}</td>
                     <td>
                       <button 
@@ -162,6 +163,14 @@ export default function Collectors() {
                       <option value="ISABEL">ISABEL</option>
                       <option value="BAYBAY/HILONGOS/BATO">BAYBAY/HILONGOS/BATO</option>
                       <option value="SAN ISIDRO">SAN ISIDRO</option>
+                    </select>
+                  </div>
+                  <div className="form-group"><label className="form-label">Supervisor</label>
+                    <select className="form-control" value={form.supervisor} onChange={e => setForm(f => ({ ...f, supervisor: e.target.value }))}>
+                      <option value="">Select...</option>
+                      <option value="Lahoylahoy, Wilfredo">Lahoylahoy, Wilfredo</option>
+                      <option value="Langres, Ramil">Langres, Ramil</option>
+                      <option value="Omega, Raymund">Omega, Raymund</option>
                     </select>
                   </div>
                 </div>
