@@ -1,27 +1,16 @@
-const app = require('./src/index');
-const http = require('http');
+const jwt = require('jsonwebtoken');
 
-const server = http.createServer(app);
-server.listen(0, async () => {
-  const port = server.address().port;
-  console.log('Server started on port ' + port);
-  
+async function test() {
   try {
-    const jwt = require('jsonwebtoken');
-    const token = jwt.sign({ id: 1, role: 'admin' }, process.env.JWT_SECRET || 'melann_lending_secret_key_2026', { expiresIn: '1h' });
-    
-    console.log("Fetching dashboard data...");
-    const res = await fetch(`http://localhost:${port}/api/reports/dashboard`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+    const token = jwt.sign({id: 1, role: 'admin'}, process.env.JWT_SECRET || 'melann_secret_key_2024');
+    const res = await fetch('http://127.0.0.1:5001/api/dcr/summary?date=2026-07-14&branch_id=', {
+      headers: { Authorization: `Bearer ${token}` }
     });
-    
-    console.log('Status Code:', res.status);
-    const text = await res.text();
-    console.log('Response Body:', text.substring(0, 500) + (text.length > 500 ? '...' : ''));
-  } catch (err) {
-    console.error('Error:', err);
-  } finally {
-    server.close();
-    process.exit(0);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || JSON.stringify(data));
+    console.log('Success:', data.releases.length);
+  } catch(e) {
+    console.log('Error data:', e.message);
   }
-});
+}
+test();

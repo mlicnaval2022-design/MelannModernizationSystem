@@ -48,7 +48,6 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
   const [dateRelease, setDateRelease] = useState(() => toInputDate(new Date()));
   const [loanTerm, setLoanTerm] = useState('45');
   const [interestRate, setInterestRate] = useState('15');
-  const [remarks, setRemarks] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const [internalCustomerId, setInternalCustomerId] = useState(null);
@@ -89,7 +88,6 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
     } else {
       setError('');
       setSubmitting(false);
-      setRemarks('');
       setLoanTerm('45');
       setInterestRate('15');
       setDateRelease(toInputDate(new Date()));
@@ -147,8 +145,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
         interest_rate: Number(interestRate || 0),
         date_released: dateRelease,
         loan_type: loanType,
-        previous_balance: Number(previousBalance || 0),
-        remarks
+        previous_balance: Number(previousBalance || 0)
       });
       setShowSuccess(true);
     } catch (err) {
@@ -558,17 +555,6 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
                   <span>＋</span>{submitting ? 'Submitting...' : 'Add'}
                 </button>
                 <button type="button" className="reloan-secondary" onClick={onClose}>× Close</button>
-                <button type="button" className="reloan-secondary muted">▤ SOA (Statement of Account)</button>
-                <button type="button" className="reloan-secondary muted">▭ Generate Disclosure</button>
-                <label className="reloan-remarks">
-                  <span>Remarks</span>
-                  <input
-                    value={remarks}
-                    onChange={e => setRemarks(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Add notes for approval"
-                  />
-                </label>
               </div>
             </>
           )}
