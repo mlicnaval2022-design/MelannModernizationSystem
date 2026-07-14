@@ -327,7 +327,7 @@ export default function GovernmentCompliance() {
                       <td style={{ color: '#64748b' }}>{new Date(row.created_at).toLocaleString()}</td>
                       <td style={{ fontWeight: 'bold', color: '#1d4ed8' }}>{row.customer_code}</td>
                       <td style={{ fontWeight: 'bold' }}>{row.customer_name}</td>
-                      <td>â‚±{Number(row.loan_amount).toLocaleString()}</td>
+                      <td>₱{Number(row.loan_amount).toLocaleString()}</td>
                       <td><span style={{ padding: '2px 8px', background: '#f1f5f9', borderRadius: '4px', fontSize: '12px' }}>{row.loan_type}</span></td>
                       <td>{row.release_date}</td>
                       <td>{row.collector_name || 'N/A'}</td>
