@@ -517,8 +517,8 @@ router.post('/', authenticateToken, async (req, res) => {
     } = req.body;
     if (!first_name || !last_name) return res.status(400).json({ error: 'First and last name required' });
     const full_name = `${last_name}, ${first_name}${middle_name ? ' ' + middle_name : ''}`;
-    const count = (await dbGet('SELECT COUNT(*) as c FROM tblCustomer')).c;
-    const customer_code = String(count + 1).padStart(4, '0');
+    const maxCust = await dbGet('SELECT MAX(CAST(customer_code AS INTEGER)) as c FROM tblCustomer');
+    const customer_code = String((maxCust?.c || 0) + 1).padStart(4, '0');
     
     const cols = ['customer_code', 'first_name', 'last_name', 'middle_name', 'full_name', 'address', 'contact', 'birth_date', 'civil_status', 'occupation', 'branch_id', 'collector_id', 'status', 'sitio', 'purok', 'brgy', 'city', 'gender', 'secondary_contact', 'email', 'income_per_month', 'expenses_per_month', 'loan_purpose', 'collateral', 'id_type', 'id_number', 'id_issue_date', 'id_expiry_date', 'id_issued_by', 'fb_account', 'nationality', 'home_status', 'business_address', 'business_location', 'business_years', 'business_months', 'business_ownership', 'business_permit', 'customer_classification', 'risk_category', 'cic_verification', 'province', 'zip_code', 'length_of_stay', 'previous_address', 'messenger_account', 'preferred_contact_method', 'preferred_contact_time_from', 'preferred_contact_time_to', 'contact_notes', 'business_type', 'business_name', 'business_employees', 'permit_date_issued', 'permit_place_issued', 'permit_no', 'id_place_of_issue', 'tin_number', 'sss_number', 'id_notes', 'photo_id_front', 'photo_id_back', 'photo_business_proof', 'photo_client'];
     
@@ -528,8 +528,8 @@ router.post('/', authenticateToken, async (req, res) => {
     const result = await dbRun(`INSERT INTO tblCustomer (${cols.join(',')}) VALUES (${placeholders})`, vals);
     
     // Auto-create CI Application (pending loan)
-    const lCount = (await dbGet('SELECT COUNT(*) as c FROM tblLoan')).c;
-    const loan_code = `LN-${String(lCount + 1).padStart(6, '0')}`;
+    const maxLoan = await dbGet("SELECT MAX(CAST(REPLACE(loan_code, 'LN-', '') AS INTEGER)) as c FROM tblLoan");
+    const loan_code = `LN-${String((maxLoan?.c || 0) + 1).padStart(6, '0')}`;
     const date_released = new Date().toISOString().split('T')[0];
     const principal = Number(proposed_principal) || 0;
     const amortization = principal > 0 ? (principal * 1.15) / 45 : 0;
@@ -625,8 +625,8 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
     const customer = await dbGet('SELECT * FROM tblCustomer WHERE id = ?', [req.params.id]);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
     
-    const lCount = (await dbGet('SELECT COUNT(*) as c FROM tblLoan')).c;
-    const loan_code = `LN-${String(lCount + 1).padStart(6, '0')}`;
+    const maxLoan = await dbGet("SELECT MAX(CAST(REPLACE(loan_code, 'LN-', '') AS INTEGER)) as c FROM tblLoan");
+    const loan_code = `LN-${String((maxLoan?.c || 0) + 1).padStart(6, '0')}`;
     const releaseDate = date_released || new Date().toISOString().split('T')[0];
     const amount = Number(principal) || 0;
     const period = Number(loan_period) || 45;
@@ -662,8 +662,8 @@ router.post('/:id/reci', authenticateToken, requireRole('admin', 'manager'), asy
     const customer = await dbGet('SELECT * FROM tblCustomer WHERE id = ?', [req.params.id]);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
     
-    const lCount = (await dbGet('SELECT COUNT(*) as c FROM tblLoan')).c;
-    const loan_code = `LN-${String(lCount + 1).padStart(6, '0')}`;
+    const maxLoan = await dbGet("SELECT MAX(CAST(REPLACE(loan_code, 'LN-', '') AS INTEGER)) as c FROM tblLoan");
+    const loan_code = `LN-${String((maxLoan?.c || 0) + 1).padStart(6, '0')}`;
     const date_released = new Date().toISOString().split('T')[0];
     
     await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, loan_period, date_released, amortization, status, remarks, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
