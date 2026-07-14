@@ -406,40 +406,62 @@ router.get('/disclosure-statement', authenticateToken, async (req, res) => {
 router.get('/monitoring-summary', authenticateToken, async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
-    
-    // 10 Reports required
-    const activeClientsMonitoredToday = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert WHERE status='Active'`)).c;
-    const escalatedAccounts = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert WHERE alert_level='Day 4+' AND status='Active'`)).c;
-    const resolvedAccounts = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert WHERE status='Resolved'`)).c;
-    
-    // Follow-up success rate
-    const totalFollowUps = (await dbGet(`SELECT COUNT(*) as c FROM tblFollowUp`)).c;
-    const successfulFollowUps = (await dbGet(`SELECT COUNT(*) as c FROM tblFollowUp WHERE contact_result='Promised to Pay'`)).c;
-    const collectorPerformance = totalFollowUps > 0 ? Math.round((successfulFollowUps / totalFollowUps) * 100) + '%' : '0%';
-    
-    const summaryPTP = (await dbGet(`SELECT COUNT(*) as c, COALESCE(SUM(promised_amount),0) as total FROM tblPromiseToPay WHERE status='Pending'`));
-    
-    const followUpLogs = await dbAll(`SELECT f.*, a.loan_id FROM tblFollowUp f JOIN tblMonitoringAlert a ON f.alert_id = a.id ORDER BY f.created_at DESC LIMIT 5`);
-    
-    const alertsByBranch = await dbAll(`SELECT u.branch_id, COUNT(*) as count FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id JOIN tblUser u ON c.encoded_by = u.id WHERE a.status='Active' GROUP BY u.branch_id`);
-    
-    const clientsApproachingDay3 = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert WHERE status='Active' AND consecutive_days = 2`)).c;
-    
-    const chronicMissedPayments = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert WHERE sequence_number >= 3`)).c;
-    
-    const unresolvedOver7Days = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert WHERE status='Active' AND consecutive_days >= 7`)).c;
-    
+    const tab = req.query.monitoring_tab || req.query.tab || 'new';
+    const tabLabels = {
+      new: 'New (Day 3)',
+      monitoring: 'Under Monitoring',
+      ptp: 'Promise to Pay',
+      escalated: 'Escalated',
+    };
+
+    let tabWhere = `m.status = 'Active' AND m.alert_level IN ('Day 3', 'Day 4+')`;
+    const tabParams = [];
+    if (tab === 'new') {
+      tabWhere = `m.status = 'Active' AND m.alert_level = 'Day 3' AND m.sequence_number = 1`;
+    } else if (tab === 'ptp') {
+      tabWhere = `m.status = 'Active' AND EXISTS (
+        SELECT 1 FROM tblPromiseToPay ptp
+        WHERE ptp.alert_id = m.id AND ptp.status IN ('Pending', 'Due Today')
+      )`;
+    } else if (tab === 'escalated') {
+      tabWhere = `m.status = 'Active' AND m.alert_level = 'Day 4+'`;
+    }
+
+    const rows = await dbAll(`
+      SELECT m.*,
+             c.customer_code,
+             c.full_name as customer_name,
+             c.contact,
+             l.loan_code,
+             l.balance,
+             co.first_name || ' ' || co.last_name as collector_name,
+             b.branch_name,
+             lp.date_paid as last_payment_date,
+             lp.amount_paid as last_payment_amount
+      FROM tblMonitoringAlert m
+      LEFT JOIN tblCustomer c ON m.customer_id = c.id
+      LEFT JOIN tblLoan l ON m.loan_id = l.id
+      LEFT JOIN tblCollector co ON m.collector_id = co.id
+      LEFT JOIN tblBranch b ON m.branch_id = b.id
+      LEFT JOIN (
+        SELECT p1.loan_id, p1.date_paid, p1.amount_paid
+        FROM tblPayment p1
+        JOIN (
+          SELECT loan_id, MAX(date_paid || printf('%010d', id)) as payment_key
+          FROM tblPayment
+          WHERE status = 'active'
+          GROUP BY loan_id
+        ) latest ON latest.loan_id = p1.loan_id AND latest.payment_key = p1.date_paid || printf('%010d', p1.id)
+      ) lp ON lp.loan_id = m.loan_id
+      WHERE ${tabWhere}
+      ORDER BY co.last_name, c.full_name, m.updated_at DESC
+    `, tabParams);
+
     res.json({
-      activeClientsMonitoredToday,
-      escalatedAccounts,
-      resolvedAccounts,
-      collectorPerformance,
-      summaryPTP,
-      followUpLogs,
-      alertsByBranch,
-      clientsApproachingDay3,
-      chronicMissedPayments,
-      unresolvedOver7Days
+      as_of: today,
+      tab,
+      tab_label: tabLabels[tab] || tabLabels.new,
+      rows
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

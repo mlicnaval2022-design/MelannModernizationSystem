@@ -417,7 +417,7 @@ export default function Reports() {
   const [releaseSubTab, setReleaseSubTab] = useState('daily')
   const [monthlySubTab, setMonthlySubTab] = useState('by-collector')
   const [releaseMonthlySubTab, setReleaseMonthlySubTab] = useState('by-collector')
-  const [params, setParams] = useState({ date_from: yesterday(), date_to: yesterday(), year: new Date().getFullYear(), month: new Date().getMonth() + 1, collection_month: 'all', collection_cycle_type: '30', collection_cycle: 'all', release_cycle_type: '30', release_cycle: 'all', days_ahead: 30, collector_id: '', disclosure_search: '', disclosure_loan_id: '' })
+  const [params, setParams] = useState({ date_from: yesterday(), date_to: yesterday(), year: new Date().getFullYear(), month: new Date().getMonth() + 1, collection_month: 'all', collection_cycle_type: '30', collection_cycle: 'all', release_cycle_type: '30', release_cycle: 'all', days_ahead: 30, collector_id: '', disclosure_search: '', disclosure_loan_id: '', monitoring_tab: 'new' })
   const [collectors, setCollectors] = useState([])
   const [collectorsLoaded, setCollectorsLoaded] = useState(false)
   const [data, setData] = useState(null)
@@ -462,6 +462,11 @@ export default function Reports() {
     }
     if (key === 'collection-sheet') { loadCollectors(); setParams(p => ({ ...p, date: toDateInputValue(new Date()) })) }
     if (key === 'disclosure-statement') { setParams(p => ({ ...p, disclosure_loan_id: '' })) }
+    if (key === 'monitoring-summary') {
+      const nextParams = { ...params, monitoring_tab: params.monitoring_tab || 'new' }
+      setParams(nextParams)
+      run(key, nextParams)
+    }
   }
 
   const run = async (reportKey = active, reportParams = params, subTab = collectionSubTab) => {
@@ -490,8 +495,26 @@ export default function Reports() {
           loan_id: finalParams.disclosure_loan_id,
         }
       }
+      if (reportKey === 'monitoring-summary') {
+        const r = await API.get('/monitoring/alerts', { params: { tab: finalParams.monitoring_tab || 'new' } })
+        const labels = {
+          new: 'New (Day 3)',
+          monitoring: 'Under Monitoring',
+          ptp: 'Promise to Pay',
+          escalated: 'Escalated',
+        }
+        setData({
+          as_of: toDateInputValue(new Date()),
+          tab: finalParams.monitoring_tab || 'new',
+          tab_label: labels[finalParams.monitoring_tab || 'new'],
+          rows: Array.isArray(r.data) ? r.data : [],
+        })
+        return
+      }
       const r = await API.get(`/reports/${endpoint}`, { params: finalParams })
       setData(r.data)
+    } catch (err) {
+      setData({ error: err.response?.data?.error || err.message || 'Failed to generate report.' })
     } finally { setLoading(false) }
   }
 
@@ -576,6 +599,31 @@ export default function Reports() {
           </>
         )
       }
+    }
+    if (active === 'monitoring-summary') {
+      const monitoringTabs = [
+        { id: 'new', label: 'New (Day 3)' },
+        { id: 'monitoring', label: 'Under Monitoring' },
+        { id: 'ptp', label: 'Promise to Pay' },
+        { id: 'escalated', label: 'Escalated' },
+      ]
+      return (
+        <div className="form-group">
+          <label className="form-label">Monitoring Table</label>
+          <select
+            className="form-control"
+            value={params.monitoring_tab || 'new'}
+            onChange={e => {
+              const nextParams = { ...params, monitoring_tab: e.target.value }
+              setParams(nextParams)
+              run('monitoring-summary', nextParams)
+            }}
+            style={{ minWidth: 240 }}
+          >
+            {monitoringTabs.map(tab => <option key={tab.id} value={tab.id}>{tab.label}</option>)}
+          </select>
+        </div>
+      )
     }
     if (['past-due', 'payments-encoded', 'payments-reversed', 'full-paid', 'loan-type'].includes(active)) return (
       <>
@@ -1442,66 +1490,66 @@ export default function Reports() {
     }
 
     if (active === 'monitoring-summary') {
+      if (data.error) {
+        return (
+          <div className="empty-state" style={{ color: '#b91c1c' }}>
+            <p>Unable to load Monitoring Summary.</p>
+            <p style={{ fontSize: 12 }}>{data.error}</p>
+          </div>
+        )
+      }
+      const rows = data.rows || data.alerts || (Array.isArray(data) ? data : [])
+      const tabLabel = data.tab_label || 'Under Monitoring'
+      const todayLabel = displayDate(data.as_of || toDateInputValue(new Date()))
       return (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-          <div className="card-v2" style={{ padding: 20 }}>
-            <h3 style={{ margin: '0 0 15px 0' }}>🚨 3-Day Monitoring Overview</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-                <span style={{ color: 'var(--text-muted)' }}>Active Clients Monitored Today</span>
-                <strong style={{ fontSize: 16 }}>{data.activeClientsMonitoredToday}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-                <span style={{ color: 'var(--text-muted)' }}>Escalated Accounts (Day 4+)</span>
-                <strong style={{ fontSize: 16, color: '#ef4444' }}>{data.escalatedAccounts}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-                <span style={{ color: 'var(--text-muted)' }}>Resolved Accounts</span>
-                <strong style={{ fontSize: 16, color: '#10b981' }}>{data.resolvedAccounts}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-                <span style={{ color: 'var(--text-muted)' }}>Clients Approaching Day 3 (Pre-alert)</span>
-                <strong style={{ fontSize: 16, color: '#f59e0b' }}>{data.clientsApproachingDay3}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-                <span style={{ color: 'var(--text-muted)' }}>Chronic Missed Payments (3+ times)</span>
-                <strong style={{ fontSize: 16, color: '#b91c1c' }}>{data.chronicMissedPayments}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-muted)' }}>Unresolved Alerts Over 7 Days</span>
-                <strong style={{ fontSize: 16, color: '#7f1d1d' }}>{data.unresolvedOver7Days}</strong>
-              </div>
+        <div id="printable-area" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <style>{`${REPORT_PRINT_CLARITY_CSS}
+            @media print {
+              @page { size: landscape; margin: 9mm; }
+              .monitoring-actions { display: none !important; }
+              #printable-area table.data-table th,
+              #printable-area table.data-table td { font-size: 10px !important; padding: 6px 7px !important; }
+              .monitoring-print-title { text-align: center !important; }
+              .monitoring-remarks { min-width: 190px !important; height: 28px !important; }
+            }
+          `}</style>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
+            <div className="monitoring-print-title">
+              <h3 style={{ margin: 0 }}>3-Day Monitoring - {tabLabel}</h3>
+              <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>As of {todayLabel}</div>
+              <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>Total Clients: <b>{rows.length}</b></div>
+            </div>
+            <div className="monitoring-actions" style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>🖨️ Print</button>
             </div>
           </div>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div className="card-v2" style={{ padding: 20 }}>
-              <h3 style={{ margin: '0 0 15px 0' }}>🤝 PTP & Follow-Ups</h3>
-              <div style={{ display: 'flex', gap: 20 }}>
-                <div style={{ flex: 1, textAlign: 'center', padding: 15, background: '#f0fdf4', borderRadius: 8 }}>
-                  <div style={{ fontSize: 12, color: '#15803d' }}>Follow-Up Success Rate</div>
-                  <strong style={{ fontSize: 24, color: '#16a34a' }}>{data.collectorPerformance}</strong>
-                </div>
-                <div style={{ flex: 1, textAlign: 'center', padding: 15, background: '#f8fafc', borderRadius: 8 }}>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Pending PTPs</div>
-                  <strong style={{ fontSize: 24 }}>{data.summaryPTP?.c || 0}</strong>
-                  <div style={{ fontSize: 12, color: '#10b981' }}>₱ {fmt(data.summaryPTP?.total || 0)}</div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="card-v2" style={{ padding: 20, flex: 1 }}>
-              <h3 style={{ margin: '0 0 15px 0' }}>📝 Recent Follow-Up Logs</h3>
-              {data.followUpLogs && data.followUpLogs.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {data.followUpLogs.map(log => (
-                    <div key={log.id} style={{ fontSize: 13, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
-                      <strong>{new Date(log.created_at).toLocaleDateString()}</strong> - {log.follow_up_method} <br/>
-                      <span style={{ color: log.contact_result === 'Promised to Pay' ? '#10b981' : '#64748b' }}>Result: {log.contact_result}</span>
-                    </div>
+
+          <div className="card-v2" style={{ padding: 18 }}>
+            <div className="table-responsive-print" style={{ overflowX: 'auto' }}>
+              <table className="data-table" style={{ minWidth: 980 }}>
+                <thead>
+                  <tr>
+                    <th>Client Code</th>
+                    <th>Client Name</th>
+                    <th className="text-right">Running Balance</th>
+                    <th>Last Payment</th>
+                    <th>Contact Number</th>
+                    <th>Remarks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.length === 0 ? <tr><td colSpan={6} className="empty-state">No clients found for this monitoring table</td></tr> : rows.map(row => (
+                    <tr key={row.id}>
+                      <td className="mono">{row.customer_code || '-'}</td>
+                      <td className="fw-600">{row.customer_name || '-'}</td>
+                      <td className="text-right fw-bold">₱ {fmt(row.balance || 0)}</td>
+                      <td>{row.last_payment_date ? `${shortDate(row.last_payment_date)} - ₱ ${fmt(row.last_payment_amount || 0)}` : '-'}</td>
+                      <td>{row.contact || '-'}</td>
+                      <td className="monitoring-remarks"></td>
+                    </tr>
                   ))}
-                </div>
-              ) : <div className="empty-state">No recent logs</div>}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

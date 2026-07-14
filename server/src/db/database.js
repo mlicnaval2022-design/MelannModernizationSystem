@@ -551,6 +551,7 @@ async function initializeDatabase() {
   if (!customerColNames.has('for_bir')) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN for_bir INTEGER DEFAULT 0`);
   if (!customerColNames.has('for_cic')) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN for_cic INTEGER DEFAULT 0`);
   if (!customerColNames.has('for_sec')) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN for_sec INTEGER DEFAULT 0`);
+  if (!customerColNames.has('encoded_by')) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN encoded_by INTEGER`);
   
   const extCols = ['sitio', 'purok', 'brgy', 'city', 'gender', 'secondary_contact', 'email', 'income_per_month', 'expenses_per_month', 'loan_purpose', 'collateral', 'id_type', 'id_number', 'id_issue_date', 'id_expiry_date', 'id_issued_by', 'fb_account', 'nationality', 'customer_classification', 'risk_category', 'cic_verification', 'province', 'zip_code', 'length_of_stay', 'previous_address', 'messenger_account', 'preferred_contact_method', 'preferred_contact_time_from', 'preferred_contact_time_to', 'contact_notes', 'business_type', 'business_name', 'business_employees', 'permit_date_issued', 'permit_place_issued', 'permit_no', 'id_place_of_issue', 'tin_number', 'sss_number', 'id_notes', 'photo_id_front', 'photo_id_back', 'photo_business_proof', 'photo_client'];
   for (const c of extCols) {
