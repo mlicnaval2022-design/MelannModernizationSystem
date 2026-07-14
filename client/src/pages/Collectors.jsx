@@ -9,7 +9,7 @@ export default function Collectors() {
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ first_name: '', last_name: '', branch_id: '' })
+  const [form, setForm] = useState({ first_name: '', last_name: '', branch_id: '', assigned_to: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -22,8 +22,8 @@ export default function Collectors() {
   const load = () => { setLoading(true); API.get('/collectors').then(r => setRows(r.data)).finally(() => setLoading(false)) }
   useEffect(() => { load(); API.get('/branches').then(r => setBranches(r.data)) }, [])
 
-  const openNew = () => { setEditing(null); setForm({ first_name: '', last_name: '', branch_id: '' }); setError(''); setModal(true) }
-  const openEdit = (r) => { setEditing(r); setForm({ first_name: r.first_name || '', last_name: r.last_name || '', branch_id: r.branch_id || '' }); setError(''); setModal(true) }
+  const openNew = () => { setEditing(null); setForm({ first_name: '', last_name: '', branch_id: '', assigned_to: '' }); setError(''); setModal(true) }
+  const openEdit = (r) => { setEditing(r); setForm({ first_name: r.first_name || '', last_name: r.last_name || '', branch_id: r.branch_id || '', assigned_to: r.assigned_to || '' }); setError(''); setModal(true) }
 
   const [editingLoanId, setEditingLoanId] = useState(null)
 
@@ -112,13 +112,14 @@ export default function Collectors() {
       <div className="card">
         <div className="table-wrapper">
           <table className="data-table">
-            <thead><tr><th>Code</th><th>Name</th><th>Active Loans</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Code</th><th>Name</th><th>Assigned To</th><th>Active Loans</th><th>Actions</th></tr></thead>
             <tbody>
               {loading ? <tr className="loading-row"><td colSpan={5}>⏳ Loading...</td></tr>
                 : [...rows].sort((a,b) => a.id - b.id).map(r => (
                   <tr key={r.id}>
                     <td><span className="mono">{r.collector_code}</span></td>
                     <td className="fw-600">{r.first_name} {r.last_name}</td>
+                    <td>{r.assigned_to || '—'}</td>
                     <td>
                       <button 
                         style={{ background: 'none', border: 'none', color: '#3b82f6', textDecoration: 'underline', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}
@@ -146,10 +147,21 @@ export default function Collectors() {
                 <div className="form-grid">
                   <div className="form-group"><label className="form-label">First Name *</label><input className="form-control" value={form.first_name} onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))} required /></div>
                   <div className="form-group"><label className="form-label">Last Name *</label><input className="form-control" value={form.last_name} onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))} required /></div>
-                  <div className="form-group span-2"><label className="form-label">Branch</label>
+                  <div className="form-group"><label className="form-label">Branch</label>
                     <select className="form-control" value={form.branch_id} onChange={e => setForm(f => ({ ...f, branch_id: e.target.value }))}>
                       <option value="">Select...</option>
                       {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group"><label className="form-label">Assigned To</label>
+                    <select className="form-control" value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}>
+                      <option value="">Select...</option>
+                      <option value="ORMOC">ORMOC</option>
+                      <option value="KANANGA">KANANGA</option>
+                      <option value="CARIGARA">CARIGARA</option>
+                      <option value="ISABEL">ISABEL</option>
+                      <option value="BAYBAY/HILONGOS/BATO">BAYBAY/HILONGOS/BATO</option>
+                      <option value="SAN ISIDRO">SAN ISIDRO</option>
                     </select>
                   </div>
                 </div>
