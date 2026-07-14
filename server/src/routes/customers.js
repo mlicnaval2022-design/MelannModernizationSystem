@@ -661,7 +661,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
     const amount = Number(principal) || 0;
     const period = Number(loan_period) || 45;
     const interestRate = Number(interest_rate) || 0;
-    const normalizedLoanType = loan_type === 'Recon' ? 'Recon' : 'Re-Loan';
+    const normalizedLoanType = loan_type === 'Recon' ? 'Recon' : (loan_type === 'New' ? 'New' : 'Re-Loan');
     const loanStatus = 'active';
     const actionName = normalizedLoanType === 'Recon' ? 'RECON_APP' : 'RELOAN_APP';
     const defaultRemarks = normalizedLoanType === 'Recon' ? 'Auto-created via Recon application' : 'Auto-created via Re-Loan application';

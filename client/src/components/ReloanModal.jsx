@@ -49,6 +49,11 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
   const [loanTerm, setLoanTerm] = useState('45');
   const [interestRate, setInterestRate] = useState('15');
   const [submitting, setSubmitting] = useState(false);
+  const [internalLoanType, setInternalLoanType] = useState(loanType);
+
+  useEffect(() => {
+    setInternalLoanType(loanType);
+  }, [loanType]);
 
   const [internalCustomerId, setInternalCustomerId] = useState(null);
   const [internalCustomer, setInternalCustomer] = useState(null);
@@ -144,7 +149,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
         loan_period: Number(loanTerm),
         interest_rate: Number(interestRate || 0),
         date_released: dateRelease,
-        loan_type: loanType,
+        loan_type: internalLoanType,
         previous_balance: Number(previousBalance || 0)
       });
       setShowSuccess(true);
@@ -310,7 +315,14 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
                     </div>
                   </label>
 
-
+                  <label className="reloan-field">
+                    <span>Loan Type <b>*</b></span>
+                    <select value={internalLoanType} onChange={e => setInternalLoanType(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '15px', color: '#1e293b', background: '#f8fafc', fontWeight: '500', outline: 'none' }}>
+                      <option value="New">New</option>
+                      <option value="Reloan">Reloan</option>
+                      <option value="Recon">Recon</option>
+                    </select>
+                  </label>
 
                   <label className="reloan-field">
                     <span>Principal <b>*</b></span>
