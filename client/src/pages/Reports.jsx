@@ -970,6 +970,62 @@ export default function Reports() {
         return (
           <>
             <style>{`
+              .monthly-overall-screen {
+                width: 100%;
+                max-width: 100%;
+                overflow-x: hidden !important;
+              }
+              .monthly-overall-chart {
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                overflow: hidden;
+              }
+              .monthly-overall-chart > div,
+              .monthly-overall-chart svg {
+                max-width: 100%;
+              }
+              .monthly-overall-screen table {
+                table-layout: fixed;
+                width: 100%;
+                min-width: 0 !important;
+              }
+              .monthly-overall-screen th,
+              .monthly-overall-screen td {
+                min-width: 0 !important;
+                padding: 8px 6px !important;
+                font-size: 11px;
+                line-height: 1.15;
+                white-space: normal;
+                overflow-wrap: anywhere;
+              }
+              .monthly-overall-screen th:first-child,
+              .monthly-overall-screen td:first-child {
+                width: 11%;
+                text-align: left;
+              }
+              .monthly-overall-screen th:not(:first-child),
+              .monthly-overall-screen td:not(:first-child) {
+                width: auto;
+              }
+              .monthly-overall-screen .period-range-print {
+                display: none;
+              }
+              .monthly-overall-screen .text-success {
+                white-space: nowrap;
+                font-size: 11px;
+              }
+              @media (max-width: 1200px) {
+                .monthly-overall-screen th,
+                .monthly-overall-screen td,
+                .monthly-overall-screen .text-success {
+                  font-size: 10px;
+                }
+                .monthly-overall-screen th,
+                .monthly-overall-screen td {
+                  padding: 7px 4px !important;
+                }
+              }
               @media print {
                 @page { size: landscape; margin: 10mm; }
                 table { min-width: auto !important; width: 100% !important; zoom: 0.9; }
@@ -1034,7 +1090,7 @@ export default function Reports() {
               <div className="fw-bold text-success">Grand Total: ₱ {fmt(total)}</div>
             </div>
             {monthlySubTab === 'overall' && (
-              <div style={{ marginBottom: 20, height: 350, background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '16px 16px 0 0' }}>
+              <div className="monthly-overall-chart" style={{ marginBottom: 20, height: 350, background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '16px 16px 0 0' }}>
                 {matrix.periods.length > 0 ? (
                   printMode === 'summary' ? (
                     <div style={{ width: 1000, height: 350, margin: '0 auto' }}>
@@ -1078,18 +1134,21 @@ export default function Reports() {
                 )}
               </div>
             )}
-            <div className={`table-responsive-print ${params.collection_cycle_type === '30' ? 'monthly-collection-fit-print' : ''}`} style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
-              <table className="data-table" style={{ minWidth: Math.max(760, 220 + matrix.periods.length * 150 + 150) }}>
+            <div
+              className={`table-responsive-print ${monthlySubTab === 'overall' ? 'monthly-overall-screen monthly-collection-fit-print' : params.collection_cycle_type === '30' ? 'monthly-collection-fit-print' : ''}`}
+              style={{ overflowX: monthlySubTab === 'overall' ? 'hidden' : 'auto', border: '1px solid var(--border)', borderRadius: 8 }}
+            >
+              <table className="data-table" style={{ minWidth: monthlySubTab === 'overall' ? 0 : Math.max(760, 220 + matrix.periods.length * 150 + 150), width: monthlySubTab === 'overall' ? '100%' : undefined }}>
                 <thead>
                   <tr>
-                    <th style={{ minWidth: 220 }}>{monthlySubTab === 'by-collector' ? 'Collector' : 'Summary'}</th>
+                    <th style={{ minWidth: monthlySubTab === 'overall' ? 0 : 220 }}>{monthlySubTab === 'by-collector' ? 'Collector' : 'Summary'}</th>
                     {matrix.periods.map(period => (
-                      <th key={period.key} className="text-right" title={period.rangeLabel} style={{ minWidth: 150 }}>
+                      <th key={period.key} className="text-right" title={period.rangeLabel} style={{ minWidth: monthlySubTab === 'overall' ? 0 : 150 }}>
                         <div>{period.label}</div>
                         <div className="period-range-print" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, textTransform: 'none', letterSpacing: 0 }}>{period.rangeLabel}</div>
                       </th>
                     ))}
-                    <th className="text-right" style={{ minWidth: 150 }}>Total Collection</th>
+                    <th className="text-right" style={{ minWidth: monthlySubTab === 'overall' ? 0 : 150 }}>Total Collection</th>
                   </tr>
                 </thead>
                 {monthlySubTab === 'by-collector' ? (
