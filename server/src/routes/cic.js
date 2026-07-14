@@ -464,26 +464,31 @@ router.post('/validate', authenticateToken, async (req, res) => {
 router.post('/generate', authenticateToken, async (req, res) => {
   try {
     const submission = await buildSubmission(req.body);
-    if (submission.counts.totalRecordsForFt === 0) {
+    
+    // Use frontend overrides if user made manual edits
+    const finalCsvData = req.body.customCsv || submission.csvData;
+    const finalTotalRecords = req.body.totalRecordsForFt ?? submission.counts.totalRecordsForFt;
+
+    if (finalTotalRecords === 0) {
       return res.status(400).json({ error: 'No valid CIC records found for the selected reporting month.' });
     }
 
     const batchNumber = `${PROVIDER_CODE}-CIC-${submission.period.filePeriod}-${Date.now()}`;
     const batchRes = await dbRun(
       'INSERT INTO tblCICSubmissionBatch (batch_number, month, year, branch_id, total_records, generated_by) VALUES (?, ?, ?, ?, ?, ?)',
-      [batchNumber, submission.period.selectedMonth, submission.period.selectedYear, req.body.branch_id || null, submission.counts.totalRecordsForFt, req.user.id]
+      [batchNumber, submission.period.selectedMonth, submission.period.selectedYear, req.body.branch_id || null, finalTotalRecords, req.user.id]
     );
 
     await dbRun(
       'INSERT INTO tblCICSubmissionRecord (batch_id, customer_id, loan_id, record_type, raw_data) VALUES (?, ?, ?, ?, ?)',
-      [batchRes.lastID, 0, 0, 'CSV_FILE', submission.csvData]
+      [batchRes.lastID, 0, 0, 'CSV_FILE', finalCsvData]
     );
 
     res.json({
       message: 'CIC CSV generated',
       batch_number: batchNumber,
-      total_records: submission.counts.totalRecordsForFt,
-      csv_data: submission.csvData,
+      total_records: finalTotalRecords,
+      csv_data: finalCsvData,
       file_name: submission.fileName
     });
   } catch (error) {
