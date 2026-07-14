@@ -26,6 +26,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const [regionData, setRegionData] = useState([]);
   const [provinceData, setProvinceData] = useState([]);
@@ -105,7 +106,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
       } else {
         await API.post('/customers', form);
       }
-      onSaved();
+      setShowSuccess(true);
     } catch (err) {
       setError(err.response?.data?.error || 'An error occurred while saving.');
     } finally {
@@ -632,6 +633,22 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
           </div>
         </div>
       </div>
+
+      {showSuccess && (
+        <div className="modal-overlay" style={{ zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', padding: '30px', borderRadius: '12px', textAlign: 'center', maxWidth: '300px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+            <div style={{ fontSize: '48px', marginBottom: '15px' }}>✅</div>
+            <h3 style={{ margin: '0 0 10px 0', color: '#16a34a' }}>Saved Successfully!</h3>
+            <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '20px' }}>The customer information has been saved.</p>
+            <button 
+              onClick={() => { setShowSuccess(false); onSaved(); }}
+              style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', width: '100%' }}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

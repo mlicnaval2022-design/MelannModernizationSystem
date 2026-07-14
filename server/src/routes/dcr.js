@@ -187,7 +187,7 @@ router.get('/loan-releases', authenticateToken, async (req, res) => {
     if (!date) return res.status(400).json({ error: 'Date is required' });
 
     const releases = await dbAll(`
-      SELECT l.id as loan_id, l.customer_id, l.net_proceeds as loan_amount, l.loan_type, l.date_released, l.status,
+      SELECT l.id as loan_id, l.customer_id, l.principal as loan_amount, l.loan_type, l.date_released, l.status,
              c.customer_code, c.first_name || ' ' || c.last_name as customer_name,
              co.first_name || ' ' || co.last_name as collector_name,
              b.branch_name
@@ -196,7 +196,7 @@ router.get('/loan-releases', authenticateToken, async (req, res) => {
       LEFT JOIN tblCollector co ON l.collector_id = co.id
       LEFT JOIN tblBranch b ON l.branch_id = b.id
       WHERE l.date_released = ? AND l.status != 'cancelled'
-      ORDER BY l.created_at DESC
+      ORDER BY c.last_name ASC, c.first_name ASC
     `, [date]);
 
     res.json(releases);
