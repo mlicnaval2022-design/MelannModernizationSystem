@@ -1095,6 +1095,34 @@ export default function Reports() {
       return (
         <>
           <style>{`
+            .maturity-summary-wrap {
+              overflow-x: visible !important;
+              min-width: 0;
+            }
+            .maturity-summary-table {
+              width: 100%;
+              table-layout: fixed;
+              border-collapse: collapse;
+            }
+            .maturity-summary-table th,
+            .maturity-summary-table td {
+              padding: 8px 6px;
+              font-size: 11px;
+              line-height: 1.25;
+            }
+            .maturity-summary-table th {
+              font-size: 9px;
+              letter-spacing: 0.25px;
+              white-space: normal;
+            }
+            .maturity-summary-table .money-cell {
+              white-space: nowrap;
+              font-size: 11px;
+            }
+            .maturity-summary-table .collector-cell {
+              word-break: normal;
+              overflow-wrap: anywhere;
+            }
             @media print {
               ${printMode === 'detailed' ? `
               .reports-screen-only { display: none !important; }
@@ -1673,7 +1701,7 @@ export default function Reports() {
             }
           `}</style>
           <div id={(!selectedCollector && printMode === 'summary') ? "printable-area" : undefined} className="reports-screen-only" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-            <div style={{ overflowX: 'auto' }}>
+            <div className="maturity-summary-wrap">
             <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
               <div>
                 <div style={{ color: 'var(--blue-dark)', fontWeight: 700 }}>Loans Maturity Checker</div>
@@ -1681,7 +1709,15 @@ export default function Reports() {
               </div>
               <div className="fw-bold text-accent">Total Loan Amount: ₱ {fmt(totalLoanAmount)}</div>
             </div>
-            <table className="data-table">
+            <table className="data-table maturity-summary-table">
+              <colgroup>
+                <col style={{ width: '20%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '19%' }} />
+                <col style={{ width: '20%' }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Collector</th>
@@ -1689,18 +1725,18 @@ export default function Reports() {
                   <th className="text-right">Principal</th>
                   <th className="text-right">Interest Amount</th>
                   <th className="text-right">Total Loan Amount</th>
-                  <th className="text-right">Total Running Balance</th>
+                  <th className="text-right">Total Running Bal.</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.length === 0 ? <tr><td colSpan={6} className="empty-state">No loans found for the selected maturity date range</td></tr> : rows.map(row => (
                   <tr key={row.collector} onClick={() => setSelectedCollector(row)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedCollector(row) }} tabIndex={0} title="View collector clients" style={{ cursor: 'pointer' }}>
-                    <td className="fw-600">{row.collector}</td>
+                    <td className="fw-600 collector-cell">{row.collector}</td>
                     <td className="text-right fw-bold">{row.client_count}</td>
-                    <td className="text-right">₱ {fmt(row.total_principal)}</td>
-                    <td className="text-right">₱ {fmt(row.total_interest)}</td>
-                    <td className="text-right fw-bold text-accent">₱ {fmt(row.total_loan_amount)}</td>
-                    <td className="text-right fw-bold">₱ {fmt(row.total_balance)}</td>
+                    <td className="text-right money-cell">₱ {fmt(row.total_principal)}</td>
+                    <td className="text-right money-cell">₱ {fmt(row.total_interest)}</td>
+                    <td className="text-right fw-bold text-accent money-cell">₱ {fmt(row.total_loan_amount)}</td>
+                    <td className="text-right fw-bold money-cell">₱ {fmt(row.total_balance)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1709,10 +1745,10 @@ export default function Reports() {
                   <tr style={{ background: 'rgba(18,58,99,0.03)', borderTop: '2px solid var(--border)' }}>
                     <td className="fw-bold" style={{ color: 'var(--blue-dark)' }}>GRAND TOTAL</td>
                     <td className="text-right fw-bold">{totalClients}</td>
-                    <td className="text-right fw-bold">₱ {fmt(totalPrincipal)}</td>
-                    <td className="text-right fw-bold">₱ {fmt(totalInterest)}</td>
-                    <td className="text-right fw-bold text-accent">₱ {fmt(totalLoanAmount)}</td>
-                    <td className="text-right fw-bold">₱ {fmt(totalBalance)}</td>
+                    <td className="text-right fw-bold money-cell">₱ {fmt(totalPrincipal)}</td>
+                    <td className="text-right fw-bold money-cell">₱ {fmt(totalInterest)}</td>
+                    <td className="text-right fw-bold text-accent money-cell">₱ {fmt(totalLoanAmount)}</td>
+                    <td className="text-right fw-bold money-cell">₱ {fmt(totalBalance)}</td>
                   </tr>
                 </tfoot>
               )}
