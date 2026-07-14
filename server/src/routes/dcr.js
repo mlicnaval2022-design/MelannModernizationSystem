@@ -195,7 +195,7 @@ router.get('/loan-releases', authenticateToken, async (req, res) => {
       JOIN tblCustomer c ON l.customer_id = c.id
       LEFT JOIN tblCollector co ON l.collector_id = co.id
       LEFT JOIN tblBranch b ON l.branch_id = b.id
-      WHERE l.date_released = ? AND l.status != 'cancelled'
+      WHERE l.date_released = ? AND l.status IN ('active', 'fully_paid')
       ORDER BY c.last_name ASC, c.first_name ASC
     `, [date]);
 
