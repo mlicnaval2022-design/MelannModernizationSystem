@@ -188,7 +188,7 @@ router.get('/loan-releases', authenticateToken, async (req, res) => {
 
     const releases = await dbAll(`
       SELECT l.id as loan_id, l.customer_id, l.principal as loan_amount, l.loan_type, l.date_released, l.status,
-             c.customer_code, c.first_name || ' ' || c.last_name as customer_name,
+             c.customer_code, c.last_name || ', ' || c.first_name as customer_name,
              co.first_name || ' ' || co.last_name as collector_name,
              b.branch_name
       FROM tblLoan l
