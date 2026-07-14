@@ -374,11 +374,8 @@ export default function DailyCashReport() {
                   <th>No.</th><th>Code</th><th>Customer</th><th>Collector</th>
                   <th style={{textAlign:'center'}}>Type of Loan</th>
                   <th className="text-right">Amount</th>
-                  <th className="text-right">Service Fee</th>
-                  <th className="text-right">Insurance</th>
                   <th className="text-right">Penalty</th>
                   <th className="text-right">Passbook</th>
-                  <th className="text-right">Collection</th>
                   <th className="text-right">Balance</th>
                 </tr>
               </thead>
@@ -404,23 +401,17 @@ export default function DailyCashReport() {
                         <span className={`badge-type type-${(r.loan_type || 'new').toLowerCase()}`}>{r.loan_type || 'NEW'}</span>
                       </td>
                       <td className="text-right">{fmt(r.principal)}</td>
-                      <td className="text-right">{fmt(r.service_fee)}</td>
-                      <td className="text-right">{fmt(r.insurance)}</td>
-                      <td className="text-right">0.00</td>
-                      <td className="text-right">0.00</td>
-                      <td className="text-right">0.00</td>
-                      <td className="text-right">{fmt(r.balance)}</td>
+                      <td className="text-right">{fmt(r.today_penalty || 0)}</td>
+                      <td className="text-right">{fmt(r.today_passbook || 0)}</td>
+                      <td className="text-right">{fmt(r.loan_type === 'Recon' ? 0 : (r.previous_balance || 0))}</td>
                     </tr>
                   ));
                 })()}
                 <tr className="dcr-footer-row">
                   <td colSpan={5}>TOTAL LOAN RELEASES</td>
                   <td className="text-right">₱{fmt(data.display_total_releases)}</td>
-                  <td className="text-right">0.00</td>
-                  <td className="text-right">0.00</td>
-                  <td className="text-right">0.00</td>
-                  <td className="text-right">0.00</td>
-                  <td className="text-right">0.00</td>
+                  <td className="text-right">{fmt(data.releases.reduce((s, r) => s + Number(r.today_penalty || 0), 0))}</td>
+                  <td className="text-right">{fmt(data.releases.reduce((s, r) => s + Number(r.today_passbook || 0), 0))}</td>
                   <td className="text-right">0.00</td>
                 </tr>
               </tbody>

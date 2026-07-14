@@ -17,6 +17,7 @@ export default function Transactions() {
   const [rows, setRows] = useState([])
   const [branches, setBranches] = useState([])
   const [collectors, setCollectors] = useState([])
+  const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ id: null, branch_id: '', transaction_date: today(), amount: '', category: '', description: '', payee: '' })
   const [saving, setSaving] = useState(false)
@@ -34,6 +35,7 @@ export default function Transactions() {
     load(); 
     API.get('/branches').then(r => setBranches(r.data)) 
     API.get('/collectors').then(r => setCollectors(r.data))
+    API.get('/customers').then(r => setCustomers(r.data))
   }, [])
 
   const handleClear = () => {
@@ -185,12 +187,20 @@ export default function Transactions() {
           <div style={{ display: 'flex', gap: '20px', marginBottom: '25px' }}>
             <div style={{ flex: 2 }}>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#334155' }}>
-                {(activeTab === 'Collectors Over' || activeTab === 'Penalty' || activeTab === 'Passbook') ? 'Collector' : 'Particulars / Description'}
+                {activeTab === 'Collectors Over' ? 'Collector' : (activeTab === 'Penalty' || activeTab === 'Passbook' ? 'Customer' : 'Particulars / Description')}
               </label>
-              {(activeTab === 'Collectors Over' || activeTab === 'Penalty' || activeTab === 'Passbook') ? (
+              {activeTab === 'Collectors Over' ? (
                 <select className="form-control" style={{ background: '#fff' }} value={form.description} onChange={e=>setForm({...form, description: e.target.value})}>
                   <option value="">Select Collector...</option>
                   {collectors.map(c => <option value={`${c.first_name} ${c.last_name}`} key={c.id}>{c.last_name}, {c.first_name}</option>)}
+                </select>
+              ) : (activeTab === 'Penalty' || activeTab === 'Passbook') ? (
+                <select className="form-control" style={{ background: '#fff' }} value={form.category} onChange={e => {
+                  const cust = customers.find(c => c.id.toString() === e.target.value);
+                  setForm({...form, category: e.target.value, description: cust ? `${cust.last_name}, ${cust.first_name}` : ''});
+                }}>
+                  <option value="">Select Customer...</option>
+                  {customers.map(c => <option value={c.id} key={c.id}>{c.last_name}, {c.first_name}</option>)}
                 </select>
               ) : (
                 <input type="text" className="form-control" style={{ background: '#fff' }} value={form.description} onChange={e=>setForm({...form, description: e.target.value})} placeholder="Enter particulars / description" />
@@ -241,7 +251,7 @@ export default function Transactions() {
                   <th style={{ padding: '10px', textAlign: 'left', background: '#f8fafc' }}>ID ↕</th>
                   {activeTab === 'Expense' && <th style={{ padding: '10px', textAlign: 'left', background: '#f8fafc' }}>Category ↕</th>}
                   <th style={{ padding: '10px', textAlign: 'left', background: '#f8fafc' }}>
-                    {(activeTab === 'Collectors Over' || activeTab === 'Penalty' || activeTab === 'Passbook') ? 'Collector' : 'Particulars'} ↕
+                    {activeTab === 'Collectors Over' ? 'Collector' : (activeTab === 'Penalty' || activeTab === 'Passbook' ? 'Customer' : 'Particulars')} ↕
                   </th>
                   <th style={{ padding: '10px', textAlign: 'left', background: '#f8fafc' }}>Date ↕</th>
                   <th style={{ padding: '10px', textAlign: 'right', background: '#f8fafc' }}>Amount ↕</th>

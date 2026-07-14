@@ -56,6 +56,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [previousBalance, setPreviousBalance] = useState('');
 
   const activeCustomerId = customerId || internalCustomerId;
   const activeCustomer = customer || internalCustomer;
@@ -97,6 +98,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
       setInternalCustomer(null);
       setSearchQuery('');
       setSearchResults([]);
+      setPreviousBalance('');
       setLoading(true); // Reset loading state for next open
     }
   }, [isOpen, activeCustomerId, fetchReloanData]);
@@ -145,6 +147,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
         interest_rate: Number(interestRate || 0),
         date_released: dateRelease,
         loan_type: loanType,
+        previous_balance: Number(previousBalance || 0),
         remarks
       });
       setShowSuccess(true);
@@ -421,7 +424,13 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
                     <div className="reloan-soft-icon violet">⟲</div>
                     <div>
                       <span>OLD BALANCE</span>
-                      <strong>{peso(0)}</strong>
+                      <input 
+                        type="number" 
+                        value={previousBalance} 
+                        onChange={(e) => setPreviousBalance(e.target.value)} 
+                        placeholder="0.00"
+                        style={{ border: 'none', borderBottom: '1px solid #cbd5e1', background: 'transparent', width: '100px', fontSize: '18px', fontWeight: 'bold', outline: 'none', color: '#1e293b' }}
+                      />
                     </div>
                   </div>
 
