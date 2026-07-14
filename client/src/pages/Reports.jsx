@@ -657,7 +657,7 @@ export default function Reports() {
             .ds-signatures { display: grid; grid-template-columns: minmax(260px, 360px); justify-content: center; margin: 28px 0 20px; }
             .ds-signature { text-align: center; color: #7a8699; font-size: 11px; }
             .ds-certified-signature { position: relative; padding-top: 48px; }
-            .ds-manager-signature-img { position: absolute; left: 50%; bottom: 30px; width: 170px; max-height: 76px; transform: translateX(-50%); object-fit: contain; }
+            .ds-manager-signature-img { position: absolute; left: 50%; bottom: 30px; width: 170px; max-height: 76px; transform: translateX(-50%); object-fit: contain; filter: drop-shadow(0.15px 0px 0px #000) drop-shadow(-0.15px 0px 0px #000) drop-shadow(0px 0.15px 0px #000) drop-shadow(0px -0.15px 0px #000); }
             .ds-signer-name { color: #000; font-weight: 900; letter-spacing: 0.4px; }
             .ds-signer-position { color: #3f4a5c; font-weight: 700; margin-top: 2px; }
             .ds-line { border-top: 1px solid #142b57; margin-bottom: 8px; height: 1px; }
@@ -841,7 +841,6 @@ export default function Reports() {
                 <div style={{ color: '#142b57', fontWeight: 900, marginTop: 22 }}>CERTIFIED CORRECT:</div>
                 <div className="ds-signatures">
                   <div className="ds-signature ds-certified-signature">
-                    <img className="ds-manager-signature-img" src="/marilyn-reloba-signature.png" alt="" />
                     <div className="ds-line"></div>
                     <div className="ds-signer-name">MARILYN O. RELOBA</div>
                     <div className="ds-signer-position">Branch Manager</div>
