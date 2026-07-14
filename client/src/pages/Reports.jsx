@@ -1689,16 +1689,18 @@ export default function Reports() {
                   <th className="text-right">Principal</th>
                   <th className="text-right">Interest Amount</th>
                   <th className="text-right">Total Loan Amount</th>
+                  <th className="text-right">Total Running Balance</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 ? <tr><td colSpan={5} className="empty-state">No loans found for the selected maturity date range</td></tr> : rows.map(row => (
+                {rows.length === 0 ? <tr><td colSpan={6} className="empty-state">No loans found for the selected maturity date range</td></tr> : rows.map(row => (
                   <tr key={row.collector} onClick={() => setSelectedCollector(row)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedCollector(row) }} tabIndex={0} title="View collector clients" style={{ cursor: 'pointer' }}>
                     <td className="fw-600">{row.collector}</td>
                     <td className="text-right fw-bold">{row.client_count}</td>
                     <td className="text-right">₱ {fmt(row.total_principal)}</td>
                     <td className="text-right">₱ {fmt(row.total_interest)}</td>
                     <td className="text-right fw-bold text-accent">₱ {fmt(row.total_loan_amount)}</td>
+                    <td className="text-right fw-bold">₱ {fmt(row.total_balance)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1710,6 +1712,7 @@ export default function Reports() {
                     <td className="text-right fw-bold">₱ {fmt(totalPrincipal)}</td>
                     <td className="text-right fw-bold">₱ {fmt(totalInterest)}</td>
                     <td className="text-right fw-bold text-accent">₱ {fmt(totalLoanAmount)}</td>
+                    <td className="text-right fw-bold">₱ {fmt(totalBalance)}</td>
                   </tr>
                 </tfoot>
               )}
