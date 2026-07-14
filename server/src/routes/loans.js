@@ -138,6 +138,7 @@ router.post('/:id/ci', authenticateToken, requireRole('admin', 'manager'), async
       daily_sales, daily_expenses, other_income, other_loans,
       exp_electricity, exp_water, exp_internet, exp_transport, exp_rental, exp_food, exp_appliances, exp_allowance, exp_tuition, exp_misc,
       check_location, check_activity, check_residency, check_borrowing, check_understanding, check_permit, check_purpose, check_source, check_consent, check_escalate,
+      loan_history, business_years, no_hardship, cb_rating,
       ci_notes, endorsement
     } = req.body;
 
@@ -148,18 +149,22 @@ router.post('/:id/ci', authenticateToken, requireRole('admin', 'manager'), async
         daily_sales=?, daily_expenses=?, other_income=?, other_loans=?,
         exp_electricity=?, exp_water=?, exp_internet=?, exp_transport=?, exp_rental=?, exp_food=?, exp_appliances=?, exp_allowance=?, exp_tuition=?, exp_misc=?,
         check_location=?, check_activity=?, check_residency=?, check_borrowing=?, check_understanding=?, check_permit=?, check_purpose=?, check_source=?, check_consent=?, check_escalate=?,
+        loan_history=?, business_years=?, no_hardship=?, cb_rating=?,
         ci_notes=?, endorsement=?, encoded_by=? WHERE id=?`,
         [daily_sales, daily_expenses, other_income, other_loans, exp_electricity, exp_water, exp_internet, exp_transport, exp_rental, exp_food, exp_appliances, exp_allowance, exp_tuition, exp_misc,
-         check_location, check_activity, check_residency, check_borrowing, check_understanding, check_permit, check_purpose, check_source, check_consent, check_escalate, ci_notes, endorsement, req.user.id, existing.id]);
+         check_location, check_activity, check_residency, check_borrowing, check_understanding, check_permit, check_purpose, check_source, check_consent, check_escalate, 
+         loan_history, business_years, no_hardship, cb_rating, ci_notes, endorsement, req.user.id, existing.id]);
     } else {
       await dbRun(`INSERT INTO tblCreditInvestigation (
         loan_id, daily_sales, daily_expenses, other_income, other_loans,
         exp_electricity, exp_water, exp_internet, exp_transport, exp_rental, exp_food, exp_appliances, exp_allowance, exp_tuition, exp_misc,
         check_location, check_activity, check_residency, check_borrowing, check_understanding, check_permit, check_purpose, check_source, check_consent, check_escalate,
+        loan_history, business_years, no_hardship, cb_rating,
         ci_notes, endorsement, encoded_by
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [loan_id, daily_sales, daily_expenses, other_income, other_loans, exp_electricity, exp_water, exp_internet, exp_transport, exp_rental, exp_food, exp_appliances, exp_allowance, exp_tuition, exp_misc,
-         check_location, check_activity, check_residency, check_borrowing, check_understanding, check_permit, check_purpose, check_source, check_consent, check_escalate, ci_notes, endorsement, req.user.id]);
+         check_location, check_activity, check_residency, check_borrowing, check_understanding, check_permit, check_purpose, check_source, check_consent, check_escalate, 
+         loan_history, business_years, no_hardship, cb_rating, ci_notes, endorsement, req.user.id]);
     }
 
     if (endorsement === 'for_approval') {
