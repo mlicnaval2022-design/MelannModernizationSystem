@@ -332,11 +332,35 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
               <label>Business Type</label>
               <select className="form-control" value={form.business_type} onChange={e => setForm({...form, business_type: e.target.value})}>
                 <option value="SARI-SARI STORE">SARI-SARI STORE</option>
-                <option value="EATERY/CARENDERIA">EATERY/CARENDERIA</option>
+                <option value="EATERY / CARENDERIA">EATERY / CARENDERIA</option>
                 <option value="MARKET VENDOR">MARKET VENDOR</option>
+                <option value="FOOD CART / KIOSK / STREET VENDOR">FOOD CART / KIOSK / STREET VENDOR</option>
+                <option value="BAKERY / BAKE SHOP">BAKERY / BAKE SHOP</option>
                 <option value="ONLINE SELLER">ONLINE SELLER</option>
-                <option value="TRICYCLE DRIVER">TRICYCLE DRIVER</option>
-                <option value="SALARY/EMPLOYED">SALARY/EMPLOYED</option>
+                <option value="RETAIL / WHOLESALE STORE">RETAIL / WHOLESALE STORE</option>
+                <option value="HARDWARE / CONSTRUCTION SUPPLIES">HARDWARE / CONSTRUCTION SUPPLIES</option>
+                <option value="PHARMACY / DRUG STORE">PHARMACY / DRUG STORE</option>
+                <option value="WATER REFILLING STATION">WATER REFILLING STATION</option>
+                <option value="LAUNDRY SHOP">LAUNDRY SHOP</option>
+                <option value="BARBER SHOP / BEAUTY SALON">BARBER SHOP / BEAUTY SALON</option>
+                <option value="TAILORING / DRESSMAKING">TAILORING / DRESSMAKING</option>
+                <option value="MOTORCYCLE / AUTO REPAIR SHOP">MOTORCYCLE / AUTO REPAIR SHOP</option>
+                <option value="CARWASH">CARWASH</option>
+                <option value="TRICYCLE DRIVER / OPERATOR">TRICYCLE DRIVER / OPERATOR</option>
+                <option value="HABAL-HABAL / MOTORCYCLE TAXI">HABAL-HABAL / MOTORCYCLE TAXI</option>
+                <option value="JEEPNEY DRIVER / OPERATOR">JEEPNEY DRIVER / OPERATOR</option>
+                <option value="TRANSPORTATION / HAULING">TRANSPORTATION / HAULING</option>
+                <option value="FARMING / AGRICULTURE">FARMING / AGRICULTURE</option>
+                <option value="LIVESTOCK / POULTRY RAISING">LIVESTOCK / POULTRY RAISING</option>
+                <option value="FISHING / AQUACULTURE">FISHING / AQUACULTURE</option>
+                <option value="REAL ESTATE / RENTALS / BOARDING HOUSE">REAL ESTATE / RENTALS / BOARDING HOUSE</option>
+                <option value="INTERNET CAFE / PISONET">INTERNET CAFE / PISONET</option>
+                <option value="PAWNSHOP / REMITTANCE / MONEY CHANGER">PAWNSHOP / REMITTANCE / MONEY CHANGER</option>
+                <option value="JUNKSHOP">JUNKSHOP</option>
+                <option value="CONTRACTOR / CONSTRUCTION">CONTRACTOR / CONSTRUCTION</option>
+                <option value="PROFESSIONAL SERVICES / FREELANCER">PROFESSIONAL SERVICES / FREELANCER</option>
+                <option value="SALARY / EMPLOYED">SALARY / EMPLOYED</option>
+                <option value="PENSIONER">PENSIONER</option>
                 <option value="OTHERS">OTHERS</option>
               </select>
             </div>
