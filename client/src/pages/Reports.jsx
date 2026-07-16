@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import API from '../services/api'
 import logoImg from '../assets/logo.png'
+import html2pdf from 'html2pdf.js'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })
 const toDateInputValue = date => {
@@ -294,6 +295,191 @@ export default function Reports() {
     }, 100)
   }
 
+  const printCollectionSheet = async () => {
+    if (!params.collector_id) {
+      alert('Please select a collector first.')
+      return
+    }
+
+    if (!data) {
+      const generated = await run('collection-sheet', params)
+      if (!generated) return
+    }
+
+    setPrintMode('detailed')
+    setTimeout(() => {
+      window.print()
+    }, 150)
+  }
+
+  const handleExportPdf = async () => {
+    if (!params.collector_id) {
+      alert('Please select a collector first.')
+      return
+    }
+
+    const sheetData = data || await run('collection-sheet', params)
+    if (!sheetData) return
+
+    setTimeout(() => {
+      const printable = document.getElementById('printable-area')
+      if (!printable) {
+        alert('Collection sheet is not ready yet. Please try again.')
+        return
+      }
+
+      const collectorName = sheetData?.collector?.name || 'collector'
+      const date = sheetData?.date || params.date || toDateInputValue(new Date())
+      const safeCollector = collectorName.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'collector'
+
+      const exportRoot = printable.cloneNode(true)
+      exportRoot.removeAttribute('id')
+      exportRoot.style.margin = '0'
+      exportRoot.style.padding = '0'
+      exportRoot.style.border = '0'
+      exportRoot.style.borderRadius = '0'
+      exportRoot.style.boxShadow = 'none'
+      exportRoot.style.width = '8.5in'
+      exportRoot.style.maxWidth = '8.5in'
+
+      exportRoot.querySelectorAll('.collection-sheet-page').forEach((page, index, pages) => {
+        page.style.width = '8.5in'
+        page.style.height = '13.98in'
+        page.style.minHeight = '13.98in'
+        page.style.margin = '0'
+        page.style.padding = '0.25in 0.15in 0.35in 0.15in'
+        page.style.boxSizing = 'border-box'
+        page.style.overflow = 'hidden'
+        page.style.pageBreakAfter = 'auto'
+        page.style.breakAfter = 'auto'
+      })
+
+      const exportHost = document.createElement('div')
+      exportHost.style.position = 'fixed'
+      exportHost.style.left = '-10000px'
+      exportHost.style.top = '0'
+      exportHost.style.width = '8.5in'
+      exportHost.style.background = '#fff'
+      exportHost.appendChild(exportRoot)
+      document.body.appendChild(exportHost)
+
+      html2pdf()
+        .set({
+          margin: 0,
+          filename: `Collection_Sheet_${safeCollector}_${date}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+          jsPDF: { unit: 'in', format: [8.5, 14], orientation: 'portrait' },
+          pagebreak: { mode: [] }
+        })
+        .from(exportRoot)
+        .save()
+        .finally(() => exportHost.remove())
+    }, 200)
+  }
+
+  const handleExportDisclosurePdf = () => {
+    const printable = document.getElementById('printable-area')
+    if (!printable) {
+      alert('Disclosure statement is not ready yet. Please run the report first.')
+      return
+    }
+
+    const loanCode = data?.loan?.loan_code || params.disclosure_loan_id || 'disclosure'
+    const safeLoanCode = String(loanCode).replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'disclosure'
+    const exportRoot = printable.cloneNode(true)
+    exportRoot.removeAttribute('id')
+    exportRoot.classList.add('disclosure-pdf-export')
+    exportRoot.style.margin = '0'
+    exportRoot.style.boxShadow = 'none'
+    exportRoot.style.width = '8.22in'
+    exportRoot.style.height = '13.62in'
+    exportRoot.style.maxWidth = 'none'
+    exportRoot.style.overflow = 'hidden'
+
+    const pdfStyle = document.createElement('style')
+    pdfStyle.textContent = `
+      .disclosure-pdf-export {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 8.22in !important;
+        height: 13.62in !important;
+        max-width: none !important;
+        border: 1.5px solid #1f365f !important;
+        box-shadow: none !important;
+        margin: 0 !important;
+        overflow: hidden !important;
+        background: #fff !important;
+        color: #293344 !important;
+        font-family: Arial, Helvetica, sans-serif !important;
+        box-sizing: border-box !important;
+      }
+      .disclosure-pdf-export * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        box-sizing: border-box !important;
+      }
+      .disclosure-pdf-export .ds-header { flex: 0 0 auto !important; padding: 0.18in 0.32in !important; gap: 0.16in !important; border-left-width: 0.09in !important; }
+      .disclosure-pdf-export .ds-company { font-size: 22pt !important; letter-spacing: 1.1px !important; }
+      .disclosure-pdf-export .ds-sub { margin-top: 0.045in !important; font-size: 8.8pt !important; }
+      .disclosure-pdf-export .ds-badge { min-width: 2.35in !important; padding: 0.08in 0.14in !important; border: 1.5px solid #45699d !important; border-radius: 0.08in !important; }
+      .disclosure-pdf-export .ds-badge-title { font-size: 15pt !important; }
+      .disclosure-pdf-export .ds-badge-id { margin-top: 0.03in !important; font-size: 11.5pt !important; }
+      .disclosure-pdf-export .ds-body { flex: 1 1 auto !important; min-height: 0 !important; display: flex !important; flex-direction: column !important; padding: 0.1in 0.25in 0.05in !important; overflow: hidden !important; }
+      .disclosure-pdf-export .ds-section { margin-bottom: 0.07in !important; border: 1.5px solid #9aabc4 !important; border-radius: 0.06in !important; break-inside: avoid !important; }
+      .disclosure-pdf-export .ds-section:last-of-type { flex: 1 1 auto !important; display: flex !important; flex-direction: column !important; min-height: 2.5in !important; margin-bottom: 0.04in !important; }
+      .disclosure-pdf-export .ds-section-title { padding: 0.035in 0.12in !important; font-size: 10.6pt !important; letter-spacing: 0.35px !important; }
+      .disclosure-pdf-export .ds-section-body { padding: 0.065in 0.12in !important; }
+      .disclosure-pdf-export .ds-section:last-of-type .ds-section-body { flex: 1 1 auto !important; display: flex !important; flex-direction: column !important; padding-bottom: 0.075in !important; }
+      .disclosure-pdf-export .ds-grid-2 { gap: 0.06in 0.2in !important; }
+      .disclosure-pdf-export .ds-grid-3 { gap: 0.06in 0.16in !important; }
+      .disclosure-pdf-export .ds-field { grid-template-columns: 1.14in 1fr !important; gap: 0.05in !important; font-size: 8pt !important; min-height: 0.15in !important; }
+      .disclosure-pdf-export .ds-field b { min-height: 0.125in !important; border-bottom: 1.4px solid #a9b7ca !important; }
+      .disclosure-pdf-export .ds-charge-strip { margin-top: 0.055in !important; border: 1.2px solid #c3cfdd !important; border-radius: 0.04in !important; }
+      .disclosure-pdf-export .ds-charge-strip .ds-field { padding: 0.028in 0.065in !important; grid-template-columns: 1fr auto !important; font-size: 7.4pt !important; }
+      .disclosure-pdf-export .ds-charge-strip .ds-field b { border-bottom: 0 !important; }
+      .disclosure-pdf-export .ds-schedule { gap: 0.07in !important; }
+      .disclosure-pdf-export .ds-schedule table { font-size: 7.35pt !important; }
+      .disclosure-pdf-export .ds-schedule th { border-bottom: 0.9px solid #d5dce8 !important; padding: 0.023in 0.015in !important; line-height: 1.08 !important; }
+      .disclosure-pdf-export .ds-schedule td { border-bottom: 0.35px solid #f1f4f8 !important; padding: 0.016in 0.015in !important; line-height: 1.06 !important; }
+      .disclosure-pdf-export .ds-schedule table:not(:last-child) { border-right: 1.2px solid #9fb0c8 !important; padding-right: 0.05in !important; }
+      .disclosure-pdf-export .ds-disclosure-head { font-size: 7.4pt !important; margin-bottom: 0.04in !important; }
+      .disclosure-pdf-export .ds-section:last-of-type .ds-grid-2 { gap: 0.035in 0.18in !important; }
+      .disclosure-pdf-export .ds-section:last-of-type .ds-field { font-size: 7.5pt !important; min-height: 0.13in !important; }
+      .disclosure-pdf-export .ds-section:last-of-type .ds-field b { min-height: 0.105in !important; }
+      .disclosure-pdf-export .ds-signatures { gap: 0.16in !important; margin: 0.36in 0 0.12in !important; }
+      .disclosure-pdf-export .ds-signature { font-size: 6.7pt !important; }
+      .disclosure-pdf-export .ds-line { border-top: 1.4px solid #253a61 !important; margin-bottom: 0.04in !important; }
+      .disclosure-pdf-export .ds-ack { font-size: 7.15pt !important; line-height: 1.1 !important; margin: 0.075in 0 !important; }
+      .disclosure-pdf-export .ds-clause { font-size: 6.9pt !important; line-height: 1.1 !important; }
+      .disclosure-pdf-export .ds-borrower { grid-template-columns: 1fr 1.45in !important; gap: 0.5in !important; margin: auto 0.15in 0 !important; padding-top: 0.18in !important; }
+      .disclosure-pdf-export .ds-footer { flex: 0 0 auto !important; margin-top: auto !important; padding: 0.045in 0.32in !important; font-size: 7.4pt !important; }
+    `
+    exportRoot.prepend(pdfStyle)
+
+    const exportHost = document.createElement('div')
+    exportHost.style.position = 'fixed'
+    exportHost.style.left = '-10000px'
+    exportHost.style.top = '0'
+    exportHost.style.width = '8.5in'
+    exportHost.style.background = '#fff'
+    exportHost.appendChild(exportRoot)
+    document.body.appendChild(exportHost)
+
+    html2pdf()
+      .set({
+        margin: [0.16, 0.14, 0.22, 0.14],
+        filename: `Disclosure_Statement_${safeLoanCode}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'in', format: [8.5, 14], orientation: 'portrait' },
+        pagebreak: { mode: [] }
+      })
+      .from(exportRoot)
+      .save()
+      .finally(() => exportHost.remove())
+  }
+
   const loadCollectors = () => {
     if (!collectorsLoaded) {
       API.get('/collectors').then(r => { setCollectors(r.data); setCollectorsLoaded(true) })
@@ -354,6 +540,7 @@ export default function Reports() {
       }
       const r = await API.get(`/reports/${endpoint}`, { params: finalParams })
       setData(r.data)
+      return r.data
     } finally { setLoading(false) }
   }
 
@@ -2531,15 +2718,23 @@ export default function Reports() {
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               {renderParams()}
               <button id="btn-run-report" className="btn btn-primary" onClick={() => run(active, params, active === 'monthly-releases' ? releaseSubTab : collectionSubTab)} disabled={loading || (active === 'disclosure-statement' && !params.disclosure_search.trim() && !params.disclosure_loan_id)}>{loading ? '⏳ Running...' : '▶ Run Report'}</button>
-              {data && (
+              {(data || active === 'collection-sheet') && (
                 <div style={{ display: 'flex', gap: 8 }}>
-                  {['collection-report', 'monthly-releases', 'past-due', 'payments-reversed', 'full-paid'].includes(active) ? (
+                  {active === 'collection-sheet' ? (
+                    <>
+                      <button className="btn btn-secondary" onClick={printCollectionSheet} disabled={loading}>🖨️ Print</button>
+                      <button className="btn btn-secondary" onClick={handleExportPdf} disabled={loading}>📄 Export PDF</button>
+                    </>
+                  ) : ['collection-report', 'monthly-releases', 'past-due', 'payments-reversed', 'full-paid'].includes(active) ? (
                     <>
                       <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>🖨️ Print Summary</button>
                       <button className="btn btn-secondary" onClick={() => handlePrint('detailed')}>🖨️ Print Detailed</button>
                     </>
                   ) : (
                     <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>{active === 'disclosure-statement' ? 'Print Disclosure' : '🖨️ Print'}</button>
+                  )}
+                  {active === 'disclosure-statement' && (
+                    <button className="btn btn-secondary" onClick={handleExportDisclosurePdf}>Export PDF</button>
                   )}
                 </div>
               )}

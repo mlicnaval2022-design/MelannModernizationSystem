@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import html2pdf from 'html2pdf.js'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import '../soa.css'
@@ -41,9 +42,11 @@ export default function Customers() {
   const [selectedLoanForPayments, setSelectedLoanForPayments] = useState(null)
   const [penaltyLoan, setPenaltyLoan] = useState(null)
   const [printModeLoan, setPrintModeLoan] = useState(null)
+  const suppressNextPrintRef = useRef(false)
 
   useEffect(() => {
     if (printModeLoan) {
+      if (suppressNextPrintRef.current) return;
       const timer = setTimeout(() => {
         window.print();
         setPrintModeLoan(null);
@@ -269,6 +272,330 @@ export default function Customers() {
     .map(p => ({ ...p, paidDate: parseLocalDate(p.date_paid), amount: Number(p.amount_paid || 0) }))
     .filter(p => p.paidDate)
     .sort((a, b) => a.paidDate - b.paidDate);
+  const getPaymentHistoryRows = (loan) => (soaData?.payments || [])
+    .filter(p => p.loan_code === loan?.loan_code)
+    .sort((a, b) => new Date(b.date_paid) - new Date(a.date_paid));
+  const getPaymentStatusText = (payment) => {
+    const isReversed = payment.status === 'reversed';
+    const isFullyPaid = payment.status === 'active' && Number(payment.balance_after) <= 0;
+    const isPartial = payment.status === 'active' && Number(payment.balance_after) > 0;
+
+    if (isReversed) return 'Reversed';
+    if (isFullyPaid) return 'Fully Paid';
+    if (isPartial) return 'Active';
+    return payment.status || 'Active';
+  };
+  const exportPaymentHistory = (loan) => {
+    if (!loan) return;
+    suppressNextPrintRef.current = true;
+    setPrintModeLoan(loan);
+
+    setTimeout(() => {
+      const source = document.querySelector('.formal-soa-print');
+      if (!source) {
+        suppressNextPrintRef.current = false;
+        setPrintModeLoan(null);
+        return;
+      }
+
+      const exportRoot = source.cloneNode(true);
+      exportRoot.classList.add('soa-pdf-export');
+      exportRoot.style.display = 'block';
+      exportRoot.style.width = '7.75in';
+      exportRoot.style.maxWidth = '7.75in';
+      exportRoot.style.margin = '0';
+      exportRoot.style.background = '#ffffff';
+      exportRoot.style.boxSizing = 'border-box';
+
+      const pdfStyle = document.createElement('style');
+      pdfStyle.textContent = `
+        .soa-pdf-export,
+        .soa-pdf-export * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          box-sizing: border-box !important;
+        }
+        .soa-pdf-export {
+          display: block !important;
+          position: static !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          background: #fff !important;
+          color: #000 !important;
+          font-family: Arial, Helvetica, sans-serif !important;
+          font-size: 10px !important;
+          line-height: 1.18 !important;
+          min-height: 0 !important;
+          padding: 0 !important;
+          transform: none !important;
+        }
+        .soa-pdf-export table { page-break-inside: auto !important; }
+        .soa-pdf-export thead { display: table-header-group !important; }
+        .soa-pdf-export tr { page-break-inside: avoid !important; page-break-after: auto !important; }
+        .soa-pdf-export td,
+        .soa-pdf-export th,
+        .soa-pdf-export strong { color: #000 !important; }
+        .soa-pdf-export .f-soa-header {
+          display: flex !important;
+          justify-content: space-between !important;
+          align-items: flex-start !important;
+          border-bottom: 2px solid #0b297a !important;
+          padding-bottom: 8px !important;
+          margin-bottom: 9px !important;
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
+        }
+        .soa-pdf-export .f-soa-header-left { display: flex !important; align-items: center !important; gap: 10px !important; }
+        .soa-pdf-export .f-soa-logo { width: 86px !important; height: 86px !important; object-fit: contain !important; }
+        .soa-pdf-export .f-soa-company { padding-top: 0 !important; }
+        .soa-pdf-export .f-soa-company h2 {
+          font-size: 24px !important;
+          color: #061f66 !important;
+          margin: 0 !important;
+          font-weight: 900 !important;
+          letter-spacing: 0.5px !important;
+        }
+        .soa-pdf-export .f-soa-company h3 {
+          font-size: 13px !important;
+          color: #111827 !important;
+          margin: 1px 0 6px 0 !important;
+          font-weight: 800 !important;
+          letter-spacing: 1px !important;
+        }
+        .soa-pdf-export .f-soa-contact p {
+          font-size: 11px !important;
+          color: #111827 !important;
+          margin: 0 !important;
+          line-height: 1.4 !important;
+          display: flex !important;
+          align-items: flex-start !important;
+          gap: 6px !important;
+          font-weight: 800 !important;
+        }
+        .soa-pdf-export .f-soa-contact p i { color: #0b297a !important; }
+        .soa-pdf-export .f-soa-header-right { padding-top: 5px !important; width: 250px !important; }
+        .soa-pdf-export .f-soa-header-right table {
+          font-size: 11px !important;
+          color: #000 !important;
+          border-collapse: separate !important;
+          border-spacing: 0 2px !important;
+          width: 100% !important;
+        }
+        .soa-pdf-export .f-soa-header-right table td { padding: 2px 4px !important; vertical-align: top !important; }
+        .soa-pdf-export .f-soa-header-right table td:first-child {
+          color: #111827 !important;
+          font-weight: 700 !important;
+          width: 90px !important;
+        }
+        .soa-pdf-export .f-soa-header-right table td:last-child { color: #061f66 !important; }
+        .soa-pdf-export .f-soa-title-wrapper {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          gap: 12px !important;
+          margin: 11px 0 14px 0 !important;
+        }
+        .soa-pdf-export .f-soa-title-line { height: 2px !important; background: #eab308 !important; flex: 1 !important; max-width: 120px !important; }
+        .soa-pdf-export .f-soa-title-dot { width: 6px !important; height: 6px !important; background: #eab308 !important; border-radius: 50% !important; }
+        .soa-pdf-export .f-soa-title {
+          text-align: center !important;
+          font-size: 23px !important;
+          color: #061f66 !important;
+          font-weight: 900 !important;
+          letter-spacing: 1px !important;
+          margin: 0 !important;
+          line-height: 1 !important;
+        }
+        .soa-pdf-export .f-soa-section {
+          border: 1.5px solid #111827 !important;
+          border-radius: 4px !important;
+          margin-bottom: 10px !important;
+          overflow: hidden !important;
+          background: #fff !important;
+          break-inside: auto !important;
+          page-break-inside: auto !important;
+        }
+        .soa-pdf-export .f-soa-sec-header {
+          background: #0b297a !important;
+          color: #fff !important;
+          font-size: 11px !important;
+          font-weight: 700 !important;
+          padding: 5px 9px !important;
+          display: flex !important;
+          align-items: center !important;
+          gap: 8px !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.5px !important;
+        }
+        .soa-pdf-export .f-soa-sec-header * { color: #fff !important; }
+        .soa-pdf-export .f-soa-loan-info { padding: 7px 9px !important; }
+        .soa-pdf-export .f-soa-grid-3 { display: grid !important; grid-template-columns: 1fr 1fr 1fr !important; gap: 8px !important; }
+        .soa-pdf-export .f-soa-grid-3 table:nth-child(1),
+        .soa-pdf-export .f-soa-grid-3 table:nth-child(2) {
+          border-right: 1.25px solid #374151 !important;
+          padding-right: 8px !important;
+        }
+        .soa-pdf-export .f-soa-grid-3 table { width: 100% !important; font-size: 10px !important; border-collapse: collapse !important; }
+        .soa-pdf-export .f-soa-grid-3 table td {
+          padding: 2px 2px !important;
+          color: #0f172a !important;
+          vertical-align: top !important;
+          line-height: 1.12 !important;
+        }
+        .soa-pdf-export .f-soa-grid-3 table td:first-child {
+          width: 96px !important;
+          color: #111827 !important;
+          font-weight: 800 !important;
+        }
+        .soa-pdf-export .f-soa-grid-3 table td:nth-child(2) {
+          width: 10px !important;
+          color: #111827 !important;
+          font-weight: 800 !important;
+        }
+        .soa-pdf-export .f-soa-ledger-table-new { width: 100% !important; border-collapse: collapse !important; }
+        .soa-pdf-export .f-soa-ledger-table-new th {
+          background: #f8fafc !important;
+          color: #061f66 !important;
+          font-size: 8.5px !important;
+          font-weight: 800 !important;
+          padding: 4px 6px !important;
+          text-align: center !important;
+          text-transform: uppercase !important;
+          border: 1.15px solid #4b5563 !important;
+          line-height: 1.1 !important;
+        }
+        .soa-pdf-export .f-soa-ledger-table-new th i { color: #64748b !important; margin-right: 4px !important; }
+        .soa-pdf-export .f-soa-ledger-table-new td {
+          padding: 3px 6px !important;
+          font-size: 8.8px !important;
+          color: #0f172a !important;
+          text-align: center !important;
+          vertical-align: middle !important;
+          border: 1.15px solid #4b5563 !important;
+          line-height: 1.12 !important;
+        }
+        .soa-pdf-export .f-soa-payment-ledger-table th:first-child,
+        .soa-pdf-export .f-soa-payment-ledger-table td:first-child { text-align: left !important; }
+        .soa-pdf-export .f-soa-row-even { background: #fff !important; }
+        .soa-pdf-export .f-soa-row-odd { background: #f8fafc !important; }
+        .soa-pdf-export .f-soa-ledger-table-new tr { border-bottom: 1px solid #cbd5e1 !important; }
+        .soa-pdf-export .f-soa-ledger-table-new tr:last-child { border-bottom: none !important; }
+        .soa-pdf-export .f-soa-payment-ledger-table tfoot td {
+          background: #0b297a !important;
+          color: #fff !important;
+          border-color: #0b297a !important;
+          padding: 5px 6px !important;
+          text-align: center !important;
+        }
+        .soa-pdf-export .f-soa-payment-ledger-table tfoot td * { color: #fff !important; }
+        .soa-pdf-export .f-soa-status-badge,
+        .soa-pdf-export .f-soa-status-badge * {
+          background: #f0fdf4 !important;
+          color: #14532d !important;
+          padding: 2px 6px !important;
+          border-radius: 12px !important;
+          font-size: 8.5px !important;
+          font-weight: 600 !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          gap: 3px !important;
+          border-color: #16a34a !important;
+        }
+        .soa-pdf-export .f-soa-footer-text { font-size: 10px !important; font-weight: 700 !important; text-transform: uppercase !important; color: #fff !important; }
+        .soa-pdf-export .f-soa-footer-amount { font-size: 13px !important; font-weight: 800 !important; color: #fff !important; }
+        .soa-pdf-export .f-soa-penalty-summary { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; border-bottom: 1px solid #94a3b8 !important; }
+        .soa-pdf-export .f-soa-penalty-summary div {
+          padding: 5px 7px !important;
+          border-right: 1px solid #374151 !important;
+          text-align: center !important;
+        }
+        .soa-pdf-export .f-soa-penalty-summary div:last-child { border-right: none !important; }
+        .soa-pdf-export .f-soa-penalty-summary span,
+        .soa-pdf-export .f-soa-penalty-footer span {
+          display: block !important;
+          color: #111827 !important;
+          font-size: 7.8px !important;
+          font-weight: 800 !important;
+          text-transform: uppercase !important;
+          margin-bottom: 2px !important;
+          line-height: 1.05 !important;
+        }
+        .soa-pdf-export .f-soa-penalty-summary strong { color: #0f172a !important; font-size: 9px !important; font-weight: 800 !important; }
+        .soa-pdf-export .f-soa-penalty-meta {
+          display: grid !important;
+          grid-template-columns: repeat(3, 1fr) !important;
+          gap: 6px !important;
+          padding: 4px 7px !important;
+          color: #111827 !important;
+          font-size: 8.3px !important;
+          font-weight: 800 !important;
+          border-bottom: 1px solid #94a3b8 !important;
+          text-align: center !important;
+          line-height: 1.1 !important;
+        }
+        .soa-pdf-export .f-soa-penalty-table td:first-child span {
+          display: block !important;
+          color: #111827 !important;
+          font-size: 7.8px !important;
+          font-weight: 800 !important;
+          margin-top: 1px !important;
+          line-height: 1.12 !important;
+        }
+        .soa-pdf-export .f-soa-penalty-payment { color: #b91c1c !important; font-weight: 800 !important; }
+        .soa-pdf-export .f-soa-penalty-footer {
+          background: #0b297a !important;
+          color: #fff !important;
+          display: grid !important;
+          grid-template-columns: repeat(3, 1fr) !important;
+        }
+        .soa-pdf-export .f-soa-penalty-footer div {
+          padding: 6px 8px !important;
+          border-right: 1px solid #374151 !important;
+          text-align: center !important;
+        }
+        .soa-pdf-export .f-soa-penalty-footer div:last-child { border-right: none !important; }
+        .soa-pdf-export .f-soa-penalty-footer span { color: #fff !important; }
+        .soa-pdf-export .f-soa-penalty-footer strong { color: #fff !important; font-size: 12px !important; font-weight: 900 !important; }
+        .soa-pdf-export .f-soa-thank-you { text-align: center !important; margin-top: 10px !important; }
+        .soa-pdf-export .f-soa-thank-you p {
+          color: #0b297a !important;
+          font-style: italic !important;
+          font-size: 13px !important;
+          font-weight: 600 !important;
+          line-height: 1.25 !important;
+          margin: 0 !important;
+        }
+      `;
+      exportRoot.prepend(pdfStyle);
+
+      const exportHost = document.createElement('div');
+      exportHost.className = 'soa-print-statement';
+      exportHost.style.position = 'fixed';
+      exportHost.style.left = '-10000px';
+      exportHost.style.top = '0';
+      exportHost.style.width = '8.5in';
+      exportHost.style.background = '#ffffff';
+      exportHost.appendChild(exportRoot);
+      document.body.appendChild(exportHost);
+
+      html2pdf()
+        .set({
+          margin: [0.3, 0.3, 0.3, 0.45],
+          filename: `Statement_of_Account_${loan.loan_code || 'loan'}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+          jsPDF: { unit: 'in', format: [8.5, 13], orientation: 'portrait' },
+          pagebreak: { mode: ['css', 'legacy'] }
+        })
+        .from(exportRoot)
+        .save()
+        .finally(() => {
+          exportHost.remove();
+          suppressNextPrintRef.current = false;
+          setPrintModeLoan(null);
+        });
+    }, 250);
+  };
   const getPenaltyComputation = (loan) => {
     const dueDate = parseLocalDate(loan?.date_maturity);
     const datePrepared = new Date();
@@ -616,8 +943,10 @@ export default function Customers() {
                 const validLoans = loans.filter(l => ['active', 'pastdue', 'fullpaid'].includes(l.status));
                 const activeLoans = loans.filter(l => ['active', 'pastdue'].includes(l.status));
                 const currentLoan = printModeLoan || activeLoans[0] || validLoans[0] || loans[0] || {};
-                const sortedPayments = soaData.payments 
-                  ? [...soaData.payments].filter(p => printModeLoan ? p.loan_code === printModeLoan.loan_code : true).sort((a, b) => new Date(b.date_paid) - new Date(a.date_paid)) 
+                const sortedPayments = soaData.payments
+                  ? [...soaData.payments]
+                      .filter(p => (printModeLoan ? p.loan_code === printModeLoan.loan_code : true) && isGoodPayment(p))
+                      .sort((a, b) => new Date(b.date_paid) - new Date(a.date_paid))
                   : [];
                 const printLedgerPayments = [...sortedPayments].sort((a, b) => new Date(a.date_paid) - new Date(b.date_paid));
                 const totalLoanAmt = printModeLoan ? Number(currentLoan.total_amortization || currentLoan.principal || 0) : validLoans.reduce((sum, l) => sum + Number(l.total_amortization || l.principal || 0), 0);
@@ -672,7 +1001,11 @@ export default function Customers() {
                       <>
                         <div className="soa-card-v2 print-card">
                           <div className="soa-cust-info-v2">
-                            <div className="soa-avatar-v2">{cleanInitials}</div>
+                            <div className="soa-avatar-v2">
+                              {soaData.photo_client ? (
+                                <img src={getImageUrl(soaData.photo_client)} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                              ) : cleanInitials}
+                            </div>
                             <div className="soa-info-grid-v2">
                               <div>
                                 <div className="soa-label-v2">Customer Name</div>
@@ -799,6 +1132,27 @@ export default function Customers() {
                             </section>
                           ))}
                         </div>
+
+                        <section className="soa-profile-section" style={{ marginTop: '24px', gridColumn: '1 / -1' }}>
+                          <h4>ID AND PHOTO ATTACHMENTS</h4>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '12px' }}>
+                            {[
+                              ['Client Photo', soaData.photo_client],
+                              ['ID Front', soaData.photo_id_front],
+                              ['ID Back', soaData.photo_id_back],
+                              ['Business Proof / Store', soaData.photo_business_proof],
+                            ].map(([label, path]) => (
+                              <div key={label} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', background: '#fff' }}>
+                                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>{label}</div>
+                                {path ? (
+                                  <img src={getImageUrl(path)} alt={label} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '4px' }} />
+                                ) : (
+                                  <div style={{ width: '100%', height: '150px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', borderRadius: '4px', fontSize: '14px' }}>No image</div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </section>
                       </div>
                     )}
 
@@ -1241,6 +1595,15 @@ export default function Customers() {
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <button
+                  type="button"
+                  onClick={() => exportPaymentHistory(selectedLoanForPayments)}
+                  style={{ background: '#f0fdf4', color: '#16a34a', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#dcfce7'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#f0fdf4'}
+                >
+                  <i className="bi bi-file-earmark-pdf"></i> Export PDF
+                </button>
                 <button 
                   onClick={() => setPrintModeLoan(selectedLoanForPayments)} 
                   style={{ background: '#eff6ff', color: '#2563eb', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background 0.2s' }}
@@ -1426,7 +1789,7 @@ export default function Customers() {
 
               {/* Payment History Logic */}
               {(() => {
-                const loanPayments = (soaData?.payments || []).filter(p => p.loan_code === selectedLoanForPayments.loan_code).sort((a,b) => new Date(b.date_paid) - new Date(a.date_paid));
+                const loanPayments = getPaymentHistoryRows(selectedLoanForPayments);
                 const totalPaid = loanPayments.reduce((sum, p) => sum + Number(p.amount_paid || 0), 0);
                 const totalPayable = Number(selectedLoanForPayments.total_amortization || selectedLoanForPayments.principal);
                 const paymentRate = totalPayable > 0 ? Math.min(100, (totalPaid / totalPayable) * 100).toFixed(2) : 0;
@@ -1455,11 +1818,11 @@ export default function Customers() {
                               
                               // Pill styles
                               let pillBg = '#f1f5f9', pillColor = '#64748b', pillIcon = 'bi-circle';
-                              let statusText = 'Active';
+                              let statusText = getPaymentStatusText(p);
                               
-                              if (isReversed) { pillBg = '#fee2e2'; pillColor = '#ef4444'; pillIcon = 'bi-x-circle'; statusText = 'Reversed'; }
-                              else if (isFullyPaid) { pillBg = '#f3e8ff'; pillColor = '#9333ea'; pillIcon = 'bi-check-circle'; statusText = 'Fully Paid'; }
-                              else if (isPartial) { pillBg = '#dcfce7'; pillColor = '#16a34a'; pillIcon = 'bi-check-circle'; statusText = 'Active'; }
+                              if (isReversed) { pillBg = '#fee2e2'; pillColor = '#ef4444'; pillIcon = 'bi-x-circle'; }
+                              else if (isFullyPaid) { pillBg = '#f3e8ff'; pillColor = '#9333ea'; pillIcon = 'bi-check-circle'; }
+                              else if (isPartial) { pillBg = '#dcfce7'; pillColor = '#16a34a'; pillIcon = 'bi-check-circle'; }
                               
                               return (
                                 <tr key={p.id} style={{ borderBottom: idx === loanPayments.length - 1 ? 'none' : '1px solid #f1f5f9' }}>

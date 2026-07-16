@@ -81,8 +81,12 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
   const getImageUrl = (path) => {
     if (!path) return '';
     if (path.startsWith('http')) return path;
+    if (path.startsWith('/')) {
+      const baseUrl = API.defaults.baseURL.replace('/api', '');
+      return `${baseUrl}${path}`;
+    }
     const baseUrl = API.defaults.baseURL.replace('/api', '');
-    return `${baseUrl}${path}`;
+    return `${baseUrl}/${path}`;
   };
   
   const handleFileUpload = async (file, field) => {
