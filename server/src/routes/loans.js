@@ -91,16 +91,24 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { customer_id, collector_id, branch_id, loan_type, principal, interest_rate, date_released, remarks, status } = req.body;
+    const { customer_id, collector_id, branch_id, loan_type, principal, interest_rate, date_released, previous_balance, penalty, passbook, remarks, status } = req.body;
     if (!customer_id || !principal || !date_released) return res.status(400).json({ error: 'customer_id, principal, date_released required' });
     const { interest_amount, total_amortization, amortization } = computeAmortization(principal, interest_rate || 0, 45);
     const date_maturity = computeMaturityDate(date_released, 45);
-    const { service_fee, total_deductions, net_proceeds } = computeNetProceeds(principal, 0, 0, 0, 0);
+    const balanceAmount = Number(previous_balance || 0);
+    const penaltyAmount = Number(penalty || 0);
+    const normalizedLoanType = String(loan_type || 'New').toLowerCase();
+    const isNewLoan = normalizedLoanType === 'new' || normalizedLoanType === 'new loan';
+    const passbookAmount = passbook === undefined || passbook === null || passbook === ''
+      ? (isNewLoan ? 50 : 0)
+      : Number(passbook || 0);
+    const { service_fee, total_deductions } = computeNetProceeds(principal, 0, 0, 0, 0);
+    const net_proceeds = Math.max(Number(principal || 0) - balanceAmount - penaltyAmount - passbookAmount, 0);
     const maxLoan = await dbGet("SELECT MAX(CAST(REPLACE(loan_code, 'LN-', '') AS INTEGER)) as c FROM tblLoan");
     const loan_code = `LN-${String((maxLoan?.c || 0) + 1).padStart(6, '0')}`;
     const loan_status = status || 'pending';
-    const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, service_fee, insurance, notarial_fee, filing_fee, total_deductions, net_proceeds, balance, or_number, remarks, created_by, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [loan_code, customer_id, collector_id, branch_id || null, loan_type || 'New', principal, interest_rate || 0, interest_amount, 45, date_released, date_maturity, amortization, total_amortization, 0, 0, 0, 0, 0, net_proceeds, total_amortization, '', remarks, req.user.id, loan_status]);
+    const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, service_fee, insurance, notarial_fee, filing_fee, total_deductions, net_proceeds, balance, previous_balance, penalty, passbook, or_number, remarks, created_by, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [loan_code, customer_id, collector_id, branch_id || null, loan_type || 'New', principal, interest_rate || 0, interest_amount, 45, date_released, date_maturity, amortization, total_amortization, 0, 0, 0, 0, 0, net_proceeds, total_amortization, balanceAmount, penaltyAmount, passbookAmount, '', remarks, req.user.id, loan_status]);
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'LOAN', result.lastID, `New loan created (${loan_status}): ${loan_code}`]);
     res.status(201).json({ id: result.lastID, loan_code, amortization, total_amortization, date_maturity, net_proceeds });
   } catch (err) { res.status(500).json({ error: err.message }); }

@@ -638,7 +638,7 @@ router.post('/:id/penalty', authenticateToken, requireRole('admin', 'manager'), 
 
 router.post('/:id/reloan', authenticateToken, async (req, res) => {
   try {
-    const { principal, loan_period, interest_rate, date_released, loan_type, previous_balance, remarks } = req.body;
+    const { principal, loan_period, interest_rate, date_released, loan_type, previous_balance, penalty, passbook, remarks } = req.body;
     const customer = await dbGet('SELECT * FROM tblCustomer WHERE id = ?', [req.params.id]);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
     
@@ -656,9 +656,16 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
     const totalAmortization = amount + interestAmount;
     const amortization = amount > 0 && period > 0 ? Math.ceil(totalAmortization / period) : 0;
     const dateMaturity = computeMaturityDate(releaseDate, period);
+    const balanceAmount = Number(previous_balance || 0);
+    const penaltyAmount = Number(penalty || 0);
+    const passbookAmount = passbook === undefined || passbook === null || passbook === ''
+      ? 50
+      : Number(passbook || 0);
+    const totalCharges = balanceAmount + penaltyAmount + passbookAmount;
+    const netProceeds = Math.max(amount - totalCharges, 0);
     
-    const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, net_proceeds, balance, previous_balance, status, remarks, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [loan_code, customer.id, customer.collector_id, customer.branch_id, normalizedLoanType, amount, interestRate, interestAmount, period, releaseDate, dateMaturity, amortization, totalAmortization, amount, totalAmortization, Number(previous_balance || 0), loanStatus, remarks || defaultRemarks, req.user.id]
+    const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, net_proceeds, balance, previous_balance, penalty, passbook, status, remarks, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [loan_code, customer.id, customer.collector_id, customer.branch_id, normalizedLoanType, amount, interestRate, interestAmount, period, releaseDate, dateMaturity, amortization, totalAmortization, netProceeds, totalAmortization, balanceAmount, penaltyAmount, passbookAmount, loanStatus, remarks || defaultRemarks, req.user.id]
     );
     if (loanStatus === 'active') {
       const schedule = generateAmortizationSchedule(result.lastID, releaseDate, period, amortization);

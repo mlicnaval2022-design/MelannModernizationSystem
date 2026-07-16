@@ -409,16 +409,21 @@
 
 .reloan-charges-row {
   display: grid;
-  grid-template-columns: 1fr;
-  justify-items: end;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 14px;
+  justify-items: stretch;
   align-items: stretch;
   margin-top: 4px;
 }
 
 .reloan-charges {
-  display: none;
-  grid-template-columns: 1fr 1fr;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px 14px;
+  padding: 14px;
+  border: 1px solid #e2e6f2;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ffffff, #fbfdff);
 }
 
 .reloan-charges .reloan-section-title {
@@ -427,8 +432,8 @@
 
 .reloan-charge-field {
   display: grid;
-  grid-template-columns: 86px minmax(0, 1fr);
-  align-items: center;
+  grid-template-columns: 1fr;
+  align-items: start;
   gap: 8px;
   font-weight: 700;
 }
