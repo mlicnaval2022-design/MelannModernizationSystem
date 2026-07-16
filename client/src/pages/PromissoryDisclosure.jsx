@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import html2pdf from 'html2pdf.js'
 import API from '../services/api'
 import letterheadImg from '../assets/melann-letterhead.jpg'
+import marilynSignature from '../assets/marilyn-reloba-signature.png'
 
 const fmtMoney = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const shortDate = value => value ? new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '-'
+const wordDate = value => value ? new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '-'
 const toDateInputValue = date => {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -263,7 +265,7 @@ function DocumentPreview({ data }) {
   return (
     <div id="promissory-printable" className="promissory-print">
       <style>{`
-        .promissory-print { width: 8.5in; min-height: 14in; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; font-size: 10.8px; line-height: 1.24; margin: 0 auto; padding: 0.32in 0.35in 0.38in; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); box-sizing: border-box; overflow: visible; }
+        .promissory-print { width: 8.5in; min-height: 14in; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; font-size: 10.8px; line-height: 1.24; margin: 0 auto; padding: 0.55in 0.55in 0.38in; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); box-sizing: border-box; overflow: visible; }
         .xl-header { display: grid; grid-template-columns: minmax(0, 1fr) 2.25in; gap: 0.16in; align-items: start; margin: 0 0 0.08in; }
         .xl-letterhead { width: 4.55in; max-width: 100%; height: auto; display: block; }
         .xl-loan-type { text-align: right; color: red; font-size: 12px; font-weight: 900; margin-bottom: 2px; text-transform: uppercase; }
@@ -286,6 +288,7 @@ function DocumentPreview({ data }) {
         .xl-loan-details td:first-child { min-width: 130px; }
         .xl-loan-details .xl-line { text-align: left; }
         .xl-loan-details .xl-line { min-width: 92px; }
+        .xl-date-line { min-width: 150px !important; }
         .xl-check-grid { display: grid; grid-template-columns: 1fr 1.1fr; gap: 60px; align-items: end; margin: 16px 0 3px; }
         .xl-check-grid > div:first-child,
         .xl-lender-sign,
@@ -295,6 +298,7 @@ function DocumentPreview({ data }) {
         .xl-sig-label { text-align: center; font-size: 9px; }
         .xl-lender { text-align: center; font-weight: 700; }
         .xl-lender-sign { width: 238px; margin: 3px auto 0; text-align: center; }
+        .xl-lender-signature-img { display: block; width: 88px; height: auto; margin: -8px auto -3px; position: relative; z-index: 1; }
         .xl-receipt-title { font-weight: 800; text-decoration: underline; margin-top: 14px; font-size: 12px; }
         .xl-receipt-date { float: right; font-weight: 700; min-width: 108px; border-bottom: 1px solid #000; text-align: center; }
         .xl-borrower-sign { width: 238px; margin: 20px 0 0 auto; text-align: center; }
@@ -343,7 +347,7 @@ function DocumentPreview({ data }) {
         <tbody>
           <tr><td>Principal Loan Amount:</td><td>Php</td><td><span className="xl-line">{fmtMoney(principal)}</span></td></tr>
           <tr><td>Interest Rate:</td><td colSpan="2"><span className="xl-line">{interestRate}</span> payable in <span className="xl-line">{displayLoanPeriod}</span> days</td></tr>
-          <tr><td>Due Date:</td><td colSpan="2"><span className="xl-line">{shortDate(maturityDate)}</span></td></tr>
+          <tr><td>Due Date:</td><td colSpan="2"><span className="xl-line xl-date-line">{wordDate(maturityDate)}</span></td></tr>
         </tbody>
       </table>
       <p className="xl-p">(NOTE: Penalty for late payment is 5% per month of the overdue amount)</p>
@@ -369,7 +373,7 @@ function DocumentPreview({ data }) {
           <div className="xl-sig-label">Lender</div>
           <div className="xl-sig-label">as represented by:</div>
           <div className="xl-lender-sign">
-            <div className="xl-check">ü</div>
+            <img className="xl-lender-signature-img" src={marilynSignature} alt="Marilyn O. Reloba signature" />
             <div className="xl-sig-name">MARILYN O. RELOBA</div>
             <div className="xl-sig-label">Branch Manager</div>
           </div>
