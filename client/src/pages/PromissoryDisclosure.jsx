@@ -87,6 +87,7 @@ export default function PromissoryDisclosure() {
   const [releaseDate, setReleaseDate] = useState(toDateInputValue(new Date()))
   const [selectedId, setSelectedId] = useState('')
   const [documentData, setDocumentData] = useState(null)
+  const [activeTab, setActiveTab] = useState('promissory')
   const [loadingList, setLoadingList] = useState(false)
   const [loadingDoc, setLoadingDoc] = useState(false)
   const [error, setError] = useState('')
@@ -152,7 +153,8 @@ export default function PromissoryDisclosure() {
   const printDocument = () => setTimeout(() => window.print(), 100)
 
   const exportPdf = () => {
-    const printable = document.getElementById('promissory-printable')
+    const printableId = activeTab === 'disclosure' ? 'disclosure-printable' : 'promissory-printable'
+    const printable = document.getElementById(printableId)
     if (!printable) {
       alert('Document is not ready yet.')
       return
@@ -179,7 +181,7 @@ export default function PromissoryDisclosure() {
     html2pdf()
       .set({
         margin: 0,
-        filename: `Promissory_${safeName(loanCode)}.pdf`,
+        filename: `${activeTab === 'disclosure' ? 'Disclosure' : 'Promissory'}_${safeName(loanCode)}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
         jsPDF: { unit: 'in', format: [8.5, 14], orientation: 'portrait' },
@@ -193,7 +195,30 @@ export default function PromissoryDisclosure() {
   return (
     <div className="content">
       <div className="card">
-        <div className="card-title">Promissory</div>
+        <div className="card-title">For Print</div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: '1px solid #dbe7f6' }}>
+          {[
+            ['promissory', 'Promissory'],
+            ['disclosure', 'Disclosure'],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setActiveTab(key)}
+              style={{
+                border: 0,
+                borderBottom: activeTab === key ? '3px solid #2563eb' : '3px solid transparent',
+                background: 'transparent',
+                color: activeTab === key ? '#1d4ed8' : '#64748b',
+                fontWeight: 800,
+                padding: '10px 16px',
+                cursor: 'pointer'
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="form-actions" style={{ justifyContent: 'space-between', alignItems: 'end', gap: 12, flexWrap: 'wrap' }}>
           <div className="form-group" style={{ minWidth: 320, flex: '1 1 320px' }}>
             <label className="form-label">Search Posted Loan</label>
@@ -205,7 +230,7 @@ export default function PromissoryDisclosure() {
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button className="btn btn-secondary" onClick={loadLoans} disabled={loadingList}>{loadingList ? 'Refreshing...' : 'Refresh'}</button>
-            <button className="btn btn-secondary" onClick={printDocument} disabled={!documentData || loadingDoc}>Print</button>
+            <button className="btn btn-secondary" onClick={printDocument} disabled={!documentData || loadingDoc}>Print {activeTab === 'disclosure' ? 'Disclosure' : 'Promissory'}</button>
             <button className="btn btn-primary" onClick={exportPdf} disabled={!documentData || loadingDoc}>Export PDF</button>
           </div>
         </div>
@@ -238,9 +263,214 @@ export default function PromissoryDisclosure() {
             </table>
           </div>
           <div>
-            {loadingDoc ? <div className="empty-state">Loading document...</div> : documentData ? <DocumentPreview data={documentData} /> : <div className="empty-state">Select a posted loan to preview the document.</div>}
+            {loadingDoc ? (
+              <div className="empty-state">Loading document...</div>
+            ) : documentData ? (
+              activeTab === 'disclosure' ? <DisclosurePreview data={documentData} /> : <DocumentPreview data={documentData} />
+            ) : (
+              <div className="empty-state">Select a posted loan to preview the document.</div>
+            )}
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function DisclosurePreview({ data }) {
+  const loan = data.loan || {}
+  const principal = Number(loan.principal || 0)
+  const totalLoan = Number(loan.total_amortization || loan.principal || 0)
+  const interestRate = Number(loan.interest_rate || 0)
+  const loanPeriod = Number(loan.loan_period || 0)
+  const displayLoanPeriod = disclosurePeriod(loanPeriod)
+  const amortization = Number(loan.amortization || 0)
+  const maturityDate = loan.date_maturity || addDays(loan.date_released, loanPeriod)
+  const fullName = formatBorrowerName(loan)
+  const netProceed = Number(loan.net_proceeds || principal)
+  const charges = Number(loan.service_fee || 0) + Number(loan.insurance || 0) + Number(loan.notarial_fee || 0) + Number(loan.filing_fee || 0) + Number(loan.total_deductions || 0) + Number(loan.penalty || 0) + Number(loan.passbook || 0) + Number(loan.previous_balance || 0)
+  const schedule = (data.schedule || []).slice(0, 45)
+  const collateral = loan.collateral || '-'
+  const field = (label, value, strong = false) => (
+    <div className="ds-field">
+      <span>{label}</span>
+      <b className={strong ? 'ds-strong' : ''}>{value || '-'}</b>
+    </div>
+  )
+
+  return (
+    <div id="disclosure-printable" className="disclosure-print">
+      <style>{`
+        .disclosure-print { width: 8.5in; min-height: 14in; background: #fff; color: #293344; font-family: Arial, Helvetica, sans-serif; margin: 0 auto; border: 1px solid #d7e0ec; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08); box-sizing: border-box; overflow: hidden; }
+        .ds-header { display: flex; justify-content: space-between; gap: 24px; align-items: center; background: #11244a; color: #fff; border-left: 14px solid #f6bd13; padding: 24px 34px; }
+        .ds-company { font-size: 28px; font-weight: 900; letter-spacing: 1px; line-height: 1; }
+        .ds-sub { margin-top: 8px; color: #cbd5e1; font-size: 13px; }
+        .ds-badge { border: 1px solid #355587; border-radius: 8px; padding: 10px 18px; text-align: center; min-width: 240px; background: rgba(255,255,255,0.04); }
+        .ds-badge-title { font-size: 20px; font-weight: 900; letter-spacing: 1px; }
+        .ds-badge-id { margin-top: 6px; color: #f6bd13; font-size: 15px; font-weight: 900; }
+        .ds-body { padding: 18px 28px 28px; }
+        .ds-section { border: 1px solid #d9e2ef; border-radius: 8px; margin-bottom: 14px; overflow: hidden; break-inside: avoid; }
+        .ds-section-title { background: #142b57; color: #fff; padding: 8px 16px; font-size: 14px; font-weight: 900; letter-spacing: 0.6px; text-transform: uppercase; }
+        .ds-section-body { padding: 14px 18px; }
+        .ds-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 26px; }
+        .ds-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 18px; }
+        .ds-field { display: grid; grid-template-columns: 145px 1fr; align-items: end; gap: 8px; font-size: 12px; min-height: 22px; }
+        .ds-field span { color: #667085; font-weight: 800; }
+        .ds-field b { border-bottom: 1px solid #d5dde8; min-height: 18px; color: #293344; font-weight: 600; }
+        .ds-field .ds-strong { font-weight: 900; }
+        .ds-charge-strip { display: grid; grid-template-columns: repeat(5, 1fr); margin-top: 12px; overflow: hidden; border-radius: 6px; background: #eef3f8; }
+        .ds-charge-strip .ds-field { grid-template-columns: 1fr auto; padding: 7px 10px; }
+        .ds-charge-strip .ds-field b { border-bottom: 0; text-align: right; }
+        .ds-schedule { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .ds-schedule table { width: 100%; border-collapse: collapse; font-size: 10px; }
+        .ds-schedule th { color: #142b57; font-weight: 900; border-bottom: 1px solid #d9e2ef; padding: 5px 3px; }
+        .ds-schedule td { border-bottom: 1px solid #edf1f6; padding: 4px 3px; text-align: center; }
+        .ds-schedule .money { text-align: right; font-weight: 700; }
+        .ds-signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin: 34px 0 18px; }
+        .ds-signature { text-align: center; color: #7a8699; font-size: 10px; }
+        .ds-line { border-top: 1px solid #142b57; margin-bottom: 7px; height: 1px; }
+        .ds-authorized-signature { position: relative; padding-top: 0; transform: translateY(-6px); }
+        .ds-authorized-signature-img { display: block; width: 104px; height: auto; margin: -33px auto -5px; filter: brightness(0); }
+        .ds-authorized-name { color: #293344; font-weight: 900; border-top: 1px solid #142b57; padding-top: 5px; margin-bottom: 4px; }
+        .ds-ack { font-size: 11px; line-height: 1.35; font-weight: 800; margin: 16px 0; }
+        .ds-clause { font-size: 11px; line-height: 1.35; font-style: italic; color: #3f4a5c; }
+        .ds-borrower { display: grid; grid-template-columns: 1fr 220px; gap: 80px; margin: 30px 20px 8px; }
+        .ds-footer { display: flex; justify-content: space-between; background: #11244a; color: #dbe5f4; padding: 10px 34px; font-size: 11px; font-weight: 800; }
+        @media print {
+          @page { size: legal portrait; margin: 0; }
+          body { margin: 0 !important; background: #fff !important; }
+          body * { visibility: hidden !important; }
+          #disclosure-printable, #disclosure-printable * { visibility: visible !important; }
+          #disclosure-printable {
+            position: absolute !important; left: 0 !important; top: 0 !important;
+            width: 8.5in !important; min-height: 14in !important; max-width: none !important;
+            box-shadow: none !important; margin: 0 !important; overflow: hidden !important;
+          }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+      `}</style>
+      <div className="ds-header">
+        <div>
+          <div className="ds-company">MELANN LENDING INVESTOR CORP.</div>
+          <div className="ds-sub">Ormoc City</div>
+          <div className="ds-sub">On Loans/Credit Transaction As required under R.A. 3765, Truth in Lending Act</div>
+        </div>
+        <div className="ds-badge">
+          <div className="ds-badge-title">DISCLOSURE STATEMENT</div>
+          <div className="ds-badge-id">Loan ID: {loan.loan_code || loan.id}</div>
+        </div>
+      </div>
+
+      <div className="ds-body">
+        <section className="ds-section">
+          <div className="ds-section-title">Client Information</div>
+          <div className="ds-section-body ds-grid-2">
+            <div>
+              {field('Name', fullName, true)}
+              {field('Code', loan.customer_code)}
+              {field('Address', loan.address)}
+              {field('Age', calculateAge(loan.birth_date))}
+              {field('Nature of Business', loan.business_type || loan.business_name || loan.occupation)}
+            </div>
+            <div>
+              {field('Phone Number', [loan.contact, loan.secondary_contact].filter(Boolean).join('/'))}
+              {field('Birthday', shortDate(loan.birth_date))}
+              {field('Gender', loan.gender)}
+              {field('Purpose of Loan', loan.loan_purpose || loan.remarks || 'Additional Capital')}
+              {field('ID Document', [loan.id_type, loan.id_number].filter(Boolean).join(' - '))}
+            </div>
+          </div>
+        </section>
+
+        <section className="ds-section">
+          <div className="ds-section-title">Loan Information</div>
+          <div className="ds-section-body">
+            <div className="ds-grid-3">
+              <div>
+                {field('Date Release', shortDate(loan.date_released))}
+                {field('Maturity', shortDate(maturityDate))}
+                {field('Loan Period', `${displayLoanPeriod} days`)}
+              </div>
+              <div>
+                {field('Principal', fmtMoney(principal), true)}
+                {field('Loan Total', fmtMoney(totalLoan), true)}
+                {field('Payment / Day', fmtMoney(amortization), true)}
+              </div>
+              <div>
+                {field('Interest Rate', `${interestRate}%`, true)}
+                {field('Loan Type', loan.loan_type)}
+                {field('Loan Status', loan.status, true)}
+              </div>
+            </div>
+            <div className="ds-charge-strip">
+              {field('Service Fee', fmtMoney(loan.service_fee))}
+              {field('Insurance', fmtMoney(loan.insurance))}
+              {field('Passbook', fmtMoney(loan.passbook))}
+              {field('Penalty', fmtMoney(loan.penalty))}
+              {field('Prev. Balance', fmtMoney(loan.previous_balance))}
+              {field('Total Charges', fmtMoney(charges), true)}
+              {field('Net Proceed', fmtMoney(netProceed), true)}
+              {field('Collateral', collateral, true)}
+              {field('Late Penalty', '5% / month')}
+              {field('Total Payment', fmtMoney(loan.total_paid))}
+            </div>
+          </div>
+        </section>
+
+        <section className="ds-section">
+          <div className="ds-section-title">Amortization Schedule</div>
+          <div className="ds-section-body ds-schedule">
+            {[0, 1, 2].map(columnIndex => (
+              <table key={columnIndex}>
+                <thead><tr><th>No.</th><th>Date</th><th>Amortization</th><th>Balance</th></tr></thead>
+                <tbody>
+                  {schedule.filter((_, idx) => idx % 3 === columnIndex).map((row, idx) => {
+                    const no = row.period_number || (idx * 3) + columnIndex + 1
+                    const amount = Number(row.amount_due || amortization || 0)
+                    const balance = Math.max(totalLoan - (amount * no), 0)
+                    return (
+                      <tr key={`${columnIndex}-${no}`}>
+                        <td>{no}</td>
+                        <td>{shortDate(row.due_date)}</td>
+                        <td className="money">{fmtMoney(amount)}</td>
+                        <td className="money">{fmtMoney(balance)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            ))}
+          </div>
+        </section>
+
+        <section className="ds-section">
+          <div className="ds-section-title">Disclosure Statement</div>
+          <div className="ds-section-body">
+            <div className="ds-grid-2">
+              <div>{field('Name', fullName, true)}{field('Address', loan.address)}</div>
+              <div>{field('Birthday', shortDate(loan.birth_date))}{field('Nationality', loan.nationality || 'Filipino')}{field('Gender', loan.gender)}</div>
+            </div>
+            <div style={{ color: '#142b57', fontWeight: 900, marginTop: 20 }}>CERTIFIED CORRECT:</div>
+            <div className="ds-signatures">
+              {[1, 2].map(item => <div className="ds-signature" key={item}><div className="ds-line" />Signature of Authorized Representative<br />Over Printed Name / Position</div>)}
+              <div className="ds-signature ds-authorized-signature">
+                <img className="ds-authorized-signature-img" src={marilynSignature} alt="Marilyn O. Reloba signature" />
+                <div className="ds-authorized-name">MARILYN O. RELOBA</div>
+                Signature of Authorized Representative<br />Over Printed Name / Position
+              </div>
+            </div>
+            <div className="ds-ack">I ACKNOWLEDGE RECEIPT OF A COPY OF THIS STATEMENT PRIOR TO THE CONSUMMATION OF THE CREDIT TRANSACTION AND THAT I UNDERSTAND AND FULLY AGREE TO THE TERMS AND CONDITIONS THEREOF:</div>
+            <div className="ds-clause">In the event of borrower's death during the active period of the loan, the total unpaid balance of the loan will be deemed paid, provided that the account is not in a past due status.</div>
+            <div className="ds-borrower">
+              <div className="ds-signature"><div className="ds-line" />Signature of Borrower Over Printed Name</div>
+              <div className="ds-signature"><div className="ds-line" />Date</div>
+            </div>
+          </div>
+        </section>
+      </div>
+      <div className="ds-footer">
+        <span>{shortDate(new Date().toISOString().split('T')[0])}</span>
+        <span>Page 1 of 1</span>
       </div>
     </div>
   )
@@ -289,6 +519,7 @@ function DocumentPreview({ data }) {
         .xl-loan-details .xl-line { text-align: left; }
         .xl-loan-details .xl-line { min-width: 92px; }
         .xl-date-line { min-width: 150px !important; }
+        .xl-collateral-line { color: #000; border-bottom-color: #000; }
         .xl-check-grid { display: grid; grid-template-columns: 1fr 1.1fr; gap: 60px; align-items: end; margin: 16px 0 3px; }
         .xl-check-grid > div:first-child,
         .xl-lender-sign,
@@ -298,7 +529,7 @@ function DocumentPreview({ data }) {
         .xl-sig-label { text-align: center; font-size: 9px; }
         .xl-lender { text-align: center; font-weight: 700; }
         .xl-lender-sign { width: 238px; margin: 3px auto 0; text-align: center; }
-        .xl-lender-signature-img { display: block; width: 88px; height: auto; margin: -8px auto -3px; position: relative; z-index: 1; }
+        .xl-lender-signature-img { display: block; width: 125px; height: auto; margin: -12px auto -5px; position: relative; z-index: 1; filter: brightness(0); }
         .xl-receipt-title { font-weight: 800; text-decoration: underline; margin-top: 14px; font-size: 12px; }
         .xl-receipt-date { float: right; font-weight: 700; min-width: 108px; border-bottom: 1px solid #000; text-align: center; }
         .xl-borrower-sign { width: 238px; margin: 20px 0 0 auto; text-align: center; }
@@ -330,7 +561,7 @@ function DocumentPreview({ data }) {
         </div>
       </div>
       <div className="xl-title">PROMISSORY NOTE AND LOAN AGREEMENT</div>
-      <div className="xl-date">{shortDate(loan.date_released)}</div>
+      <div className="xl-date">{wordDate(loan.date_released)}</div>
       <p className="xl-p">by and between:</p>
       <p className="xl-p"><strong>MELANN LENDING INVESTOR CORPORATION</strong>, a Philippine corporation duly registered with the Securities and Exchange Commision of the Philippines (SEC), with principal place of business at 943 Purok 2, Brgy. Bagong Buhay, Ormoc City and hereinafter referred to as the "LENDER";</p>
       <p className="xl-center">- and -</p>
@@ -339,20 +570,20 @@ function DocumentPreview({ data }) {
 
       <div className="xl-section">PROMISSORY NOTE</div>
       <p className="xl-p xl-indent">FOR VALUE RECEIVED, herein BORROWER promises to pay to the LENDER the sum of <span className="xl-line xl-wide">{words}</span></p>
-      <p className="xl-p">(Php <span className="xl-line">{fmtMoney(principal)}</span>) together with the interest thereon at a rate of <span className="xl-line">{interestRate}</span> payable in <span className="xl-line">{displayLoanPeriod}</span> days.</p>
+      <p className="xl-p">(Php <span className="xl-line">{fmtMoney(principal)}</span>) together with the interest thereon at a rate of <span className="xl-line">{interestRate}%</span> payable in <span className="xl-line">{displayLoanPeriod}</span> days.</p>
 
       <div className="xl-section">LOAN AGREEMENT</div>
       <p className="xl-p">The BORROWER and LENDER, hereby further set forth their rights and obligations to one another under this Promissory Note and Loan Agreement and agree to be legally bound as follows:</p>
       <table className="xl-table xl-loan-details">
         <tbody>
           <tr><td>Principal Loan Amount:</td><td>Php</td><td><span className="xl-line">{fmtMoney(principal)}</span></td></tr>
-          <tr><td>Interest Rate:</td><td colSpan="2"><span className="xl-line">{interestRate}</span> payable in <span className="xl-line">{displayLoanPeriod}</span> days</td></tr>
+          <tr><td>Interest Rate:</td><td colSpan="2"><span className="xl-line">{interestRate}%</span> payable in <span className="xl-line">{displayLoanPeriod}</span> days</td></tr>
           <tr><td>Due Date:</td><td colSpan="2"><span className="xl-line xl-date-line">{wordDate(maturityDate)}</span></td></tr>
         </tbody>
       </table>
       <p className="xl-p">(NOTE: Penalty for late payment is 5% per month of the overdue amount)</p>
       <p className="xl-p"><strong>Collateral.</strong> To secure the payment of the loan by the BORROWER of all his/her obligations in this Promissory Note and Loan Agreement, the BORROWER shall deliver to the LENDER the titles of the following properties as collaterals:</p>
-      <p className="xl-p">Collaterals: <span className="xl-line xl-wide">{collateral}</span></p>
+      <p className="xl-p">Collaterals: <span className="xl-line xl-wide xl-collateral-line">{collateral}</span></p>
       <p className="xl-p">In case of loss, damage or diminution in value of properties served as collaterals, with or without the fault of the BORROWER, during the existence of obligation payable under this Promissory Note and Loan Agreement, the BORROWER, upon written demand by the LENDER, shall immediately deliver additional securities acceptable to the LENDER.</p>
       <p className="xl-p"><strong>Default.</strong>The occurrence of any of the following events shall constitute a default by the BORROWER of the terms of this Promissory Note and Loan Agreement:</p>
       <p className="xl-p">(a)&nbsp;&nbsp; BORROWER's failure to pay any amount due as principal or interest on the date required under this Promissory Note and Loan Agreement.</p>
