@@ -17,6 +17,12 @@ async function getSettings() {
 
 // Evaluate a single loan
 async function evaluateLoan(loan, holidays, settings, todayStr = dayjs().format('YYYY-MM-DD')) {
+  const customerStatus = String(loan.customer_status || '').toLowerCase();
+  if (!['active', 'recon'].includes(customerStatus)) {
+    await resolveAlert(loan.id, 'Resolved by Customer Status Change');
+    return;
+  }
+
   // If not active, or balance <= 0, resolve any active alert
   if (loan.status !== 'active' || loan.balance <= 0) {
     await resolveAlert(loan.id, 'Resolved by Status Change or Full Payment');
@@ -129,7 +135,14 @@ async function runDailyMonitoring() {
   const holidays = await getHolidays();
   const settings = await getSettings();
   
-  const activeLoans = await dbAll(`SELECT * FROM tblLoan WHERE status = 'active' AND balance > 0`);
+  const activeLoans = await dbAll(`
+    SELECT l.*, c.status as customer_status
+    FROM tblLoan l
+    JOIN tblCustomer c ON l.customer_id = c.id
+    WHERE l.status = 'active'
+      AND l.balance > 0
+      AND LOWER(c.status) IN ('active', 'recon')
+  `);
   for (const loan of activeLoans) {
     await evaluateLoan(loan, holidays, settings);
   }
@@ -140,7 +153,12 @@ async function runDailyMonitoring() {
 async function triggerLoanRecalculation(loanId) {
   const holidays = await getHolidays();
   const settings = await getSettings();
-  const loan = await dbGet(`SELECT * FROM tblLoan WHERE id = ?`, [loanId]);
+  const loan = await dbGet(`
+    SELECT l.*, c.status as customer_status
+    FROM tblLoan l
+    JOIN tblCustomer c ON l.customer_id = c.id
+    WHERE l.id = ?
+  `, [loanId]);
   if (loan) {
     await evaluateLoan(loan, holidays, settings);
   }

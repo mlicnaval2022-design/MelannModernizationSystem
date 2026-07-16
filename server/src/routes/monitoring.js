@@ -8,7 +8,7 @@ router.get('/alerts', authenticateToken, async (req, res) => {
   try {
     const { tab, branch_id, collector_id } = req.query;
     
-    let baseCond = `1=1`;
+    let baseCond = `LOWER(c.status) IN ('active', 'recon')`;
     const params = [];
 
     // Role-based access
@@ -54,7 +54,7 @@ router.get('/alerts', authenticateToken, async (req, res) => {
 
     const q = `
       SELECT m.*, 
-             c.customer_code, c.full_name as customer_name, c.address, c.contact,
+             c.customer_code, c.full_name as customer_name, c.address, c.contact, c.status as customer_status,
              l.loan_code, l.loan_type, l.date_released, l.amortization, l.balance,
              co.first_name || ' ' || co.last_name as collector_name,
              b.branch_name,
