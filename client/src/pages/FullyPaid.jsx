@@ -17,6 +17,9 @@ export default function FullyPaid({ search = '' }) {
   const [evalCustomer, setEvalCustomer] = useState(null);
   const [penaltyApproved, setPenaltyApproved] = useState(false);
   const [showPaymentHistory, setShowPaymentHistory] = useState(false);
+  const [reasonModal, setReasonModal] = useState(null);
+  const [reasonText, setReasonText] = useState('');
+  const [reasonSaving, setReasonSaving] = useState(false);
 
   // Reloan Modal State
   const [reloanModalOpen, setReloanModalOpen] = useState(false);
@@ -69,6 +72,12 @@ export default function FullyPaid({ search = '' }) {
       return;
     }
 
+    if (action === 'RELAX' || action === 'HOLD') {
+      setReasonModal({ customer, action });
+      setReasonText('');
+      return;
+    }
+
     if (!confirm(`Are you sure you want to set status to ${action}?`)) return;
 
     try {
@@ -89,8 +98,38 @@ export default function FullyPaid({ search = '' }) {
       setReloanModalOpen(true);
       return;
     }
+    if (action === 'RELAX' || action === 'HOLD') {
+      setReasonModal({ customer: evalCustomer, action });
+      setReasonText('');
+      return;
+    }
     await handleActionDirect(evalCustomer, action);
     setEvalModal(false);
+  };
+
+  const submitReasonAction = async () => {
+    if (!reasonModal || !reasonModal.customer) return;
+    const note = reasonText.trim();
+    if (!note) {
+      alert('Please enter manager note / reason.');
+      return;
+    }
+
+    setReasonSaving(true);
+    try {
+      await API.post(`/customers/${reasonModal.customer.id}/status`, {
+        status: reasonModal.action,
+        remarks: note
+      });
+      setReasonModal(null);
+      setReasonText('');
+      setEvalModal(false);
+      load();
+    } catch (err) {
+      alert(err.response?.data?.error || `Error setting status to ${reasonModal.action}`);
+    } finally {
+      setReasonSaving(false);
+    }
   };
 
   const handleApprovePenalty = async () => {
@@ -124,6 +163,12 @@ export default function FullyPaid({ search = '' }) {
   };
 
   const evalTimestamp = new Date().toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const renderNoteCell = (note, date) => (
+    <div style={{ maxWidth: 180, color: note ? '#0f172a' : '#94a3b8', fontSize: 12, lineHeight: 1.35 }}>
+      <div style={{ fontWeight: note ? 700 : 500 }}>{note || '-'}</div>
+      {date && <div style={{ marginTop: 4, color: '#64748b', fontWeight: 500 }}>{String(date).slice(0, 10)}</div>}
+    </div>
+  );
 
   return (
     <div>
@@ -143,12 +188,14 @@ export default function FullyPaid({ search = '' }) {
                 <th>Date Fully Paid</th>
                 <th>Loan Cycles</th>
                 <th>Credit Score</th>
+                <th>Relax Note</th>
+                <th>Hold Note</th>
                 <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {loading ? <tr><td colSpan={9} style={{textAlign:'center', padding:'30px'}}>⏳ Loading...</td></tr>
-                : filteredRows.length === 0 ? <tr><td colSpan={9} className="empty-state">No fully paid clients found</td></tr>
+              {loading ? <tr><td colSpan={11} style={{textAlign:'center', padding:'30px'}}>⏳ Loading...</td></tr>
+                : filteredRows.length === 0 ? <tr><td colSpan={11} className="empty-state">No fully paid clients found</td></tr>
                 : filteredRows.map(r => {
                   const scoreInfo = getScoreColor(r.credit_score);
                   return (
@@ -165,6 +212,8 @@ export default function FullyPaid({ search = '' }) {
                           {scoreInfo.label} ({r.credit_score})
                         </span>
                       </td>
+                      <td>{renderNoteCell(r.relax_note, r.relax_note_date)}</td>
+                      <td>{renderNoteCell(r.hold_note, r.hold_note_date)}</td>
                       <td>
                         {hasRole('admin', 'manager') ? (
                           <div style={{ display: 'flex', gap: '5px' }}>
@@ -384,6 +433,34 @@ export default function FullyPaid({ search = '' }) {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reasonModal && (
+        <div className="modal-overlay" style={{ background: 'rgba(15, 23, 42, 0.55)', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 10000 }}>
+          <div className="modal" style={{ width: 'min(520px, 94vw)', borderRadius: 14, border: '1px solid #dbe7f6', boxShadow: '0 24px 70px rgba(15, 23, 42, 0.28)', padding: 0, background: '#fff', overflow: 'hidden' }}>
+            <div style={{ padding: '22px 26px', borderBottom: '1px solid #dbe7f6', background: '#f8fbff' }}>
+              <h3 style={{ margin: 0, color: '#0b1f44', fontSize: 22, fontWeight: 800 }}>{reasonModal.action} Note / Reason</h3>
+              <div style={{ marginTop: 6, color: '#64748b', fontSize: 14 }}>{reasonModal.customer.client_name}</div>
+            </div>
+            <div style={{ padding: 26 }}>
+              <label style={{ display: 'block', color: '#071a3d', fontSize: 14, fontWeight: 800, marginBottom: 8 }}>Manager note / reason</label>
+              <textarea
+                value={reasonText}
+                onChange={(e) => setReasonText(e.target.value)}
+                rows={5}
+                autoFocus
+                placeholder={`Enter reason for ${reasonModal.action.toLowerCase()}...`}
+                style={{ width: '100%', resize: 'vertical', border: '1px solid #cbd5e1', borderRadius: 8, padding: 12, fontSize: 14, lineHeight: 1.45, outlineColor: '#2563eb' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
+                <button className="btn btn-secondary" type="button" disabled={reasonSaving} onClick={() => { setReasonModal(null); setReasonText(''); }}>Cancel</button>
+                <button className="btn btn-primary" type="button" disabled={reasonSaving} onClick={submitReasonAction}>
+                  {reasonSaving ? 'Saving...' : `Save ${reasonModal.action}`}
+                </button>
+              </div>
             </div>
           </div>
         </div>

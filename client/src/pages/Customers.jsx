@@ -1095,6 +1095,13 @@ export default function Customers() {
                           </svg>
                         </div>
 
+                        {currentLoan.remarks && (
+                          <div className="soa-card-v2 print-card" style={{ padding: 18, marginTop: 16 }}>
+                            <div className="soa-label-v2">Manager Note / Loan Remarks</div>
+                            <div className="soa-val-v2" style={{ fontSize: 14, lineHeight: 1.5, alignItems: 'flex-start' }}>{currentLoan.remarks}</div>
+                          </div>
+                        )}
+
                         <div className="soa-alert-v2 screen-only">
                           <div className="soa-alert-icon-v2"><Info size={16} /></div>
                           <div className="soa-alert-text-v2">Thank you for keeping your account active. For any concerns, please contact your collector or visit our office.</div>
@@ -1385,6 +1392,7 @@ export default function Customers() {
                               <tbody>
                                 <tr><td>Payment Frequency</td><td>:</td><td>Daily</td></tr>
                                 <tr><td>Purpose</td><td>:</td><td>{currentLoan.purpose || soaData.loan_purpose || '-'}</td></tr>
+                                <tr><td>Manager Note</td><td>:</td><td>{currentLoan.remarks || '-'}</td></tr>
                               </tbody>
                             </table>
                           </div>

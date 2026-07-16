@@ -39,6 +39,11 @@ const getRecommendedAmount = data => {
   return data.recommendations?.standard || data.last_loan_amount || '';
 };
 
+const isNewLoanType = type => {
+  const normalized = String(type || '').toLowerCase();
+  return normalized === 'new' || normalized === 'new loan';
+};
+
 const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan', onReloanSubmitted }) => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
@@ -53,6 +58,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
 
   useEffect(() => {
     setInternalLoanType(loanType);
+    setPassbook(isNewLoanType(loanType) ? '50' : '');
   }, [loanType]);
 
   const [internalCustomerId, setInternalCustomerId] = useState(null);
@@ -62,7 +68,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
   const [searching, setSearching] = useState(false);
   const [previousBalance, setPreviousBalance] = useState('');
   const [penalty, setPenalty] = useState('');
-  const [passbook, setPassbook] = useState('50');
+  const [passbook, setPassbook] = useState(isNewLoanType(loanType) ? '50' : '');
 
   const activeCustomerId = customerId || internalCustomerId;
   const activeCustomer = customer || internalCustomer;
@@ -87,6 +93,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
 
   useEffect(() => {
     if (isOpen) {
+      setShowSuccess(false);
       if (activeCustomerId) {
         fetchReloanData();
       } else {
@@ -94,6 +101,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
       }
     } else {
       setError('');
+      setShowSuccess(false);
       setSubmitting(false);
       setLoanTerm('45');
       setInterestRate('15');
@@ -105,10 +113,10 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
       setSearchResults([]);
       setPreviousBalance('');
       setPenalty('');
-      setPassbook('50');
+      setPassbook(isNewLoanType(loanType) ? '50' : '');
       setLoading(true); // Reset loading state for next open
     }
-  }, [isOpen, activeCustomerId, fetchReloanData]);
+  }, [isOpen, activeCustomerId, fetchReloanData, loanType]);
 
   const computed = useMemo(() => {
     const today = new Date();
@@ -209,6 +217,19 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
     }
   };
 
+  const handleLoanTypeChange = (e) => {
+    const nextType = e.target.value;
+    setInternalLoanType(nextType);
+    setPassbook(isNewLoanType(nextType) ? '50' : '');
+  };
+
+  const handleSuccessOk = () => {
+    setShowSuccess(false);
+    setSubmitting(false);
+    if (onReloanSubmitted) onReloanSubmitted();
+    else onClose();
+  };
+
   if (showSuccess) {
     return (
       <div className="reloan-overlay" onMouseDown={e => e.target === e.currentTarget && onClose()}>
@@ -216,7 +237,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
           <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#ecfdf5', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '40px', margin: '0 auto 20px auto' }}>✓</div>
           <h2 style={{ margin: '0 0 10px 0', color: '#047857', fontSize: '24px' }}>Saved Loan</h2>
           <p style={{ color: '#64748b', marginBottom: '30px' }}>The loan application has been saved successfully and sent for approval.</p>
-          <button className="reloan-primary" style={{ width: '100%', padding: '12px', justifyContent: 'center' }} onClick={onReloanSubmitted}>OK</button>
+          <button className="reloan-primary" style={{ width: '100%', padding: '12px', justifyContent: 'center' }} onClick={handleSuccessOk}>OK</button>
         </div>
       </div>
     );
@@ -330,7 +351,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
 
                   <label className="reloan-field">
                     <span>Loan Type <b>*</b></span>
-                    <select value={internalLoanType} onChange={e => setInternalLoanType(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '15px', color: '#1e293b', background: '#f8fafc', fontWeight: '500', outline: 'none' }}>
+                    <select value={internalLoanType} onChange={handleLoanTypeChange} style={{ width: '100%', padding: '12px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '15px', color: '#1e293b', background: '#f8fafc', fontWeight: '500', outline: 'none' }}>
                       <option value="New">New</option>
                       <option value="Reloan">Reloan</option>
                       <option value="Recon">Recon</option>

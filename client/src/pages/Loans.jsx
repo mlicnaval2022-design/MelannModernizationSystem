@@ -21,13 +21,6 @@ export default function Loans() {
   const [detailLoan, setDetailLoan] = useState(null)
   const [detailTab, setDetailTab] = useState('payments')
 
-  // Release Modal State
-  const [releaseModal, setReleaseModal] = useState(false)
-  const [approvedLoans, setApprovedLoans] = useState([])
-  const [releaseForm, setReleaseForm] = useState({ id: '', date_released: new Date().toISOString().split('T')[0] })
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-
   const [reloanCustomer, setReloanCustomer] = useState(null)
   const [loanActionType, setLoanActionType] = useState('')
   const [reloanModalOpen, setReloanModalOpen] = useState(false)
@@ -78,29 +71,6 @@ export default function Loans() {
     const baseUrl = API.defaults.baseURL.replace('/api', '');
     return `${baseUrl}${path}`;
   };
-
-  const openReleaseModal = async () => {
-    setError('')
-    setReleaseForm({ id: '', date_released: new Date().toISOString().split('T')[0] })
-    setReleaseModal(true)
-    try {
-      const res = await API.get('/loans', { params: { status: 'approved' } })
-      setApprovedLoans(res.data)
-    } catch (e) { console.error(e) }
-  }
-
-  const handleRelease = async (e) => {
-    e.preventDefault()
-    if (!releaseForm.id) return setError('Please select an approved application')
-    setError('')
-    setSaving(true)
-    try {
-      await API.post(`/loans/${releaseForm.id}/release`, { date_released: releaseForm.date_released })
-      setReleaseModal(false)
-      load()
-    } catch (err) { setError(err.response?.data?.error || 'Error releasing loan') }
-    finally { setSaving(false) }
-  }
 
   const handleReverse = (id) => {
     setConfirmModal({
@@ -153,7 +123,6 @@ export default function Loans() {
           <span className="search-icon">🔍</span>
           <input id="loan-search" className="form-control" placeholder="Search name, code, loan#..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <button id="btn-release-loan" className="btn btn-primary" onClick={openReleaseModal} style={{ marginRight: '8px' }}>🚀 NEW LOAN APPROVED</button>
         <button className="btn btn-dark" onClick={() => { setLoanActionType('Reloan'); setReloanCustomer(null); setReloanModalOpen(true); }}>+ Add Loan</button>
       </div>
 
@@ -162,7 +131,7 @@ export default function Loans() {
           { value: '', label: 'All Status' },
           { value: 'active', label: 'Active' },
           { value: 'pastdue', label: 'Past Due' },
-          { value: 'fullpaid', label: 'Full Paid' },
+          { value: 'fullpaid', label: 'Fully Paid' },
           { value: 'reloan_pending', label: 'Pending Reloans' },
           { value: 'approved', label: 'Approved (Not Released)' },
           { value: 'reversed', label: 'Reversed' }
@@ -259,45 +228,6 @@ export default function Loans() {
           </table>
         </div>
       </div>
-
-      {/* ===================== Release Loan Modal ===================== */}
-      {releaseModal && (
-        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setReleaseModal(false)}>
-          <div className="modal" style={{ maxWidth: 500 }}>
-            <div className="modal-header">
-              <span className="modal-title">🚀 NEW LOAN APPROVED</span>
-              <button className="modal-close" onClick={() => setReleaseModal(false)}>✕</button>
-            </div>
-            <div className="modal-body">
-              {error && <div className="login-error" style={{ marginBottom: 14 }}>⚠️ {error}</div>}
-              
-              <form onSubmit={handleRelease}>
-                <div className="form-group mb-3">
-                  <label className="form-label">Select Approved Application *</label>
-                  <select className="form-control" value={releaseForm.id} onChange={e => setReleaseForm(f => ({ ...f, id: e.target.value }))} required>
-                    <option value="">Select...</option>
-                    {approvedLoans.map(c => (
-                      <option key={c.id} value={c.id}>{c.loan_code} — {c.customer_name} (₱ {fmt(c.principal)})</option>
-                    ))}
-                  </select>
-                  {approvedLoans.length === 0 && <small className="text-danger mt-1 d-block">No approved applications pending release.</small>}
-                </div>
-                
-                <div className="form-group mb-3">
-                  <label className="form-label">Official Release Date *</label>
-                  <input type="date" className="form-control" value={releaseForm.date_released} onChange={e => setReleaseForm(f => ({ ...f, date_released: e.target.value }))} required />
-                  <small className="text-muted mt-1 d-block">The 45-day maturity schedule will be generated starting from this date.</small>
-                </div>
-
-                <div className="form-actions mt-4">
-                  <button type="button" className="btn btn-secondary" onClick={() => setReleaseModal(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={saving || approvedLoans.length === 0}>{saving ? 'Releasing...' : '🚀 Release & Generate Schedule'}</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ===================== Loan Detail Modal ===================== */}
       {detailModal && detailLoan && (

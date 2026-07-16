@@ -55,21 +55,28 @@ const disclosurePeriod = value => {
   if (days <= 45) return 45
   return days
 }
+const toDisplayCase = value => String(value || '')
+  .toLowerCase()
+  .replace(/\b\w/g, char => char.toUpperCase())
+  .replace(/\bIi\b/g, 'II')
+  .replace(/\bIii\b/g, 'III')
+  .replace(/\bIv\b/g, 'IV')
+  .replace(/\bVi\b/g, 'VI')
 const formatBorrowerName = loan => {
   const orderedName = [loan.first_name, loan.middle_name, loan.last_name]
     .map(part => String(part || '').trim())
     .filter(Boolean)
     .join(' ')
 
-  if (orderedName) return orderedName
+  if (orderedName) return toDisplayCase(orderedName)
 
   const fallback = String(loan.customer_name || '').trim()
   if (fallback.includes(',')) {
     const [last, rest] = fallback.split(',', 2)
-    return [rest, last].map(part => part.trim()).filter(Boolean).join(' ')
+    return toDisplayCase([rest, last].map(part => part.trim()).filter(Boolean).join(' '))
   }
 
-  return fallback || '-'
+  return fallback ? toDisplayCase(fallback) : '-'
 }
 
 export default function PromissoryDisclosure() {
@@ -135,7 +142,7 @@ export default function PromissoryDisclosure() {
       .then(res => setDocumentData(res.data))
       .catch(err => {
         setDocumentData(null)
-        setError(err.response?.data?.error || 'Unable to load disclosure statement.')
+        setError(err.response?.data?.error || 'Unable to load promissory.')
       })
       .finally(() => setLoadingDoc(false))
   }, [selectedId])
@@ -170,7 +177,7 @@ export default function PromissoryDisclosure() {
     html2pdf()
       .set({
         margin: 0,
-        filename: `Disclosure_Statement_${safeName(loanCode)}.pdf`,
+        filename: `Promissory_${safeName(loanCode)}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
         jsPDF: { unit: 'in', format: [8.5, 14], orientation: 'portrait' },
@@ -184,7 +191,7 @@ export default function PromissoryDisclosure() {
   return (
     <div className="content">
       <div className="card">
-        <div className="card-title">Disclosure Statement</div>
+        <div className="card-title">Promissory</div>
         <div className="form-actions" style={{ justifyContent: 'space-between', alignItems: 'end', gap: 12, flexWrap: 'wrap' }}>
           <div className="form-group" style={{ minWidth: 320, flex: '1 1 320px' }}>
             <label className="form-label">Search Posted Loan</label>
@@ -245,6 +252,7 @@ function DocumentPreview({ data }) {
   const displayLoanPeriod = disclosurePeriod(loanPeriod)
   const maturityDate = loan.date_maturity || addDays(loan.date_released, loanPeriod)
   const fullName = formatBorrowerName(loan)
+  const borrowerAddress = loan.address ? toDisplayCase(loan.address) : '-'
   const collateral = loan.collateral || '-'
   const words = amountInWords(principal)
   const penaltyAmount = Number(loan.penalty || 0)
@@ -255,7 +263,7 @@ function DocumentPreview({ data }) {
   return (
     <div id="promissory-printable" className="promissory-print">
       <style>{`
-        .promissory-print { width: 8.5in; min-height: 14in; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; font-size: 10px; line-height: 1.22; margin: 0 auto; padding: 0.32in 0.35in 0.38in; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); box-sizing: border-box; overflow: visible; }
+        .promissory-print { width: 8.5in; min-height: 14in; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; font-size: 10.8px; line-height: 1.24; margin: 0 auto; padding: 0.32in 0.35in 0.38in; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); box-sizing: border-box; overflow: visible; }
         .xl-header { display: grid; grid-template-columns: minmax(0, 1fr) 2.25in; gap: 0.16in; align-items: start; margin: 0 0 0.08in; }
         .xl-letterhead { width: 4.55in; max-width: 100%; height: auto; display: block; }
         .xl-loan-type { text-align: right; color: red; font-size: 12px; font-weight: 900; margin-bottom: 2px; text-transform: uppercase; }
@@ -264,16 +272,20 @@ function DocumentPreview({ data }) {
         .xl-charge-table td:first-child { width: 42%; text-align: left; }
         .xl-charge-table td:last-child { text-align: right; font-weight: 400; }
         .xl-charge-table .total-row td { color: red; font-weight: 900; }
-        .xl-title { text-align: center; font-size: 13px; font-weight: 800; text-decoration: underline; margin: 0 0 12px; }
+        .xl-title { text-align: center; font-size: 14px; font-weight: 800; text-decoration: underline; margin: 0 0 12px; }
         .xl-date { text-align: right; font-weight: 800; margin: 0 1.05in 22px 0; text-decoration: underline; }
         .xl-center { text-align: center; }
         .xl-section { text-align: center; font-weight: 800; text-decoration: underline; margin: 12px 0 6px; }
         .xl-p { margin: 4px 0; text-align: justify; }
         .xl-indent { text-indent: 28px; }
+        .xl-emphasis-line { border-bottom: 1px solid #000; padding: 0 4px 1px; }
         .xl-line { border-bottom: 1px solid #000; display: inline-block; min-width: 126px; padding: 0 3px; font-weight: 700; text-align: center; }
         .xl-wide { min-width: 210px; }
-        .xl-table { border-collapse: collapse; margin: 6px 0 5px 38px; }
-        .xl-table td { padding: 2px 9px 2px 0; vertical-align: bottom; }
+        .xl-table { border-collapse: collapse; margin: 6px 0 5px 38px; width: auto; }
+        .xl-table td { padding: 2px 5px 2px 0; vertical-align: bottom; white-space: nowrap; }
+        .xl-loan-details td:first-child { min-width: 130px; }
+        .xl-loan-details .xl-line { text-align: left; }
+        .xl-loan-details .xl-line { min-width: 92px; }
         .xl-check-grid { display: grid; grid-template-columns: 1fr 1.1fr; gap: 60px; align-items: end; margin: 16px 0 3px; }
         .xl-check-grid > div:first-child,
         .xl-lender-sign,
@@ -318,7 +330,7 @@ function DocumentPreview({ data }) {
       <p className="xl-p">by and between:</p>
       <p className="xl-p"><strong>MELANN LENDING INVESTOR CORPORATION</strong>, a Philippine corporation duly registered with the Securities and Exchange Commision of the Philippines (SEC), with principal place of business at 943 Purok 2, Brgy. Bagong Buhay, Ormoc City and hereinafter referred to as the "LENDER";</p>
       <p className="xl-center">- and -</p>
-      <p className="xl-p"><strong>{fullName}</strong>, of legal age, Filipino, and a resident of <strong>{loan.address || '-'}</strong></p>
+      <p className="xl-p"><strong className="xl-emphasis-line">{fullName}</strong>, of legal age, Filipino, and a resident of <strong className="xl-emphasis-line">{borrowerAddress}</strong></p>
       <p className="xl-p">(hereinafter referred to as the "BORROWER").</p>
 
       <div className="xl-section">PROMISSORY NOTE</div>
@@ -327,7 +339,7 @@ function DocumentPreview({ data }) {
 
       <div className="xl-section">LOAN AGREEMENT</div>
       <p className="xl-p">The BORROWER and LENDER, hereby further set forth their rights and obligations to one another under this Promissory Note and Loan Agreement and agree to be legally bound as follows:</p>
-      <table className="xl-table">
+      <table className="xl-table xl-loan-details">
         <tbody>
           <tr><td>Principal Loan Amount:</td><td>Php</td><td><span className="xl-line">{fmtMoney(principal)}</span></td></tr>
           <tr><td>Interest Rate:</td><td colSpan="2"><span className="xl-line">{interestRate}</span> payable in <span className="xl-line">{displayLoanPeriod}</span> days</td></tr>

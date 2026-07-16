@@ -125,7 +125,11 @@ router.get('/list/fully-paid', authenticateToken, async (req, res) => {
         (SELECT l.principal FROM tblLoan l WHERE l.customer_id = c.id ORDER BY l.date_released DESC LIMIT 1) as last_loan_amount,
         (SELECT l.date_released FROM tblLoan l WHERE l.customer_id = c.id ORDER BY l.date_released DESC LIMIT 1) as date_released,
         (SELECT p.date_paid FROM tblPayment p JOIN tblLoan l ON p.loan_id = l.id WHERE l.customer_id = c.id AND l.status='fullpaid' ORDER BY p.date_paid DESC LIMIT 1) as date_fully_paid,
-        (SELECT COUNT(*) FROM tblLoan l WHERE l.customer_id = c.id) as loan_cycles
+        (SELECT COUNT(*) FROM tblLoan l WHERE l.customer_id = c.id) as loan_cycles,
+        (SELECT h.remarks FROM tblCustomerStatusHistory h WHERE h.customer_id = c.id AND UPPER(h.new_status) = 'RELAX' ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as relax_note,
+        (SELECT h.created_at FROM tblCustomerStatusHistory h WHERE h.customer_id = c.id AND UPPER(h.new_status) = 'RELAX' ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as relax_note_date,
+        (SELECT h.remarks FROM tblCustomerStatusHistory h WHERE h.customer_id = c.id AND UPPER(h.new_status) = 'HOLD' ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as hold_note,
+        (SELECT h.created_at FROM tblCustomerStatusHistory h WHERE h.customer_id = c.id AND UPPER(h.new_status) = 'HOLD' ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as hold_note_date
       FROM tblCustomer c
       LEFT JOIN tblCollector co ON c.collector_id = co.id
       WHERE c.status = 'FULLY PAID'
@@ -659,7 +663,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
     const balanceAmount = Number(previous_balance || 0);
     const penaltyAmount = Number(penalty || 0);
     const passbookAmount = passbook === undefined || passbook === null || passbook === ''
-      ? 50
+      ? (normalizedLoanType === 'New' ? 50 : 0)
       : Number(passbook || 0);
     const totalCharges = balanceAmount + penaltyAmount + passbookAmount;
     const netProceeds = Math.max(amount - totalCharges, 0);

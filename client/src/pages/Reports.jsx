@@ -266,7 +266,7 @@ const REPORT_TYPES = [
   { key: 'payments-encoded', label: '💳 Payments Encoded', desc: 'Payments encoded by date range' },
   { key: 'payments-reversed', label: '↩️ Payments Reversed', desc: 'Reversed payments by date range' },
   { key: 'maturity-check', label: '📆 Maturity Checker', desc: 'Loans maturing soon' },
-  { key: 'full-paid', label: '✅ Full Paid Loans', desc: 'Fully paid loan accounts' },
+  { key: 'full-paid', label: '✅ Fully Paid Loans', desc: 'Fully paid loan accounts' },
   { key: 'loan-type', label: '📊 Loan Type Summary', desc: 'Summary by loan type and status' },
   { key: 'collection-sheet', label: '📋 Collection Sheet', desc: 'Per-collector active loan list' },
   { key: 'disclosure-statement', label: 'Disclosure Statement', desc: 'Client disclosure for every reloan' },

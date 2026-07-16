@@ -113,10 +113,11 @@ router.get('/summary', authenticateToken, async (req, res) => {
     const beginning_cash = prevDcr ? prevDcr.actual_cash_count : 0;
     const beginning_cash_on_bank = prevDcr ? prevDcr.ending_cash_on_bank : 0;
     
-    let ytdOverrideQuery = `SELECT * FROM tblDcrYtdOverride WHERE report_date = ?`;
+    let ytdOverrideQuery = `SELECT * FROM tblDcrYtdOverride WHERE report_date <= ?`;
     let ytdOverrideParams = [date];
     if (branch_id) { ytdOverrideQuery += ` AND branch_id = ?`; ytdOverrideParams.push(branch_id); }
     else { ytdOverrideQuery += ` AND branch_id IS NULL`; }
+    ytdOverrideQuery += ` ORDER BY report_date DESC, id DESC LIMIT 1`;
     const ytdOverride = await dbGet(ytdOverrideQuery, ytdOverrideParams).catch(() => null);
 
     const ytd_beg_releases_default = ytdOverride ? ytdOverride.ytd_beg_releases : (prevDcr ? (prevDcr.ytd_beg_releases || 0) + (prevDcr.total_releases || 0) : 0);

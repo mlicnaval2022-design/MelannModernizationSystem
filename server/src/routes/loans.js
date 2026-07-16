@@ -200,8 +200,12 @@ router.post('/:id/manager-decision', authenticateToken, requireRole('admin', 'ma
     const { decision, remarks, approved_amount } = req.body;
 
     if (decision === 'approve') {
-      await dbRun(`UPDATE tblLoan SET status='active', updated_at=datetime('now') WHERE id=?`, [loan_id]);
-      await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'APPROVE', 'LOAN', loan_id, `Manager Approved Loan`]);
+      const approvalRemarks = String(remarks || '').trim();
+      const newRemarks = approvalRemarks
+        ? (loan.remarks ? `${loan.remarks} | Manager Note: ${approvalRemarks}` : `Manager Note: ${approvalRemarks}`)
+        : (loan.remarks || '');
+      await dbRun(`UPDATE tblLoan SET status='active', remarks=?, updated_at=datetime('now') WHERE id=?`, [newRemarks, loan_id]);
+      await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'APPROVE', 'LOAN', loan_id, `Manager Approved Loan${approvalRemarks ? `: ${approvalRemarks}` : ''}`]);
     } else if (decision === 'reject') {
       await dbRun(`UPDATE tblLoan SET status='rejected', remarks=?, updated_at=datetime('now') WHERE id=?`, [remarks || '', loan_id]);
       await dbRun(`UPDATE tblCustomer SET status='hold' WHERE id=?`, [loan.customer_id]);
