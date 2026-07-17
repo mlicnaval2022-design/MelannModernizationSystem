@@ -7,9 +7,7 @@ const CATS = ['Rent', 'Utilities', 'Salaries', 'Supplies', 'Transportation', 'Mi
 
 const TABS = [
   { id: 'Expense', label: 'Expenses', icon: '🧾' },
-  { id: 'Collectors Over', label: 'Collectors Over', icon: '💰' },
-  { id: 'Penalty', label: 'Penalty', icon: '⚠️' },
-  { id: 'Passbook', label: 'Passbook', icon: '📘' }
+  { id: 'Collectors Over', label: 'Collectors Over', icon: '💰' }
 ]
 
 export default function Transactions() {
@@ -187,20 +185,12 @@ export default function Transactions() {
           <div style={{ display: 'flex', gap: '20px', marginBottom: '25px' }}>
             <div style={{ flex: 2 }}>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#334155' }}>
-                {activeTab === 'Collectors Over' ? 'Collector' : (activeTab === 'Penalty' || activeTab === 'Passbook' ? 'Customer' : 'Particulars / Description')}
+                {activeTab === 'Collectors Over' ? 'Collector' : 'Particulars / Description'}
               </label>
               {activeTab === 'Collectors Over' ? (
                 <select className="form-control" style={{ background: '#fff' }} value={form.description} onChange={e=>setForm({...form, description: e.target.value})}>
                   <option value="">Select Collector...</option>
                   {collectors.map(c => <option value={`${c.first_name} ${c.last_name}`} key={c.id}>{c.last_name}, {c.first_name}</option>)}
-                </select>
-              ) : (activeTab === 'Penalty' || activeTab === 'Passbook') ? (
-                <select className="form-control" style={{ background: '#fff' }} value={form.category} onChange={e => {
-                  const cust = customers.find(c => c.id.toString() === e.target.value);
-                  setForm({...form, category: e.target.value, description: cust ? `${cust.last_name}, ${cust.first_name}` : ''});
-                }}>
-                  <option value="">Select Customer...</option>
-                  {customers.map(c => <option value={c.id} key={c.id}>{c.last_name}, {c.first_name}</option>)}
                 </select>
               ) : (
                 <input type="text" className="form-control" style={{ background: '#fff' }} value={form.description} onChange={e=>setForm({...form, description: e.target.value})} placeholder="Enter particulars / description" />
@@ -251,7 +241,7 @@ export default function Transactions() {
                   <th style={{ padding: '10px', textAlign: 'left', background: '#f8fafc' }}>ID ↕</th>
                   {activeTab === 'Expense' && <th style={{ padding: '10px', textAlign: 'left', background: '#f8fafc' }}>Category ↕</th>}
                   <th style={{ padding: '10px', textAlign: 'left', background: '#f8fafc' }}>
-                    {activeTab === 'Collectors Over' ? 'Collector' : (activeTab === 'Penalty' || activeTab === 'Passbook' ? 'Customer' : 'Particulars')} ↕
+                    {activeTab === 'Collectors Over' ? 'Collector' : 'Particulars'} ↕
                   </th>
                   <th style={{ padding: '10px', textAlign: 'left', background: '#f8fafc' }}>Date ↕</th>
                   <th style={{ padding: '10px', textAlign: 'right', background: '#f8fafc' }}>Amount ↕</th>

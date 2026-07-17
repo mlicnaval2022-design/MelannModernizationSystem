@@ -58,8 +58,8 @@ const disclosurePeriod = value => {
   return days
 }
 const toDisplayCase = value => String(value || '')
-  .toLowerCase()
-  .replace(/\b\w/g, char => char.toUpperCase())
+  .toLocaleLowerCase('en-PH')
+  .replace(/(^|[^\p{L}\p{N}])(\p{L})/gu, (_, prefix, char) => prefix + char.toLocaleUpperCase('en-PH'))
   .replace(/\bIi\b/g, 'II')
   .replace(/\bIii\b/g, 'III')
   .replace(/\bIv\b/g, 'IV')

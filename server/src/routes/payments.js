@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { loan_id, customer_id, date_from, date_to, search } = req.query;
-    let q = `SELECT p.*, l.loan_code, l.loan_type, l.date_released, l.principal, l.amortization, l.status as loan_status, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id LEFT JOIN tblCollector co ON p.collector_id = co.id WHERE p.status = 'active'`;
+    let q = `SELECT p.*, l.loan_code, l.loan_type, l.date_released, l.principal, l.amortization, l.status as loan_status, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id LEFT JOIN tblCollector co ON p.collector_id = co.id WHERE p.status IN ('active', 'penalty')`;
     const pa = [];
     if (loan_id) { q += ` AND p.loan_id = ?`; pa.push(loan_id); }
     if (customer_id) { q += ` AND p.customer_id = ?`; pa.push(customer_id); }

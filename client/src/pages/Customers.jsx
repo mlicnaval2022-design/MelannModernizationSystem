@@ -272,7 +272,7 @@ export default function Customers() {
   };
   const isGoodPayment = (payment) => {
     const statusText = String(payment.status || payment.payment_status || 'active').toLowerCase();
-    return !['cancelled', 'canceled', 'void', 'reversed', 'bad', 'bounced'].includes(statusText);
+    return !['cancelled', 'canceled', 'void', 'reversed', 'bad', 'bounced', 'penalty'].includes(statusText);
   };
   const getLoanPayments = (loan) => (soaData?.payments || [])
     .filter(p => p.loan_code === loan?.loan_code && isGoodPayment(p))
@@ -288,6 +288,7 @@ export default function Customers() {
     const isPartial = payment.status === 'active' && Number(payment.balance_after) > 0;
 
     if (isReversed) return 'Reversed';
+    if (payment.status === 'penalty') return 'Penalty';
     if (isFullyPaid) return 'Fully Paid';
     if (isPartial) return 'Active';
     return payment.status || 'Active';
@@ -563,6 +564,44 @@ export default function Customers() {
         .soa-pdf-export .f-soa-penalty-footer div:last-child { border-right: none !important; }
         .soa-pdf-export .f-soa-penalty-footer span { color: #fff !important; }
         .soa-pdf-export .f-soa-penalty-footer strong { color: #fff !important; font-size: 12px !important; font-weight: 900 !important; }
+        .soa-pdf-export .f-soa-photo-grid {
+          display: grid !important;
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          gap: 10px !important;
+          padding: 8px !important;
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
+        }
+        .soa-pdf-export .f-soa-photo-tile {
+          border: 1.15px solid #4b5563 !important;
+          border-radius: 4px !important;
+          overflow: hidden !important;
+          background: #fff !important;
+          min-width: 0 !important;
+        }
+        .soa-pdf-export .f-soa-photo-label {
+          display: block !important;
+          background: #f8fafc !important;
+          border-bottom: 1.15px solid #4b5563 !important;
+          color: #061f66 !important;
+          font-size: 8.5px !important;
+          font-weight: 900 !important;
+          padding: 4px 7px !important;
+          text-transform: uppercase !important;
+        }
+        .soa-pdf-export .f-soa-photo-tile img,
+        .soa-pdf-export .f-soa-photo-placeholder {
+          align-items: center !important;
+          background: #f8fafc !important;
+          color: #475569 !important;
+          display: flex !important;
+          font-size: 9px !important;
+          font-weight: 800 !important;
+          height: 120px !important;
+          justify-content: center !important;
+          object-fit: contain !important;
+          width: 100% !important;
+        }
         .soa-pdf-export .f-soa-thank-you { text-align: center !important; margin-top: 10px !important; }
         .soa-pdf-export .f-soa-thank-you p {
           color: #0b297a !important;
@@ -1530,6 +1569,32 @@ export default function Customers() {
                       </div>
                     </div>
 
+                    <div className="f-soa-section" style={{marginBottom: 0}}>
+                      <div className="f-soa-sec-header">
+                        <i className="bi bi-images"></i> CLIENT PHOTOS
+                      </div>
+                      <div className="f-soa-sec-body f-soa-no-pad">
+                        <div className="f-soa-photo-grid">
+                          <div className="f-soa-photo-tile">
+                            <span className="f-soa-photo-label">Face ID</span>
+                            {soaData.photo_client ? (
+                              <img src={getImageUrl(soaData.photo_client)} alt="Client Face ID" />
+                            ) : (
+                              <div className="f-soa-photo-placeholder">No Face ID Photo</div>
+                            )}
+                          </div>
+                          <div className="f-soa-photo-tile">
+                            <span className="f-soa-photo-label">Store / Business Photo</span>
+                            {soaData.photo_business_proof ? (
+                              <img src={getImageUrl(soaData.photo_business_proof)} alt="Store or Business" />
+                            ) : (
+                              <div className="f-soa-photo-placeholder">No Store Photo</div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="f-soa-thank-you">
                       <p>Thank you for your prompt payments.<br/>We are here to serve you better.</p>
                     </div>
@@ -1828,6 +1893,7 @@ export default function Customers() {
                           <tbody>
                             {loanPayments.map((p, idx) => { 
                               const isReversed = p.status === 'reversed';
+                              const isPenalty = p.status === 'penalty';
                               const isFullyPaid = p.status === 'active' && Number(p.balance_after) <= 0; 
                               const isPartial = p.status === 'active' && Number(p.balance_after) > 0;
                               
@@ -1836,6 +1902,7 @@ export default function Customers() {
                               let statusText = getPaymentStatusText(p);
                               
                               if (isReversed) { pillBg = '#fee2e2'; pillColor = '#ef4444'; pillIcon = 'bi-x-circle'; }
+                              else if (isPenalty) { pillBg = '#fef3c7'; pillColor = '#b45309'; pillIcon = 'bi-exclamation-circle'; }
                               else if (isFullyPaid) { pillBg = '#f3e8ff'; pillColor = '#9333ea'; pillIcon = 'bi-check-circle'; }
                               else if (isPartial) { pillBg = '#dcfce7'; pillColor = '#16a34a'; pillIcon = 'bi-check-circle'; }
                               

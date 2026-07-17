@@ -4,6 +4,9 @@ const { authenticateToken, requireRole } = require('../middleware/auth');
 const { computeAmortization, computeMaturityDate, generateAmortizationSchedule, computeNetProceeds } = require('../services/loanCalculator');
 const router = express.Router();
 
+const isNewLoanType = type => ['new', 'new loan'].includes(String(type || '').trim().toLowerCase());
+const passbookForLoan = loan => isNewLoanType(loan?.loan_type) ? 50 : Number(loan?.passbook || 0);
+
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { search, status, customer_id, collector_id } = req.query;
@@ -25,7 +28,7 @@ router.get('/sheet/collection', authenticateToken, async (req, res) => {
     
     const loans = await dbAll(`
       SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, c.photo_client, c.photo_id_front,
-             (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status='active') as collected_today
+             (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status IN ('active', 'penalty')) as collected_today
       FROM tblLoan l
       JOIN tblCustomer c ON l.customer_id = c.id
       WHERE l.collector_id = ? AND LOWER(l.status) IN ('active', 'pastdue') AND COALESCE(l.balance, 0) > 0
@@ -97,13 +100,11 @@ router.post('/', authenticateToken, async (req, res) => {
     const date_maturity = computeMaturityDate(date_released, 45);
     const balanceAmount = Number(previous_balance || 0);
     const penaltyAmount = Number(penalty || 0);
-    const normalizedLoanType = String(loan_type || 'New').toLowerCase();
-    const isNewLoan = normalizedLoanType === 'new' || normalizedLoanType === 'new loan';
     const passbookAmount = passbook === undefined || passbook === null || passbook === ''
-      ? (isNewLoan ? 50 : 0)
+      ? (isNewLoanType(loan_type || 'New') ? 50 : 0)
       : Number(passbook || 0);
     const { service_fee, total_deductions } = computeNetProceeds(principal, 0, 0, 0, 0);
-    const net_proceeds = Math.max(Number(principal || 0) - balanceAmount - penaltyAmount - passbookAmount, 0);
+    const net_proceeds = Number(principal || 0);
     const maxLoan = await dbGet("SELECT MAX(CAST(REPLACE(loan_code, 'LN-', '') AS INTEGER)) as c FROM tblLoan");
     const loan_code = `LN-${String((maxLoan?.c || 0) + 1).padStart(6, '0')}`;
     const loan_status = status || 'pending';
@@ -204,7 +205,7 @@ router.post('/:id/manager-decision', authenticateToken, requireRole('admin', 'ma
       const newRemarks = approvalRemarks
         ? (loan.remarks ? `${loan.remarks} | Manager Note: ${approvalRemarks}` : `Manager Note: ${approvalRemarks}`)
         : (loan.remarks || '');
-      await dbRun(`UPDATE tblLoan SET status='active', remarks=?, updated_at=datetime('now') WHERE id=?`, [newRemarks, loan_id]);
+      await dbRun(`UPDATE tblLoan SET status='active', passbook=?, remarks=?, updated_at=datetime('now') WHERE id=?`, [passbookForLoan(loan), newRemarks, loan_id]);
       await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'APPROVE', 'LOAN', loan_id, `Manager Approved Loan${approvalRemarks ? `: ${approvalRemarks}` : ''}`]);
     } else if (decision === 'reject') {
       await dbRun(`UPDATE tblLoan SET status='rejected', remarks=?, updated_at=datetime('now') WHERE id=?`, [remarks || '', loan_id]);
@@ -218,8 +219,8 @@ router.post('/:id/manager-decision', authenticateToken, requireRole('admin', 'ma
       
       const newRemarks = loan.remarks ? `${loan.remarks} | Reduced: ${remarks}` : `Reduced: ${remarks}`;
       
-      await dbRun(`UPDATE tblLoan SET principal=?, interest_amount=?, amortization=?, total_amortization=?, balance=?, net_proceeds=?, remarks=?, status='active', updated_at=datetime('now') WHERE id=?`, 
-        [newPrincipal, interest_amount, amortization, total_amortization, total_amortization, net_proceeds, newRemarks, loan_id]);
+      await dbRun(`UPDATE tblLoan SET principal=?, interest_amount=?, amortization=?, total_amortization=?, balance=?, net_proceeds=?, passbook=?, remarks=?, status='active', updated_at=datetime('now') WHERE id=?`,
+        [newPrincipal, interest_amount, amortization, total_amortization, total_amortization, net_proceeds, passbookForLoan(loan), newRemarks, loan_id]);
       await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REDUCE', 'LOAN', loan_id, `Manager Reduced Loan to ${newPrincipal}: ${remarks}`]);
     } else {
       return res.status(400).json({ error: 'Invalid decision' });
@@ -257,7 +258,7 @@ router.post('/:id/release', authenticateToken, requireRole('admin', 'manager'), 
     const date_maturity = computeMaturityDate(date_released, 45);
 
     // Mark active and generate schedule
-    await dbRun(`UPDATE tblLoan SET status='active', date_released=?, date_maturity=?, updated_at=datetime('now') WHERE id=?`, [date_released, date_maturity, req.params.id]);
+    await dbRun(`UPDATE tblLoan SET status='active', date_released=?, date_maturity=?, passbook=?, updated_at=datetime('now') WHERE id=?`, [date_released, date_maturity, passbookForLoan(loan), req.params.id]);
     const schedule = generateAmortizationSchedule(loan.id, date_released, loan.loan_period, loan.amortization);
     for (const s of schedule) {
       await dbRun(`INSERT INTO tblAmortizationSchedule (loan_id, period_number, due_date, amount_due, status) VALUES (?,?,?,?,?)`, [s.loan_id, s.period_number, s.due_date, s.amount_due, s.status]);

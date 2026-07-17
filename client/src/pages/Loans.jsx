@@ -29,6 +29,7 @@ export default function Loans() {
   const triggerRecon = (r) => {
     setReloanCustomer({
       id: r.customer_id,
+      source_loan_id: r.id,
       customer_code: r.customer_code,
       client_name: r.customer_name,
       collector_name: r.collector_name
@@ -369,10 +370,10 @@ export default function Loans() {
                               borderRadius: 12, 
                               fontSize: 12, 
                               fontWeight: 700, 
-                              background: p.status === 'active' ? '#dcfce7' : '#fee2e2', 
-                              color: p.status === 'active' ? '#16a34a' : '#ef4444' 
+                              background: p.status === 'active' ? '#dcfce7' : p.status === 'penalty' ? '#fef3c7' : '#fee2e2',
+                              color: p.status === 'active' ? '#16a34a' : p.status === 'penalty' ? '#b45309' : '#ef4444'
                             }}>
-                              {p.status === 'active' ? 'Good' : 'Reversed'}
+                              {p.status === 'active' ? 'Good' : p.status === 'penalty' ? 'Penalty' : 'Reversed'}
                             </span>
                           </td>
                         </tr>

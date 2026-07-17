@@ -4,19 +4,70 @@ const { authenticateToken, requireRole } = require('../middleware/auth');
 const dayjs = require('dayjs');
 const router = express.Router();
 
+const reconLoanTypesSql = `('recon', 'reconstruct', 'reconstructed')`;
+
+const getDcrLoanCondition = () => `
+  (
+    (LOWER(COALESCE(l.loan_type, '')) IN ${reconLoanTypesSql} AND date(l.created_at) = ?)
+    OR
+    (LOWER(COALESCE(l.loan_type, '')) NOT IN ${reconLoanTypesSql} AND l.date_released = ?)
+  )
+  AND l.status IN ('active', 'fully_paid')
+`;
+
+const sumAmount = rows => rows.reduce((acc, row) => acc + Number(row.amount || row.amount_paid || 0), 0);
+
+const getCollectionBreakdown = (collections, passbooks, penalties, collectorsOver) => {
+  const breakdown = {
+    regular: 0,
+    balance: 0,
+    penalty: 0,
+    passbook: sumAmount(passbooks),
+    collectors_over: sumAmount(collectorsOver)
+  };
+
+  collections.forEach(payment => {
+    const status = String(payment.status || '').toLowerCase();
+    const paymentType = String(payment.payment_type || '').toLowerCase();
+    const remarks = String(payment.remarks || '').toLowerCase();
+    const amount = Number(payment.amount_paid || 0);
+
+    if (status === 'penalty' || paymentType === 'penalty') breakdown.penalty += amount;
+    else if (remarks.includes('old balance') || remarks.includes('recon balance')) breakdown.balance += amount;
+    else breakdown.regular += amount;
+  });
+
+  breakdown.penalty += sumAmount(penalties);
+  return breakdown;
+};
+
+const isReleaseChargePayment = payment => {
+  const status = String(payment.status || '').toLowerCase();
+  const paymentType = String(payment.payment_type || '').toLowerCase();
+  const remarks = String(payment.remarks || '').toLowerCase();
+  return status === 'penalty' || paymentType === 'penalty' || remarks.includes('old balance') || remarks.includes('recon balance');
+};
+
+const getReleaseChargeBreakdown = releases => releases.reduce((acc, release) => {
+  acc.balance += Number(release.previous_balance || 0);
+  acc.penalty += Number(release.penalty || 0);
+  acc.passbook += Number(release.passbook || 0);
+  return acc;
+}, { balance: 0, penalty: 0, passbook: 0 });
+
 // Get summary for a specific date (combines collections, releases, expenses)
 router.get('/summary', authenticateToken, async (req, res) => {
   try {
     const { date, branch_id } = req.query;
     if (!date) return res.status(400).json({ error: 'Date is required' });
 
-    let pCond = `p.date_paid = ? AND p.status = 'active'`;
-    let lCond = `l.date_released = ? AND l.status IN ('active', 'fully_paid')`;
+    let pCond = `p.date_paid = ? AND p.status IN ('active', 'penalty')`;
+    let lCond = getDcrLoanCondition();
     let eCond = `e.transaction_date = ? AND e.status = 'active'`;
     let cbCond = `entry_date = ?`;
 
     const pParams = [date];
-    const lParams = [date];
+    const lParams = [date, date];
     const eParams = [date];
     const cbParams = [date];
 
@@ -33,7 +84,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
 
     // 1. Collections
     const collections = await dbAll(`
-      SELECT p.id, p.or_number, p.amount_paid, p.payment_type, p.date_paid, p.created_at, p.dcr_id,
+      SELECT p.id, p.or_number, p.amount_paid, p.payment_type, p.status, p.remarks, p.date_paid, p.created_at, p.dcr_id,
              c.customer_code, c.first_name, c.last_name, u.full_name as encoded_by,
              co.first_name || ' ' || co.last_name as collector_name
       FROM tblPayment p
@@ -45,11 +96,11 @@ router.get('/summary', authenticateToken, async (req, res) => {
 
     // 2. Loan Releases
     const releases = await dbAll(`
-      SELECT l.id, l.customer_id, l.loan_code, l.principal, l.net_proceeds, l.loan_type, l.date_released, l.created_at, l.dcr_id, l.service_fee, l.insurance, l.balance, l.previous_balance,
+      SELECT l.id, l.customer_id, l.loan_code, l.principal, l.net_proceeds, l.loan_type, l.date_released, l.created_at, l.dcr_id, l.service_fee, l.insurance, l.balance, l.previous_balance, l.penalty, l.passbook,
              c.customer_code, c.first_name, c.last_name, u.full_name as encoded_by,
              co.first_name || ' ' || co.last_name as collector_name,
-             (SELECT SUM(amount) FROM tblTransaction WHERE category = CAST(l.customer_id AS TEXT) AND transaction_type = 'Penalty' AND transaction_date = l.date_released AND status = 'active') as today_penalty,
-             (SELECT SUM(amount) FROM tblTransaction WHERE category = CAST(l.customer_id AS TEXT) AND transaction_type = 'Passbook' AND transaction_date = l.date_released AND status = 'active') as today_passbook
+             COALESCE(l.penalty, 0) + COALESCE((SELECT SUM(amount) FROM tblTransaction WHERE category = CAST(l.customer_id AS TEXT) AND transaction_type = 'Penalty' AND transaction_date = l.date_released AND status = 'active'), 0) as today_penalty,
+             COALESCE(l.passbook, 0) + COALESCE((SELECT SUM(amount) FROM tblTransaction WHERE category = CAST(l.customer_id AS TEXT) AND transaction_type = 'Passbook' AND transaction_date = l.date_released AND status = 'active'), 0) as today_passbook
       FROM tblLoan l
       JOIN tblCustomer c ON l.customer_id = c.id
       LEFT JOIN tblUser u ON l.created_by = u.id
@@ -89,10 +140,19 @@ router.get('/summary', authenticateToken, async (req, res) => {
     const existingDcr = await dbGet(dcrQuery, dcrParams);
 
     // Compute totals
-    const total_collections = collections.reduce((acc, c) => acc + c.amount_paid, 0) + passbooks.reduce((acc, p) => acc + p.amount, 0) + penalties.reduce((acc, p) => acc + p.amount, 0) + collectorsOver.reduce((acc, c) => acc + c.amount, 0);
+    const regularCollections = collections.filter(payment => !isReleaseChargePayment(payment));
+    const collection_breakdown = getCollectionBreakdown(regularCollections, passbooks, penalties, collectorsOver);
+    const releaseChargeBreakdown = getReleaseChargeBreakdown(releases);
+    collection_breakdown.balance += releaseChargeBreakdown.balance;
+    collection_breakdown.penalty += releaseChargeBreakdown.penalty;
+    collection_breakdown.passbook += releaseChargeBreakdown.passbook;
+    const total_collections = Object.values(collection_breakdown).reduce((acc, amount) => acc + amount, 0);
     // Use principal for display, net_proceeds for actual cash out
     const display_total_releases = releases.reduce((acc, r) => acc + (r.principal || 0), 0);
     const cash_out_releases = releases.reduce((acc, r) => acc + (r.net_proceeds || 0), 0);
+    const total_reconstruct_amount = releases
+      .filter(r => ['recon', 'reconstruct', 'reconstructed'].includes(String(r.loan_type || '').toLowerCase()))
+      .reduce((acc, r) => acc + Number(r.principal || 0), 0);
     const total_expenses = expenses.reduce((acc, e) => acc + e.amount, 0);
     const total_adjustments = 0; // Future
     const total_deposits = deposits.reduce((acc, b) => acc + b.amount, 0);
@@ -153,8 +213,10 @@ router.get('/summary', authenticateToken, async (req, res) => {
       ytd_beg_collections_default,
       ytd_beg_expenses_default,
       total_collections,
+      collection_breakdown,
       display_total_releases,
       cash_out_releases,
+      total_reconstruct_amount,
       total_expenses,
       total_adjustments,
       total_deposits,
@@ -164,7 +226,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
       expected_ending_cash,
       ending_cash_on_bank,
       total_cash_position,
-      collections,
+      collections: regularCollections,
       releases,
       transactions,
       expenses,
@@ -260,13 +322,13 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
     const dcr_number = `DCR-${date.replace(/-/g, '')}-${nextNum}`;
 
     // Recalculate totals server-side
-    let pCond = `p.date_paid = ? AND p.status = 'active'`;
-    let lCond = `l.date_released = ? AND l.status IN ('active', 'fully_paid')`;
+    let pCond = `p.date_paid = ? AND p.status IN ('active', 'penalty')`;
+    let lCond = getDcrLoanCondition();
     let eCond = `e.transaction_date = ? AND e.status = 'active'`;
     let cbCond = `entry_date = ?`;
 
     const pParams = [date];
-    const lParams = [date];
+    const lParams = [date, date];
     const eParams = [date];
     const cbParams = [date];
 
@@ -277,12 +339,21 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
       cbCond += ` AND branch_id = ?`; cbParams.push(branch_id);
     }
 
-    const collections = await dbAll(`SELECT p.amount_paid FROM tblPayment p JOIN tblCustomer c ON p.customer_id = c.id WHERE ${pCond}`, pParams);
-    const releases = await dbAll(`SELECT l.net_proceeds, l.principal FROM tblLoan l JOIN tblCustomer c ON l.customer_id = c.id WHERE ${lCond}`, lParams);
+    const collections = await dbAll(`SELECT p.amount_paid, p.payment_type, p.status, p.remarks FROM tblPayment p JOIN tblCustomer c ON p.customer_id = c.id WHERE ${pCond}`, pParams);
+    const releases = await dbAll(`SELECT l.net_proceeds, l.principal, l.previous_balance, l.penalty, l.passbook FROM tblLoan l JOIN tblCustomer c ON l.customer_id = c.id WHERE ${lCond}`, lParams);
     const transactions = await dbAll(`SELECT t.amount, t.transaction_type FROM tblTransaction t WHERE ${eCond.replace(/e\./g, 't.')}`, eParams);
     const bankTx = await dbAll(`SELECT * FROM tblCashOnBank WHERE ${cbCond}`, cbParams);
 
-    let total_collections = collections.reduce((acc, c) => acc + c.amount_paid, 0);
+    const passbooks = transactions.filter(t => t.transaction_type === 'Passbook');
+    const penalties = transactions.filter(t => t.transaction_type === 'Penalty');
+    const collectorsOver = transactions.filter(t => t.transaction_type === 'Collectors Over');
+    const regularCollections = collections.filter(payment => !isReleaseChargePayment(payment));
+    const collection_breakdown = getCollectionBreakdown(regularCollections, passbooks, penalties, collectorsOver);
+    const releaseChargeBreakdown = getReleaseChargeBreakdown(releases);
+    collection_breakdown.balance += releaseChargeBreakdown.balance;
+    collection_breakdown.penalty += releaseChargeBreakdown.penalty;
+    collection_breakdown.passbook += releaseChargeBreakdown.passbook;
+    let total_collections = Object.values(collection_breakdown).reduce((acc, amount) => acc + amount, 0);
     const cash_out_releases = releases.reduce((acc, r) => acc + (r.net_proceeds || 0), 0);
     let total_expenses = 0;
     let other_income = 0;
@@ -291,8 +362,6 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
     transactions.forEach(t => {
       if (t.transaction_type === 'Expense') total_expenses += t.amount;
       else if (t.transaction_type === 'Short Overage') total_expenses += t.amount;
-      else if (t.transaction_type === 'Collectors Over') other_income += t.amount;
-      else if (t.transaction_type === 'Penalty') total_collections += t.amount;
     });
     
     const deposits = bankTx.filter(b => b.transaction_type === 'deposit');
@@ -355,8 +424,8 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
       await dbRun(`UPDATE tblLoan SET dcr_id = ? WHERE id IN (SELECT l.id FROM tblLoan l JOIN tblCustomer c ON l.customer_id = c.id WHERE ${lCond}) AND dcr_id IS NULL`, [dcrId, ...lParams]);
       await dbRun(`UPDATE tblTransaction SET dcr_id = ? WHERE id IN (SELECT t.id FROM tblTransaction t WHERE ${eCond.replace(/e\./g, 't.')}) AND dcr_id IS NULL`, [dcrId, ...eParams]);
     } else {
-      await dbRun(`UPDATE tblPayment SET dcr_id = ? WHERE date_paid = ? AND status = 'active' AND dcr_id IS NULL`, [dcrId, date]);
-      await dbRun(`UPDATE tblLoan SET dcr_id = ? WHERE date_released = ? AND status IN ('active', 'fully_paid') AND dcr_id IS NULL`, [dcrId, date]);
+      await dbRun(`UPDATE tblPayment SET dcr_id = ? WHERE date_paid = ? AND status IN ('active', 'penalty') AND dcr_id IS NULL`, [dcrId, date]);
+      await dbRun(`UPDATE tblLoan SET dcr_id = ? WHERE id IN (SELECT l.id FROM tblLoan l WHERE ${lCond}) AND dcr_id IS NULL`, [dcrId, ...lParams]);
       await dbRun(`UPDATE tblTransaction SET dcr_id = ? WHERE transaction_date = ? AND status = 'active' AND dcr_id IS NULL`, [dcrId, date]);
     }
 

@@ -248,7 +248,7 @@ export default function Dashboard() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20, flex: 1 }}>
               <div className="card-v2">
-                <div className="card-v2-title">🎯 Today's Collection Status</div>
+                <div className="card-v2-title">🎯 Yesterday's Collection Status</div>
                 <div className="collection-blocks">
                   <div className="c-block" style={{ background: '#f0f9ff', borderColor: '#bae6fd' }}>
                     <span style={{ color: '#0369a1' }}>Target Collection</span>
@@ -256,19 +256,19 @@ export default function Dashboard() {
                   </div>
                   <div className="c-block" style={{ background: '#f0fdf4', borderColor: '#bbf7d0' }}>
                     <span style={{ color: '#15803d' }}>Collected</span>
-                    <h4 style={{ color: '#16a34a' }}>₱{fmt(data.collections_today)}</h4>
+                    <h4 style={{ color: '#16a34a' }}>₱{fmt(data.collections_yesterday)}</h4>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 25 }}>
                   <div className="progress-container" style={{ height: 12, margin: 0, flex: 1 }}>
                     {(() => {
                        const t = data.collector_performance?.reduce((s,c)=>s+c.target,0) || 0;
-                       const pct = t > 0 ? Math.round((data.collections_today/t)*100) : 0;
+                       const pct = t > 0 ? Math.round((data.collections_yesterday/t)*100) : 0;
                        return <div className="progress-fill" style={{ width: `${pct}%`, background: '#10b981' }}></div>
                     })()}
                   </div>
                   <span style={{ fontWeight: 800, fontSize: 18 }}>
-                    {data.collector_performance?.reduce((s,c)=>s+c.target,0) > 0 ? Math.round((data.collections_today/data.collector_performance?.reduce((s,c)=>s+c.target,0))*100) : 0}%
+                    {data.collector_performance?.reduce((s,c)=>s+c.target,0) > 0 ? Math.round((data.collections_yesterday/data.collector_performance?.reduce((s,c)=>s+c.target,0))*100) : 0}%
                   </span>
                 </div>
               </div>
