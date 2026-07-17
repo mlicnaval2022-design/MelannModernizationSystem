@@ -128,12 +128,12 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
     const terms = Number(loanTerm || 45);
     const interest = Number(interestRate || 0);
     const oldBalance = Number(previousBalance || 0);
-    const penaltyAmount = 0;
+    const penaltyAmount = Number(penalty || 0);
     const passbookAmount = Number(passbook || 0);
     const charges = oldBalance + penaltyAmount + passbookAmount;
     const interestAmount = principal * (interest / 100);
     const totalAmount = principal + interestAmount;
-    const totalForRelease = totalAmount;
+    const totalForRelease = Math.max(totalAmount - charges, 0);
     const paymentPerDay = terms > 0 ? Math.ceil(totalAmount / terms) : 0;
 
     return {
@@ -173,7 +173,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
         loan_type: internalLoanType,
         source_loan_id: activeCustomer?.source_loan_id || null,
         previous_balance: Number(previousBalance || 0),
-        penalty: 0,
+        penalty: Number(penalty || 0),
         passbook: Number(passbook || 0)
       });
       setShowSuccess(true);
@@ -479,7 +479,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
                   <div className="reloan-charges-row">
                     <div className="reloan-charges">
                       <div className="reloan-section-title compact">CHARGES INFORMATION</div>
-                      {['Balance'].map(label => (
+                      {['Balance', 'Penalty', 'Passbook'].map(label => (
                         <label key={label} className="reloan-charge-field">
                           <span>{label}</span>
                           <div>
@@ -542,7 +542,11 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
                     <dl>
                       <div><dt>Principal</dt><dd>{peso(computed.principal)}</dd></div>
                       <div><dt>Interest ({computed.interest}%)</dt><dd>{peso(computed.interestAmount)}</dd></div>
-                      <div className="total"><dt>Loan Total</dt><dd>{peso(computed.totalForRelease)}</dd></div>
+                      <div><dt>Less: Balance</dt><dd>{peso(computed.oldBalance)}</dd></div>
+                      <div><dt>Less: Penalty</dt><dd>{peso(computed.penaltyAmount)}</dd></div>
+                      <div><dt>Less: Passbook</dt><dd>{peso(computed.passbookAmount)}</dd></div>
+                      <div><dt>Less: Total Charges</dt><dd>{peso(computed.charges)}</dd></div>
+                      <div className="total"><dt>Total for Release</dt><dd>{peso(computed.totalForRelease)}</dd></div>
                     </dl>
                   </div>
 

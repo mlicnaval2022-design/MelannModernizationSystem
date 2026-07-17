@@ -94,7 +94,12 @@ export default function PromissoryDisclosure() {
 
   const filteredLoans = useMemo(() => {
     const dateFiltered = releaseDate
-      ? loans.filter(loan => String(loan.date_released || '').slice(0, 10) === releaseDate)
+      ? loans.filter(loan => {
+          const isRecon = ['recon', 'reconstruct', 'reconstructed'].includes(String(loan.loan_type || '').toLowerCase());
+          // DCR puts recon loans on their creation date instead of release date
+          const dateToMatch = isRecon ? loan.created_at : loan.date_released;
+          return String(dateToMatch || '').slice(0, 10) === releaseDate;
+        })
       : loans
     const needle = search.trim().toLowerCase()
     if (!needle) return dateFiltered

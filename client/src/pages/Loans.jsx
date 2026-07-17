@@ -49,6 +49,18 @@ export default function Loans() {
     setReloanModalOpen(true);
   }
 
+
+  const handleEditNote = (loan) => {
+    const newNote = window.prompt(`Edit note for ${loan.customer_name}:`, loan.status_note || '');
+    if (newNote !== null) {
+       API.put(`/customers/${loan.customer_id}/status-note`, { note: newNote, status: loan.customer_status })
+         .then(() => {
+            load();
+         })
+         .catch(err => alert('Failed to update note: ' + (err.response?.data?.error || err.message)));
+    }
+  }
+
   const load = () => { 
     setLoading(true); 
     API.get('/loans', { params: { search, status } })
@@ -130,6 +142,8 @@ export default function Loans() {
       <div className="custom-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '15px', overflowX: 'auto', paddingBottom: '5px' }}>
         {[
           { value: '', label: 'All Status' },
+          { value: 'relax', label: 'Relax' },
+          { value: 'hold', label: 'Hold' },
           { value: 'active', label: 'Active' },
           { value: 'pastdue', label: 'Past Due' },
           { value: 'fullpaid', label: 'Fully Paid' },
@@ -194,18 +208,34 @@ export default function Loans() {
                     <td><span className="tag">{r.loan_type}</span></td>
                     <td className="text-right">₱ {fmt(r.principal)}</td>
                     <td className="text-right fw-bold">
-                      {r.status === 'fullpaid' ? <span className="text-success">PAID</span> : <span>₱ {fmt(r.balance)}</span>}
+                      {r.status === 'fullpaid' || Number(r.balance || 0) <= 0 ? <span className="text-success">PAID</span> : <span>₱ {fmt(r.balance)}</span>}
                     </td>
                     <td>{r.date_released}</td>
                     <td>{r.date_maturity}</td>
                     <td>{r.collector_name || '—'}</td>
                     <td>
-                      {r.status === 'approved' ? <span className="badge badge-warning">Approved (Not Released)</span> :
-                       <span className={`badge badge-${r.status}`}>{r.status}</span>}
+                      {(() => {
+                        const isContext = ['relax', 'hold'].includes(r.customer_status?.toLowerCase());
+                        const badgeText = isContext ? r.customer_status.toUpperCase() : (r.status === 'approved' ? 'Approved (Not Released)' : r.status);
+                        const badgeClass = isContext ? r.customer_status.toLowerCase() : r.status;
+                        return (
+                          <>
+                            <span className={`badge badge-${badgeClass}`}>{badgeText}</span>
+                            {isContext && r.status_note && (
+                              <div style={{ marginTop: '6px', fontSize: '11px', color: '#64748b', maxWidth: '150px', whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.2' }}>
+                                <i>Note: {r.status_note}</i>
+                              </div>
+                            )}
+                          </>
+                        )
+                      })()}
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button className="btn btn-secondary btn-sm" onClick={() => viewDetail(r.id)}>View</button>
+                        {['relax', 'hold'].includes(r.customer_status?.toLowerCase()) && (
+                          <button className="btn btn-light btn-sm" style={{ border: '1px solid #cbd5e1' }} onClick={() => handleEditNote(r)}>Edit Note</button>
+                        )}
                         {hasRole('admin', 'manager') && r.status === 'active' && (
                           <>
                             <button className="btn btn-sm" style={{ background: '#0369a1', color: '#fff', border: 'none' }} onClick={() => triggerRecon(r)}>Recon</button>

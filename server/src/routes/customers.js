@@ -890,4 +890,20 @@ router.post('/:id/status', authenticateToken, requireRole('admin', 'manager'), a
   }
 });
 
+
+router.put('/:id/status-note', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const { note, status } = req.body;
+    const latest = await dbGet(`SELECT id FROM tblCustomerStatusHistory WHERE customer_id = ? AND LOWER(new_status) = LOWER(?) ORDER BY id DESC LIMIT 1`, [req.params.id, status]);
+    if (latest) {
+       await dbRun(`UPDATE tblCustomerStatusHistory SET remarks = ? WHERE id = ?`, [note, latest.id]);
+       res.json({ message: 'Note updated' });
+    } else {
+       res.status(404).json({ error: 'Status history not found' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

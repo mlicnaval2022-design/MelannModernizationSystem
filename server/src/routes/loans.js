@@ -10,10 +10,18 @@ const passbookForLoan = loan => isNewLoanType(loan?.loan_type) ? 50 : Number(loa
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { search, status, customer_id, collector_id } = req.query;
-    let q = `SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, c.photo_client, c.photo_id_front, co.first_name || ' ' || co.last_name as collector_name, b.branch_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id LEFT JOIN tblBranch b ON l.branch_id = b.id WHERE 1=1`;
+    let q = `SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, c.status as customer_status, (SELECT h.remarks FROM tblCustomerStatusHistory h WHERE h.customer_id = l.customer_id AND LOWER(h.new_status) = LOWER(c.status) ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as status_note, c.photo_client, c.photo_id_front, co.first_name || ' ' || co.last_name as collector_name, b.branch_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id LEFT JOIN tblBranch b ON l.branch_id = b.id WHERE 1=1`;
     const p = [];
     if (search) { q += ` AND (c.full_name LIKE ? OR l.loan_code LIKE ? OR c.customer_code LIKE ?)`; p.push(`%${search}%`, `%${search}%`, `%${search}%`); }
-    if (status) { q += ` AND l.status = ?`; p.push(status); }
+    if (status) { 
+        if (status === 'relax' || status === 'hold') {
+            q += ` AND LOWER(c.status) = ? AND l.id = (SELECT MAX(id) FROM tblLoan WHERE customer_id = c.id)`; 
+            p.push(status);
+        } else {
+            q += ` AND l.status = ?`; 
+            p.push(status);
+        }
+    }
     if (customer_id) { q += ` AND l.customer_id = ?`; p.push(customer_id); }
     if (collector_id) { q += ` AND l.collector_id = ?`; p.push(collector_id); }
     q += ` ORDER BY l.created_at DESC`;

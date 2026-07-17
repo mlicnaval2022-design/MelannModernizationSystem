@@ -77,40 +77,63 @@ export default function Customers() {
 
   const getLoanStatusLabel = (loan) => {
     if (!loan) return '—';
-    if (['active', 'approved'].includes(loan.status?.toLowerCase()) && loan.date_maturity) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const maturity = new Date(loan.date_maturity);
-      maturity.setHours(0, 0, 0, 0);
-      const diffDays = Math.ceil((today.getTime() - maturity.getTime()) / (1000 * 3600 * 24));
-      
-      if (diffDays > 45) return 'Pastdue';
-      if (diffDays >= 1) return 'Overdue';
+    const lstatus = (loan.status || '').toLowerCase();
+    
+    if (lstatus === 'reversed') return 'Reversed';
+    if (lstatus === 'fullpaid' || lstatus === 'fully paid' || lstatus === 'fully_paid') return 'Fully Paid';
+    
+    if (['active', 'approved'].includes(lstatus)) {
+        const cstatus = (soaData?.status || '').toUpperCase();
+        if (cstatus === 'RELAX') return 'Relax';
+        if (cstatus === 'HOLD') return 'Hold';
+        
+        const type = (loan.loan_type || '').toLowerCase();
+        if (type === 'recon') return 'Recon';
+        if (type === 're-loan' || type === 'reloan' || loan.status === 'reloan_pending') return 'Reloan';
+        if (type === 'new') return 'New';
+        
+        if (loan.date_maturity) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const maturity = new Date(loan.date_maturity);
+          maturity.setHours(0, 0, 0, 0);
+          const diffDays = Math.ceil((today.getTime() - maturity.getTime()) / (1000 * 3600 * 24));
+          if (diffDays > 45) return 'Pastdue';
+          if (diffDays >= 1) return 'Overdue';
+        }
     }
-    const type = loan.loan_type?.toLowerCase() || '';
-    if (type === 're-loan' || type === 'reloan' || loan.status === 'reloan_pending') return 'Reloan';
-    if (type === 'recon') return 'Recon';
-    if (!loan.status) return '—';
-    return loan.status.replace(/_/g, ' ');
+    return loan.status ? loan.status.replace(/_/g, ' ') : '—';
   };
 
   const getLoanStatusClass = (loan) => {
     if (!loan) return 'unknown';
-    if (['active', 'approved'].includes(loan.status?.toLowerCase()) && loan.date_maturity) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const maturity = new Date(loan.date_maturity);
-      maturity.setHours(0, 0, 0, 0);
-      const diffDays = Math.ceil((today.getTime() - maturity.getTime()) / (1000 * 3600 * 24));
-      
-      if (diffDays > 45) return 'pastdue';
-      if (diffDays >= 1) return 'overdue';
+    const lstatus = (loan.status || '').toLowerCase();
+    
+    if (lstatus === 'reversed') return 'reversed';
+    if (lstatus === 'fullpaid' || lstatus === 'fully paid' || lstatus === 'fully_paid') return 'fully-paid';
+    
+    if (['active', 'approved'].includes(lstatus)) {
+        const cstatus = (soaData?.status || '').toUpperCase();
+        if (cstatus === 'RELAX') return 'relax';
+        if (cstatus === 'HOLD') return 'hold';
+        
+        const type = (loan.loan_type || '').toLowerCase();
+        if (type === 'recon') return 'recon';
+        if (type === 're-loan' || type === 'reloan' || loan.status === 'reloan_pending') return 'reloan';
+        if (type === 'new') return 'new';
+        
+        if (loan.date_maturity) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const maturity = new Date(loan.date_maturity);
+          maturity.setHours(0, 0, 0, 0);
+          const diffDays = Math.ceil((today.getTime() - maturity.getTime()) / (1000 * 3600 * 24));
+          if (diffDays > 45) return 'pastdue';
+          if (diffDays >= 1) return 'overdue';
+        }
     }
-    const type = loan.loan_type?.toLowerCase() || '';
-    if (type === 're-loan' || type === 'reloan' || loan.status === 'reloan_pending') return 'reloan';
-    return loan.status || 'unknown';
+    return lstatus || 'unknown';
   };
-
   const getCalculatedCustomerStatus = (data) => {
     if (!data) return 'Active';
     if (!data.loans || data.loans.length === 0) return data.status || 'Active';
@@ -1212,7 +1235,10 @@ export default function Customers() {
                     {soaTab === 'history' && (
                       <div className="soa-card">
                         <div className="soa-list-card-header"><div className="soa-list-title">Loans & Payments History</div></div>
-                        {loans.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Loan Code</th><th>Type</th><th>Date Released</th><th>Maturity</th><th>Period</th><th>Principal</th><th>Interest Rate</th><th>Interest Amount</th><th>Total Loan</th><th>Amortization</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead><tbody>{loans.map(l => (<tr key={l.id} onClick={() => setSelectedLoanForPayments(l)} style={{ cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><td className="mono" style={{color: '#2563eb', fontWeight: '600'}} title="View payment history for this loan">{l.loan_code}</td><td>{l.loan_type || '-'}</td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td><td><button className="action-btn" onClick={(e) => { e.stopPropagation(); setPrintModeLoan(l); }}><i className="bi bi-printer"></i> Print</button></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
+                        {loans.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Loan Code</th><th>Type</th><th>Date Released</th><th>Maturity</th><th>Period</th><th>Principal</th><th>Interest Rate</th><th>Interest Amount</th><th>Total Loan</th><th>Amortization</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead><tbody>{loans.map(l => (<tr key={l.id} onClick={() => setSelectedLoanForPayments(l)} style={{ cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><td className="mono" style={{color: '#2563eb', fontWeight: '600'}} title="View payment history for this loan">{l.loan_code}</td><td>
+  {l.loan_type || '-'}
+  {String(l.status).toLowerCase() === 'reversed' && <span style={{ color: '#ef4444', marginLeft: '6px', fontWeight: 'bold', fontSize: '11px' }}>(REVERSED)</span>}
+</td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td><td><button className="action-btn" onClick={(e) => { e.stopPropagation(); setPrintModeLoan(l); }}><i className="bi bi-printer"></i> Print</button></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
                       </div>
                     )}
 
