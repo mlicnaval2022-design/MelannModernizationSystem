@@ -221,6 +221,13 @@ export default function Customers() {
   const formatPhpExact = (value) => `PHP ${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const formatMoneyExactDeduction = (value) => Number(value || 0) > 0 ? `-${formatMoneyExact(value)}` : formatMoneyExact(0);
   const formatPhpDeduction = (value) => Number(value || 0) > 0 ? `-${formatPhpExact(value)}` : formatPhpExact(0);
+  const formatPaymentCode = (payment) => {
+    const rawCode = payment?.payment_code && payment.payment_code !== 'N/A'
+      ? payment.payment_code
+      : payment?.or_number;
+    if (!rawCode || rawCode === 'N/A') return 'N/A';
+    return String(rawCode).replace(/^JCASH-?/i, '');
+  };
   const formatDateLong = (value) => {
     if (!value) return '-';
     const date = new Date(value);
@@ -1419,7 +1426,7 @@ export default function Customers() {
                             {printLedgerPayments.length > 0 ? printLedgerPayments.map((p, index) => (
                               <tr key={p.id} className={index % 2 === 0 ? 'f-soa-row-even' : 'f-soa-row-odd'}>
                                 <td>{formatDateNumeric(p.date_paid)}</td>
-                                <td>{p.or_number || p.payment_code || '-'}</td>
+                                <td>{formatPaymentCode(p)}</td>
                                 <td className="fw-bold">{formatMoney(p.amount_paid)}</td>
                                 <td>{formatMoney(p.balance_after)}</td>
                                 <td><span className="f-soa-status-badge"><i className="bi bi-check2"></i> Active</span></td>
@@ -1844,7 +1851,7 @@ export default function Customers() {
                                     </div>
                                   </td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '500', color: '#2563eb' }}>
-                                    {p.payment_code && p.payment_code !== 'N/A' ? p.payment_code : (p.or_number && p.or_number !== 'N/A' ? p.or_number : 'N/A')}
+                                    {formatPaymentCode(p)}
                                   </td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: isReversed ? '#94a3b8' : '#0f172a', textDecoration: isReversed ? 'line-through' : 'none' }}>{formatPhp(p.amount_paid)}</td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: isReversed ? '#94a3b8' : '#0f172a', textDecoration: isReversed ? 'line-through' : 'none' }}>{formatPhp(p.balance_after)}</td>
