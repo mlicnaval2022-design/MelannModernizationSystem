@@ -1,7 +1,7 @@
 const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
-const { logAudit, createNotification } = require('../services/noPaymentMonitoring');
+const { logAudit, createNotification, runDailyMonitoring } = require('../services/noPaymentMonitoring');
 const router = express.Router();
 
 router.get('/alerts', authenticateToken, async (req, res) => {
@@ -12,20 +12,22 @@ router.get('/alerts', authenticateToken, async (req, res) => {
     const params = [];
 
     // Role-based access
-    if (req.user.role === 'teller' || req.user.role === 'collector') {
-      // Assuming teller acts as collector here for simplicity
-      // If the system links user to collector_id, we'd use that. Let's rely on frontend sending it, but verify
+    if (req.user.role === 'collector') {
       if (collector_id) {
         baseCond += ` AND m.collector_id = ?`;
         params.push(collector_id);
       }
-    } else if (req.user.role === 'manager' || req.user.role === 'accounting') {
+    } else if (req.user.role === 'teller' || req.user.role === 'manager' || req.user.role === 'accounting') {
       if (req.user.branch_id) {
         baseCond += ` AND m.branch_id = ?`;
         params.push(req.user.branch_id);
       } else if (branch_id) {
         baseCond += ` AND m.branch_id = ?`;
         params.push(branch_id);
+      }
+      if (collector_id) {
+        baseCond += ` AND m.collector_id = ?`;
+        params.push(collector_id);
       }
     } else if (req.user.role === 'admin') {
       if (branch_id) {
@@ -184,6 +186,16 @@ router.get('/timeline/:alert_id', authenticateToken, async (req, res) => {
     const p = await dbAll(`SELECT *, 'ptp' as _type FROM tblPromiseToPay WHERE alert_id = ?`, [req.params.alert_id]);
     const timeline = [...f, ...p].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
     res.json(timeline);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/run-daily', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    await runDailyMonitoring();
+    const active = await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert m JOIN tblCustomer c ON m.customer_id = c.id WHERE m.status='Active' AND LOWER(c.status) IN ('active', 'recon')`);
+    res.json({ message: 'Daily monitoring completed', active_alerts: active.c });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

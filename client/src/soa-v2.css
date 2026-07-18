@@ -243,8 +243,8 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #f0fdf4;
-  color: #10b981;
+  background: #f1f5f9;
+  color: #64748b;
   padding: 6px 12px;
   border-radius: 20px;
   font-size: 12px;
@@ -253,9 +253,22 @@
 .soa-status-badge-v2 .dot {
   width: 6px;
   height: 6px;
-  background: #10b981;
+  background: #64748b;
   border-radius: 50%;
 }
+
+.soa-status-badge-v2.active { background: #dcfce7; color: #16a34a; }
+.soa-status-badge-v2.active .dot { background: #16a34a; }
+.soa-status-badge-v2.fullypaid { background: #f3e8ff; color: #9333ea; }
+.soa-status-badge-v2.fullypaid .dot { background: #9333ea; }
+.soa-status-badge-v2.reloan { background: #dcfce7; color: #16a34a; }
+.soa-status-badge-v2.reloan .dot { background: #16a34a; }
+.soa-status-badge-v2.overdue { background: #ffedd5; color: #ea580c; }
+.soa-status-badge-v2.overdue .dot { background: #ea580c; }
+.soa-status-badge-v2.recon { background: #dbeafe; color: #2563eb; }
+.soa-status-badge-v2.recon .dot { background: #2563eb; }
+.soa-status-badge-v2.pastdue { background: #fee2e2; color: #ef4444; }
+.soa-status-badge-v2.pastdue .dot { background: #ef4444; }
 
 .soa-divider-v2 {
   width: 1px;

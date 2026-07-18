@@ -3,7 +3,7 @@ import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
-const EMPTY = { customer_id: '', collector_id: '', branch_id: '', loan_type: 'New', principal: '', interest_rate: '15', loan_period: '45', date_released: new Date().toISOString().split('T')[0], or_number: '', remarks: '' }
+const EMPTY = { customer_id: '', collector_id: '', branch_id: '', loan_type: 'New', principal: '', interest_rate: '15', loan_period: '45', date_released: new Date().toISOString().split('T')[0], previous_balance: '', or_number: '', remarks: '' }
 
 export default function CreditScoring() {
   const { hasRole } = useAuth()
@@ -442,6 +442,12 @@ export default function CreditScoring() {
                     <label className="form-label">Proposed Date *</label>
                     <input type="date" className="form-control" value={form.date_released} onChange={e => setForm(f => ({ ...f, date_released: e.target.value }))} required />
                   </div>
+                  {(form.loan_type === 'Reloan' || form.loan_type === 'Recon') && (
+                    <div className="form-group">
+                      <label className="form-label">Previous Balance</label>
+                      <input type="number" className="form-control" placeholder="0.00" value={form.previous_balance} onChange={e => setForm(f => ({ ...f, previous_balance: e.target.value }))} />
+                    </div>
+                  )}
                   <div className="form-group">
                     <label className="form-label">Assigned Collector</label>
                     <select className="form-control" value={form.collector_id} onChange={e => setForm(f => ({ ...f, collector_id: e.target.value }))}>

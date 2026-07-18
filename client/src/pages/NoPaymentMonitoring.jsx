@@ -23,6 +23,7 @@ export default function NoPaymentMonitoring() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [scanning, setScanning] = useState(false);
 
   const [collectors, setCollectors] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -33,7 +34,7 @@ export default function NoPaymentMonitoring() {
   }, []);
 
   // Filters
-  const [collectorId, setCollectorId] = useState(user.role === 'collector' || user.role === 'teller' ? user.id : '');
+  const [collectorId, setCollectorId] = useState(user.role === 'collector' ? user.id : '');
   const [branchId, setBranchId] = useState(user.branch_id || '');
 
   // Modals
@@ -99,6 +100,20 @@ export default function NoPaymentMonitoring() {
         <h2>🚨 3-Day No-Payment Monitoring</h2>
         <div style={{ display: 'flex', gap: 10 }}>
           {user.role === 'admin' && (
+            <button className="btn btn-danger" disabled={scanning} onClick={async () => {
+              setScanning(true);
+              try {
+                const res = await API.post('/monitoring/run-daily');
+                alert(`✅ Scan complete! Active alerts: ${res.data.active_alerts}`);
+                fetchAlerts();
+              } catch (err) {
+                alert(`Error: ${err.response?.data?.error || err.message}`);
+              } finally {
+                setScanning(false);
+              }
+            }}>{scanning ? '⏳ Scanning...' : '🔄 Run Scan'}</button>
+          )}
+          {user.role === 'admin' && (
             <button className="btn btn-secondary" onClick={() => navigate('/monitoring-settings')}>⚙️ Settings</button>
           )}
         </div>
@@ -124,7 +139,7 @@ export default function NoPaymentMonitoring() {
       </div>
 
       <div style={{ display: 'flex', gap: 15, marginBottom: 20, background: '#f8fafc', padding: 15, borderRadius: 8 }}>
-        {(user.role === 'admin' || user.role === 'manager') && (
+        {(user.role === 'admin' || user.role === 'manager' || user.role === 'teller' || user.role === 'accounting') && (
           <div className="form-group" style={{ margin: 0, width: 200 }}>
             <label style={{ fontSize: 11, fontWeight: 'bold' }}>Branch</label>
             <select className="form-control" value={branchId} onChange={e => setBranchId(e.target.value)}>
@@ -135,7 +150,7 @@ export default function NoPaymentMonitoring() {
             </select>
           </div>
         )}
-        {(user.role === 'admin' || user.role === 'manager') && (
+        {(user.role === 'admin' || user.role === 'manager' || user.role === 'teller' || user.role === 'accounting') && (
           <div className="form-group" style={{ margin: 0, width: 200 }}>
             <label style={{ fontSize: 11, fontWeight: 'bold' }}>Collector</label>
             <select className="form-control" value={collectorId} onChange={e => setCollectorId(e.target.value)}>

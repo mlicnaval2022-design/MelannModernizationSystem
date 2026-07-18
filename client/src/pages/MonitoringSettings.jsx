@@ -8,6 +8,8 @@ export default function MonitoringSettings() {
   const [holidays, setHolidays] = useState([]);
   const [newHoliday, setNewHoliday] = useState({ date: '', desc: '' });
   const [loading, setLoading] = useState(true);
+  const [runningManual, setRunningManual] = useState(false);
+  const [manualResult, setManualResult] = useState('');
 
   const fetchSettings = async () => {
     try {
@@ -91,6 +93,33 @@ export default function MonitoringSettings() {
 
           <button className="btn btn-primary" type="submit" style={{ marginTop: 15 }}>💾 Save Settings</button>
         </form>
+
+        <div style={{ marginTop: 20, padding: 15, background: '#fefce8', borderRadius: 8, border: '1px solid #fde68a' }}>
+          <h4 style={{ margin: '0 0 8px 0', color: '#92400e' }}>🔄 Manual Daily Scan</h4>
+          <p style={{ fontSize: 12, color: '#78716c', margin: '0 0 12px 0' }}>
+            Run the daily 3-day monitoring evaluation now. This will scan all active loans and create/update alerts for clients who have missed 3+ consecutive scheduled payment days.
+          </p>
+          <button 
+            className="btn btn-danger" 
+            disabled={runningManual}
+            onClick={async () => {
+              if (!window.confirm('Run the daily monitoring scan now? This will evaluate all active loans.')) return;
+              setRunningManual(true);
+              setManualResult('');
+              try {
+                const res = await API.post('/monitoring/run-daily');
+                setManualResult(`✅ ${res.data.message}. Active alerts: ${res.data.active_alerts}`);
+              } catch (err) {
+                setManualResult(`❌ Error: ${err.response?.data?.error || err.message}`);
+              } finally {
+                setRunningManual(false);
+              }
+            }}
+          >
+            {runningManual ? '⏳ Scanning all loans...' : '🔄 Run Daily Scan Now'}
+          </button>
+          {manualResult && <div style={{ marginTop: 10, fontSize: 13, fontWeight: 'bold', color: manualResult.startsWith('✅') ? '#15803d' : '#dc2626' }}>{manualResult}</div>}
+        </div>
       </div>
 
       <hr style={{ margin: '30px 0', border: '1px solid #e2e8f0' }} />

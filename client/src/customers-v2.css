@@ -296,9 +296,13 @@
 }
 .cell-status.active { color: #10b981; }
 .cell-status.inactive { color: #94a3b8; }
-.cell-status.fullypaid { color: #10b981; }
+.cell-status.fullypaid { color: #9333ea; }
 .cell-status.hold { color: #f59e0b; }
 .cell-status.reversed { color: #ef4444; }
+.cell-status.reloan { color: #16a34a; }
+.cell-status.overdue { color: #ea580c; }
+.cell-status.recon { color: #2563eb; }
+.cell-status.pastdue { color: #ef4444; }
 
 .status-dot {
   width: 6px;
@@ -307,10 +311,13 @@
 }
 .status-dot.active { background-color: #10b981; }
 .status-dot.inactive { background-color: #94a3b8; }
-.status-dot.fullypaid { background-color: #10b981; }
+.status-dot.fullypaid { background-color: #9333ea; }
 .status-dot.hold { background-color: #f59e0b; }
 .status-dot.reversed { background-color: #ef4444; }
-
+.status-dot.reloan { background-color: #16a34a; }
+.status-dot.overdue { background-color: #ea580c; }
+.status-dot.recon { background-color: #2563eb; }
+.status-dot.pastdue { background-color: #ef4444; }
 .cell-actions {
   display: flex;
   align-items: center;

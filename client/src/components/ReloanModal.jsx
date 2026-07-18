@@ -133,7 +133,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
     const charges = oldBalance + penaltyAmount + passbookAmount;
     const interestAmount = principal * (interest / 100);
     const totalAmount = principal + interestAmount;
-    const totalForRelease = Math.max(totalAmount - charges, 0);
+    const totalForRelease = totalAmount;
     const paymentPerDay = terms > 0 ? Math.ceil(totalAmount / terms) : 0;
 
     return {
@@ -542,10 +542,10 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
                     <dl>
                       <div><dt>Principal</dt><dd>{peso(computed.principal)}</dd></div>
                       <div><dt>Interest ({computed.interest}%)</dt><dd>{peso(computed.interestAmount)}</dd></div>
-                      <div><dt>Less: Balance</dt><dd>{peso(computed.oldBalance)}</dd></div>
-                      <div><dt>Less: Penalty</dt><dd>{peso(computed.penaltyAmount)}</dd></div>
-                      <div><dt>Less: Passbook</dt><dd>{peso(computed.passbookAmount)}</dd></div>
-                      <div><dt>Less: Total Charges</dt><dd>{peso(computed.charges)}</dd></div>
+                      <div><dt>Balance</dt><dd>{peso(computed.oldBalance)}</dd></div>
+                      <div><dt>Penalty</dt><dd>{peso(computed.penaltyAmount)}</dd></div>
+                      <div><dt>Passbook</dt><dd>{peso(computed.passbookAmount)}</dd></div>
+                      <div><dt>Total Charges</dt><dd>{peso(computed.charges)}</dd></div>
                       <div className="total"><dt>Total for Release</dt><dd>{peso(computed.totalForRelease)}</dd></div>
                     </dl>
                   </div>

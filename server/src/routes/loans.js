@@ -123,12 +123,76 @@ router.post('/', authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+router.put('/:id/edit', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const loan_id = req.params.id;
+    const { principal, interest_rate, loan_period, date_released } = req.body;
+    
+    if (!principal || !loan_period || !date_released) {
+      return res.status(400).json({ error: 'Principal, loan period, and date released are required' });
+    }
+
+    const loan = await dbGet('SELECT * FROM tblLoan WHERE id = ?', [loan_id]);
+    if (!loan) return res.status(404).json({ error: 'Loan not found' });
+    
+    const paymentsCount = await dbGet(`SELECT COUNT(*) as c FROM tblPayment WHERE loan_id = ? AND status != 'reversed'`, [loan_id]);
+    if (paymentsCount.c > 0) {
+      return res.status(400).json({ error: 'Cannot edit a loan that already has active payments. Please reverse the payments first.' });
+    }
+
+    if (loan.dcr_id) {
+      return res.status(400).json({ error: 'Cannot edit a loan that has already been closed in a Daily Cash Report.' });
+    }
+
+    const period = parseInt(loan_period) || 45;
+    const interestRate = parseFloat(interest_rate) || 0;
+    const principalAmount = parseFloat(principal);
+    
+    const interestAmount = principalAmount * (interestRate / 100);
+    const totalAmortization = principalAmount + interestAmount;
+    
+    const { computeMaturityDate, getWorkingDays, generateAmortizationSchedule } = require('../services/loanCalculator');
+    
+    const dateMaturity = computeMaturityDate(date_released, period);
+    const workingDays = getWorkingDays(period);
+    const amortization = principalAmount > 0 && workingDays > 0 ? Math.ceil(totalAmortization / workingDays) : 0;
+
+    await dbRun('BEGIN TRANSACTION');
+
+    await dbRun(`
+      UPDATE tblLoan 
+      SET principal = ?, interest_rate = ?, interest_amount = ?, loan_period = ?, 
+          date_released = ?, date_maturity = ?, amortization = ?, total_amortization = ?,
+          net_proceeds = ?, balance = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `, [principalAmount, interestRate, interestAmount, period, date_released, dateMaturity, amortization, totalAmortization, principalAmount, totalAmortization, loan_id]);
+
+    await dbRun(`DELETE FROM tblAmortizationSchedule WHERE loan_id = ?`, [loan_id]);
+
+    const schedule = generateAmortizationSchedule(loan_id, date_released, period, amortization);
+    for (const s of schedule) {
+      await dbRun(`INSERT INTO tblAmortizationSchedule (loan_id, period_number, due_date, amount_due, status) VALUES (?,?,?,?,?)`, 
+        [s.loan_id, s.period_number, s.due_date, s.amount_due, s.status]);
+    }
+
+    const details = `Edited loan ${loan.loan_code}. Old: P${loan.principal}/${loan.loan_period}days/${loan.date_released}. New: P${principalAmount}/${period}days/${date_released}.`;
+    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, 
+      [req.user.id, req.user.username, 'EDIT', 'LOAN', loan_id, details]);
+
+    await dbRun('COMMIT');
+    res.json({ message: 'Loan updated successfully', loan_id, date_maturity: dateMaturity, amortization });
+  } catch (err) {
+    await dbRun('ROLLBACK').catch(() => {});
+    console.error('Error editing loan:', err);
+    res.status(500).json({ error: 'Server error editing loan' });
+  }
+});
+
 router.put('/:id/status', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   try {
     const { status } = req.body;
     await dbRun(`UPDATE tblLoan SET status=?, updated_at=datetime('now') WHERE id=?`, [status, req.params.id]);
     
-    // If loan is reversed, mark all unpaid amortization schedules as reversed too
     if (status === 'reversed') {
       await dbRun(`UPDATE tblAmortizationSchedule SET status='reversed' WHERE loan_id=? AND status='unpaid'`, [req.params.id]);
     }

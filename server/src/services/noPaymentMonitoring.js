@@ -59,18 +59,16 @@ async function evaluateLoan(loan, holidays, settings, todayStr = dayjs().format(
     if (excludeSundays && isSunday) isScheduledDay = false;
     if (holidays.has(dateStr)) isScheduledDay = false;
     
-    if (isScheduledDay) {
-      const hasPayment = paymentDates.has(dateStr);
-      
-      if (hasPayment) {
-        streakBroken = true; // The most recent valid days have payments, streak is broken
-      } else {
-        totalMissed++;
-        if (!streakBroken) {
-          consecutiveMissed++;
-          if (!latestMissedDate) latestMissedDate = dateStr;
-          firstMissedDate = dateStr; // Overwrites as we go back, leaving the oldest in the current streak
-        }
+    const hasPayment = paymentDates.has(dateStr);
+    
+    if (hasPayment) {
+      streakBroken = true; // Any payment breaks the streak, even on non-scheduled days
+    } else if (isScheduledDay) {
+      totalMissed++;
+      if (!streakBroken) {
+        consecutiveMissed++;
+        if (!latestMissedDate) latestMissedDate = dateStr;
+        firstMissedDate = dateStr; // Overwrites as we go back, leaving the oldest in the current streak
       }
     }
     currentDate = currentDate.subtract(1, 'day');
@@ -176,6 +174,7 @@ async function createNotification(userId, title, msg, moduleName, relatedId) {
 }
 
 let cronInterval = null;
+let lastRunDate = null; // Track to prevent double-runs on the same day
 
 async function startNoPaymentMonitoringScheduler() {
   // Check settings for cutoff time, e.g., '20:00' (8:00 PM)
@@ -185,11 +184,28 @@ async function startNoPaymentMonitoringScheduler() {
 
   console.log(`🕒 3-Day Monitoring Scheduler initialized. Cut-off time: ${cutoff}`);
 
+  // Run on startup if it hasn't run today (catch up for missed runs)
+  const todayStr = dayjs().format('YYYY-MM-DD');
+  const lastAudit = await dbGet(
+    `SELECT MAX(created_at) as last_run FROM tblSystemAudit WHERE module = 'Monitoring' AND action IN ('Alert Created', 'Alert Resolved', 'Alert Escalated', 'Daily Monitoring Run')`
+  );
+  const lastRunStr = lastAudit?.last_run ? dayjs(lastAudit.last_run).format('YYYY-MM-DD') : null;
+  
+  if (lastRunStr !== todayStr) {
+    console.log(`🔄 Monitoring hasn't run today (last run: ${lastRunStr || 'never'}). Running catch-up now...`);
+    lastRunDate = todayStr;
+    await runDailyMonitoring();
+  } else {
+    lastRunDate = todayStr;
+    console.log(`✅ Monitoring already ran today. Skipping startup run.`);
+  }
+
   cronInterval = setInterval(() => {
     const now = dayjs();
-    // Run if it's the target hour and minute, only once per day
-    // The setInterval runs every 1 minute
-    if (now.hour() === targetH && now.minute() === targetM) {
+    const nowDateStr = now.format('YYYY-MM-DD');
+    // Run if it's the target hour and minute, and hasn't run today yet
+    if (now.hour() === targetH && now.minute() === targetM && lastRunDate !== nowDateStr) {
+      lastRunDate = nowDateStr;
       runDailyMonitoring();
     }
   }, 60 * 1000); // Check every minute

@@ -7,11 +7,7 @@ const router = express.Router();
 const reconLoanTypesSql = `('recon', 'reconstruct', 'reconstructed')`;
 
 const getDcrLoanCondition = () => `
-  (
-    (LOWER(COALESCE(l.loan_type, '')) IN ${reconLoanTypesSql} AND date(l.created_at) = ?)
-    OR
-    (LOWER(COALESCE(l.loan_type, '')) NOT IN ${reconLoanTypesSql} AND l.date_released = ?)
-  )
+  l.date_released = ?
   AND l.status IN ('active', 'fully_paid')
 `;
 
@@ -67,7 +63,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
     let cbCond = `entry_date = ?`;
 
     const pParams = [date];
-    const lParams = [date, date];
+    const lParams = [date];
     const eParams = [date];
     const cbParams = [date];
 
@@ -328,7 +324,7 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
     let cbCond = `entry_date = ?`;
 
     const pParams = [date];
-    const lParams = [date, date];
+    const lParams = [date];
     const eParams = [date];
     const cbParams = [date];
 

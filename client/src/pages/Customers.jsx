@@ -33,6 +33,7 @@ export default function Customers() {
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
+
   
   const [soaModal, setSoaModal] = useState(false)
   const [soaData, setSoaData] = useState(null)
@@ -41,6 +42,7 @@ export default function Customers() {
   const [soaTab, setSoaTab] = useState('summary')
   const [selectedLoanForPayments, setSelectedLoanForPayments] = useState(null)
   const [penaltyLoan, setPenaltyLoan] = useState(null)
+  const [editingPenaltyPayment, setEditingPenaltyPayment] = useState(null)
   const [printModeLoan, setPrintModeLoan] = useState(null)
   const suppressNextPrintRef = useRef(false)
 
@@ -87,11 +89,6 @@ export default function Customers() {
         if (cstatus === 'RELAX') return 'Relax';
         if (cstatus === 'HOLD') return 'Hold';
         
-        const type = (loan.loan_type || '').toLowerCase();
-        if (type === 'recon') return 'Recon';
-        if (type === 're-loan' || type === 'reloan' || loan.status === 'reloan_pending') return 'Reloan';
-        if (type === 'new') return 'New';
-        
         if (loan.date_maturity) {
           const today = new Date();
           today.setHours(0, 0, 0, 0);
@@ -101,6 +98,11 @@ export default function Customers() {
           if (diffDays > 45) return 'Pastdue';
           if (diffDays >= 1) return 'Overdue';
         }
+
+        const type = (loan.loan_type || '').toLowerCase();
+        if (type === 'recon') return 'Recon';
+        if (type === 're-loan' || type === 'reloan' || loan.status === 'reloan_pending') return 'Reloan';
+        if (type === 'new') return 'New';
     }
     return loan.status ? loan.status.replace(/_/g, ' ') : '—';
   };
@@ -117,11 +119,6 @@ export default function Customers() {
         if (cstatus === 'RELAX') return 'relax';
         if (cstatus === 'HOLD') return 'hold';
         
-        const type = (loan.loan_type || '').toLowerCase();
-        if (type === 'recon') return 'recon';
-        if (type === 're-loan' || type === 'reloan' || loan.status === 'reloan_pending') return 'reloan';
-        if (type === 'new') return 'new';
-        
         if (loan.date_maturity) {
           const today = new Date();
           today.setHours(0, 0, 0, 0);
@@ -131,6 +128,11 @@ export default function Customers() {
           if (diffDays > 45) return 'pastdue';
           if (diffDays >= 1) return 'overdue';
         }
+
+        const type = (loan.loan_type || '').toLowerCase();
+        if (type === 'recon') return 'recon';
+        if (type === 're-loan' || type === 'reloan' || loan.status === 'reloan_pending') return 'reloan';
+        if (type === 'new') return 'new';
     }
     return lstatus || 'unknown';
   };
@@ -1086,7 +1088,15 @@ export default function Customers() {
                                 <div className="soa-label-v2">Customer Code</div>
                                 <div className="soa-val-v2" style={{ fontSize: 18 }}>{soaData.customer_code}</div>
                                 <div className="soa-label-v2">Customer Status</div>
-                                <div className="soa-status-badge-v2"><div className="dot"></div> {getCalculatedCustomerStatus(soaData)}</div>
+                                {(() => {
+                                  const cstat = getCalculatedCustomerStatus(soaData) || 'Active';
+                                  const cclass = cstat.toLowerCase().replace(' ', '');
+                                  return (
+                                    <div className={`soa-status-badge-v2 ${cclass}`}>
+                                      <div className={`dot ${cclass}`}></div> {cstat}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                               <div>
                                 <div className="soa-label-v2">Address</div>
@@ -1659,31 +1669,6 @@ export default function Customers() {
         </div>
       )}
 
-      {/* Image Preview Modal */}
-      {previewImage && (
-        <div className="modal-overlay" style={{ zIndex: 100000, background: 'rgba(0,0,0,0.85)' }} onClick={() => setPreviewImage(null)}>
-          <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <button 
-              onClick={() => setPreviewImage(null)}
-              style={{
-                position: 'absolute', top: 20, left: 20, background: 'rgba(255,255,255,0.2)', 
-                border: 'none', color: '#fff', fontSize: '16px', padding: '10px 20px', 
-                borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
-                fontWeight: 600
-              }}
-            >
-              <span>←</span> Back
-            </button>
-            <img 
-              src={previewImage} 
-              alt="Preview" 
-              style={{ maxWidth: '90%', maxHeight: '90%', borderRadius: '8px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }} 
-              onClick={e => e.stopPropagation()}
-            />
-          </div>
-        </div>
-      )}
-
       {/* Payment Ledger Modal - Redesigned to match reference exactly */}
       {selectedLoanForPayments && (
         <div className="modal-overlay" style={{ zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15, 23, 42, 0.6)', padding: '20px' }} onClick={() => { setSelectedLoanForPayments(null); setPenaltyLoan(null); }}>
@@ -1869,9 +1854,41 @@ export default function Customers() {
                         <div style={{ fontSize: '16px', fontWeight: '700', color: '#22c55e' }}>{formatPhp(remainingBalance)}</div>
                       </div>
                     </div>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '18px', flexShrink: 0 }}>
+                        <i className="bi bi-info-circle"></i>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>STATUS</div>
+                        {(() => {
+                          const statusText = (getLoanStatusLabel ? getLoanStatusLabel(selectedLoanForPayments) : selectedLoanForPayments.status || 'UNKNOWN').toUpperCase();
+                          
+                          let bg = '#f1f5f9';
+                          let color = '#64748b';
+                          
+                          if (statusText === 'RELOAN') { bg = '#dcfce7'; color = '#16a34a'; } // Green
+                          else if (statusText === 'OVERDUE') { bg = '#ffedd5'; color = '#ea580c'; } // Orange
+                          else if (statusText === 'RECON') { bg = '#dbeafe'; color = '#2563eb'; } // Blue
+                          else if (statusText === 'PASTDUE' || statusText === 'PAST DUE') { bg = '#fee2e2'; color = '#ef4444'; } // Red
+                          else if (statusText === 'FULLY PAID' || statusText === 'FULLPAID') { bg = '#f3e8ff'; color = '#9333ea'; } // Violet
+                          else if (statusText === 'NEW') { bg = '#e0e7ff'; color = '#4f46e5'; } // Indigo
 
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', opacity: 0 }}>
-                      {/* Empty placeholder for grid balance */}
+                          return (
+                            <span style={{ 
+                              display: 'inline-block',
+                              padding: '4px 12px',
+                              borderRadius: '20px',
+                              backgroundColor: bg,
+                              color: color,
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              letterSpacing: '0.5px'
+                            }}>
+                              {statusText}
+                            </span>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </div>
                 );
@@ -1949,9 +1966,36 @@ export default function Customers() {
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: isReversed ? '#94a3b8' : '#0f172a', textDecoration: isReversed ? 'line-through' : 'none' }}>{formatPhp(p.amount_paid)}</td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: isReversed ? '#94a3b8' : '#0f172a', textDecoration: isReversed ? 'line-through' : 'none' }}>{formatPhp(p.balance_after)}</td>
                                   <td style={{ padding: '16px 24px', textAlign: 'center' }}>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '9999px', backgroundColor: pillBg, color: pillColor, fontSize: '12px', fontWeight: '600' }}>
-                                      <i className={`bi ${pillIcon}`}></i> {statusText}
-                                    </span>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '9999px', backgroundColor: pillBg, color: pillColor, fontSize: '12px', fontWeight: '600' }}>
+                                        <i className={`bi ${pillIcon}`}></i> {statusText}
+                                      </span>
+                                      {isPenalty && (
+                                        <button
+                                          type="button"
+                                          title="View/Edit Penalty"
+                                          style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: '#b45309',
+                                            cursor: 'pointer',
+                                            padding: '4px 8px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            borderRadius: '6px',
+                                            transition: 'background-color 0.2s, color 0.2s',
+                                            fontSize: '12px',
+                                            fontWeight: '600'
+                                          }}
+                                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fef3c7'; e.currentTarget.style.color = '#d97706'; }}
+                                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#b45309'; }}
+                                          onClick={() => setEditingPenaltyPayment(p)}
+                                        >
+                                          <i className="bi bi-pencil-square"></i>
+                                        </button>
+                                      )}
+                                    </div>
                                   </td>
                                 </tr>
                               ); 
@@ -2159,6 +2203,50 @@ export default function Customers() {
                 </>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {editingPenaltyPayment && (
+        <div className="modal-overlay" style={{ zIndex: 100001, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15, 23, 42, 0.72)', padding: '20px' }}>
+          <div className="modal-content" style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, color: '#0f172a', fontSize: '20px', fontWeight: '800' }}>Edit Penalty Amount</h3>
+              <button onClick={() => setEditingPenaltyPayment(null)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '24px', cursor: 'pointer' }}>&times;</button>
+            </div>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', color: '#475569', fontSize: '14px', fontWeight: '600' }}>Amount (PHP)</label>
+              <input 
+                type="number" 
+                defaultValue={editingPenaltyPayment.amount_paid}
+                id="editPenaltyAmountInput"
+                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '15px' }}
+              />
+            </div>
+            
+            <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+              <button 
+                onClick={() => setEditingPenaltyPayment(null)}
+                style={{ flex: 1, padding: '10px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button 
+                onClick={async () => {
+                  const amt = document.getElementById('editPenaltyAmountInput').value;
+                  if (!amt || isNaN(amt) || Number(amt) < 0) return alert('Invalid amount');
+                  try {
+                    await API.put(`/payments/${editingPenaltyPayment.id}/penalty-amount`, { amount_paid: amt });
+                    setEditingPenaltyPayment(null);
+                    openSoa(soaData.id);
+                  } catch (e) {
+                    alert('Failed to update: ' + (e.response?.data?.error || e.message));
+                  }
+                }}
+                style={{ flex: 1, padding: '10px', background: '#2563eb', color: '#ffffff', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>
+                Save
+              </button>
+            </div>
           </div>
         </div>
       )}

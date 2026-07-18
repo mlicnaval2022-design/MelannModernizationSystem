@@ -1,7 +1,7 @@
 const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
-const { computeMaturityDate, generateAmortizationSchedule } = require('../services/loanCalculator');
+const { computeMaturityDate, generateAmortizationSchedule, getWorkingDays } = require('../services/loanCalculator');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -44,7 +44,7 @@ const todayDateOnly = () => {
   return now.toISOString().slice(0, 10);
 };
 
-async function postReconBalancePayment({ customerId, sourceLoanId, amount, user }) {
+async function postReconBalancePayment({ customerId, sourceLoanId, amount, user, date_released }) {
   const paymentAmount = Number(amount || 0);
   if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) return null;
 
@@ -65,7 +65,7 @@ async function postReconBalancePayment({ customerId, sourceLoanId, amount, user 
     throw new Error('No active loan account found for posting the recon old balance.');
   }
 
-  const datePaid = todayDateOnly();
+  const datePaid = date_released || todayDateOnly();
   const balanceBefore = Number(sourceLoan.balance || 0);
   const balanceAfter = Math.max(0, balanceBefore - paymentAmount);
   const maxCodeRes = await dbGet(`SELECT MAX(CAST(payment_code AS INTEGER)) as max_code FROM tblPayment WHERE customer_id = ?`, [customerId]);
@@ -797,7 +797,8 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
     const defaultRemarks = normalizedLoanType === 'Recon' ? 'Auto-created via Recon application' : 'Auto-created via Re-Loan application';
     const interestAmount = amount * (interestRate / 100);
     const totalAmortization = amount + interestAmount;
-    const amortization = amount > 0 && period > 0 ? Math.ceil(totalAmortization / period) : 0;
+    const workingDays = getWorkingDays(period);
+    const amortization = amount > 0 && workingDays > 0 ? Math.ceil(totalAmortization / workingDays) : 0;
     const dateMaturity = computeMaturityDate(releaseDate, period);
     const balanceAmount = Number(previous_balance || 0);
     const penaltyAmount = Number(penalty || 0);
@@ -815,7 +816,8 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
         customerId: customer.id,
         sourceLoanId: source_loan_id,
         amount: balanceAmount,
-        user: req.user
+        user: req.user,
+        date_released: releaseDate
       })
       : null;
     
@@ -826,7 +828,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
       loan: { id: result.lastID, loan_code, collector_id: customer.collector_id, balance: totalAmortization },
       customer,
       amount: penaltyAmount,
-      datePaid: todayDateOnly(),
+      datePaid: releaseDate,
       user: req.user
     });
     if (loanStatus === 'active') {

@@ -25,6 +25,7 @@ export default function Loans() {
   const [loanActionType, setLoanActionType] = useState('')
   const [reloanModalOpen, setReloanModalOpen] = useState(false)
   const [confirmModal, setConfirmModal] = useState(null)
+  const [editModal, setEditModal] = useState(null)
 
   const triggerRecon = (r) => {
     setReloanCustomer({
@@ -60,6 +61,17 @@ export default function Loans() {
          .catch(err => alert('Failed to update note: ' + (err.response?.data?.error || err.message)));
     }
   }
+
+  const handleEditLoanSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await API.put(`/loans/${editModal.id}/edit`, editModal);
+      setEditModal(null);
+      load();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error editing loan');
+    }
+  };
 
   const load = () => { 
     setLoading(true); 
@@ -239,6 +251,7 @@ export default function Loans() {
                         {hasRole('admin', 'manager') && r.status === 'active' && (
                           <>
                             <button className="btn btn-sm" style={{ background: '#0369a1', color: '#fff', border: 'none' }} onClick={() => triggerRecon(r)}>Recon</button>
+                            <button className="btn btn-warning btn-sm" onClick={() => setEditModal({...r, date_released: r.date_released ? new Date(r.date_released).toISOString().split('T')[0] : ''})}>Edit</button>
                             <button className="btn btn-danger btn-sm" onClick={() => handleReverse(r.id)}>Reverse</button>
                           </>
                         )}
@@ -530,6 +543,36 @@ export default function Loans() {
                 Confirm Reverse
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {editModal && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div className="modal-content" style={{ background: '#fff', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)' }}>
+            <h3 style={{ margin: '0 0 20px 0', color: '#0f172a', fontSize: '20px', fontWeight: 700 }}>Edit Loan</h3>
+            <form onSubmit={handleEditLoanSubmit}>
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Principal Amount</label>
+                <input type="number" step="0.01" className="form-control" value={editModal.principal || ''} onChange={e => setEditModal({...editModal, principal: e.target.value})} required />
+              </div>
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Interest Rate (%)</label>
+                <input type="number" step="0.01" className="form-control" value={editModal.interest_rate || 0} onChange={e => setEditModal({...editModal, interest_rate: e.target.value})} required />
+              </div>
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Loan Period (Days)</label>
+                <input type="number" className="form-control" value={editModal.loan_period || ''} onChange={e => setEditModal({...editModal, loan_period: e.target.value})} required />
+              </div>
+              <div className="form-group" style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Date Released</label>
+                <input type="date" className="form-control" value={editModal.date_released || ''} onChange={e => setEditModal({...editModal, date_released: e.target.value})} required />
+              </div>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setEditModal(null)} className="btn btn-light" style={{ border: '1px solid #cbd5e1' }}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save Changes</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

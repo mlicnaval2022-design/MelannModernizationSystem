@@ -418,7 +418,7 @@ export default function DailyCashReport() {
                       <td className="text-right">{fmt(r.principal)}</td>
                       <td className="text-right">{fmt(r.today_penalty || 0)}</td>
                       <td className="text-right">{fmt(r.today_passbook || 0)}</td>
-                      <td className="text-right">{fmt(r.loan_type === 'Recon' ? 0 : (r.previous_balance || 0))}</td>
+                      <td className="text-right">{fmt(r.previous_balance || 0)}</td>
                     </tr>
                   ));
                 })()}
@@ -427,7 +427,7 @@ export default function DailyCashReport() {
                   <td className="text-right">₱{fmt(data.display_total_releases)}</td>
                   <td className="text-right">{fmt(data.releases.reduce((s, r) => s + Number(r.today_penalty || 0), 0))}</td>
                   <td className="text-right">{fmt(data.releases.reduce((s, r) => s + Number(r.today_passbook || 0), 0))}</td>
-                  <td className="text-right">0.00</td>
+                  <td className="text-right">{fmt(data.releases.reduce((s, r) => s + Number(r.previous_balance || 0), 0))}</td>
                 </tr>
                 <tr className="dcr-footer-row">
                   <td colSpan={5}>TOTAL RECONSTRUCT AMOUNT</td>
