@@ -44,7 +44,7 @@ const todayDateOnly = () => {
   return now.toISOString().slice(0, 10);
 };
 
-async function postReconBalancePayment({ customerId, sourceLoanId, amount, user, date_released }) {
+async function postPriorLoanBalancePayment({ customerId, sourceLoanId, amount, user, date_released, loanType }) {
   const paymentAmount = Number(amount || 0);
   if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) return null;
 
@@ -62,7 +62,7 @@ async function postReconBalancePayment({ customerId, sourceLoanId, amount, user,
     );
 
   if (!sourceLoan) {
-    throw new Error('No active loan account found for posting the recon old balance.');
+    throw new Error('No active loan account found for posting the old balance.');
   }
 
   const datePaid = date_released || todayDateOnly();
@@ -84,7 +84,7 @@ async function postReconBalancePayment({ customerId, sourceLoanId, amount, user,
       paymentAmount,
       balanceBefore,
       balanceAfter,
-      'Auto-posted old balance during Recon',
+      `Auto-posted old balance during ${loanType}`,
       user.id,
       paymentCode
     ]
@@ -116,7 +116,7 @@ async function postReconBalancePayment({ customerId, sourceLoanId, amount, user,
 
   await dbRun(
     `INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
-    [user.id, user.username, 'CREATE', 'PAYMENT', payment.lastID, `Recon old balance auto-posted. Loan:${sourceLoan.loan_code} Amt:${paymentAmount}`]
+    [user.id, user.username, 'CREATE', 'PAYMENT', payment.lastID, `${loanType} old balance auto-posted. Loan:${sourceLoan.loan_code} Amt:${paymentAmount}`]
   );
 
   return {
@@ -805,24 +805,27 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
     const passbookAmount = passbook === undefined || passbook === null || passbook === ''
       ? (normalizedLoanType === 'New' ? 50 : 0)
       : Number(passbook || 0);
-    const totalCharges = balanceAmount + penaltyAmount + passbookAmount;
+    const shouldPostPriorBalance = ['Recon', 'Re-Loan'].includes(normalizedLoanType);
+    const newLoanPreviousBalance = shouldPostPriorBalance ? 0 : balanceAmount;
+    const totalCharges = newLoanPreviousBalance + penaltyAmount + passbookAmount;
     const netProceeds = amount;
 
     await dbRun('BEGIN IMMEDIATE TRANSACTION');
     transactionStarted = true;
 
-    const reconBalancePayment = normalizedLoanType === 'Recon'
-      ? await postReconBalancePayment({
+    const priorBalancePayment = shouldPostPriorBalance
+      ? await postPriorLoanBalancePayment({
         customerId: customer.id,
         sourceLoanId: source_loan_id,
         amount: balanceAmount,
         user: req.user,
-        date_released: releaseDate
+        date_released: releaseDate,
+        loanType: normalizedLoanType
       })
       : null;
     
     const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, net_proceeds, balance, previous_balance, penalty, passbook, status, remarks, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [loan_code, customer.id, customer.collector_id, customer.branch_id, normalizedLoanType, amount, interestRate, interestAmount, period, releaseDate, dateMaturity, amortization, totalAmortization, netProceeds, totalAmortization, balanceAmount, penaltyAmount, passbookAmount, loanStatus, remarks || defaultRemarks, req.user.id]
+      [loan_code, customer.id, customer.collector_id, customer.branch_id, normalizedLoanType, amount, interestRate, interestAmount, period, releaseDate, dateMaturity, amortization, totalAmortization, netProceeds, totalAmortization, newLoanPreviousBalance, penaltyAmount, passbookAmount, loanStatus, remarks || defaultRemarks, req.user.id]
     );
     const penaltyEntry = await postLoanPenaltyEntry({
       loan: { id: result.lastID, loan_code, collector_id: customer.collector_id, balance: totalAmortization },
@@ -847,7 +850,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
       message: loanStatus === 'active' ? `${normalizedLoanType} saved to Active Loans successfully` : `${normalizedLoanType} application submitted successfully`,
       loan_code,
       status: loanStatus,
-      recon_balance_payment: reconBalancePayment,
+      prior_balance_payment: priorBalancePayment,
       penalty_entry: penaltyEntry
     });
   } catch (err) {

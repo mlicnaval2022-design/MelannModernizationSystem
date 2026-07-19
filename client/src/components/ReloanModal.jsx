@@ -20,7 +20,11 @@ const formatDate = date => date.toLocaleDateString('en-US', {
   year: 'numeric'
 });
 
-const toInputDate = date => date.toISOString().split('T')[0];
+const toInputDate = date => {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+};
 
 const formatDateTime = date => `${formatDate(date)} ${date.toLocaleTimeString('en-US', {
   hour: 'numeric',

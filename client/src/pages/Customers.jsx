@@ -1529,7 +1529,7 @@ export default function Customers() {
                       </div>
                     </div>
 
-                    <div className="f-soa-section" style={{marginBottom: 0}}>
+                    <div className="f-soa-section screen-only" style={{marginBottom: 0}}>
                       <div className="f-soa-sec-header">
                         <i className="bi bi-calculator"></i> PENALTY COMPUTATION
                       </div>

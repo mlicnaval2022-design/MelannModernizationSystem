@@ -17,6 +17,17 @@ function getDb() {
   return db;
 }
 
+function closeDb() {
+  return new Promise((resolve, reject) => {
+    if (!db) return resolve();
+    db.close((err) => {
+      if (err) return reject(err);
+      db = undefined;
+      resolve();
+    });
+  });
+}
+
 // Promise wrappers
 function dbRun(sql, params = []) {
   return new Promise((resolve, reject) => {
@@ -579,6 +590,10 @@ async function initializeDatabase() {
   if (!loanColNames.has('penalty')) await dbRun(`ALTER TABLE tblLoan ADD COLUMN penalty REAL DEFAULT 0`);
   if (!loanColNames.has('passbook')) await dbRun(`ALTER TABLE tblLoan ADD COLUMN passbook REAL DEFAULT 0`);
 
+  const paymentCols = await dbAll(`PRAGMA table_info(tblPayment)`);
+  const paymentColNames = new Set(paymentCols.map(c => c.name));
+  if (!paymentColNames.has('payment_code')) await dbRun(`ALTER TABLE tblPayment ADD COLUMN payment_code TEXT`);
+
   // Seed default admin
   const userCount = await dbGet('SELECT COUNT(*) as count FROM tblUser');
   if (userCount.count === 0) {
@@ -601,4 +616,4 @@ async function initializeDatabase() {
   console.log('✅ Database initialized');
 }
 
-module.exports = { getDb, initializeDatabase, dbRun, dbGet, dbAll };
+module.exports = { getDb, closeDb, initializeDatabase, dbRun, dbGet, dbAll };
