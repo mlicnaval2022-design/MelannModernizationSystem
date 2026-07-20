@@ -2,7 +2,7 @@ const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { runPastDueUpdate } = require('../services/pastDueUpdater');
-const { requireOperationDate, sqlNotSunday } = require('../services/operationDays');
+const { requireOperationDate, sqlNotSunday, isSundayDate } = require('../services/operationDays');
 const router = express.Router();
 const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
 
@@ -11,6 +11,22 @@ const toDateKey = date => {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+const toLocalDateString = (date = new Date()) => {
+  const localDate = new Date(date);
+  localDate.setMinutes(localDate.getMinutes() - localDate.getTimezoneOffset());
+  return localDate.toISOString().split('T')[0];
+};
+
+const getPreviousOperationDate = (dateValue) => {
+  const date = new Date(`${dateValue}T00:00:00`);
+
+  do {
+    date.setDate(date.getDate() - 1);
+  } while (isSundayDate(toLocalDateString(date)));
+
+  return toLocalDateString(date);
 };
 
 // Manual past-due updater trigger (admin/manager)
@@ -37,13 +53,10 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
   try {
     const now = new Date();
     const today = toDateKey(now);
-    const yesterdayDate = new Date(now);
-    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-    const yesterday = toDateKey(yesterdayDate);
     
     // Find the most recent operating date before today that has active collections
     const latestPaymentDateRes = await dbGet(`SELECT MAX(date_paid) as max_date FROM tblPayment WHERE status IN ('active', 'penalty') AND date_paid < ? AND ${sqlNotSunday('date_paid')}`, [today]);
-    const latestPaymentDate = latestPaymentDateRes?.max_date || yesterday;
+    const latestPaymentDate = latestPaymentDateRes?.max_date || getPreviousOperationDate(today);
 
     const epoch = new Date('2026-01-01T00:00:00Z');
     const diffDays = Math.floor((now - epoch) / (1000 * 60 * 60 * 24));
