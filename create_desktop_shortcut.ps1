@@ -18,7 +18,7 @@ $DesktopPath = [Environment]::GetFolderPath("Desktop")
 if (-Not (Test-Path $IconPath)) {
     Write-Host "ERROR: mls_icon.ico not found at: $IconPath" -ForegroundColor Red
     Write-Host "Please make sure mls_icon.ico is in the same folder as this script." -ForegroundColor Yellow
-    pause
+    Read-Host "Press Enter to exit..."
     exit 1
 }
 
@@ -64,4 +64,4 @@ if ($Mode -eq "client" -or $Mode -eq "both") {
 Write-Host ""
 Write-Host "  Done! Check your Desktop for the MLS shortcut(s)." -ForegroundColor Green
 Write-Host ""
-pause
+Read-Host "Press Enter to exit..."

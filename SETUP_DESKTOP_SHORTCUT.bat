@@ -4,3 +4,4 @@ echo.
 echo  Setting up MLS Desktop Shortcuts...
 echo.
 powershell -ExecutionPolicy Bypass -File "%~dp0create_desktop_shortcut.ps1" -Mode both
+pause
