@@ -20,6 +20,7 @@ import AuditTrail from './pages/AuditTrail'
 import GovernmentCompliance from './pages/GovernmentCompliance'
 import NoPaymentMonitoring from './pages/NoPaymentMonitoring'
 import MonitoringSettings from './pages/MonitoringSettings'
+import PromissoryDisclosure from './pages/PromissoryDisclosure'
 
 function PrivateRoute({ children }) {
   const { user } = useAuth()
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="customers" element={<Customers />} />
         <Route path="credit-scoring" element={<CreditScoring />} />
         <Route path="loans" element={<Loans />} />
+        <Route path="promissory-disclosure" element={<PromissoryDisclosure />} />
         <Route path="payments" element={<Payments />} />
         <Route path="collectors" element={<Collectors />} />
         <Route path="deposits" element={<Deposits />} />

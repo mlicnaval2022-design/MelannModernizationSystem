@@ -9,11 +9,11 @@
 function computeAmortization(principal, interestRate, loanPeriod) {
   const p = parseFloat(principal);
   const r = parseFloat(interestRate);
-  // interestRate is expected to be either 0 or 15
+  const period = parseInt(loanPeriod) || 45;
   const interest = p * (r / 100);
   const totalAmount = p + interest;
-  // 39 payments (45 days excluding Sundays)
-  const amortization = Math.ceil(totalAmount / 39);
+  const workingDays = getWorkingDays(period);
+  const amortization = Math.ceil(totalAmount / workingDays);
   return {
     interest_amount: parseFloat(interest.toFixed(2)),
     total_amortization: parseFloat(totalAmount.toFixed(2)),
@@ -22,23 +22,37 @@ function computeAmortization(principal, interestRate, loanPeriod) {
 }
 
 /**
- * Compute maturity date from release date (45 calendar days)
+ * Compute maturity date from release date using the actual loan period (calendar days)
  */
-function computeMaturityDate(dateReleased, loanPeriodMonths) {
+function computeMaturityDate(dateReleased, loanPeriod) {
+  const days = parseInt(loanPeriod) || 45;
   const date = new Date(dateReleased);
-  date.setDate(date.getDate() + 45);
+  date.setDate(date.getDate() + days);
   return date.toISOString().split('T')[0];
 }
 
 /**
- * Generate amortization schedule (39 daily payments excluding Sundays)
+ * Count working days (excluding Sundays) within a given number of calendar days
+ */
+function getWorkingDays(calendarDays) {
+  // For every 7 calendar days there are 6 working days (excluding Sundays)
+  const fullWeeks = Math.floor(calendarDays / 7);
+  const remainder = calendarDays % 7;
+  return (fullWeeks * 6) + Math.min(remainder, 6);
+}
+
+/**
+ * Generate amortization schedule (daily payments excluding Sundays)
+ * Number of payments is based on working days in the loan period
  */
 function generateAmortizationSchedule(loanId, dateReleased, loanPeriod, amortizationAmount) {
   const schedule = [];
   let currentDate = new Date(dateReleased);
+  const calendarDays = parseInt(loanPeriod) || 45;
+  const totalPayments = getWorkingDays(calendarDays);
   let paymentsGenerated = 0;
   
-  while (paymentsGenerated < 39) {
+  while (paymentsGenerated < totalPayments) {
     currentDate.setDate(currentDate.getDate() + 1);
     // 0 is Sunday
     if (currentDate.getDay() !== 0) {
@@ -79,6 +93,7 @@ function isPastDue(dateMaturity) {
 module.exports = {
   computeAmortization,
   computeMaturityDate,
+  getWorkingDays,
   generateAmortizationSchedule,
   computeNetProceeds,
   isPastDue,

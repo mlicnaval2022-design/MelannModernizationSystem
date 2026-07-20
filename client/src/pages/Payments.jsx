@@ -4,7 +4,12 @@ import { useAuth } from '../context/AuthContext'
 import './Payments.css'
 
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
-const today = () => new Date().toISOString().split('T')[0]
+const today = () => {
+  const d = new Date()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${month}-${day}`
+}
 const formatDateTime = date => {
   if (!date) return '';
   const d = new Date(date);
@@ -792,6 +797,7 @@ export default function Payments() {
                         <tr><td colSpan="11" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No payments found for this client.</td></tr>
                       ) : reversePayments.map(p => {
                         const isReversed = p.status === 'reversed';
+                        const isPenalty = p.status === 'penalty';
                         const isSelected = selectedPaymentIds.includes(p.id);
                         return (
                           <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9', background: isSelected ? '#eff6ff' : 'transparent', opacity: isReversed ? 0.6 : 1 }}>
@@ -815,9 +821,10 @@ export default function Payments() {
                             <td style={{ padding: '12px' }}>
                               <span style={{ 
                                 padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 700,
-                                background: isReversed ? '#fee2e2' : '#dcfce7', color: isReversed ? '#ef4444' : '#16a34a'
+                                background: isReversed ? '#fee2e2' : isPenalty ? '#fef3c7' : '#dcfce7',
+                                color: isReversed ? '#ef4444' : isPenalty ? '#b45309' : '#16a34a'
                               }}>
-                                {isReversed ? 'REVERSED' : 'POSTED'}
+                                {isReversed ? 'REVERSED' : isPenalty ? 'PENALTY' : 'POSTED'}
                               </span>
                             </td>
                           </tr>

@@ -21,22 +21,18 @@ export default function Loans() {
   const [detailLoan, setDetailLoan] = useState(null)
   const [detailTab, setDetailTab] = useState('payments')
 
-  // Release Modal State
-  const [releaseModal, setReleaseModal] = useState(false)
-  const [approvedLoans, setApprovedLoans] = useState([])
-  const [releaseForm, setReleaseForm] = useState({ id: '', date_released: new Date().toISOString().split('T')[0] })
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-
   const [reloanCustomer, setReloanCustomer] = useState(null)
   const [loanActionType, setLoanActionType] = useState('')
   const [reloanModalOpen, setReloanModalOpen] = useState(false)
   const [sourceApprovedLoanId, setSourceApprovedLoanId] = useState(null)
+  const [confirmModal, setConfirmModal] = useState(null)
+  const [editModal, setEditModal] = useState(null)
 
   const triggerRecon = (r) => {
     setSourceApprovedLoanId(null);
     setReloanCustomer({
       id: r.customer_id,
+      source_loan_id: r.id,
       customer_code: r.customer_code,
       client_name: r.customer_name,
       collector_name: r.collector_name
@@ -56,6 +52,29 @@ export default function Loans() {
     setLoanActionType('Reloan'); // Default to Reloan, modal has dropdown for New/Reloan/Recon
     setReloanModalOpen(true);
   }
+
+
+  const handleEditNote = (loan) => {
+    const newNote = window.prompt(`Edit note for ${loan.customer_name}:`, loan.status_note || '');
+    if (newNote !== null) {
+       API.put(`/customers/${loan.customer_id}/status-note`, { note: newNote, status: loan.customer_status })
+         .then(() => {
+            load();
+         })
+         .catch(err => alert('Failed to update note: ' + (err.response?.data?.error || err.message)));
+    }
+  }
+
+  const handleEditLoanSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await API.put(`/loans/${editModal.id}/edit`, editModal);
+      setEditModal(null);
+      load();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error editing loan');
+    }
+  };
 
   const load = () => { 
     setLoading(true); 
@@ -81,27 +100,21 @@ export default function Loans() {
     return `${baseUrl}${path}`;
   };
 
-  const openReleaseModal = async () => {
-    setError('')
-    setReleaseForm({ id: '', date_released: new Date().toISOString().split('T')[0] })
-    setReleaseModal(true)
-    try {
-      const res = await API.get('/loans', { params: { status: 'approved' } })
-      setApprovedLoans(res.data)
-    } catch (e) { console.error(e) }
-  }
-
-  const handleRelease = async (e) => {
-    e.preventDefault()
-    if (!releaseForm.id) return setError('Please select an approved application')
-    setError('')
-    setSaving(true)
-    try {
-      await API.post(`/loans/${releaseForm.id}/release`, { date_released: releaseForm.date_released })
-      setReleaseModal(false)
-      load()
-    } catch (err) { setError(err.response?.data?.error || 'Error releasing loan') }
-    finally { setSaving(false) }
+  const handleReverse = (id) => {
+    setConfirmModal({
+      message: 'Reverse this loan and all its payments?',
+      subMessage: 'This action cannot be undone and will mark the loan and all associated payments as reversed.',
+      onConfirm: async () => {
+        setConfirmModal(null)
+        try { 
+          await API.post(`/reversals/loan/${id}`); 
+          load();
+        } catch (err) { 
+          alert(err.response?.data?.error || 'Error reversing loan');
+        }
+      },
+      onCancel: () => setConfirmModal(null)
+    })
   }
 
   const handleApproveReloan = async (id) => {
@@ -138,16 +151,17 @@ export default function Loans() {
           <span className="search-icon">🔍</span>
           <input id="loan-search" className="form-control" placeholder="Search name, code, loan#..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <button id="btn-release-loan" className="btn btn-primary" onClick={openReleaseModal} style={{ marginRight: '8px' }}>🚀 NEW LOAN APPROVED</button>
         <button className="btn btn-dark" onClick={() => { setLoanActionType('Reloan'); setReloanCustomer(null); setReloanModalOpen(true); }}>+ Add Loan</button>
       </div>
 
       <div className="custom-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '15px', overflowX: 'auto', paddingBottom: '5px' }}>
         {[
           { value: '', label: 'All Status' },
+          { value: 'relax', label: 'Relax' },
+          { value: 'hold', label: 'Hold' },
           { value: 'active', label: 'Active' },
           { value: 'pastdue', label: 'Past Due' },
-          { value: 'fullpaid', label: 'Full Paid' },
+          { value: 'fullpaid', label: 'Fully Paid' },
           { value: 'reloan_pending', label: 'Pending Reloans' },
           { value: 'approved', label: 'Approved (Not Released)' },
           { value: 'reversed', label: 'Reversed' }
@@ -209,21 +223,39 @@ export default function Loans() {
                     <td><span className="tag">{r.loan_type}</span></td>
                     <td className="text-right">₱ {fmt(r.principal)}</td>
                     <td className="text-right fw-bold">
-                      {r.status === 'fullpaid' ? <span className="text-success">PAID</span> : <span>₱ {fmt(r.balance)}</span>}
+                      {r.status === 'fullpaid' || Number(r.balance || 0) <= 0 ? <span className="text-success">PAID</span> : <span>₱ {fmt(r.balance)}</span>}
                     </td>
                     <td>{r.date_released}</td>
                     <td>{r.date_maturity}</td>
                     <td>{r.collector_name || '—'}</td>
                     <td>
-                      {r.status === 'approved' ? <span className="badge badge-warning">Approved (Not Released)</span> :
-                       <span className={`badge badge-${r.status}`}>{r.status}</span>}
+                      {(() => {
+                        const isContext = ['relax', 'hold'].includes(r.customer_status?.toLowerCase());
+                        const badgeText = isContext ? r.customer_status.toUpperCase() : (r.status === 'approved' ? 'Approved (Not Released)' : r.status);
+                        const badgeClass = isContext ? r.customer_status.toLowerCase() : r.status;
+                        return (
+                          <>
+                            <span className={`badge badge-${badgeClass}`}>{badgeText}</span>
+                            {isContext && r.status_note && (
+                              <div style={{ marginTop: '6px', fontSize: '11px', color: '#64748b', maxWidth: '150px', whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.2' }}>
+                                <i>Note: {r.status_note}</i>
+                              </div>
+                            )}
+                          </>
+                        )
+                      })()}
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button className="btn btn-secondary btn-sm" onClick={() => viewDetail(r.id)}>View</button>
+                        {['relax', 'hold'].includes(r.customer_status?.toLowerCase()) && (
+                          <button className="btn btn-light btn-sm" style={{ border: '1px solid #cbd5e1' }} onClick={() => handleEditNote(r)}>Edit Note</button>
+                        )}
                         {hasRole('admin', 'manager') && r.status === 'active' && (
                           <>
                             <button className="btn btn-sm" style={{ background: '#0369a1', color: '#fff', border: 'none' }} onClick={() => triggerRecon(r)}>Recon</button>
+                            <button className="btn btn-warning btn-sm" onClick={() => setEditModal({...r, date_released: r.date_released ? new Date(r.date_released).toISOString().split('T')[0] : ''})}>Edit</button>
+                            <button className="btn btn-danger btn-sm" onClick={() => handleReverse(r.id)}>Reverse</button>
                           </>
                         )}
                         {hasRole('admin', 'manager') && r.status === 'reloan_pending' && (
@@ -243,45 +275,6 @@ export default function Loans() {
           </table>
         </div>
       </div>
-
-      {/* ===================== Release Loan Modal ===================== */}
-      {releaseModal && (
-        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setReleaseModal(false)}>
-          <div className="modal" style={{ maxWidth: 500 }}>
-            <div className="modal-header">
-              <span className="modal-title">🚀 NEW LOAN APPROVED</span>
-              <button className="modal-close" onClick={() => setReleaseModal(false)}>✕</button>
-            </div>
-            <div className="modal-body">
-              {error && <div className="login-error" style={{ marginBottom: 14 }}>⚠️ {error}</div>}
-              
-              <form onSubmit={handleRelease}>
-                <div className="form-group mb-3">
-                  <label className="form-label">Select Approved Application *</label>
-                  <select className="form-control" value={releaseForm.id} onChange={e => setReleaseForm(f => ({ ...f, id: e.target.value }))} required>
-                    <option value="">Select...</option>
-                    {approvedLoans.map(c => (
-                      <option key={c.id} value={c.id}>{c.loan_code} — {c.customer_name} (₱ {fmt(c.principal)})</option>
-                    ))}
-                  </select>
-                  {approvedLoans.length === 0 && <small className="text-danger mt-1 d-block">No approved applications pending release.</small>}
-                </div>
-                
-                <div className="form-group mb-3">
-                  <label className="form-label">Official Release Date *</label>
-                  <input type="date" className="form-control" value={releaseForm.date_released} onChange={e => setReleaseForm(f => ({ ...f, date_released: e.target.value }))} required />
-                  <small className="text-muted mt-1 d-block">The 45-day maturity schedule will be generated starting from this date.</small>
-                </div>
-
-                <div className="form-actions mt-4">
-                  <button type="button" className="btn btn-secondary" onClick={() => setReleaseModal(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={saving || approvedLoans.length === 0}>{saving ? 'Releasing...' : '🚀 Release & Generate Schedule'}</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ===================== Loan Detail Modal ===================== */}
       {detailModal && detailLoan && (
@@ -423,10 +416,10 @@ export default function Loans() {
                               borderRadius: 12, 
                               fontSize: 12, 
                               fontWeight: 700, 
-                              background: p.status === 'active' ? '#dcfce7' : '#fee2e2', 
-                              color: p.status === 'active' ? '#16a34a' : '#ef4444' 
+                              background: p.status === 'active' ? '#dcfce7' : p.status === 'penalty' ? '#fef3c7' : '#fee2e2',
+                              color: p.status === 'active' ? '#16a34a' : p.status === 'penalty' ? '#b45309' : '#ef4444'
                             }}>
-                              {p.status === 'active' ? 'Good' : 'Reversed'}
+                              {p.status === 'active' ? 'Good' : p.status === 'penalty' ? 'Penalty' : 'Reversed'}
                             </span>
                           </td>
                         </tr>
@@ -496,6 +489,103 @@ export default function Loans() {
           load();
         }}
       />
+
+      {/* Custom Confirm Modal */}
+      {confirmModal && (
+        <div className="modal-overlay" style={{ zIndex: 10000 }} onMouseDown={e => e.target === e.currentTarget && confirmModal.onCancel && confirmModal.onCancel()}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '16px',
+            padding: '36px 32px 28px',
+            maxWidth: '460px',
+            width: '90%',
+            textAlign: 'center',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)',
+            animation: 'paymentConfirmIn 0.2s ease-out'
+          }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: '50%',
+              background: '#fffbeb',
+              color: '#f59e0b',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '28px', margin: '0 auto 18px auto',
+              border: '2px solid #fde68a'
+            }}>
+              ⚠
+            </div>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>
+              Confirm Reversal
+            </h3>
+            <p style={{ color: '#64748b', fontSize: '14px', lineHeight: 1.6, margin: '0 0 6px 0' }}>
+              {confirmModal.message}
+            </p>
+            {confirmModal.subMessage && (
+              <p style={{ color: '#475569', fontSize: '14px', fontWeight: 600, margin: '0 0 28px 0' }}>
+                {confirmModal.subMessage}
+              </p>
+            )}
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                onClick={confirmModal.onCancel}
+                style={{
+                  padding: '10px 28px', borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '14px',
+                  cursor: 'pointer', transition: 'all 0.15s'
+                }}
+                onMouseEnter={e => { e.target.style.background = '#f8fafc'; e.target.style.borderColor = '#cbd5e1' }}
+                onMouseLeave={e => { e.target.style.background = '#fff'; e.target.style.borderColor = '#e2e8f0' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmModal.onConfirm}
+                style={{
+                  padding: '10px 28px', borderRadius: '8px', border: 'none',
+                  background: '#f59e0b',
+                  color: '#fff', fontWeight: 600, fontSize: '14px',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                  boxShadow: '0 2px 8px rgba(245,158,11,0.3)'
+                }}
+                onMouseEnter={e => { e.target.style.background = '#d97706' }}
+                onMouseLeave={e => { e.target.style.background = '#f59e0b' }}
+              >
+                Confirm Reverse
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editModal && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div className="modal-content" style={{ background: '#fff', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)' }}>
+            <h3 style={{ margin: '0 0 20px 0', color: '#0f172a', fontSize: '20px', fontWeight: 700 }}>Edit Loan</h3>
+            <form onSubmit={handleEditLoanSubmit}>
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Principal Amount</label>
+                <input type="number" step="0.01" className="form-control" value={editModal.principal || ''} onChange={e => setEditModal({...editModal, principal: e.target.value})} required />
+              </div>
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Interest Rate (%)</label>
+                <input type="number" step="0.01" className="form-control" value={editModal.interest_rate || 0} onChange={e => setEditModal({...editModal, interest_rate: e.target.value})} required />
+              </div>
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Loan Period (Days)</label>
+                <input type="number" className="form-control" value={editModal.loan_period || ''} onChange={e => setEditModal({...editModal, loan_period: e.target.value})} required />
+              </div>
+              <div className="form-group" style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Date Released</label>
+                <input type="date" className="form-control" value={editModal.date_released || ''} onChange={e => setEditModal({...editModal, date_released: e.target.value})} required />
+              </div>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setEditModal(null)} className="btn btn-light" style={{ border: '1px solid #cbd5e1' }}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

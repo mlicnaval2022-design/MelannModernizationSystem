@@ -20,7 +20,11 @@ const formatDate = date => date.toLocaleDateString('en-US', {
   year: 'numeric'
 });
 
-const toInputDate = date => date.toISOString().split('T')[0];
+const toInputDate = date => {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+};
 
 const formatDateTime = date => `${formatDate(date)} ${date.toLocaleTimeString('en-US', {
   hour: 'numeric',
@@ -34,9 +38,16 @@ const addDays = (date, days) => {
   return next;
 };
 
+const getDefaultReleaseDate = type => toInputDate(addDays(new Date(), type === 'Recon' ? 1 : 0));
+
 const getRecommendedAmount = data => {
   if (!data) return '';
   return data.recommendations?.standard || data.last_loan_amount || '';
+};
+
+const isNewLoanType = type => {
+  const normalized = String(type || '').toLowerCase();
+  return normalized === 'new' || normalized === 'new loan';
 };
 
 const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan', sourceApprovedLoanId = null, onReloanSubmitted }) => {
@@ -45,7 +56,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
   const [error, setError] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
   const [desiredAmount, setDesiredAmount] = useState('');
-  const [dateRelease, setDateRelease] = useState(() => toInputDate(new Date()));
+  const [dateRelease, setDateRelease] = useState(() => getDefaultReleaseDate(loanType));
   const [loanTerm, setLoanTerm] = useState('45');
   const [interestRate, setInterestRate] = useState('15');
   const [submitting, setSubmitting] = useState(false);
@@ -53,6 +64,8 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
 
   useEffect(() => {
     setInternalLoanType(loanType);
+    setPassbook(isNewLoanType(loanType) ? '50' : '');
+    setDateRelease(getDefaultReleaseDate(loanType));
   }, [loanType]);
 
   const [internalCustomerId, setInternalCustomerId] = useState(null);
@@ -61,6 +74,8 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [previousBalance, setPreviousBalance] = useState('');
+  const [penalty, setPenalty] = useState('');
+  const [passbook, setPassbook] = useState(isNewLoanType(loanType) ? '50' : '');
 
   const activeCustomerId = customerId || internalCustomerId;
   const activeCustomer = customer || internalCustomer;
@@ -85,6 +100,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
 
   useEffect(() => {
     if (isOpen) {
+      setShowSuccess(false);
       if (activeCustomerId) {
         fetchReloanData();
       } else {
@@ -92,19 +108,22 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
       }
     } else {
       setError('');
+      setShowSuccess(false);
       setSubmitting(false);
       setLoanTerm('45');
       setInterestRate('15');
-      setDateRelease(toInputDate(new Date()));
+      setDateRelease(getDefaultReleaseDate(loanType));
       setDesiredAmount('');
       setInternalCustomerId(null);
       setInternalCustomer(null);
       setSearchQuery('');
       setSearchResults([]);
       setPreviousBalance('');
+      setPenalty('');
+      setPassbook(isNewLoanType(loanType) ? '50' : '');
       setLoading(true); // Reset loading state for next open
     }
-  }, [isOpen, activeCustomerId, fetchReloanData]);
+  }, [isOpen, activeCustomerId, fetchReloanData, loanType]);
 
   const computed = useMemo(() => {
     const today = new Date();
@@ -112,10 +131,13 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
     const principal = Number(desiredAmount || 0);
     const terms = Number(loanTerm || 45);
     const interest = Number(interestRate || 0);
-    const charges = 0;
+    const oldBalance = Number(previousBalance || 0);
+    const penaltyAmount = Number(penalty || 0);
+    const passbookAmount = Number(passbook || 0);
+    const charges = oldBalance + penaltyAmount + passbookAmount;
     const interestAmount = principal * (interest / 100);
-    const totalForRelease = Math.max(principal + interestAmount - charges, 0);
     const totalAmount = principal + interestAmount;
+    const totalForRelease = totalAmount;
     const paymentPerDay = terms > 0 ? Math.ceil(totalAmount / terms) : 0;
 
     return {
@@ -126,12 +148,15 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
       interestAmount,
       terms,
       charges,
+      oldBalance,
+      penaltyAmount,
+      passbookAmount,
       totalForRelease,
       totalAmount,
       paymentPerDay,
       maturity: addDays(releaseDate, terms)
     };
-  }, [desiredAmount, loanTerm, interestRate, dateRelease]);
+  }, [desiredAmount, loanTerm, interestRate, dateRelease, previousBalance, passbook]);
 
   const handleSubmit = async (e) => {
     e?.preventDefault();
@@ -150,8 +175,11 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
         interest_rate: Number(interestRate || 0),
         date_released: dateRelease,
         loan_type: internalLoanType,
+        source_approved_loan_id: sourceApprovedLoanId,
+        source_loan_id: activeCustomer?.source_loan_id || null,
         previous_balance: Number(previousBalance || 0),
-        source_approved_loan_id: sourceApprovedLoanId
+        penalty: Number(penalty || 0),
+        passbook: Number(passbook || 0)
       });
       setShowSuccess(true);
     } catch (err) {
@@ -188,13 +216,28 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
   const clientName = activeCustomer?.client_name || activeCustomer?.full_name || 'Selected customer';
   const customerCode = activeCustomer?.customer_code || activeCustomerId || '';
   const collectorName = activeCustomer?.collector_name || 'Select collector';
-  const isEligible = loanType === 'Recon' ? true : (data?.can_proceed !== false && data?.can_proceed !== undefined) || data?.is_eligible !== false;
+  const isManualBalanceLoan = loanType === 'Reloan' || loanType === 'Recon';
+  const isEligible = isManualBalanceLoan ? true : (data?.can_proceed !== false && data?.can_proceed !== undefined) || data?.is_eligible !== false;
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       handleSubmit();
     }
+  };
+
+  const handleLoanTypeChange = (e) => {
+    const nextType = e.target.value;
+    setInternalLoanType(nextType);
+    setPassbook(isNewLoanType(nextType) ? '50' : '');
+    setDateRelease(getDefaultReleaseDate(nextType));
+  };
+
+  const handleSuccessOk = () => {
+    setShowSuccess(false);
+    setSubmitting(false);
+    if (onReloanSubmitted) onReloanSubmitted();
+    else onClose();
   };
 
   if (showSuccess) {
@@ -204,7 +247,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
           <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#ecfdf5', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '40px', margin: '0 auto 20px auto' }}>✓</div>
           <h2 style={{ margin: '0 0 10px 0', color: '#047857', fontSize: '24px' }}>Saved Loan</h2>
           <p style={{ color: '#64748b', marginBottom: '30px' }}>The loan application has been saved successfully and sent for approval.</p>
-          <button className="reloan-primary" style={{ width: '100%', padding: '12px', justifyContent: 'center' }} onClick={onReloanSubmitted}>OK</button>
+          <button className="reloan-primary" style={{ width: '100%', padding: '12px', justifyContent: 'center' }} onClick={handleSuccessOk}>OK</button>
         </div>
       </div>
     );
@@ -318,7 +361,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
 
                   <label className="reloan-field">
                     <span>Loan Type <b>*</b></span>
-                    <select value={internalLoanType} onChange={e => setInternalLoanType(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '15px', color: '#1e293b', background: '#f8fafc', fontWeight: '500', outline: 'none' }}>
+                    <select value={internalLoanType} onChange={handleLoanTypeChange} style={{ width: '100%', padding: '12px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '15px', color: '#1e293b', background: '#f8fafc', fontWeight: '500', outline: 'none' }}>
                       <option value="New">New</option>
                       <option value="Reloan">Reloan</option>
                       <option value="Recon">Recon</option>
@@ -433,26 +476,28 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
                   <div className="reloan-balance-row">
                     <div className="reloan-soft-icon violet">⟲</div>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#334155', letterSpacing: '0.5px' }}>OLD BALANCE</span>
-                      <input 
-                        type="number" 
-                        value={previousBalance} 
-                        onChange={(e) => setPreviousBalance(e.target.value)} 
-                        placeholder="0.00"
-                        style={{ border: 'none', borderBottom: '2px solid #cbd5e1', background: 'transparent', width: '120px', fontSize: '18px', fontWeight: 'bold', outline: 'none', color: '#1e293b', marginTop: '2px' }}
-                      />
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#334155', letterSpacing: '0.5px' }}>SYSTEM BALANCE</span>
+                      <strong>{peso(data?.active_balance || 0)}</strong>
                     </div>
                   </div>
 
                   <div className="reloan-charges-row">
                     <div className="reloan-charges">
                       <div className="reloan-section-title compact">CHARGES INFORMATION</div>
-                      {['Insurance', 'Collection', 'Penalty', 'Passbook', 'Service Fee'].map(label => (
+                      {['Balance', 'Penalty', 'Passbook'].map(label => (
                         <label key={label} className="reloan-charge-field">
                           <span>{label}</span>
                           <div>
                             <i>₱</i>
-                            <input value={numberText(0)} readOnly />
+                            {label === 'Balance' ? (
+                              <input type="number" min="0" step="0.01" value={previousBalance} onChange={e => setPreviousBalance(e.target.value)} placeholder="0.00" />
+                            ) : label === 'Penalty' ? (
+                              <input type="number" min="0" step="0.01" value={penalty} onChange={e => setPenalty(e.target.value)} placeholder="0.00" />
+                            ) : label === 'Passbook' ? (
+                              <input type="number" min="0" step="0.01" value={passbook} onChange={e => setPassbook(e.target.value)} placeholder="0.00" />
+                            ) : (
+                              <input value={numberText(0)} readOnly />
+                            )}
                           </div>
                         </label>
                       ))}
@@ -502,7 +547,10 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
                     <dl>
                       <div><dt>Principal</dt><dd>{peso(computed.principal)}</dd></div>
                       <div><dt>Interest ({computed.interest}%)</dt><dd>{peso(computed.interestAmount)}</dd></div>
-                      <div><dt>Less: Total Charges</dt><dd>{peso(computed.charges)}</dd></div>
+                      <div><dt>Balance</dt><dd>{peso(computed.oldBalance)}</dd></div>
+                      <div><dt>Penalty</dt><dd>{peso(computed.penaltyAmount)}</dd></div>
+                      <div><dt>Passbook</dt><dd>{peso(computed.passbookAmount)}</dd></div>
+                      <div><dt>Total Charges</dt><dd>{peso(computed.charges)}</dd></div>
                       <div className="total"><dt>Total for Release</dt><dd>{peso(computed.totalForRelease)}</dd></div>
                     </dl>
                   </div>

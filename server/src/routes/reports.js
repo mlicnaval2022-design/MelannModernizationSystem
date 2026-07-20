@@ -29,9 +29,9 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const now = new Date();
     
-    // Find the most recent date that has active collections
-    const latestPaymentDateRes = await dbGet(`SELECT MAX(date_paid) as max_date FROM tblPayment WHERE status='active'`);
-    const latestPaymentDate = latestPaymentDateRes?.max_date || today;
+    // Find the most recent date before today that has active collections
+    const latestPaymentDateRes = await dbGet(`SELECT MAX(date_paid) as max_date FROM tblPayment WHERE status IN ('active', 'penalty') AND date_paid < ?`, [today]);
+    const latestPaymentDate = latestPaymentDateRes?.max_date || (new Date(Date.now() - 86400000).toISOString().split('T')[0]);
 
     const epoch = new Date('2026-01-01T00:00:00Z');
     const diffDays = Math.floor((now - epoch) / (1000 * 60 * 60 * 24));
@@ -47,18 +47,18 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       total_customers: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='active'`)).c,
       new_customers_this_month: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='active' AND strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')`)).c,
       expected_collections_today: (await dbGet(`SELECT COALESCE(SUM(amortization), 0) as total FROM tblLoan WHERE status='active'`)).total,
-      collections_this_month: (await dbGet(`SELECT COALESCE(SUM(amount_paid), 0) as total FROM tblPayment WHERE status='active' AND strftime('%Y-%m', date_paid) = strftime('%Y-%m', 'now')`)).total,
-      collections_last_month: (await dbGet(`SELECT COALESCE(SUM(amount_paid), 0) as total FROM tblPayment WHERE status='active' AND strftime('%Y-%m', date_paid) = strftime('%Y-%m', 'now', '-1 month')`)).total,
+      collections_this_month: (await dbGet(`SELECT COALESCE(SUM(amount_paid), 0) as total FROM tblPayment WHERE status IN ('active', 'penalty') AND strftime('%Y-%m', date_paid) = strftime('%Y-%m', 'now')`)).total,
+      collections_last_month: (await dbGet(`SELECT COALESCE(SUM(amount_paid), 0) as total FROM tblPayment WHERE status IN ('active', 'penalty') AND strftime('%Y-%m', date_paid) = strftime('%Y-%m', 'now', '-1 month')`)).total,
       demand_letters_sent: 0,
       total_active_loans: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='active'`)).c,
       total_pastdue: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE date_maturity < ? AND status NOT IN ('fullpaid','reversed')`, [today])).c,
       total_pastdue_amount: (await dbGet(`SELECT COALESCE(SUM(balance), 0) as total FROM tblLoan WHERE date_maturity < ? AND status NOT IN ('fullpaid','reversed')`, [today])).total,
       total_fullpaid: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='fullpaid'`)).c,
-      collections_today: (await dbGet(`SELECT COALESCE(SUM(amount_paid),0) as total FROM tblPayment WHERE date_paid=? AND status='active'`, [today])).total,
-      collections_yesterday: (await dbGet(`SELECT COALESCE(SUM(amount_paid),0) as total FROM tblPayment WHERE date_paid=? AND status='active'`, [latestPaymentDate])).total,
+      collections_today: (await dbGet(`SELECT COALESCE(SUM(amount_paid),0) as total FROM tblPayment WHERE date_paid=? AND status IN ('active', 'penalty')`, [today])).total,
+      collections_yesterday: (await dbGet(`SELECT COALESCE(SUM(amount_paid),0) as total FROM tblPayment WHERE date_paid=? AND status IN ('active', 'penalty')`, [latestPaymentDate])).total,
       yesterday_str: latestPaymentDate,
-      releases_today: (await dbGet(`SELECT COALESCE(SUM(principal),0) as total FROM tblLoan WHERE date_released=? AND status != 'reversed'`, [today])).total,
-      loans_released_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE date_released=? AND status != 'reversed'`, [today])).c,
+      releases_today: (await dbGet(`SELECT COALESCE(SUM(principal),0) as total FROM tblLoan WHERE date_released = ? AND status IN ('active', 'fully_paid')`, [today])).total,
+      loans_released_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE date_released = ? AND status IN ('active', 'fully_paid')`, [today])).c,
       total_portfolio: (await dbGet(`SELECT COALESCE(SUM(balance),0) as total FROM tblLoan WHERE status IN ('active','pastdue')`)).total,
       fully_paid_today: (await dbGet(`SELECT COUNT(DISTINCT customer_id) as c FROM tblCustomerStatusHistory WHERE new_status='FULLY PAID' AND date(created_at) = date('now', 'localtime')`)).c,
       eligible_for_reloan: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='FULLY PAID'`)).c,
@@ -70,7 +70,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
           co.id, 
           co.first_name || ' ' || co.last_name as name,
           1000000 as target,
-          COALESCE((SELECT SUM(amount_paid) FROM tblPayment WHERE collector_id = co.id AND date_paid BETWEEN ? AND ? AND status = 'active'), 0) as collected
+          COALESCE((SELECT SUM(amount_paid) FROM tblPayment WHERE collector_id = co.id AND date_paid BETWEEN ? AND ? AND status IN ('active', 'penalty')), 0) as collected
         FROM tblCollector co
         WHERE co.is_active = 1
         AND LOWER(co.first_name || ' ' || co.last_name) NOT LIKE '%pastdue%'
@@ -85,9 +85,9 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       rejected_reloan_count: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='rejected' AND loan_type='Re-Loan'`)).c,
       approved_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='approved' AND DATE(updated_at)=?`, [today])).c,
       rejected_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='rejected' AND DATE(updated_at)=?`, [today])).c,
-      monitoring_alerts_active: (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert WHERE status='Active'`)).c,
-      monitoring_alerts_escalated: (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert WHERE status='Active' AND alert_level='Day 4+'`)).c,
-      monitoring_alerts_resolved_today: (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert WHERE status='Resolved' AND DATE(resolved_at)=?`, [today])).c,
+      monitoring_alerts_active: (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert m JOIN tblCustomer c ON m.customer_id = c.id WHERE m.status='Active' AND LOWER(c.status) IN ('active', 'recon')`)).c,
+      monitoring_alerts_escalated: (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert m JOIN tblCustomer c ON m.customer_id = c.id WHERE m.status='Active' AND m.alert_level='Day 4+' AND LOWER(c.status) IN ('active', 'recon')`)).c,
+      monitoring_alerts_resolved_today: (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert m JOIN tblCustomer c ON m.customer_id = c.id WHERE m.status='Resolved' AND DATE(m.resolved_at)=? AND LOWER(c.status) IN ('active', 'recon')`, [today])).c,
       account_status_distribution: await dbAll(`SELECT status, COUNT(*) as count FROM tblLoan GROUP BY status`),
       aging_report: await dbGet(`
         SELECT 
@@ -121,7 +121,7 @@ router.get('/daily-collection', authenticateToken, async (req, res) => {
       LEFT JOIN tblLoan l ON p.loan_id = l.id
       LEFT JOIN tblCustomer c ON p.customer_id = c.id
       LEFT JOIN tblCollector co ON p.collector_id = co.id
-      WHERE p.date_paid BETWEEN ? AND ? AND p.status = 'active'
+      WHERE p.date_paid BETWEEN ? AND ? AND p.status IN ('active', 'penalty')
       ORDER BY p.date_paid, co.last_name
     `, [from, to]);
     res.json({ payments, total: payments.reduce((s, p) => s + p.amount_paid, 0), date_from: from, date_to: to });
@@ -185,7 +185,7 @@ router.get('/payments-encoded', authenticateToken, async (req, res) => {
   try {
     const from = req.query.date_from || new Date().toISOString().split('T')[0];
     const to = req.query.date_to || from;
-    const data = await dbAll(`SELECT p.*, l.loan_code, c.full_name as customer_name, u.full_name as encoded_by_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id LEFT JOIN tblUser u ON p.encoded_by = u.id WHERE p.date_paid BETWEEN ? AND ? AND p.status = 'active' ORDER BY p.created_at`, [from, to]);
+    const data = await dbAll(`SELECT p.*, l.loan_code, c.full_name as customer_name, u.full_name as encoded_by_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id LEFT JOIN tblUser u ON p.encoded_by = u.id WHERE p.date_paid BETWEEN ? AND ? AND p.status IN ('active', 'penalty') ORDER BY p.created_at`, [from, to]);
     res.json({ data, total: data.reduce((s, p) => s + p.amount_paid, 0) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -276,7 +276,7 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
         l.date_released, l.date_maturity, l.balance, l.total_paid, l.status, l.insurance,
         COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown') as customer_name,
         c.customer_code,
-        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status='active') as collected_today
+        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status IN ('active', 'penalty')) as collected_today
       FROM tblLoan l
       LEFT JOIN tblCustomer c ON l.customer_id = c.id
       WHERE l.collector_id = ? AND LOWER(l.status) IN ('active', 'pastdue') AND COALESCE(l.balance, 0) > 0
@@ -456,6 +456,27 @@ router.get('/monitoring-summary', authenticateToken, async (req, res) => {
       WHERE ${tabWhere}
       ORDER BY co.last_name, c.full_name, m.updated_at DESC
     `, tabParams);
+
+    const activeClientsMonitoredToday = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id WHERE a.status='Active' AND LOWER(c.status) IN ('active', 'recon')`)).c;
+    const escalatedAccounts = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id WHERE a.alert_level='Day 4+' AND a.status='Active' AND LOWER(c.status) IN ('active', 'recon')`)).c;
+    const resolvedAccounts = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id WHERE a.status='Resolved' AND LOWER(c.status) IN ('active', 'recon')`)).c;
+    
+    // Follow-up success rate
+    const totalFollowUps = (await dbGet(`SELECT COUNT(*) as c FROM tblFollowUp`)).c;
+    const successfulFollowUps = (await dbGet(`SELECT COUNT(*) as c FROM tblFollowUp WHERE contact_result='Promised to Pay'`)).c;
+    const collectorPerformance = totalFollowUps > 0 ? Math.round((successfulFollowUps / totalFollowUps) * 100) + '%' : '0%';
+    
+    const summaryPTP = (await dbGet(`SELECT COUNT(*) as c, COALESCE(SUM(promised_amount),0) as total FROM tblPromiseToPay WHERE status='Pending'`));
+    
+    const followUpLogs = await dbAll(`SELECT f.*, a.loan_id FROM tblFollowUp f JOIN tblMonitoringAlert a ON f.alert_id = a.id JOIN tblCustomer c ON a.customer_id = c.id WHERE LOWER(c.status) IN ('active', 'recon') ORDER BY f.created_at DESC LIMIT 5`);
+    
+    const alertsByBranch = await dbAll(`SELECT u.branch_id, COUNT(*) as count FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id JOIN tblUser u ON c.encoded_by = u.id WHERE a.status='Active' AND LOWER(c.status) IN ('active', 'recon') GROUP BY u.branch_id`);
+    
+    const clientsApproachingDay3 = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id WHERE a.status='Active' AND a.consecutive_days = 2 AND LOWER(c.status) IN ('active', 'recon')`)).c;
+    
+    const chronicMissedPayments = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id WHERE a.sequence_number >= 3 AND LOWER(c.status) IN ('active', 'recon')`)).c;
+    
+    const unresolvedOver7Days = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id WHERE a.status='Active' AND a.consecutive_days >= 7 AND LOWER(c.status) IN ('active', 'recon')`)).c;
 
     res.json({
       as_of: today,

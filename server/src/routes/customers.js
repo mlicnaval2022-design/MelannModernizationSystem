@@ -1,7 +1,7 @@
 const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
-const { computeMaturityDate, generateAmortizationSchedule } = require('../services/loanCalculator');
+const { computeMaturityDate, generateAmortizationSchedule, getWorkingDays } = require('../services/loanCalculator');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -37,6 +37,144 @@ const daysBetween = (from, to) => {
   if (!start || !end) return 0;
   return Math.floor((end - start) / 86400000);
 };
+
+const todayDateOnly = () => {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().slice(0, 10);
+};
+
+async function postPriorLoanBalancePayment({ customerId, sourceLoanId, amount, user, date_released, loanType }) {
+  const paymentAmount = Number(amount || 0);
+  if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) return null;
+
+  const sourceLoan = sourceLoanId
+    ? await dbGet(
+      `SELECT * FROM tblLoan
+       WHERE id = ? AND customer_id = ? AND LOWER(status) IN ('active', 'pastdue') AND COALESCE(balance, 0) > 0`,
+      [sourceLoanId, customerId]
+    )
+    : await dbGet(
+      `SELECT * FROM tblLoan
+       WHERE customer_id = ? AND LOWER(status) IN ('active', 'pastdue') AND COALESCE(balance, 0) > 0
+       ORDER BY date_released DESC, id DESC LIMIT 1`,
+      [customerId]
+    );
+
+  if (!sourceLoan) {
+    throw new Error('No active loan account found for posting the old balance.');
+  }
+
+  const datePaid = date_released || todayDateOnly();
+  const balanceBefore = Number(sourceLoan.balance || 0);
+  const balanceAfter = Math.max(0, balanceBefore - paymentAmount);
+  const maxCodeRes = await dbGet(`SELECT MAX(CAST(payment_code AS INTEGER)) as max_code FROM tblPayment WHERE customer_id = ?`, [customerId]);
+  const nextCode = (maxCodeRes?.max_code || 0) + 1;
+  const paymentCode = String(nextCode).padStart(4, '0');
+
+  const payment = await dbRun(
+    `INSERT INTO tblPayment (loan_id, customer_id, collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, status, remarks, encoded_by, payment_code)
+     VALUES (?,?,?,?,?,?,?,?,'active',?,?,?)`,
+    [
+      sourceLoan.id,
+      customerId,
+      sourceLoan.collector_id,
+      'N/A',
+      datePaid,
+      paymentAmount,
+      balanceBefore,
+      balanceAfter,
+      `Auto-posted old balance during ${loanType}`,
+      user.id,
+      paymentCode
+    ]
+  );
+
+  const newStatus = balanceAfter <= 0 ? 'fullpaid' : 'active';
+  await dbRun(
+    `UPDATE tblLoan SET balance = ?, total_paid = total_paid + ?, status = ?, updated_at = datetime('now') WHERE id = ?`,
+    [balanceAfter, paymentAmount, newStatus, sourceLoan.id]
+  );
+
+  let remaining = paymentAmount;
+  const unpaidSchedules = await dbAll(
+    `SELECT * FROM tblAmortizationSchedule WHERE loan_id = ? AND status != 'paid' ORDER BY period_number ASC`,
+    [sourceLoan.id]
+  );
+  for (const sched of unpaidSchedules) {
+    if (remaining <= 0) break;
+    const amountToPay = Math.min(remaining, Number(sched.amount_due || 0) - Number(sched.amount_paid || 0));
+    if (amountToPay <= 0) continue;
+    const newPaid = Number(sched.amount_paid || 0) + amountToPay;
+    const schedStatus = newPaid >= Number(sched.amount_due || 0) ? 'paid' : 'partial';
+    await dbRun(
+      `UPDATE tblAmortizationSchedule SET amount_paid = ?, date_paid = ?, status = ? WHERE id = ?`,
+      [newPaid, datePaid, schedStatus, sched.id]
+    );
+    remaining -= amountToPay;
+  }
+
+  await dbRun(
+    `INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
+    [user.id, user.username, 'CREATE', 'PAYMENT', payment.lastID, `${loanType} old balance auto-posted. Loan:${sourceLoan.loan_code} Amt:${paymentAmount}`]
+  );
+
+  return {
+    id: payment.lastID,
+    loan_id: sourceLoan.id,
+    loan_code: sourceLoan.loan_code,
+    payment_code: paymentCode,
+    date_paid: datePaid,
+    amount_paid: paymentAmount,
+    balance_before: balanceBefore,
+    balance_after: balanceAfter,
+    loan_status: newStatus
+  };
+}
+
+async function postLoanPenaltyEntry({ loan, customer, amount, datePaid, user }) {
+  const penaltyAmount = Number(amount || 0);
+  if (!Number.isFinite(penaltyAmount) || penaltyAmount <= 0) return null;
+
+  const maxCodeRes = await dbGet(`SELECT MAX(CAST(payment_code AS INTEGER)) as max_code FROM tblPayment WHERE customer_id = ?`, [customer.id]);
+  const nextCode = (maxCodeRes?.max_code || 0) + 1;
+  const paymentCode = String(nextCode).padStart(4, '0');
+  const balance = Number(loan.balance || 0);
+
+  const payment = await dbRun(
+    `INSERT INTO tblPayment (loan_id, customer_id, collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, payment_type, status, remarks, encoded_by, payment_code)
+     VALUES (?,?,?,?,?,?,?,?,?,'penalty',?,?,?)`,
+    [
+      loan.id,
+      customer.id,
+      loan.collector_id,
+      'N/A',
+      datePaid,
+      penaltyAmount,
+      balance,
+      balance,
+      'penalty',
+      'Penalty charge posted during loan release',
+      user.id,
+      paymentCode
+    ]
+  );
+
+  await dbRun(
+    `INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
+    [user.id, user.username, 'CREATE', 'PAYMENT', payment.lastID, `Penalty entry posted. Loan:${loan.loan_code} Amt:${penaltyAmount}`]
+  );
+
+  return {
+    id: payment.lastID,
+    loan_id: loan.id,
+    loan_code: loan.loan_code,
+    payment_code: paymentCode,
+    date_paid: datePaid,
+    amount_paid: penaltyAmount,
+    status: 'penalty'
+  };
+}
 
 const getPenaltyRate = (daysOverdue) => {
   if (daysOverdue >= 30) return 5;
@@ -125,7 +263,11 @@ router.get('/list/fully-paid', authenticateToken, async (req, res) => {
         (SELECT l.principal FROM tblLoan l WHERE l.customer_id = c.id ORDER BY l.date_released DESC LIMIT 1) as last_loan_amount,
         (SELECT l.date_released FROM tblLoan l WHERE l.customer_id = c.id ORDER BY l.date_released DESC LIMIT 1) as date_released,
         (SELECT p.date_paid FROM tblPayment p JOIN tblLoan l ON p.loan_id = l.id WHERE l.customer_id = c.id AND l.status='fullpaid' ORDER BY p.date_paid DESC LIMIT 1) as date_fully_paid,
-        (SELECT COUNT(*) FROM tblLoan l WHERE l.customer_id = c.id) as loan_cycles
+        (SELECT COUNT(*) FROM tblLoan l WHERE l.customer_id = c.id) as loan_cycles,
+        (SELECT h.remarks FROM tblCustomerStatusHistory h WHERE h.customer_id = c.id AND UPPER(h.new_status) = 'RELAX' ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as relax_note,
+        (SELECT h.created_at FROM tblCustomerStatusHistory h WHERE h.customer_id = c.id AND UPPER(h.new_status) = 'RELAX' ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as relax_note_date,
+        (SELECT h.remarks FROM tblCustomerStatusHistory h WHERE h.customer_id = c.id AND UPPER(h.new_status) = 'HOLD' ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as hold_note,
+        (SELECT h.created_at FROM tblCustomerStatusHistory h WHERE h.customer_id = c.id AND UPPER(h.new_status) = 'HOLD' ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as hold_note_date
       FROM tblCustomer c
       LEFT JOIN tblCollector co ON c.collector_id = co.id
       WHERE c.status = 'FULLY PAID'
@@ -650,8 +792,9 @@ router.post('/:id/penalty', authenticateToken, requireRole('admin', 'manager'), 
 });
 
 router.post('/:id/reloan', authenticateToken, async (req, res) => {
+  let transactionStarted = false;
   try {
-    const { principal, loan_period, interest_rate, date_released, loan_type, previous_balance, remarks, source_approved_loan_id } = req.body;
+    const { principal, loan_period, interest_rate, date_released, loan_type, previous_balance, remarks, source_approved_loan_id, source_loan_id, penalty, passbook } = req.body;
     const customer = await dbGet('SELECT * FROM tblCustomer WHERE id = ?', [req.params.id]);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
     
@@ -667,12 +810,43 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
     const defaultRemarks = normalizedLoanType === 'Recon' ? 'Auto-created via Recon application' : 'Auto-created via Re-Loan application';
     const interestAmount = amount * (interestRate / 100);
     const totalAmortization = amount + interestAmount;
-    const amortization = amount > 0 && period > 0 ? Math.ceil(totalAmortization / period) : 0;
+    const workingDays = getWorkingDays(period);
+    const amortization = amount > 0 && workingDays > 0 ? Math.ceil(totalAmortization / workingDays) : 0;
     const dateMaturity = computeMaturityDate(releaseDate, period);
+    const balanceAmount = Number(previous_balance || 0);
+    const penaltyAmount = Number(penalty || 0);
+    const passbookAmount = passbook === undefined || passbook === null || passbook === ''
+      ? (normalizedLoanType === 'New' ? 50 : 0)
+      : Number(passbook || 0);
+    const shouldPostPriorBalance = ['Recon', 'Re-Loan'].includes(normalizedLoanType);
+    const newLoanPreviousBalance = shouldPostPriorBalance ? 0 : balanceAmount;
+    const totalCharges = newLoanPreviousBalance + penaltyAmount + passbookAmount;
+    const netProceeds = amount;
+
+    await dbRun('BEGIN IMMEDIATE TRANSACTION');
+    transactionStarted = true;
+
+    const priorBalancePayment = shouldPostPriorBalance
+      ? await postPriorLoanBalancePayment({
+        customerId: customer.id,
+        sourceLoanId: source_loan_id,
+        amount: balanceAmount,
+        user: req.user,
+        date_released: releaseDate,
+        loanType: normalizedLoanType
+      })
+      : null;
     
-    const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, net_proceeds, balance, previous_balance, status, remarks, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [loan_code, customer.id, customer.collector_id, customer.branch_id, normalizedLoanType, amount, interestRate, interestAmount, period, releaseDate, dateMaturity, amortization, totalAmortization, amount, totalAmortization, Number(previous_balance || 0), loanStatus, remarks || defaultRemarks, req.user.id]
+    const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, net_proceeds, balance, previous_balance, penalty, passbook, status, remarks, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [loan_code, customer.id, customer.collector_id, customer.branch_id, normalizedLoanType, amount, interestRate, interestAmount, period, releaseDate, dateMaturity, amortization, totalAmortization, netProceeds, totalAmortization, newLoanPreviousBalance, penaltyAmount, passbookAmount, loanStatus, remarks || defaultRemarks, req.user.id]
     );
+    const penaltyEntry = await postLoanPenaltyEntry({
+      loan: { id: result.lastID, loan_code, collector_id: customer.collector_id, balance: totalAmortization },
+      customer,
+      amount: penaltyAmount,
+      datePaid: releaseDate,
+      user: req.user
+    });
     if (loanStatus === 'active') {
       const schedule = generateAmortizationSchedule(result.lastID, releaseDate, period, amortization);
       for (const s of schedule) {
@@ -694,8 +868,22 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
         [customer.id, customer.status, 'active', req.user.id, `${normalizedLoanType} activated: ${loan_code}`]);
     }
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, actionName, 'CUSTOMER', customer.id, `${normalizedLoanType} application created: ${loan_code} for ₱${amount}`]);
-    res.json({ message: loanStatus === 'active' ? `${normalizedLoanType} saved to Active Loans successfully` : `${normalizedLoanType} application submitted successfully`, loan_code, status: loanStatus });
-  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+    await dbRun('COMMIT');
+    transactionStarted = false;
+    res.json({
+      message: loanStatus === 'active' ? `${normalizedLoanType} saved to Active Loans successfully` : `${normalizedLoanType} application submitted successfully`,
+      loan_code,
+      status: loanStatus,
+      prior_balance_payment: priorBalancePayment,
+      penalty_entry: penaltyEntry
+    });
+  } catch (err) {
+    if (transactionStarted) {
+      try { await dbRun('ROLLBACK'); } catch (rollbackErr) { console.error('Rollback failed:', rollbackErr); }
+    }
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/:id/reci', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
@@ -739,6 +927,22 @@ router.post('/:id/status', authenticateToken, requireRole('admin', 'manager'), a
       [req.params.id, customer.status, status, req.user.id, remarks || `Manually changed to ${status}`]);
     
     res.json({ message: `Customer status updated to ${status}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+router.put('/:id/status-note', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const { note, status } = req.body;
+    const latest = await dbGet(`SELECT id FROM tblCustomerStatusHistory WHERE customer_id = ? AND LOWER(new_status) = LOWER(?) ORDER BY id DESC LIMIT 1`, [req.params.id, status]);
+    if (latest) {
+       await dbRun(`UPDATE tblCustomerStatusHistory SET remarks = ? WHERE id = ?`, [note, latest.id]);
+       res.json({ message: 'Note updated' });
+    } else {
+       res.status(404).json({ error: 'Status history not found' });
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

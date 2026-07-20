@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { loan_id, customer_id, date_from, date_to, search } = req.query;
-    let q = `SELECT p.*, l.loan_code, l.loan_type, l.date_released, l.principal, l.amortization, l.status as loan_status, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id LEFT JOIN tblCollector co ON p.collector_id = co.id WHERE p.status = 'active'`;
+    let q = `SELECT p.*, l.loan_code, l.loan_type, l.date_released, l.principal, l.amortization, l.status as loan_status, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id LEFT JOIN tblCollector co ON p.collector_id = co.id WHERE p.status IN ('active', 'penalty')`;
     const pa = [];
     if (loan_id) { q += ` AND p.loan_id = ?`; pa.push(loan_id); }
     if (customer_id) { q += ` AND p.customer_id = ?`; pa.push(customer_id); }
@@ -89,9 +89,33 @@ router.post('/', authenticateToken, async (req, res) => {
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'PAYMENT', result.lastID, `OR#${or_number} Amt:${amount_paid} Col:${collector_id || loan.collector_id}`]);
     
     // Trigger No Payment Monitoring recalculation
-    triggerLoanRecalculation(loan_id).catch(e => console.error('Error triggering recalculation:', e));
+    await triggerLoanRecalculation(loan_id).catch(e => console.error('Error triggering recalculation:', e));
 
     res.status(201).json({ id: result.lastID, payment_code, balance_before, balance_after, loan_status: newStatus });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/:id/penalty-amount', authenticateToken, async (req, res) => {
+  try {
+    let { amount_paid } = req.body;
+    amount_paid = Number(amount_paid);
+    if (!Number.isFinite(amount_paid) || amount_paid < 0) return res.status(400).json({ error: 'Invalid penalty amount' });
+    
+    const payment = await dbGet(`SELECT * FROM tblPayment WHERE id = ?`, [req.params.id]);
+    if (!payment) return res.status(404).json({ error: 'Payment not found' });
+    if (payment.status !== 'penalty') return res.status(400).json({ error: 'Only penalty payments can have their amount edited this way' });
+
+    const loan = await dbGet(`SELECT dcr_id FROM tblLoan WHERE id = ?`, [payment.loan_id]);
+    if (payment.dcr_id || loan?.dcr_id) {
+      return res.status(400).json({ error: 'Cannot edit a penalty that has already been closed in a Daily Cash Report.' });
+    }
+
+    await dbRun(`UPDATE tblPayment SET amount_paid = ? WHERE id = ?`, [amount_paid, req.params.id]);
+    await dbRun(`UPDATE tblLoan SET penalty = ? WHERE id = ?`, [amount_paid, payment.loan_id]);
+    
+    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'UPDATE', 'PAYMENT', req.params.id, `Updated penalty amount from ${payment.amount_paid} to ${amount_paid}`]);
+    
+    res.json({ message: 'Penalty payment updated' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

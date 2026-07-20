@@ -82,6 +82,14 @@ export default function DailyCashReport() {
     return acc;
   }, {});
 
+  (data.releases || []).forEach(r => {
+    const name = r.collector_name || 'Unassigned';
+    const releaseCollections = Number(r.previous_balance || 0) + Number(r.penalty || 0) + Number(r.passbook || 0);
+    if (releaseCollections > 0) {
+      collByCollector[name] = (collByCollector[name] || 0) + releaseCollections;
+    }
+  });
+
   (data.passbooks || []).forEach(p => {
     const name = p.description || 'Unassigned';
     collByCollector[name] = (collByCollector[name] || 0) + p.amount;
@@ -103,6 +111,7 @@ export default function DailyCashReport() {
   const deposit = data.deposits || [];
   const adjustments = data.adjustments || [];
   const collectorsOverList = data.collectorsOver || [];
+  const collectionBreakdown = data.collection_breakdown || {};
 
   const handleExportExcel = () => {
     // Basic CSV Export
@@ -127,12 +136,17 @@ export default function DailyCashReport() {
     Object.entries(collByCollector).forEach(([name, amount]) => {
       csv += `"${name}",${amount.toFixed(2)}\n`;
     });
+    csv += `Regular Collections,${Number(collectionBreakdown.regular || 0).toFixed(2)}\n`;
+    csv += `Balance Collections,${Number(collectionBreakdown.balance || 0).toFixed(2)}\n`;
+    csv += `Penalty Collections,${Number(collectionBreakdown.penalty || 0).toFixed(2)}\n`;
+    csv += `Passbook Collections,${Number(collectionBreakdown.passbook || 0).toFixed(2)}\n`;
     csv += `TOTAL COLLECTIONS,,${data.total_collections.toFixed(2)}\n\n`;
 
     // Summary
     csv += `CASH SUMMARY\n`;
     csv += `Beginning Cash,${data.beginning_cash.toFixed(2)}\n`;
     csv += `Total Collections,${data.total_collections.toFixed(2)}\n`;
+    csv += `Reconstruct Amount,${Number(data.total_reconstruct_amount || 0).toFixed(2)}\n`;
     csv += `Total Loan Releases,-${data.cash_out_releases.toFixed(2)}\n`;
     csv += `Total Expenses,-${data.total_expenses.toFixed(2)}\n`;
     csv += `Total Deposits,-${data.total_deposits.toFixed(2)}\n`;
@@ -340,7 +354,7 @@ export default function DailyCashReport() {
           <div className="details">
             <h4 style={{ color: '#16a34a' }}>TOTAL LOAN RELEASES</h4>
             <div className="val">₱{fmt(data.display_total_releases)}</div>
-            <div className="sub">{data.releases.length} Loan(s)</div>
+            <div className="sub">{data.releases.length} Loan(s) | Recon ₱{fmt(data.total_reconstruct_amount || 0)}</div>
           </div>
         </div>
         <div className="dcr-card" style={{ borderColor: '#fed7aa' }}>
@@ -418,7 +432,7 @@ export default function DailyCashReport() {
                       <td className="text-right">{fmt(r.principal)}</td>
                       <td className="text-right">{fmt(r.today_penalty || 0)}</td>
                       <td className="text-right">{fmt(r.today_passbook || 0)}</td>
-                      <td className="text-right">{fmt(r.loan_type === 'Recon' ? 0 : (r.previous_balance || 0))}</td>
+                      <td className="text-right">{fmt(r.previous_balance || 0)}</td>
                     </tr>
                   ));
                 })()}
@@ -427,7 +441,12 @@ export default function DailyCashReport() {
                   <td className="text-right">₱{fmt(data.display_total_releases)}</td>
                   <td className="text-right">{fmt(data.releases.reduce((s, r) => s + Number(r.today_penalty || 0), 0))}</td>
                   <td className="text-right">{fmt(data.releases.reduce((s, r) => s + Number(r.today_passbook || 0), 0))}</td>
-                  <td className="text-right">0.00</td>
+                  <td className="text-right">{fmt(data.releases.reduce((s, r) => s + Number(r.previous_balance || 0), 0))}</td>
+                </tr>
+                <tr className="dcr-footer-row">
+                  <td colSpan={5}>TOTAL RECONSTRUCT AMOUNT</td>
+                  <td className="text-right">₱{fmt(data.total_reconstruct_amount || 0)}</td>
+                  <td colSpan={3}></td>
                 </tr>
               </tbody>
             </table>
@@ -570,6 +589,9 @@ export default function DailyCashReport() {
               <div className="cash-summary-row"><span>Total Adjustments</span><span>₱{fmt(data.total_adjustments)}</span></div>
               <div className="cash-summary-row"><span>Total Withdrawals</span><span>₱{fmt(data.total_withdrawals)}</span></div>
               <div className="cash-summary-row"><span>Total Collections</span><span>₱{fmt(data.total_collections)}</span></div>
+              <div className="cash-summary-row"><span style={{paddingLeft: 10}}>Balance Collections</span><span>₱{fmt(collectionBreakdown.balance || 0)}</span></div>
+              <div className="cash-summary-row"><span style={{paddingLeft: 10}}>Penalty Collections</span><span>₱{fmt(collectionBreakdown.penalty || 0)}</span></div>
+              <div className="cash-summary-row"><span style={{paddingLeft: 10}}>Reconstruct Amount</span><span>₱{fmt(data.total_reconstruct_amount || 0)}</span></div>
               
               <div className="cash-summary-row bold" style={{ marginTop: 10 }}><span>CASH AVAILABLE</span><span>₱{fmt(data.beginning_cash + data.total_collections + data.total_adjustments + data.total_withdrawals)}</span></div>
               <div style={{ padding: '5px 15px', fontSize: 11, fontWeight: 800, color: '#0f172a' }}>LESS:</div>

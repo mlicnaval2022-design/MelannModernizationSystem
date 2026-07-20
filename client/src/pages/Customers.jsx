@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import html2pdf from 'html2pdf.js'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import '../soa.css'
@@ -32,6 +33,7 @@ export default function Customers() {
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
+
   
   const [soaModal, setSoaModal] = useState(false)
   const [soaData, setSoaData] = useState(null)
@@ -40,10 +42,13 @@ export default function Customers() {
   const [soaTab, setSoaTab] = useState('summary')
   const [selectedLoanForPayments, setSelectedLoanForPayments] = useState(null)
   const [penaltyLoan, setPenaltyLoan] = useState(null)
+  const [editingPenaltyPayment, setEditingPenaltyPayment] = useState(null)
   const [printModeLoan, setPrintModeLoan] = useState(null)
+  const suppressNextPrintRef = useRef(false)
 
   useEffect(() => {
     if (printModeLoan) {
+      if (suppressNextPrintRef.current) return;
       const timer = setTimeout(() => {
         window.print();
         setPrintModeLoan(null);
@@ -74,40 +79,63 @@ export default function Customers() {
 
   const getLoanStatusLabel = (loan) => {
     if (!loan) return '—';
-    if (['active', 'approved'].includes(loan.status?.toLowerCase()) && loan.date_maturity) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const maturity = new Date(loan.date_maturity);
-      maturity.setHours(0, 0, 0, 0);
-      const diffDays = Math.ceil((today.getTime() - maturity.getTime()) / (1000 * 3600 * 24));
-      
-      if (diffDays > 45) return 'Pastdue';
-      if (diffDays >= 1) return 'Overdue';
+    const lstatus = (loan.status || '').toLowerCase();
+    
+    if (lstatus === 'reversed') return 'Reversed';
+    if (lstatus === 'fullpaid' || lstatus === 'fully paid' || lstatus === 'fully_paid') return 'Fully Paid';
+    
+    if (['active', 'approved'].includes(lstatus)) {
+        const cstatus = (soaData?.status || '').toUpperCase();
+        if (cstatus === 'RELAX') return 'Relax';
+        if (cstatus === 'HOLD') return 'Hold';
+        
+        if (loan.date_maturity) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const maturity = new Date(loan.date_maturity);
+          maturity.setHours(0, 0, 0, 0);
+          const diffDays = Math.ceil((today.getTime() - maturity.getTime()) / (1000 * 3600 * 24));
+          if (diffDays > 45) return 'Pastdue';
+          if (diffDays >= 1) return 'Overdue';
+        }
+
+        const type = (loan.loan_type || '').toLowerCase();
+        if (type === 'recon') return 'Recon';
+        if (type === 're-loan' || type === 'reloan' || loan.status === 'reloan_pending') return 'Reloan';
+        if (type === 'new') return 'New';
     }
-    const type = loan.loan_type?.toLowerCase() || '';
-    if (type === 're-loan' || type === 'reloan' || loan.status === 'reloan_pending') return 'Reloan';
-    if (type === 'recon') return 'Recon';
-    if (!loan.status) return '—';
-    return loan.status.replace(/_/g, ' ');
+    return loan.status ? loan.status.replace(/_/g, ' ') : '—';
   };
 
   const getLoanStatusClass = (loan) => {
     if (!loan) return 'unknown';
-    if (['active', 'approved'].includes(loan.status?.toLowerCase()) && loan.date_maturity) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const maturity = new Date(loan.date_maturity);
-      maturity.setHours(0, 0, 0, 0);
-      const diffDays = Math.ceil((today.getTime() - maturity.getTime()) / (1000 * 3600 * 24));
-      
-      if (diffDays > 45) return 'pastdue';
-      if (diffDays >= 1) return 'overdue';
-    }
-    const type = loan.loan_type?.toLowerCase() || '';
-    if (type === 're-loan' || type === 'reloan' || loan.status === 'reloan_pending') return 'reloan';
-    return loan.status || 'unknown';
-  };
+    const lstatus = (loan.status || '').toLowerCase();
+    
+    if (lstatus === 'reversed') return 'reversed';
+    if (lstatus === 'fullpaid' || lstatus === 'fully paid' || lstatus === 'fully_paid') return 'fully-paid';
+    
+    if (['active', 'approved'].includes(lstatus)) {
+        const cstatus = (soaData?.status || '').toUpperCase();
+        if (cstatus === 'RELAX') return 'relax';
+        if (cstatus === 'HOLD') return 'hold';
+        
+        if (loan.date_maturity) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const maturity = new Date(loan.date_maturity);
+          maturity.setHours(0, 0, 0, 0);
+          const diffDays = Math.ceil((today.getTime() - maturity.getTime()) / (1000 * 3600 * 24));
+          if (diffDays > 45) return 'pastdue';
+          if (diffDays >= 1) return 'overdue';
+        }
 
+        const type = (loan.loan_type || '').toLowerCase();
+        if (type === 'recon') return 'recon';
+        if (type === 're-loan' || type === 'reloan' || loan.status === 'reloan_pending') return 'reloan';
+        if (type === 'new') return 'new';
+    }
+    return lstatus || 'unknown';
+  };
   const getCalculatedCustomerStatus = (data) => {
     if (!data) return 'Active';
     if (!data.loans || data.loans.length === 0) return data.status || 'Active';
@@ -218,6 +246,13 @@ export default function Customers() {
   const formatPhpExact = (value) => `PHP ${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const formatMoneyExactDeduction = (value) => Number(value || 0) > 0 ? `-${formatMoneyExact(value)}` : formatMoneyExact(0);
   const formatPhpDeduction = (value) => Number(value || 0) > 0 ? `-${formatPhpExact(value)}` : formatPhpExact(0);
+  const formatPaymentCode = (payment) => {
+    const rawCode = payment?.payment_code && payment.payment_code !== 'N/A'
+      ? payment.payment_code
+      : payment?.or_number;
+    if (!rawCode || rawCode === 'N/A') return 'N/A';
+    return String(rawCode).replace(/^JCASH-?/i, '');
+  };
   const formatDateLong = (value) => {
     if (!value) return '-';
     const date = new Date(value);
@@ -262,13 +297,376 @@ export default function Customers() {
   };
   const isGoodPayment = (payment) => {
     const statusText = String(payment.status || payment.payment_status || 'active').toLowerCase();
-    return !['cancelled', 'canceled', 'void', 'reversed', 'bad', 'bounced'].includes(statusText);
+    return !['cancelled', 'canceled', 'void', 'reversed', 'bad', 'bounced', 'penalty'].includes(statusText);
   };
   const getLoanPayments = (loan) => (soaData?.payments || [])
     .filter(p => p.loan_code === loan?.loan_code && isGoodPayment(p))
     .map(p => ({ ...p, paidDate: parseLocalDate(p.date_paid), amount: Number(p.amount_paid || 0) }))
     .filter(p => p.paidDate)
     .sort((a, b) => a.paidDate - b.paidDate);
+  const getPaymentHistoryRows = (loan) => (soaData?.payments || [])
+    .filter(p => p.loan_code === loan?.loan_code)
+    .sort((a, b) => new Date(b.date_paid) - new Date(a.date_paid));
+  const getPaymentStatusText = (payment) => {
+    const isReversed = payment.status === 'reversed';
+    const isFullyPaid = payment.status === 'active' && Number(payment.balance_after) <= 0;
+    const isPartial = payment.status === 'active' && Number(payment.balance_after) > 0;
+
+    if (isReversed) return 'Reversed';
+    if (payment.status === 'penalty') return 'Penalty';
+    if (isFullyPaid) return 'Fully Paid';
+    if (isPartial) return 'Active';
+    return payment.status || 'Active';
+  };
+  const exportPaymentHistory = (loan) => {
+    if (!loan) return;
+    suppressNextPrintRef.current = true;
+    setPrintModeLoan(loan);
+
+    setTimeout(() => {
+      const source = document.querySelector('.formal-soa-print');
+      if (!source) {
+        suppressNextPrintRef.current = false;
+        setPrintModeLoan(null);
+        return;
+      }
+
+      const exportRoot = source.cloneNode(true);
+      exportRoot.classList.add('soa-pdf-export');
+      exportRoot.style.display = 'block';
+      exportRoot.style.width = '7.75in';
+      exportRoot.style.maxWidth = '7.75in';
+      exportRoot.style.margin = '0';
+      exportRoot.style.background = '#ffffff';
+      exportRoot.style.boxSizing = 'border-box';
+
+      const pdfStyle = document.createElement('style');
+      pdfStyle.textContent = `
+        .soa-pdf-export,
+        .soa-pdf-export * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          box-sizing: border-box !important;
+        }
+        .soa-pdf-export {
+          display: block !important;
+          position: static !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          background: #fff !important;
+          color: #000 !important;
+          font-family: Arial, Helvetica, sans-serif !important;
+          font-size: 10px !important;
+          line-height: 1.18 !important;
+          min-height: 0 !important;
+          padding: 0 !important;
+          transform: none !important;
+        }
+        .soa-pdf-export table { page-break-inside: auto !important; }
+        .soa-pdf-export thead { display: table-header-group !important; }
+        .soa-pdf-export tr { page-break-inside: avoid !important; page-break-after: auto !important; }
+        .soa-pdf-export td,
+        .soa-pdf-export th,
+        .soa-pdf-export strong { color: #000 !important; }
+        .soa-pdf-export .f-soa-header {
+          display: flex !important;
+          justify-content: space-between !important;
+          align-items: flex-start !important;
+          border-bottom: 2px solid #0b297a !important;
+          padding-bottom: 8px !important;
+          margin-bottom: 9px !important;
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
+        }
+        .soa-pdf-export .f-soa-header-left { display: flex !important; align-items: center !important; gap: 10px !important; }
+        .soa-pdf-export .f-soa-logo { width: 86px !important; height: 86px !important; object-fit: contain !important; }
+        .soa-pdf-export .f-soa-company { padding-top: 0 !important; }
+        .soa-pdf-export .f-soa-company h2 {
+          font-size: 24px !important;
+          color: #061f66 !important;
+          margin: 0 !important;
+          font-weight: 900 !important;
+          letter-spacing: 0.5px !important;
+        }
+        .soa-pdf-export .f-soa-company h3 {
+          font-size: 13px !important;
+          color: #111827 !important;
+          margin: 1px 0 6px 0 !important;
+          font-weight: 800 !important;
+          letter-spacing: 1px !important;
+        }
+        .soa-pdf-export .f-soa-contact p {
+          font-size: 11px !important;
+          color: #111827 !important;
+          margin: 0 !important;
+          line-height: 1.4 !important;
+          display: flex !important;
+          align-items: flex-start !important;
+          gap: 6px !important;
+          font-weight: 800 !important;
+        }
+        .soa-pdf-export .f-soa-contact p i { color: #0b297a !important; }
+        .soa-pdf-export .f-soa-header-right { padding-top: 5px !important; width: 250px !important; }
+        .soa-pdf-export .f-soa-header-right table {
+          font-size: 11px !important;
+          color: #000 !important;
+          border-collapse: separate !important;
+          border-spacing: 0 2px !important;
+          width: 100% !important;
+        }
+        .soa-pdf-export .f-soa-header-right table td { padding: 2px 4px !important; vertical-align: top !important; }
+        .soa-pdf-export .f-soa-header-right table td:first-child {
+          color: #111827 !important;
+          font-weight: 700 !important;
+          width: 90px !important;
+        }
+        .soa-pdf-export .f-soa-header-right table td:last-child { color: #061f66 !important; }
+        .soa-pdf-export .f-soa-title-wrapper {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          gap: 12px !important;
+          margin: 11px 0 14px 0 !important;
+        }
+        .soa-pdf-export .f-soa-title-line { height: 2px !important; background: #eab308 !important; flex: 1 !important; max-width: 120px !important; }
+        .soa-pdf-export .f-soa-title-dot { width: 6px !important; height: 6px !important; background: #eab308 !important; border-radius: 50% !important; }
+        .soa-pdf-export .f-soa-title {
+          text-align: center !important;
+          font-size: 23px !important;
+          color: #061f66 !important;
+          font-weight: 900 !important;
+          letter-spacing: 1px !important;
+          margin: 0 !important;
+          line-height: 1 !important;
+        }
+        .soa-pdf-export .f-soa-section {
+          border: 1.5px solid #111827 !important;
+          border-radius: 4px !important;
+          margin-bottom: 10px !important;
+          overflow: hidden !important;
+          background: #fff !important;
+          break-inside: auto !important;
+          page-break-inside: auto !important;
+        }
+        .soa-pdf-export .f-soa-sec-header {
+          background: #0b297a !important;
+          color: #fff !important;
+          font-size: 11px !important;
+          font-weight: 700 !important;
+          padding: 5px 9px !important;
+          display: flex !important;
+          align-items: center !important;
+          gap: 8px !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.5px !important;
+        }
+        .soa-pdf-export .f-soa-sec-header * { color: #fff !important; }
+        .soa-pdf-export .f-soa-loan-info { padding: 7px 9px !important; }
+        .soa-pdf-export .f-soa-grid-3 { display: grid !important; grid-template-columns: 1fr 1fr 1fr !important; gap: 8px !important; }
+        .soa-pdf-export .f-soa-grid-3 table:nth-child(1),
+        .soa-pdf-export .f-soa-grid-3 table:nth-child(2) {
+          border-right: 1.25px solid #374151 !important;
+          padding-right: 8px !important;
+        }
+        .soa-pdf-export .f-soa-grid-3 table { width: 100% !important; font-size: 10px !important; border-collapse: collapse !important; }
+        .soa-pdf-export .f-soa-grid-3 table td {
+          padding: 2px 2px !important;
+          color: #0f172a !important;
+          vertical-align: top !important;
+          line-height: 1.12 !important;
+        }
+        .soa-pdf-export .f-soa-grid-3 table td:first-child {
+          width: 96px !important;
+          color: #111827 !important;
+          font-weight: 800 !important;
+        }
+        .soa-pdf-export .f-soa-grid-3 table td:nth-child(2) {
+          width: 10px !important;
+          color: #111827 !important;
+          font-weight: 800 !important;
+        }
+        .soa-pdf-export .f-soa-ledger-table-new { width: 100% !important; border-collapse: collapse !important; }
+        .soa-pdf-export .f-soa-ledger-table-new th {
+          background: #f8fafc !important;
+          color: #061f66 !important;
+          font-size: 8.5px !important;
+          font-weight: 800 !important;
+          padding: 4px 6px !important;
+          text-align: center !important;
+          text-transform: uppercase !important;
+          border: 1.15px solid #4b5563 !important;
+          line-height: 1.1 !important;
+        }
+        .soa-pdf-export .f-soa-ledger-table-new th i { color: #64748b !important; margin-right: 4px !important; }
+        .soa-pdf-export .f-soa-ledger-table-new td {
+          padding: 3px 6px !important;
+          font-size: 8.8px !important;
+          color: #0f172a !important;
+          text-align: center !important;
+          vertical-align: middle !important;
+          border: 1.15px solid #4b5563 !important;
+          line-height: 1.12 !important;
+        }
+        .soa-pdf-export .f-soa-payment-ledger-table th:first-child,
+        .soa-pdf-export .f-soa-payment-ledger-table td:first-child { text-align: left !important; }
+        .soa-pdf-export .f-soa-row-even { background: #fff !important; }
+        .soa-pdf-export .f-soa-row-odd { background: #f8fafc !important; }
+        .soa-pdf-export .f-soa-ledger-table-new tr { border-bottom: 1px solid #cbd5e1 !important; }
+        .soa-pdf-export .f-soa-ledger-table-new tr:last-child { border-bottom: none !important; }
+        .soa-pdf-export .f-soa-payment-ledger-table tfoot td {
+          background: #0b297a !important;
+          color: #fff !important;
+          border-color: #0b297a !important;
+          padding: 5px 6px !important;
+          text-align: center !important;
+        }
+        .soa-pdf-export .f-soa-payment-ledger-table tfoot td * { color: #fff !important; }
+        .soa-pdf-export .f-soa-status-badge,
+        .soa-pdf-export .f-soa-status-badge * {
+          background: #f0fdf4 !important;
+          color: #14532d !important;
+          padding: 2px 6px !important;
+          border-radius: 12px !important;
+          font-size: 8.5px !important;
+          font-weight: 600 !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          gap: 3px !important;
+          border-color: #16a34a !important;
+        }
+        .soa-pdf-export .f-soa-footer-text { font-size: 10px !important; font-weight: 700 !important; text-transform: uppercase !important; color: #fff !important; }
+        .soa-pdf-export .f-soa-footer-amount { font-size: 13px !important; font-weight: 800 !important; color: #fff !important; }
+        .soa-pdf-export .f-soa-penalty-summary { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; border-bottom: 1px solid #94a3b8 !important; }
+        .soa-pdf-export .f-soa-penalty-summary div {
+          padding: 5px 7px !important;
+          border-right: 1px solid #374151 !important;
+          text-align: center !important;
+        }
+        .soa-pdf-export .f-soa-penalty-summary div:last-child { border-right: none !important; }
+        .soa-pdf-export .f-soa-penalty-summary span,
+        .soa-pdf-export .f-soa-penalty-footer span {
+          display: block !important;
+          color: #111827 !important;
+          font-size: 7.8px !important;
+          font-weight: 800 !important;
+          text-transform: uppercase !important;
+          margin-bottom: 2px !important;
+          line-height: 1.05 !important;
+        }
+        .soa-pdf-export .f-soa-penalty-summary strong { color: #0f172a !important; font-size: 9px !important; font-weight: 800 !important; }
+        .soa-pdf-export .f-soa-penalty-meta {
+          display: grid !important;
+          grid-template-columns: repeat(3, 1fr) !important;
+          gap: 6px !important;
+          padding: 4px 7px !important;
+          color: #111827 !important;
+          font-size: 8.3px !important;
+          font-weight: 800 !important;
+          border-bottom: 1px solid #94a3b8 !important;
+          text-align: center !important;
+          line-height: 1.1 !important;
+        }
+        .soa-pdf-export .f-soa-penalty-table td:first-child span {
+          display: block !important;
+          color: #111827 !important;
+          font-size: 7.8px !important;
+          font-weight: 800 !important;
+          margin-top: 1px !important;
+          line-height: 1.12 !important;
+        }
+        .soa-pdf-export .f-soa-penalty-payment { color: #b91c1c !important; font-weight: 800 !important; }
+        .soa-pdf-export .f-soa-penalty-footer {
+          background: #0b297a !important;
+          color: #fff !important;
+          display: grid !important;
+          grid-template-columns: repeat(3, 1fr) !important;
+        }
+        .soa-pdf-export .f-soa-penalty-footer div {
+          padding: 6px 8px !important;
+          border-right: 1px solid #374151 !important;
+          text-align: center !important;
+        }
+        .soa-pdf-export .f-soa-penalty-footer div:last-child { border-right: none !important; }
+        .soa-pdf-export .f-soa-penalty-footer span { color: #fff !important; }
+        .soa-pdf-export .f-soa-penalty-footer strong { color: #fff !important; font-size: 12px !important; font-weight: 900 !important; }
+        .soa-pdf-export .f-soa-photo-grid {
+          display: grid !important;
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          gap: 10px !important;
+          padding: 8px !important;
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
+        }
+        .soa-pdf-export .f-soa-photo-tile {
+          border: 1.15px solid #4b5563 !important;
+          border-radius: 4px !important;
+          overflow: hidden !important;
+          background: #fff !important;
+          min-width: 0 !important;
+        }
+        .soa-pdf-export .f-soa-photo-label {
+          display: block !important;
+          background: #f8fafc !important;
+          border-bottom: 1.15px solid #4b5563 !important;
+          color: #061f66 !important;
+          font-size: 8.5px !important;
+          font-weight: 900 !important;
+          padding: 4px 7px !important;
+          text-transform: uppercase !important;
+        }
+        .soa-pdf-export .f-soa-photo-tile img,
+        .soa-pdf-export .f-soa-photo-placeholder {
+          align-items: center !important;
+          background: #f8fafc !important;
+          color: #475569 !important;
+          display: flex !important;
+          font-size: 9px !important;
+          font-weight: 800 !important;
+          height: 120px !important;
+          justify-content: center !important;
+          object-fit: contain !important;
+          width: 100% !important;
+        }
+        .soa-pdf-export .f-soa-thank-you { text-align: center !important; margin-top: 10px !important; }
+        .soa-pdf-export .f-soa-thank-you p {
+          color: #0b297a !important;
+          font-style: italic !important;
+          font-size: 13px !important;
+          font-weight: 600 !important;
+          line-height: 1.25 !important;
+          margin: 0 !important;
+        }
+      `;
+      exportRoot.prepend(pdfStyle);
+
+      const exportHost = document.createElement('div');
+      exportHost.className = 'soa-print-statement';
+      exportHost.style.position = 'fixed';
+      exportHost.style.left = '-10000px';
+      exportHost.style.top = '0';
+      exportHost.style.width = '8.5in';
+      exportHost.style.background = '#ffffff';
+      exportHost.appendChild(exportRoot);
+      document.body.appendChild(exportHost);
+
+      html2pdf()
+        .set({
+          margin: [0.3, 0.3, 0.3, 0.45],
+          filename: `Statement_of_Account_${loan.loan_code || 'loan'}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+          jsPDF: { unit: 'in', format: [8.5, 13], orientation: 'portrait' },
+          pagebreak: { mode: ['css', 'legacy'] }
+        })
+        .from(exportRoot)
+        .save()
+        .finally(() => {
+          exportHost.remove();
+          suppressNextPrintRef.current = false;
+          setPrintModeLoan(null);
+        });
+    }, 250);
+  };
   const getPenaltyComputation = (loan) => {
     const dueDate = parseLocalDate(loan?.date_maturity);
     const datePrepared = new Date();
@@ -616,8 +1014,10 @@ export default function Customers() {
                 const validLoans = loans.filter(l => ['active', 'pastdue', 'fullpaid'].includes(l.status));
                 const activeLoans = loans.filter(l => ['active', 'pastdue'].includes(l.status));
                 const currentLoan = printModeLoan || activeLoans[0] || validLoans[0] || loans[0] || {};
-                const sortedPayments = soaData.payments 
-                  ? [...soaData.payments].filter(p => printModeLoan ? p.loan_code === printModeLoan.loan_code : true).sort((a, b) => new Date(b.date_paid) - new Date(a.date_paid)) 
+                const sortedPayments = soaData.payments
+                  ? [...soaData.payments]
+                      .filter(p => (printModeLoan ? p.loan_code === printModeLoan.loan_code : true) && isGoodPayment(p))
+                      .sort((a, b) => new Date(b.date_paid) - new Date(a.date_paid))
                   : [];
                 const printLedgerPayments = [...sortedPayments].sort((a, b) => new Date(a.date_paid) - new Date(b.date_paid));
                 const totalLoanAmt = printModeLoan ? Number(currentLoan.total_amortization || currentLoan.principal || 0) : validLoans.reduce((sum, l) => sum + Number(l.total_amortization || l.principal || 0), 0);
@@ -672,7 +1072,11 @@ export default function Customers() {
                       <>
                         <div className="soa-card-v2 print-card">
                           <div className="soa-cust-info-v2">
-                            <div className="soa-avatar-v2">{cleanInitials}</div>
+                            <div className="soa-avatar-v2">
+                              {soaData.photo_client ? (
+                                <img src={getImageUrl(soaData.photo_client)} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                              ) : cleanInitials}
+                            </div>
                             <div className="soa-info-grid-v2">
                               <div>
                                 <div className="soa-label-v2">Customer Name</div>
@@ -684,7 +1088,15 @@ export default function Customers() {
                                 <div className="soa-label-v2">Customer Code</div>
                                 <div className="soa-val-v2" style={{ fontSize: 18 }}>{soaData.customer_code}</div>
                                 <div className="soa-label-v2">Customer Status</div>
-                                <div className="soa-status-badge-v2"><div className="dot"></div> {getCalculatedCustomerStatus(soaData)}</div>
+                                {(() => {
+                                  const cstat = getCalculatedCustomerStatus(soaData) || 'Active';
+                                  const cclass = cstat.toLowerCase().replace(' ', '');
+                                  return (
+                                    <div className={`soa-status-badge-v2 ${cclass}`}>
+                                      <div className={`dot ${cclass}`}></div> {cstat}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                               <div>
                                 <div className="soa-label-v2">Address</div>
@@ -762,6 +1174,13 @@ export default function Customers() {
                           </svg>
                         </div>
 
+                        {currentLoan.remarks && (
+                          <div className="soa-card-v2 print-card" style={{ padding: 18, marginTop: 16 }}>
+                            <div className="soa-label-v2">Manager Note / Loan Remarks</div>
+                            <div className="soa-val-v2" style={{ fontSize: 14, lineHeight: 1.5, alignItems: 'flex-start' }}>{currentLoan.remarks}</div>
+                          </div>
+                        )}
+
                         <div className="soa-alert-v2 screen-only">
                           <div className="soa-alert-icon-v2"><Info size={16} /></div>
                           <div className="soa-alert-text-v2">Thank you for keeping your account active. For any concerns, please contact your collector or visit our office.</div>
@@ -799,13 +1218,37 @@ export default function Customers() {
                             </section>
                           ))}
                         </div>
+
+                        <section className="soa-profile-section" style={{ marginTop: '24px', gridColumn: '1 / -1' }}>
+                          <h4>ID AND PHOTO ATTACHMENTS</h4>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '12px' }}>
+                            {[
+                              ['Client Photo', soaData.photo_client],
+                              ['ID Front', soaData.photo_id_front],
+                              ['ID Back', soaData.photo_id_back],
+                              ['Business Proof / Store', soaData.photo_business_proof],
+                            ].map(([label, path]) => (
+                              <div key={label} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', background: '#fff' }}>
+                                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>{label}</div>
+                                {path ? (
+                                  <img src={getImageUrl(path)} alt={label} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '4px' }} />
+                                ) : (
+                                  <div style={{ width: '100%', height: '150px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', borderRadius: '4px', fontSize: '14px' }}>No image</div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </section>
                       </div>
                     )}
 
                     {soaTab === 'history' && (
                       <div className="soa-card">
                         <div className="soa-list-card-header"><div className="soa-list-title">Loans & Payments History</div></div>
-                        {loans.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Loan Code</th><th>Type</th><th>Date Released</th><th>Maturity</th><th>Period</th><th>Principal</th><th>Interest Rate</th><th>Interest Amount</th><th>Total Loan</th><th>Amortization</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead><tbody>{loans.map(l => (<tr key={l.id} onClick={() => setSelectedLoanForPayments(l)} style={{ cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><td className="mono" style={{color: '#2563eb', fontWeight: '600'}} title="View payment history for this loan">{l.loan_code}</td><td>{l.loan_type || '-'}</td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td><td><button className="action-btn" onClick={(e) => { e.stopPropagation(); setPrintModeLoan(l); }}><i className="bi bi-printer"></i> Print</button></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
+                        {loans.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Loan Code</th><th>Type</th><th>Date Released</th><th>Maturity</th><th>Period</th><th>Principal</th><th>Interest Rate</th><th>Interest Amount</th><th>Total Loan</th><th>Amortization</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead><tbody>{loans.map(l => (<tr key={l.id} onClick={() => setSelectedLoanForPayments(l)} style={{ cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><td className="mono" style={{color: '#2563eb', fontWeight: '600'}} title="View payment history for this loan">{l.loan_code}</td><td>
+  {l.loan_type || '-'}
+  {String(l.status).toLowerCase() === 'reversed' && <span style={{ color: '#ef4444', marginLeft: '6px', fontWeight: 'bold', fontSize: '11px' }}>(REVERSED)</span>}
+</td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td><td><button className="action-btn" onClick={(e) => { e.stopPropagation(); setPrintModeLoan(l); }}><i className="bi bi-printer"></i> Print</button></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
                       </div>
                     )}
 
@@ -1031,6 +1474,7 @@ export default function Customers() {
                               <tbody>
                                 <tr><td>Payment Frequency</td><td>:</td><td>Daily</td></tr>
                                 <tr><td>Purpose</td><td>:</td><td>{currentLoan.purpose || soaData.loan_purpose || '-'}</td></tr>
+                                <tr><td>Manager Note</td><td>:</td><td>{currentLoan.remarks || '-'}</td></tr>
                               </tbody>
                             </table>
                           </div>
@@ -1057,7 +1501,7 @@ export default function Customers() {
                             {printLedgerPayments.length > 0 ? printLedgerPayments.map((p, index) => (
                               <tr key={p.id} className={index % 2 === 0 ? 'f-soa-row-even' : 'f-soa-row-odd'}>
                                 <td>{formatDateNumeric(p.date_paid)}</td>
-                                <td>{p.or_number || p.payment_code || '-'}</td>
+                                <td>{formatPaymentCode(p)}</td>
                                 <td className="fw-bold">{formatMoney(p.amount_paid)}</td>
                                 <td>{formatMoney(p.balance_after)}</td>
                                 <td><span className="f-soa-status-badge"><i className="bi bi-check2"></i> Active</span></td>
@@ -1085,7 +1529,7 @@ export default function Customers() {
                       </div>
                     </div>
 
-                    <div className="f-soa-section" style={{marginBottom: 0}}>
+                    <div className="f-soa-section screen-only" style={{marginBottom: 0}}>
                       <div className="f-soa-sec-header">
                         <i className="bi bi-calculator"></i> PENALTY COMPUTATION
                       </div>
@@ -1174,6 +1618,32 @@ export default function Customers() {
                       </div>
                     </div>
 
+                    <div className="f-soa-section" style={{marginBottom: 0}}>
+                      <div className="f-soa-sec-header">
+                        <i className="bi bi-images"></i> CLIENT PHOTOS
+                      </div>
+                      <div className="f-soa-sec-body f-soa-no-pad">
+                        <div className="f-soa-photo-grid">
+                          <div className="f-soa-photo-tile">
+                            <span className="f-soa-photo-label">Face ID</span>
+                            {soaData.photo_client ? (
+                              <img src={getImageUrl(soaData.photo_client)} alt="Client Face ID" />
+                            ) : (
+                              <div className="f-soa-photo-placeholder">No Face ID Photo</div>
+                            )}
+                          </div>
+                          <div className="f-soa-photo-tile">
+                            <span className="f-soa-photo-label">Store / Business Photo</span>
+                            {soaData.photo_business_proof ? (
+                              <img src={getImageUrl(soaData.photo_business_proof)} alt="Store or Business" />
+                            ) : (
+                              <div className="f-soa-photo-placeholder">No Store Photo</div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="f-soa-thank-you">
                       <p>Thank you for your prompt payments.<br/>We are here to serve you better.</p>
                     </div>
@@ -1183,31 +1653,6 @@ export default function Customers() {
                 );
               })() : <div className="text-danger text-center">Failed to load data.</div>}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Image Preview Modal */}
-      {previewImage && (
-        <div className="modal-overlay" style={{ zIndex: 100000, background: 'rgba(0,0,0,0.85)' }} onClick={() => setPreviewImage(null)}>
-          <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <button 
-              onClick={() => setPreviewImage(null)}
-              style={{
-                position: 'absolute', top: 20, left: 20, background: 'rgba(255,255,255,0.2)', 
-                border: 'none', color: '#fff', fontSize: '16px', padding: '10px 20px', 
-                borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
-                fontWeight: 600
-              }}
-            >
-              <span>←</span> Back
-            </button>
-            <img 
-              src={previewImage} 
-              alt="Preview" 
-              style={{ maxWidth: '90%', maxHeight: '90%', borderRadius: '8px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }} 
-              onClick={e => e.stopPropagation()}
-            />
           </div>
         </div>
       )}
@@ -1254,6 +1699,15 @@ export default function Customers() {
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <button
+                  type="button"
+                  onClick={() => exportPaymentHistory(selectedLoanForPayments)}
+                  style={{ background: '#f0fdf4', color: '#16a34a', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#dcfce7'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#f0fdf4'}
+                >
+                  <i className="bi bi-file-earmark-pdf"></i> Export PDF
+                </button>
                 <button 
                   onClick={() => setPrintModeLoan(selectedLoanForPayments)} 
                   style={{ background: '#eff6ff', color: '#2563eb', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background 0.2s' }}
@@ -1413,9 +1867,41 @@ export default function Customers() {
                         <div style={{ fontSize: '16px', fontWeight: '700', color: '#22c55e' }}>{formatPhp(remainingBalance)}</div>
                       </div>
                     </div>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '18px', flexShrink: 0 }}>
+                        <i className="bi bi-info-circle"></i>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>STATUS</div>
+                        {(() => {
+                          const statusText = (getLoanStatusLabel ? getLoanStatusLabel(selectedLoanForPayments) : selectedLoanForPayments.status || 'UNKNOWN').toUpperCase();
+                          
+                          let bg = '#f1f5f9';
+                          let color = '#64748b';
+                          
+                          if (statusText === 'RELOAN') { bg = '#dcfce7'; color = '#16a34a'; } // Green
+                          else if (statusText === 'OVERDUE') { bg = '#ffedd5'; color = '#ea580c'; } // Orange
+                          else if (statusText === 'RECON') { bg = '#dbeafe'; color = '#2563eb'; } // Blue
+                          else if (statusText === 'PASTDUE' || statusText === 'PAST DUE') { bg = '#fee2e2'; color = '#ef4444'; } // Red
+                          else if (statusText === 'FULLY PAID' || statusText === 'FULLPAID') { bg = '#f3e8ff'; color = '#9333ea'; } // Violet
+                          else if (statusText === 'NEW') { bg = '#e0e7ff'; color = '#4f46e5'; } // Indigo
 
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', opacity: 0 }}>
-                      {/* Empty placeholder for grid balance */}
+                          return (
+                            <span style={{ 
+                              display: 'inline-block',
+                              padding: '4px 12px',
+                              borderRadius: '20px',
+                              backgroundColor: bg,
+                              color: color,
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              letterSpacing: '0.5px'
+                            }}>
+                              {statusText}
+                            </span>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </div>
                 );
@@ -1439,7 +1925,7 @@ export default function Customers() {
 
               {/* Payment History Logic */}
               {(() => {
-                const loanPayments = (soaData?.payments || []).filter(p => p.loan_code === selectedLoanForPayments.loan_code).sort((a,b) => new Date(b.date_paid) - new Date(a.date_paid));
+                const loanPayments = getPaymentHistoryRows(selectedLoanForPayments);
                 const totalPaid = loanPayments.reduce((sum, p) => sum + Number(p.amount_paid || 0), 0);
                 const totalPayable = Number(selectedLoanForPayments.total_amortization || selectedLoanForPayments.principal);
                 const paymentRate = totalPayable > 0 ? Math.min(100, (totalPaid / totalPayable) * 100).toFixed(2) : 0;
@@ -1463,16 +1949,18 @@ export default function Customers() {
                           <tbody>
                             {loanPayments.map((p, idx) => { 
                               const isReversed = p.status === 'reversed';
+                              const isPenalty = p.status === 'penalty';
                               const isFullyPaid = p.status === 'active' && Number(p.balance_after) <= 0; 
                               const isPartial = p.status === 'active' && Number(p.balance_after) > 0;
                               
                               // Pill styles
                               let pillBg = '#f1f5f9', pillColor = '#64748b', pillIcon = 'bi-circle';
-                              let statusText = 'Active';
+                              let statusText = getPaymentStatusText(p);
                               
-                              if (isReversed) { pillBg = '#fee2e2'; pillColor = '#ef4444'; pillIcon = 'bi-x-circle'; statusText = 'Reversed'; }
-                              else if (isFullyPaid) { pillBg = '#f3e8ff'; pillColor = '#9333ea'; pillIcon = 'bi-check-circle'; statusText = 'Fully Paid'; }
-                              else if (isPartial) { pillBg = '#dcfce7'; pillColor = '#16a34a'; pillIcon = 'bi-check-circle'; statusText = 'Active'; }
+                              if (isReversed) { pillBg = '#fee2e2'; pillColor = '#ef4444'; pillIcon = 'bi-x-circle'; }
+                              else if (isPenalty) { pillBg = '#fef3c7'; pillColor = '#b45309'; pillIcon = 'bi-exclamation-circle'; }
+                              else if (isFullyPaid) { pillBg = '#f3e8ff'; pillColor = '#9333ea'; pillIcon = 'bi-check-circle'; }
+                              else if (isPartial) { pillBg = '#dcfce7'; pillColor = '#16a34a'; pillIcon = 'bi-check-circle'; }
                               
                               return (
                                 <tr key={p.id} style={{ borderBottom: idx === loanPayments.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
@@ -1486,14 +1974,41 @@ export default function Customers() {
                                     </div>
                                   </td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '500', color: '#2563eb' }}>
-                                    {p.payment_code && p.payment_code !== 'N/A' ? p.payment_code : (p.or_number && p.or_number !== 'N/A' ? p.or_number : 'N/A')}
+                                    {formatPaymentCode(p)}
                                   </td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: isReversed ? '#94a3b8' : '#0f172a', textDecoration: isReversed ? 'line-through' : 'none' }}>{formatPhp(p.amount_paid)}</td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: isReversed ? '#94a3b8' : '#0f172a', textDecoration: isReversed ? 'line-through' : 'none' }}>{formatPhp(p.balance_after)}</td>
                                   <td style={{ padding: '16px 24px', textAlign: 'center' }}>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '9999px', backgroundColor: pillBg, color: pillColor, fontSize: '12px', fontWeight: '600' }}>
-                                      <i className={`bi ${pillIcon}`}></i> {statusText}
-                                    </span>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '9999px', backgroundColor: pillBg, color: pillColor, fontSize: '12px', fontWeight: '600' }}>
+                                        <i className={`bi ${pillIcon}`}></i> {statusText}
+                                      </span>
+                                      {isPenalty && (
+                                        <button
+                                          type="button"
+                                          title="View/Edit Penalty"
+                                          style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: '#b45309',
+                                            cursor: 'pointer',
+                                            padding: '4px 8px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            borderRadius: '6px',
+                                            transition: 'background-color 0.2s, color 0.2s',
+                                            fontSize: '12px',
+                                            fontWeight: '600'
+                                          }}
+                                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fef3c7'; e.currentTarget.style.color = '#d97706'; }}
+                                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#b45309'; }}
+                                          onClick={() => setEditingPenaltyPayment(p)}
+                                        >
+                                          <i className="bi bi-pencil-square"></i>
+                                        </button>
+                                      )}
+                                    </div>
                                   </td>
                                 </tr>
                               ); 
@@ -1705,6 +2220,50 @@ export default function Customers() {
                 </>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {editingPenaltyPayment && (
+        <div className="modal-overlay" style={{ zIndex: 100001, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15, 23, 42, 0.72)', padding: '20px' }}>
+          <div className="modal-content" style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, color: '#0f172a', fontSize: '20px', fontWeight: '800' }}>Edit Penalty Amount</h3>
+              <button onClick={() => setEditingPenaltyPayment(null)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '24px', cursor: 'pointer' }}>&times;</button>
+            </div>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', color: '#475569', fontSize: '14px', fontWeight: '600' }}>Amount (PHP)</label>
+              <input 
+                type="number" 
+                defaultValue={editingPenaltyPayment.amount_paid}
+                id="editPenaltyAmountInput"
+                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '15px' }}
+              />
+            </div>
+            
+            <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+              <button 
+                onClick={() => setEditingPenaltyPayment(null)}
+                style={{ flex: 1, padding: '10px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button 
+                onClick={async () => {
+                  const amt = document.getElementById('editPenaltyAmountInput').value;
+                  if (!amt || isNaN(amt) || Number(amt) < 0) return alert('Invalid amount');
+                  try {
+                    await API.put(`/payments/${editingPenaltyPayment.id}/penalty-amount`, { amount_paid: amt });
+                    setEditingPenaltyPayment(null);
+                    openSoa(soaData.id);
+                  } catch (e) {
+                    alert('Failed to update: ' + (e.response?.data?.error || e.message));
+                  }
+                }}
+                style={{ flex: 1, padding: '10px', background: '#2563eb', color: '#ffffff', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>
+                Save
+              </button>
+            </div>
           </div>
         </div>
       )}

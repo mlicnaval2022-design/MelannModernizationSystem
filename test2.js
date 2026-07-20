@@ -1,0 +1,1 @@
+const { dbGet } = require('./server/src/db/database.js'); dbGet(\SELECT l.penalty as loan_penalty, p.amount_paid as payment_penalty FROM tblLoan l JOIN tblPayment p ON p.loan_id = l.id WHERE p.customer_id = 1804 AND p.status = 'penalty' ORDER BY p.id DESC LIMIT 1\).then(console.log);
