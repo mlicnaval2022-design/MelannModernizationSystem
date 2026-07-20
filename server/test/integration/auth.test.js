@@ -273,3 +273,78 @@ test('reloan penalty posts to new loan on release date without reducing balance'
   assert.equal(penaltyPayment.payment_type, 'penalty');
   assert.match(penaltyPayment.remarks, /Penalty charge posted during loan release/);
 });
+
+test('collection sheet uses the latest released loan classification for the selected date', async () => {
+  const login = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: 'admin123' }),
+  });
+  const { token } = await login.json();
+
+  const branch = await dbGet(`SELECT id FROM tblBranch LIMIT 1`);
+  const user = await dbGet(`SELECT id FROM tblUser WHERE username = 'admin'`);
+  const collector = await dbRun(`
+    INSERT INTO tblCollector (collector_code, first_name, last_name, branch_id)
+    VALUES (?, ?, ?, ?)
+  `, ['COL-SHEET-DATE', 'Sheet', 'Date', branch.id]);
+  const customer = await dbRun(`
+    INSERT INTO tblCustomer (customer_code, first_name, last_name, full_name, branch_id, collector_id, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `, ['C-SHEET-RELOAN', 'Juan', 'Dela Cruz', 'Juan Dela Cruz', branch.id, collector.lastID, 'active']);
+
+  await dbRun(`
+    INSERT INTO tblLoan (
+      loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate,
+      loan_period, date_released, date_maturity, amortization, total_amortization,
+      net_proceeds, balance, total_paid, status, created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, ['LN-SHEET-OLD', customer.lastID, collector.lastID, branch.id, 'New', 1000, 0, 45, '2026-06-01', '2026-07-19', 25, 1000, 1000, 500, 500, 'active', user.id]);
+  await dbRun(`
+    INSERT INTO tblLoan (
+      loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate,
+      loan_period, date_released, date_maturity, amortization, total_amortization,
+      net_proceeds, balance, total_paid, status, created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, ['LN-SHEET-RELOAN', customer.lastID, collector.lastID, branch.id, 'Re-Loan', 2000, 0, 45, '2026-07-21', '2026-09-04', 45, 2000, 2000, 2000, 0, 'active', user.id]);
+
+  const beforeRelease = await fetch(`${baseUrl}/api/reports/collection-sheet?collector_id=${collector.lastID}&date=2026-07-20`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const beforeBody = await beforeRelease.json();
+  assert.equal(beforeRelease.status, 200, beforeBody.error);
+  assert.equal(beforeBody.loans.length, 1);
+  assert.equal(beforeBody.loans[0].loan_code, 'LN-SHEET-OLD');
+  assert.equal(beforeBody.loans[0].days_past_due, 1);
+
+  const onRelease = await fetch(`${baseUrl}/api/reports/collection-sheet?collector_id=${collector.lastID}&date=2026-07-21`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const onReleaseBody = await onRelease.json();
+  assert.equal(onRelease.status, 200, onReleaseBody.error);
+  assert.equal(onReleaseBody.loans.length, 1);
+  assert.equal(onReleaseBody.loans[0].loan_code, 'LN-SHEET-RELOAN');
+  assert.equal(onReleaseBody.loans[0].loan_type, 'Re-Loan');
+  assert.equal(onReleaseBody.loans[0].days_past_due, 0);
+
+  const reconCustomer = await dbRun(`
+    INSERT INTO tblCustomer (customer_code, first_name, last_name, full_name, branch_id, collector_id, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `, ['C-SHEET-RECON', 'Maria', 'Recon', 'Maria Recon', branch.id, collector.lastID, 'recon']);
+  await dbRun(`
+    INSERT INTO tblLoan (
+      loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate,
+      loan_period, date_released, date_maturity, amortization, total_amortization,
+      net_proceeds, balance, total_paid, status, created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, ['LN-SHEET-RECON', reconCustomer.lastID, collector.lastID, branch.id, 'Recon', 1500, 0, 45, '2026-07-21', '2026-07-20', 35, 1500, 1500, 1500, 0, 'active', user.id]);
+
+  const reconSheet = await fetch(`${baseUrl}/api/reports/collection-sheet?collector_id=${collector.lastID}&date=2026-07-21`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const reconBody = await reconSheet.json();
+  assert.equal(reconSheet.status, 200, reconBody.error);
+  const reconLoan = reconBody.loans.find((loan) => loan.loan_code === 'LN-SHEET-RECON');
+  assert.equal(reconLoan.loan_type, 'Recon');
+  assert.equal(reconLoan.days_past_due, 1);
+});
