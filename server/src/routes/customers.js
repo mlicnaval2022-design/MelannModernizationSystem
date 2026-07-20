@@ -13,9 +13,38 @@ const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ er
 const uploadDir = path.join(__dirname, '../../../uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
+const customerPhotoFields = ['photo_id_front', 'photo_id_back', 'photo_business_proof', 'photo_client'];
+
+function getStoredUploadPath(fileUrl) {
+  if (!fileUrl || typeof fileUrl !== 'string') return null;
+  if (!fileUrl.startsWith('/uploads/')) return null;
+
+  const relativePath = fileUrl.replace(/^\/uploads\//, '');
+  if (!relativePath || relativePath.includes('..') || path.isAbsolute(relativePath)) return null;
+
+  return path.join(uploadDir, relativePath);
+}
+
+function assertCustomerPhotoFilesExist(body) {
+  for (const field of customerPhotoFields) {
+    const fileUrl = body[field];
+    if (!fileUrl) continue;
+
+    const storedPath = getStoredUploadPath(fileUrl);
+    if (!storedPath || !fs.existsSync(storedPath)) {
+      const err = new Error(`${field} was not stored in the system. Please upload the picture again.`);
+      err.statusCode = 400;
+      throw err;
+    }
+  }
+}
+
 const storage = multer.diskStorage({
   destination: function(req, file, cb) { cb(null, uploadDir); },
-  filename: function(req, file, cb) { cb(null, Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9.]/g, '_')); }
+  filename: function(req, file, cb) {
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '_');
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}`);
+  }
 });
 const upload = multer({ storage });
 
@@ -255,7 +284,12 @@ const getPaymentConsistency = (loan, payments) => {
 
 router.post('/upload', authenticateToken, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  res.json({ url: `/uploads/${req.file.filename}` });
+  const url = `/uploads/${req.file.filename}`;
+  const storedPath = getStoredUploadPath(url);
+  if (!storedPath || !fs.existsSync(storedPath)) {
+    return res.status(500).json({ error: 'File upload did not finish storing in the system.' });
+  }
+  res.json({ url, stored: true });
 });
 
 router.get('/list/fully-paid', authenticateToken, async (req, res) => {
@@ -459,7 +493,7 @@ router.put('/compliance-checklist/bulk', authenticateToken, async (req, res) => 
       updated += 1;
     }
     res.json({ message: 'Compliance checklist updated', updated });
-  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); sendRouteError(res, err); }
 });
 
 router.get('/:id', authenticateToken, async (req, res) => {
@@ -489,7 +523,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
     const loans = await dbAll(`SELECT * FROM tblLoan WHERE customer_id = ? ORDER BY created_at DESC`, [req.params.id]);
     const payments = await dbAll(`SELECT p.*, l.loan_code FROM tblPayment p JOIN tblLoan l ON p.loan_id = l.id WHERE p.customer_id = ? ORDER BY p.date_paid DESC, p.created_at DESC`, [req.params.id]);
     res.json({ ...customer, loans, payments });
-  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); sendRouteError(res, err); }
 });
 
 router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
@@ -662,6 +696,7 @@ router.post('/', authenticateToken, async (req, res) => {
       id_place_of_issue, tin_number, sss_number, id_notes, photo_id_front, photo_id_back, photo_business_proof, photo_client
     } = req.body;
     if (!first_name || !last_name) return res.status(400).json({ error: 'First and last name required' });
+    assertCustomerPhotoFilesExist(req.body);
     const full_name = `${last_name}, ${first_name}${middle_name ? ' ' + middle_name : ''}`;
     const maxCust = await dbGet('SELECT MAX(CAST(customer_code AS INTEGER)) as c FROM tblCustomer');
     const customer_code = String((maxCust?.c || 0) + 1).padStart(4, '0');
@@ -718,6 +753,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
       business_type, business_name, business_employees, permit_date_issued, permit_place_issued, permit_no,
       id_place_of_issue, tin_number, sss_number, id_notes, photo_id_front, photo_id_back, photo_business_proof, photo_client
     } = req.body;
+    assertCustomerPhotoFilesExist(req.body);
     const full_name = `${last_name}, ${first_name}${middle_name ? ' ' + middle_name : ''}`;
     
     const updateCols = ['first_name', 'last_name', 'middle_name', 'full_name', 'address', 'contact', 'birth_date', 'civil_status', 'occupation', 'branch_id', 'collector_id', 'status', 'sitio', 'purok', 'brgy', 'city', 'gender', 'secondary_contact', 'email', 'income_per_month', 'expenses_per_month', 'loan_purpose', 'collateral', 'id_type', 'id_number', 'id_issue_date', 'id_expiry_date', 'id_issued_by', 'fb_account', 'nationality', 'home_status', 'business_address', 'business_location', 'business_years', 'business_months', 'business_ownership', 'business_permit', 'customer_classification', 'risk_category', 'cic_verification', 'province', 'zip_code', 'length_of_stay', 'previous_address', 'messenger_account', 'preferred_contact_method', 'preferred_contact_time_from', 'preferred_contact_time_to', 'contact_notes', 'business_type', 'business_name', 'business_employees', 'permit_date_issued', 'permit_place_issued', 'permit_no', 'id_place_of_issue', 'tin_number', 'sss_number', 'id_notes', 'photo_id_front', 'photo_id_back', 'photo_business_proof', 'photo_client', 'updated_at'];
