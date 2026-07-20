@@ -41,6 +41,7 @@ export default function Customers() {
   const [soaLoading, setSoaLoading] = useState(false)
   const [soaTab, setSoaTab] = useState('summary')
   const [selectedLoanForPayments, setSelectedLoanForPayments] = useState(null)
+  const [paymentSortOrder, setPaymentSortOrder] = useState('desc')
   const [penaltyLoan, setPenaltyLoan] = useState(null)
   const [editingPenaltyPayment, setEditingPenaltyPayment] = useState(null)
   const [printModeLoan, setPrintModeLoan] = useState(null)
@@ -1925,7 +1926,12 @@ export default function Customers() {
 
               {/* Payment History Logic */}
               {(() => {
-                const loanPayments = getPaymentHistoryRows(selectedLoanForPayments);
+                let loanPayments = getPaymentHistoryRows(selectedLoanForPayments);
+                loanPayments = [...loanPayments].sort((a, b) => {
+                  const dateA = new Date(a.date_paid || 0).getTime();
+                  const dateB = new Date(b.date_paid || 0).getTime();
+                  return paymentSortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+                });
                 const totalPaid = loanPayments.reduce((sum, p) => sum + Number(p.amount_paid || 0), 0);
                 const totalPayable = Number(selectedLoanForPayments.total_amortization || selectedLoanForPayments.principal);
                 const paymentRate = totalPayable > 0 ? Math.min(100, (totalPaid / totalPayable) * 100).toFixed(2) : 0;
@@ -1939,7 +1945,13 @@ export default function Customers() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                           <thead style={{ backgroundColor: '#0d6efd', color: '#ffffff' }}>
                             <tr>
-                              <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>DATE</th>
+                              <th 
+                                style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                                onClick={() => setPaymentSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                                title="Click to sort by date (Oldest to Latest / Latest to Oldest)"
+                              >
+                                DATE {paymentSortOrder === 'desc' ? <i className="bi bi-arrow-down" style={{marginLeft: '4px'}}></i> : <i className="bi bi-arrow-up" style={{marginLeft: '4px'}}></i>}
+                              </th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENT CODE</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENTS</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>RUNNING BALANCE</th>
