@@ -12,6 +12,15 @@ const getDcrLoanCondition = () => `
   l.date_released = ?
   AND l.status IN ('active', 'fully_paid')
   AND ${sqlNotSunday('l.date_released')}
+  AND NOT EXISTS (
+    SELECT 1 FROM tblLoan dup
+    WHERE dup.customer_id = l.customer_id
+      AND dup.date_released = l.date_released
+      AND LOWER(COALESCE(dup.loan_type, '')) = LOWER(COALESCE(l.loan_type, ''))
+      AND COALESCE(dup.principal, 0) = COALESCE(l.principal, 0)
+      AND LOWER(COALESCE(dup.status, '')) NOT IN ('reversed', 'rejected')
+      AND dup.id < l.id
+  )
 `;
 
 const sumAmount = rows => rows.reduce((acc, row) => acc + Number(row.amount || row.amount_paid || 0), 0);
@@ -173,11 +182,11 @@ router.get('/summary', authenticateToken, async (req, res) => {
     const beginning_cash = prevDcr ? prevDcr.actual_cash_count : 0;
     const beginning_cash_on_bank = prevDcr ? prevDcr.ending_cash_on_bank : 0;
     
-    let ytdOverrideQuery = `SELECT * FROM tblDcrYtdOverride WHERE report_date <= ?`;
+    let ytdOverrideQuery = `SELECT * FROM tblDcrYtdOverride WHERE report_date = ?`;
     let ytdOverrideParams = [date];
     if (branch_id) { ytdOverrideQuery += ` AND branch_id = ?`; ytdOverrideParams.push(branch_id); }
     else { ytdOverrideQuery += ` AND branch_id IS NULL`; }
-    ytdOverrideQuery += ` ORDER BY report_date DESC, id DESC LIMIT 1`;
+    ytdOverrideQuery += ` ORDER BY id DESC LIMIT 1`;
     const ytdOverride = await dbGet(ytdOverrideQuery, ytdOverrideParams).catch(() => null);
 
     const ytd_beg_releases_default = ytdOverride ? ytdOverride.ytd_beg_releases : (prevDcr ? (prevDcr.ytd_beg_releases || 0) + (prevDcr.total_releases || 0) : 0);
