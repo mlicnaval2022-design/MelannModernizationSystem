@@ -2,11 +2,13 @@ const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { computeMaturityDate, generateAmortizationSchedule, getWorkingDays } = require('../services/loanCalculator');
+const { requireOperationDate } = require('../services/operationDays');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
 const router = express.Router();
+const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
 
 const uploadDir = path.join(__dirname, '../../../uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -66,6 +68,7 @@ async function postPriorLoanBalancePayment({ customerId, sourceLoanId, amount, u
   }
 
   const datePaid = date_released || todayDateOnly();
+  requireOperationDate(datePaid, 'Payment date');
   const balanceBefore = Number(sourceLoan.balance || 0);
   const balanceAfter = Math.max(0, balanceBefore - paymentAmount);
   const maxCodeRes = await dbGet(`SELECT MAX(CAST(payment_code AS INTEGER)) as max_code FROM tblPayment WHERE customer_id = ?`, [customerId]);
@@ -135,6 +138,7 @@ async function postPriorLoanBalancePayment({ customerId, sourceLoanId, amount, u
 async function postLoanPenaltyEntry({ loan, customer, amount, datePaid, user }) {
   const penaltyAmount = Number(amount || 0);
   if (!Number.isFinite(penaltyAmount) || penaltyAmount <= 0) return null;
+  requireOperationDate(datePaid, 'Penalty payment date');
 
   const maxCodeRes = await dbGet(`SELECT MAX(CAST(payment_code AS INTEGER)) as max_code FROM tblPayment WHERE customer_id = ?`, [customer.id]);
   const nextCode = (maxCodeRes?.max_code || 0) + 1;
@@ -387,7 +391,7 @@ router.get('/', authenticateToken, async (req, res) => {
       return { ...r, display_status: displayStatus };
     });
     res.json(finalRows);
-  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); sendRouteError(res, err); }
 });
 
 router.get('/compliance-checklist/list', authenticateToken, async (req, res) => {
@@ -426,7 +430,7 @@ router.get('/compliance-checklist/list', authenticateToken, async (req, res) => 
     }
     q += ` ORDER BY has_release_today DESC, c.last_name, c.first_name LIMIT 500`;
     res.json(await dbAll(q, p));
-  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); sendRouteError(res, err); }
 });
 
 router.put('/compliance-checklist/bulk', authenticateToken, async (req, res) => {
@@ -673,6 +677,7 @@ router.post('/', authenticateToken, async (req, res) => {
     const maxLoan = await dbGet("SELECT MAX(CAST(REPLACE(loan_code, 'LN-', '') AS INTEGER)) as c FROM tblLoan");
     const loan_code = `LN-${String((maxLoan?.c || 0) + 1).padStart(6, '0')}`;
     const date_released = new Date().toISOString().split('T')[0];
+    requireOperationDate(date_released, 'Release date');
     const principal = Number(proposed_principal) || 0;
     
     const parsedLoanType = req.body.loan_type === 'Re-Loan' ? 'Re-Loan' : 'New';
@@ -748,6 +753,7 @@ router.put('/:id/relax', authenticateToken, requireRole('admin', 'manager'), asy
 router.post('/:id/penalty', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
+    requireOperationDate(today, 'Penalty date');
     const loan = await dbGet(`
       SELECT *
       FROM tblLoan
@@ -788,6 +794,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
     const maxLoan = await dbGet("SELECT MAX(CAST(REPLACE(loan_code, 'LN-', '') AS INTEGER)) as c FROM tblLoan");
     const loan_code = `LN-${String((maxLoan?.c || 0) + 1).padStart(6, '0')}`;
     const releaseDate = date_released || new Date().toISOString().split('T')[0];
+    requireOperationDate(releaseDate, 'Release date');
     const amount = Number(principal) || 0;
     const period = Number(loan_period) || 45;
     const interestRate = Number(interest_rate) || 0;
@@ -858,7 +865,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
       try { await dbRun('ROLLBACK'); } catch (rollbackErr) { console.error('Rollback failed:', rollbackErr); }
     }
     console.error(err);
-    res.status(500).json({ error: err.message });
+    sendRouteError(res, err);
   }
 });
 
@@ -870,13 +877,14 @@ router.post('/:id/reci', authenticateToken, requireRole('admin', 'manager'), asy
     const maxLoan = await dbGet("SELECT MAX(CAST(REPLACE(loan_code, 'LN-', '') AS INTEGER)) as c FROM tblLoan");
     const loan_code = `LN-${String((maxLoan?.c || 0) + 1).padStart(6, '0')}`;
     const date_released = new Date().toISOString().split('T')[0];
+    requireOperationDate(date_released, 'Release date');
     
     await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, loan_period, date_released, amortization, status, remarks, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [loan_code, customer.id, customer.collector_id, customer.branch_id, 'Re-CI', 0, 15, 45, date_released, 0, 'pending', 'Auto-created via Re-CI action', req.user.id]
     );
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'RECI', 'CUSTOMER', customer.id, `Re-CI application created: ${loan_code}`]);
     res.json({ message: 'Re-CI application created successfully', loan_code });
-  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); sendRouteError(res, err); }
 });
 
 router.post('/:id/status', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {

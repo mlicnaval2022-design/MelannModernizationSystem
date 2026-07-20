@@ -2,12 +2,14 @@ const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken } = require('../middleware/auth');
 const { triggerLoanRecalculation } = require('../services/noPaymentMonitoring');
+const { requireOperationDate, sqlNotSunday } = require('../services/operationDays');
 const router = express.Router();
+const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
 
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { loan_id, customer_id, date_from, date_to, search } = req.query;
-    let q = `SELECT p.*, l.loan_code, l.loan_type, l.date_released, l.principal, l.amortization, l.status as loan_status, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id LEFT JOIN tblCollector co ON p.collector_id = co.id WHERE p.status IN ('active', 'penalty')`;
+    let q = `SELECT p.*, l.loan_code, l.loan_type, l.date_released, l.principal, l.amortization, l.status as loan_status, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id LEFT JOIN tblCollector co ON p.collector_id = co.id WHERE p.status IN ('active', 'penalty') AND ${sqlNotSunday('p.date_paid')}`;
     const pa = [];
     if (loan_id) { q += ` AND p.loan_id = ?`; pa.push(loan_id); }
     if (customer_id) { q += ` AND p.customer_id = ?`; pa.push(customer_id); }
@@ -31,6 +33,7 @@ router.post('/', authenticateToken, async (req, res) => {
   try {
     let { loan_id, or_number, date_paid, amount_paid, collector_id, remarks, force_duplicate } = req.body;
     if (!loan_id || !date_paid || !amount_paid) return res.status(400).json({ error: 'loan_id, date_paid, amount_paid required' });
+    requireOperationDate(date_paid, 'Payment date');
     amount_paid = Number(amount_paid);
     if (!Number.isFinite(amount_paid) || amount_paid <= 0) return res.status(400).json({ error: 'Payment amount must be greater than zero' });
     if (!or_number) or_number = 'N/A';
@@ -86,7 +89,7 @@ router.post('/', authenticateToken, async (req, res) => {
     await triggerLoanRecalculation(loan_id).catch(e => console.error('Error triggering recalculation:', e));
 
     res.status(201).json({ id: result.lastID, payment_code, balance_before, balance_after, loan_status: newStatus });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendRouteError(res, err); }
 });
 
 router.put('/:id/penalty-amount', authenticateToken, async (req, res) => {
