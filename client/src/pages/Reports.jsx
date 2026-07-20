@@ -244,9 +244,9 @@ const REPORT_PRINT_CLARITY_CSS = `
 `
 const classifyCollectionAccount = account => {
   const dpd = Math.max(0, parseInt(account?.days_past_due ?? account?.days_overdue, 10) || 0)
-  if ((account?.loan_type || '').toLowerCase().includes('recon')) return 'recon'
   if (dpd >= 45) return 'pastdue'
   if (dpd >= 1) return 'overdue'
+  if ((account?.loan_type || '').toLowerCase().includes('recon')) return 'recon'
   return 'active'
 }
 const groupCollectionAccounts = accounts => COLLECTION_STATUS_GROUPS.map(group => ({
