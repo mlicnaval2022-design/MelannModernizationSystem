@@ -4,6 +4,13 @@ const { authenticateToken, requireRole } = require('../middleware/auth');
 const { runPastDueUpdate } = require('../services/pastDueUpdater');
 const router = express.Router();
 
+const toDateKey = date => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 // Manual past-due updater trigger (admin/manager)
 router.post('/run-pastdue', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   try {
@@ -26,12 +33,15 @@ router.get('/customers-metrics', authenticateToken, async (req, res) => {
 
 router.get('/dashboard', authenticateToken, async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
     const now = new Date();
+    const today = toDateKey(now);
+    const yesterdayDate = new Date(now);
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterday = toDateKey(yesterdayDate);
     
     // Find the most recent date before today that has active collections
     const latestPaymentDateRes = await dbGet(`SELECT MAX(date_paid) as max_date FROM tblPayment WHERE status IN ('active', 'penalty') AND date_paid < ?`, [today]);
-    const latestPaymentDate = latestPaymentDateRes?.max_date || (new Date(Date.now() - 86400000).toISOString().split('T')[0]);
+    const latestPaymentDate = latestPaymentDateRes?.max_date || yesterday;
 
     const epoch = new Date('2026-01-01T00:00:00Z');
     const diffDays = Math.floor((now - epoch) / (1000 * 60 * 60 * 24));

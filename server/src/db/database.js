@@ -581,6 +581,13 @@ async function initializeDatabase() {
   const loanColNames = new Set(loanCols.map(c => c.name));
   if (!loanColNames.has('previous_balance')) await dbRun(`ALTER TABLE tblLoan ADD COLUMN previous_balance REAL DEFAULT 0`);
 
+  const ciCols = await dbAll(`PRAGMA table_info(tblCreditInvestigation)`);
+  const ciColNames = new Set(ciCols.map(c => c.name));
+  const ciTextCols = ['loan_history', 'business_years', 'no_hardship', 'cb_rating'];
+  for (const c of ciTextCols) {
+    if (!ciColNames.has(c)) await dbRun(`ALTER TABLE tblCreditInvestigation ADD COLUMN ${c} TEXT`);
+  }
+
   const dcrCols = await dbAll(`PRAGMA table_info(tblDailyCashReport)`);
   const dcrColNames = new Set(dcrCols.map(c => c.name));
   if (!dcrColNames.has('ending_cash_on_bank')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN ending_cash_on_bank REAL DEFAULT 0`);

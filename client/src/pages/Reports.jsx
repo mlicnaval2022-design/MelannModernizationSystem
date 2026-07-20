@@ -18,6 +18,29 @@ const yesterday = () => {
 const displayDate = value => value ? new Date(`${value}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '-'
 const shortDate = value => value ? new Date(`${value}T00:00:00`).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '-'
 const fmtMoney = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const rawMoney = value => Number(value || 0).toFixed(2)
+const safeFilePart = value => String(value || '')
+  .trim()
+  .replace(/[^a-z0-9]+/gi, '-')
+  .replace(/^-+|-+$/g, '')
+  .toLowerCase() || 'report'
+const csvCell = value => {
+  const text = value === null || value === undefined ? '' : String(value)
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+}
+const downloadCsv = (filename, rows) => {
+  const csv = rows.map(row => row.map(csvCell).join(',')).join('\r\n')
+  const blob = new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename.endsWith('.csv') ? filename : `${filename}.csv`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+const dateOnly = value => value ? String(value).slice(0, 10) : ''
 const calculateAge = birthDate => {
   if (!birthDate) return '-'
   const birth = new Date(`${birthDate}T00:00:00`)
@@ -435,6 +458,7 @@ export default function Reports() {
     }, 100)
   }
 
+
   const printCollectionSheet = async () => {
     if (!params.collector_id) {
       alert('Please select a collector first.')
@@ -618,6 +642,251 @@ export default function Reports() {
       .from(exportRoot)
       .save()
       .finally(() => exportHost.remove())
+
+  const handleExportExcel = () => {
+    if (!data || data.error) return
+
+    const addMeta = (rows, title, details = []) => [
+      [title],
+      ...details.filter(row => row.some(value => value !== '' && value !== null && value !== undefined)),
+      [],
+      ...rows,
+    ]
+    const periodLabel = `${dateOnly(data.date_from || params.date_from)} to ${dateOnly(data.date_to || params.date_to)}`
+    const write = (name, rows) => downloadCsv(`${safeFilePart(name)}.csv`, rows)
+
+    if (active === 'collection-report') {
+      const payments = data.payments || []
+      if (collectionSubTab === 'monthly') {
+        const matrix = getMonthlyCollectionMatrix(payments, params)
+        const cycleLabel = params.collection_cycle_type === '45' ? '45 Days / 1.5 Month' : '30 Days / By Month'
+        const headers = monthlySubTab === 'overall'
+          ? ['Summary', ...matrix.periods.map(period => period.label), 'Grand Total']
+          : ['Collector', ...matrix.periods.map(period => period.label), 'Total Collection']
+        const body = monthlySubTab === 'overall'
+          ? [[
+              'Overall Total',
+              ...matrix.periods.map(period => rawMoney(matrix.periodTotals[period.key]?.amount || 0)),
+              rawMoney(matrix.periods.reduce((sum, period) => sum + Number(matrix.periodTotals[period.key]?.amount || 0), 0)),
+            ]]
+          : [
+              ...matrix.rows.map(row => [
+                row.collector,
+                ...matrix.periods.map(period => rawMoney(row.periods[period.key]?.amount || 0)),
+                rawMoney(row.total_amount),
+              ]),
+              [
+                'GRAND TOTAL',
+                ...matrix.periods.map(period => rawMoney(matrix.periodTotals[period.key]?.amount || 0)),
+                rawMoney(matrix.rows.reduce((sum, row) => sum + Number(row.total_amount || 0), 0)),
+              ],
+            ]
+        write(`collection-monthly-${cycleLabel}-${monthlySubTab}-${params.year}`, addMeta([headers, ...body], 'Collection Report - Monthly', [['Cycle Type', cycleLabel], ['View', monthlySubTab], ['Year', params.year]]))
+        return
+      }
+
+      const collectorRows = getCollectorRows(payments)
+      const rows = [
+        ['Collector', 'No. of Payments', 'Total Collection'],
+        ...collectorRows.map(row => [row.collector, row.payment_count, rawMoney(row.total_amount)]),
+        ['GRAND TOTAL', collectorRows.reduce((sum, row) => sum + Number(row.payment_count || 0), 0), rawMoney(data.total || collectorRows.reduce((sum, row) => sum + Number(row.total_amount || 0), 0))],
+        [],
+        ['Details'],
+        ['Client Code', 'Date Paid', 'Client', 'OR Number', 'Loan Number', 'Amount Paid', 'Balance After', 'Collector'],
+        ...payments.map(payment => [
+          payment.customer_code,
+          dateOnly(payment.date_paid),
+          payment.customer_name,
+          payment.or_number,
+          payment.loan_code,
+          rawMoney(payment.amount_paid),
+          rawMoney(payment.balance_after),
+          payment.collector_name || 'Unassigned',
+        ]),
+      ]
+      write(`collection-daily-${periodLabel}`, addMeta(rows, 'Collection Report - Daily', [['Period', periodLabel]]))
+      return
+    }
+
+    if (active === 'monthly-releases') {
+      const loans = data.loans || []
+      if (releaseSubTab === 'monthly') {
+        const matrix = getMonthlyReleaseMatrix(loans, params)
+        const cycleLabel = params.release_cycle_type === '45' ? '45 Days / 1.5 Month' : '30 Days / By Month'
+        const headers = releaseMonthlySubTab === 'overall'
+          ? ['Summary', ...matrix.periods.map(period => period.label), 'Grand Total']
+          : ['Collector', ...matrix.periods.map(period => period.label), 'Total Release Amount']
+        const body = releaseMonthlySubTab === 'overall'
+          ? [[
+              'Overall Total',
+              ...matrix.periods.map(period => rawMoney(matrix.periodTotals[period.key]?.amount || 0)),
+              rawMoney(matrix.periods.reduce((sum, period) => sum + Number(matrix.periodTotals[period.key]?.amount || 0), 0)),
+            ]]
+          : [
+              ...matrix.rows.map(row => [
+                row.collector,
+                ...matrix.periods.map(period => rawMoney(row.periods[period.key]?.amount || 0)),
+                rawMoney(row.total_amount),
+              ]),
+              [
+                'GRAND TOTAL',
+                ...matrix.periods.map(period => rawMoney(matrix.periodTotals[period.key]?.amount || 0)),
+                rawMoney(matrix.rows.reduce((sum, row) => sum + Number(row.total_amount || 0), 0)),
+              ],
+            ]
+        write(`releases-monthly-${cycleLabel}-${releaseMonthlySubTab}-${params.year}`, addMeta([headers, ...body], 'Releases Report - Monthly', [['Cycle Type', cycleLabel], ['View', releaseMonthlySubTab], ['Year', params.year]]))
+        return
+      }
+
+      const collectorRows = getReleaseCollectorRows(loans)
+      const rows = [
+        ['Collector', 'No. of Loans', 'New Count', 'New Amount', 'Reloan Count', 'Reloan Amount', 'Recon Count', 'Recon Amount', 'Total Principal'],
+        ...collectorRows.map(row => [row.collector, row.loan_count, row.new_count, rawMoney(row.new_amount), row.reloan_count, rawMoney(row.reloan_amount), row.recon_count, rawMoney(row.recon_amount), rawMoney(row.total_principal)]),
+        ['GRAND TOTAL', collectorRows.reduce((sum, row) => sum + Number(row.loan_count || 0), 0), '', '', '', '', '', '', rawMoney(data.total_principal || collectorRows.reduce((sum, row) => sum + Number(row.total_principal || 0), 0))],
+        [],
+        ['Details'],
+        ['Client Code', 'Client', 'Loan Number', 'Loan Type', 'Principal', 'Date Released', 'Maturity Date', 'Collector'],
+        ...loans.map(loan => [
+          loan.customer_code,
+          loan.customer_name,
+          loan.loan_code,
+          loan.loan_type,
+          rawMoney(loan.principal),
+          dateOnly(loan.date_released),
+          dateOnly(loan.date_maturity),
+          loan.collector_name || 'Unassigned',
+        ]),
+      ]
+      write(`releases-daily-${periodLabel}`, addMeta(rows, 'Releases Report - Daily', [['Period', periodLabel]]))
+      return
+    }
+
+    if (active === 'past-due') {
+      const loans = data.loans || []
+      const rows = [
+        ['Collector', 'Customer Code', 'Customer Name', 'Loan Number', 'Principal', 'Interest', 'Total Loan Amount', 'Running Balance', 'Date Released', 'Maturity Date', 'Days Overdue'],
+        ...loans.map(loan => [
+          loan.collector_name || 'Unassigned',
+          loan.customer_code,
+          loan.customer_name,
+          loan.loan_code,
+          rawMoney(loan.principal),
+          rawMoney(loan.interest_amount),
+          rawMoney(Number(loan.principal || 0) + Number(loan.interest_amount || 0)),
+          rawMoney(loan.balance),
+          dateOnly(loan.date_released),
+          dateOnly(loan.date_maturity),
+          loan.days_overdue || loan.days_past_due || '',
+        ]),
+      ]
+      write(`loans-maturity-checker-${periodLabel}`, addMeta(rows, 'Loans Maturity Checker', [['Maturity Date', periodLabel], ['Total Loan Amount', rawMoney(data.total_loan_amount)], ['Total Running Balance', rawMoney(data.total_balance)]]))
+      return
+    }
+
+    if (active === 'payments-reversed') {
+      const payments = data.payments || []
+      const rows = [
+        ['Collector', 'Customer Code', 'Customer Name', 'OR Number', 'Loan Number', 'Date Paid', 'Amount Paid', 'Reversed At', 'Reversed By', 'Reason'],
+        ...payments.map(payment => [
+          payment.collector_name || 'Unassigned',
+          payment.customer_code,
+          payment.customer_name,
+          payment.or_number,
+          payment.loan_code,
+          dateOnly(payment.date_paid),
+          rawMoney(payment.amount_paid),
+          dateOnly(payment.reversed_at || payment.updated_at),
+          payment.reversed_by_name || payment.reversed_by || '',
+          payment.reversal_reason || payment.reason || '',
+        ]),
+      ]
+      write(`payments-reversed-${periodLabel}`, addMeta(rows, 'Payments Reversed', [['Period', periodLabel], ['Total Reversed', rawMoney(data.total_amount)]]))
+      return
+    }
+
+    if (active === 'full-paid') {
+      const loans = data.loans || []
+      const rows = [
+        ['Collector', 'Customer Code', 'Customer Name', 'Loan Number', 'Date Released', 'Principal', 'Interest', 'Total Loan Amount', 'Total Paid', 'Date Fully Paid'],
+        ...loans.map(loan => [
+          loan.collector_name || 'Unassigned',
+          loan.customer_code,
+          loan.customer_name,
+          loan.loan_code,
+          dateOnly(loan.date_released),
+          rawMoney(loanPrincipal(loan)),
+          rawMoney(loanInterest(loan)),
+          rawMoney(loanTotalAmount(loan)),
+          rawMoney(loan.total_paid),
+          dateOnly(loan.date_fully_paid || loan.updated_at),
+        ]),
+      ]
+      write(`full-paid-loans-${periodLabel}`, addMeta(rows, 'Full Paid Loans', [['Period', periodLabel], ['Total Principal', rawMoney(data.total_principal)], ['Total Interest', rawMoney(data.total_interest)], ['Total Loan Amount', rawMoney(data.total_loan_amount)]]))
+      return
+    }
+
+    if (active === 'collection-sheet') {
+      const loans = data.loans || []
+      const rows = [
+        ['Client Code', 'Client Name', 'Loan Number', 'Loan Type', 'Principal', 'Running Balance', 'Amortization', 'Date Released', 'Maturity Date', 'Collector', 'Contact Number'],
+        ...loans.map(loan => [
+          loan.customer_code,
+          loan.customer_name,
+          loan.loan_code,
+          loan.loan_type,
+          rawMoney(loan.principal),
+          rawMoney(loan.balance),
+          rawMoney(loan.amortization),
+          dateOnly(loan.date_released),
+          dateOnly(loan.date_maturity),
+          loan.collector_name || data.collector_name || '',
+          loan.contact || loan.phone || '',
+        ]),
+      ]
+      write(`collection-sheet-${data.collector_name || params.collector_id || 'collector'}-${dateOnly(params.date || new Date().toISOString())}`, addMeta(rows, 'Collection Sheet', [['Collection Date', dateOnly(params.date || new Date().toISOString())], ['Collector', data.collector_name || params.collector_id]]))
+      return
+    }
+
+    if (active === 'disclosure-statement') {
+      const loan = data.loan || {}
+      const schedule = data.schedule || []
+      const rows = [
+        ['Loan Information'],
+        ['Client', loan.customer_name || [loan.last_name, loan.first_name, loan.middle_name].filter(Boolean).join(', ')],
+        ['Loan Number', loan.loan_code || loan.id],
+        ['Loan Type', loan.loan_type],
+        ['Principal', rawMoney(loan.principal)],
+        ['Interest Rate', loan.interest_rate],
+        ['Loan Period', loan.loan_period],
+        ['Amortization', rawMoney(loan.amortization)],
+        ['Date Released', dateOnly(loan.date_released)],
+        ['Maturity Date', dateOnly(loan.date_maturity)],
+        ['Purpose', loan.loan_purpose || loan.remarks],
+        [],
+        ['Amortization Schedule'],
+        ['Period', 'Due Date', 'Amount Due', 'Balance'],
+        ...schedule.map((item, index) => [item.period_number || index + 1, dateOnly(item.due_date), rawMoney(item.amount_due), rawMoney(item.balance)]),
+      ]
+      write(`disclosure-statement-${loan.loan_code || loan.id || 'loan'}`, addMeta(rows, 'Disclosure Statement'))
+      return
+    }
+
+    if (active === 'monitoring-summary') {
+      const rows = data.rows || []
+      const exportRows = [
+        ['Client Code', 'Client Name', 'Running Balance', 'Last Payment', 'Contact Number', 'Remarks'],
+        ...rows.map(row => [
+          row.customer_code,
+          row.customer_name,
+          rawMoney(row.balance),
+          row.last_payment_date ? `${dateOnly(row.last_payment_date)} - ${rawMoney(row.last_payment_amount)}` : '',
+          row.contact,
+          '',
+        ]),
+      ]
+      write(`monitoring-summary-${data.tab_label || params.monitoring_tab}`, addMeta(exportRows, `Monitoring Summary - ${data.tab_label || ''}`, [['As of', dateOnly(data.as_of || new Date().toISOString())], ['Total Clients', rows.length]]))
+    }
+
   }
 
   const loadCollectors = () => {
@@ -1260,6 +1529,45 @@ export default function Reports() {
                 white-space: nowrap;
                 font-size: 11px;
               }
+              .monthly-matrix-fit-screen {
+                width: 100%;
+                max-width: 100%;
+                overflow-x: hidden !important;
+              }
+              .monthly-matrix-fit-screen table {
+                table-layout: fixed;
+                width: 100%;
+                min-width: 0 !important;
+              }
+              .monthly-matrix-fit-screen th,
+              .monthly-matrix-fit-screen td {
+                min-width: 0 !important;
+                padding: 7px 5px !important;
+                font-size: 11px;
+                line-height: 1.15;
+                white-space: normal;
+                overflow-wrap: anywhere;
+              }
+              .monthly-matrix-fit-screen th:first-child,
+              .monthly-matrix-fit-screen td:first-child {
+                width: 12%;
+                text-align: left;
+              }
+              .monthly-matrix-fit-screen th:last-child,
+              .monthly-matrix-fit-screen td:last-child {
+                width: 11%;
+              }
+              .monthly-matrix-fit-screen th:not(:first-child),
+              .monthly-matrix-fit-screen td:not(:first-child) {
+                text-align: right;
+              }
+              .monthly-matrix-fit-screen .period-range-print {
+                display: none;
+              }
+              .monthly-matrix-fit-screen .text-success {
+                white-space: nowrap;
+                font-size: 11px;
+              }
               @media (max-width: 1200px) {
                 .monthly-overall-screen th,
                 .monthly-overall-screen td,
@@ -1269,6 +1577,15 @@ export default function Reports() {
                 .monthly-overall-screen th,
                 .monthly-overall-screen td {
                   padding: 7px 4px !important;
+                }
+                .monthly-matrix-fit-screen th,
+                .monthly-matrix-fit-screen td,
+                .monthly-matrix-fit-screen .text-success {
+                  font-size: 10px;
+                }
+                .monthly-matrix-fit-screen th,
+                .monthly-matrix-fit-screen td {
+                  padding: 6px 3px !important;
                 }
               }
               @media print {
@@ -1380,20 +1697,20 @@ export default function Reports() {
               </div>
             )}
             <div
-              className={`table-responsive-print ${monthlySubTab === 'overall' ? 'monthly-overall-screen monthly-collection-fit-print' : params.collection_cycle_type === '30' ? 'monthly-collection-fit-print' : ''}`}
-              style={{ overflowX: monthlySubTab === 'overall' ? 'hidden' : 'auto', border: '1px solid var(--border)', borderRadius: 8 }}
+              className={`table-responsive-print monthly-matrix-fit-screen ${monthlySubTab === 'overall' ? 'monthly-overall-screen monthly-collection-fit-print' : 'monthly-collection-fit-print'}`}
+              style={{ overflowX: 'hidden', border: '1px solid var(--border)', borderRadius: 8 }}
             >
-              <table className="data-table" style={{ minWidth: monthlySubTab === 'overall' ? 0 : Math.max(760, 220 + matrix.periods.length * 150 + 150), width: monthlySubTab === 'overall' ? '100%' : undefined }}>
+              <table className="data-table" style={{ minWidth: 0, width: '100%' }}>
                 <thead>
                   <tr>
-                    <th style={{ minWidth: monthlySubTab === 'overall' ? 0 : 220 }}>{monthlySubTab === 'by-collector' ? 'Collector' : 'Summary'}</th>
+                    <th style={{ minWidth: 0 }}>{monthlySubTab === 'by-collector' ? 'Collector' : 'Summary'}</th>
                     {matrix.periods.map(period => (
-                      <th key={period.key} className="text-right" title={period.rangeLabel} style={{ minWidth: monthlySubTab === 'overall' ? 0 : 150 }}>
+                      <th key={period.key} className="text-right" title={period.rangeLabel} style={{ minWidth: 0 }}>
                         <div>{period.label}</div>
                         <div className="period-range-print" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, textTransform: 'none', letterSpacing: 0 }}>{period.rangeLabel}</div>
                       </th>
                     ))}
-                    <th className="text-right" style={{ minWidth: monthlySubTab === 'overall' ? 0 : 150 }}>Total Collection</th>
+                    <th className="text-right" style={{ minWidth: 0 }}>Total Collection</th>
                   </tr>
                 </thead>
                 {monthlySubTab === 'by-collector' ? (
@@ -1800,6 +2117,45 @@ export default function Reports() {
                 white-space: nowrap;
                 font-size: 11px;
               }
+              .release-matrix-fit-screen {
+                width: 100%;
+                max-width: 100%;
+                overflow-x: hidden !important;
+              }
+              .release-matrix-fit-screen table {
+                table-layout: fixed;
+                width: 100%;
+                min-width: 0 !important;
+              }
+              .release-matrix-fit-screen th,
+              .release-matrix-fit-screen td {
+                min-width: 0 !important;
+                padding: 7px 5px !important;
+                font-size: 11px;
+                line-height: 1.15;
+                white-space: normal;
+                overflow-wrap: anywhere;
+              }
+              .release-matrix-fit-screen th:first-child,
+              .release-matrix-fit-screen td:first-child {
+                width: 12%;
+                text-align: left;
+              }
+              .release-matrix-fit-screen th:last-child,
+              .release-matrix-fit-screen td:last-child {
+                width: 11%;
+              }
+              .release-matrix-fit-screen th:not(:first-child),
+              .release-matrix-fit-screen td:not(:first-child) {
+                text-align: right;
+              }
+              .release-matrix-fit-screen .period-range-print {
+                display: none;
+              }
+              .release-matrix-fit-screen .text-success {
+                white-space: nowrap;
+                font-size: 11px;
+              }
               @media (max-width: 1200px) {
                 .release-overall-screen th,
                 .release-overall-screen td,
@@ -1809,6 +2165,15 @@ export default function Reports() {
                 .release-overall-screen th,
                 .release-overall-screen td {
                   padding: 7px 4px !important;
+                }
+                .release-matrix-fit-screen th,
+                .release-matrix-fit-screen td,
+                .release-matrix-fit-screen .text-success {
+                  font-size: 10px;
+                }
+                .release-matrix-fit-screen th,
+                .release-matrix-fit-screen td {
+                  padding: 6px 3px !important;
                 }
               }
               @media print {
@@ -1883,20 +2248,20 @@ export default function Reports() {
               </div>
             )}
             <div
-              className={`table-responsive-print ${releaseMonthlySubTab === 'overall' ? 'release-overall-screen' : ''}`}
-              style={{ overflowX: releaseMonthlySubTab === 'overall' ? 'hidden' : 'auto', border: '1px solid var(--border)', borderRadius: 8 }}
+              className={`table-responsive-print release-matrix-fit-screen ${releaseMonthlySubTab === 'overall' ? 'release-overall-screen' : ''}`}
+              style={{ overflowX: 'hidden', border: '1px solid var(--border)', borderRadius: 8 }}
             >
-              <table className="data-table" style={{ minWidth: releaseMonthlySubTab === 'overall' ? 0 : Math.max(760, 220 + matrix.periods.length * 150 + 150), width: releaseMonthlySubTab === 'overall' ? '100%' : undefined }}>
+              <table className="data-table" style={{ minWidth: 0, width: '100%' }}>
                 <thead>
                   <tr>
-                    <th style={{ minWidth: releaseMonthlySubTab === 'overall' ? 0 : 220 }}>{releaseMonthlySubTab === 'by-collector' ? 'Collector' : 'Summary'}</th>
+                    <th style={{ minWidth: 0 }}>{releaseMonthlySubTab === 'by-collector' ? 'Collector' : 'Summary'}</th>
                     {matrix.periods.map(period => (
-                      <th key={period.key} className="text-right" title={period.rangeLabel} style={{ minWidth: releaseMonthlySubTab === 'overall' ? 0 : 150 }}>
+                      <th key={period.key} className="text-right" title={period.rangeLabel} style={{ minWidth: 0 }}>
                         <div>{period.label}</div>
                         <div className="period-range-print" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, textTransform: 'none', letterSpacing: 0 }}>{period.rangeLabel}</div>
                       </th>
                     ))}
-                    <th className="text-right" style={{ minWidth: releaseMonthlySubTab === 'overall' ? 0 : 150 }}>Total Release Amount</th>
+                    <th className="text-right" style={{ minWidth: 0 }}>Total Release Amount</th>
                   </tr>
                 </thead>
                 {releaseMonthlySubTab === 'by-collector' ? (
@@ -3199,7 +3564,8 @@ export default function Reports() {
               {renderParams()}
               <button id="btn-run-report" className="btn btn-primary" onClick={() => run(active, params, active === 'monthly-releases' ? releaseSubTab : collectionSubTab)} disabled={loading || (active === 'disclosure-statement' && !params.disclosure_search.trim() && !params.disclosure_loan_id)}>{loading ? '⏳ Running...' : '▶ Run Report'}</button>
               {(data || active === 'collection-sheet') && (
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button className="btn btn-secondary" onClick={handleExportExcel} disabled={loading || data?.error}>Export Excel</button>
                   {active === 'collection-sheet' ? (
                     <>
                       <button className="btn btn-secondary" onClick={printCollectionSheet} disabled={loading}>🖨️ Print</button>
