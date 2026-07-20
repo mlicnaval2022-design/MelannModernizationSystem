@@ -45,6 +45,12 @@ const getRecommendedAmount = data => {
   return data.recommendations?.standard || data.last_loan_amount || '';
 };
 
+const getDefaultPrincipal = (type, data) => {
+  if (type === 'Recon') return data?.active_balance || '';
+  if (type === 'Reloan') return '0';
+  return getRecommendedAmount(data);
+};
+
 const isNewLoanType = type => {
   const normalized = String(type || '').toLowerCase();
   return normalized === 'new' || normalized === 'new loan';
@@ -86,11 +92,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
     try {
       const res = await API.get(`/customers/${activeCustomerId}/reloan-eval`);
       setData(res.data);
-      if (loanType === 'Recon') {
-        setDesiredAmount(current => current || res.data.active_balance || '');
-      } else {
-        setDesiredAmount(current => current || getRecommendedAmount(res.data));
-      }
+      setDesiredAmount(current => current || getDefaultPrincipal(loanType, res.data));
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to fetch reloan evaluation data');
     } finally {
@@ -230,6 +232,7 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
     setInternalLoanType(nextType);
     setPassbook(isNewLoanType(nextType) ? '50' : '');
     setDateRelease(getDefaultReleaseDate(nextType));
+    setDesiredAmount(getDefaultPrincipal(nextType, data));
   };
 
   const handleSuccessOk = () => {
