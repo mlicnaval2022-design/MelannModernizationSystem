@@ -533,7 +533,20 @@ router.get('/:id', authenticateToken, async (req, res) => {
       LEFT JOIN tblCollector co ON c.collector_id = co.id
       WHERE c.id = ?`, [req.params.id]);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
-    const loans = await dbAll(`SELECT * FROM tblLoan WHERE customer_id = ? ORDER BY created_at DESC`, [req.params.id]);
+    const loans = await dbAll(`
+      SELECT * FROM tblLoan l
+      WHERE l.customer_id = ?
+        AND NOT EXISTS (
+          SELECT 1 FROM tblLoan dup
+          WHERE dup.customer_id = l.customer_id
+            AND dup.date_released = l.date_released
+            AND LOWER(COALESCE(dup.loan_type, '')) = LOWER(COALESCE(l.loan_type, ''))
+            AND COALESCE(dup.principal, 0) = COALESCE(l.principal, 0)
+            AND LOWER(COALESCE(dup.status, '')) NOT IN ('reversed', 'rejected')
+            AND dup.id < l.id
+        )
+      ORDER BY l.created_at DESC
+    `, [req.params.id]);
     const payments = await dbAll(`SELECT p.*, l.loan_code FROM tblPayment p JOIN tblLoan l ON p.loan_id = l.id WHERE p.customer_id = ? ORDER BY p.date_paid DESC, p.created_at DESC`, [req.params.id]);
     res.json({ ...customer, loans, payments });
   } catch (err) { console.error(err); sendRouteError(res, err); }
@@ -868,6 +881,21 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
 
     await dbRun('BEGIN IMMEDIATE TRANSACTION');
     transactionStarted = true;
+
+    const duplicateActiveLoan = await dbGet(
+      `SELECT id, loan_code FROM tblLoan
+       WHERE customer_id = ?
+         AND date_released = ?
+         AND LOWER(loan_type) = LOWER(?)
+         AND LOWER(status) IN ('active', 'pending', 'approved', 'for_approval', 'reloan_pending')
+       ORDER BY id DESC LIMIT 1`,
+      [customer.id, releaseDate, normalizedLoanType]
+    );
+    if (duplicateActiveLoan) {
+      const err = new Error(`${normalizedLoanType} already exists for this client on ${releaseDate}: ${duplicateActiveLoan.loan_code}`);
+      err.statusCode = 409;
+      throw err;
+    }
 
     const priorBalancePayment = shouldPostPriorBalance
       ? await postPriorLoanBalancePayment({
