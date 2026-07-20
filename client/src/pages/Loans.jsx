@@ -27,6 +27,7 @@ export default function Loans() {
   const [sourceApprovedLoanId, setSourceApprovedLoanId] = useState(null)
   const [confirmModal, setConfirmModal] = useState(null)
   const [editModal, setEditModal] = useState(null)
+  const [noteModal, setNoteModal] = useState(null)
 
   const triggerRecon = (r) => {
     setSourceApprovedLoanId(null);
@@ -55,13 +56,33 @@ export default function Loans() {
 
 
   const handleEditNote = (loan) => {
-    const newNote = window.prompt(`Edit note for ${loan.customer_name}:`, loan.status_note || '');
-    if (newNote !== null) {
-       API.put(`/customers/${loan.customer_id}/status-note`, { note: newNote, status: loan.customer_status })
-         .then(() => {
-            load();
-         })
-         .catch(err => alert('Failed to update note: ' + (err.response?.data?.error || err.message)));
+    setNoteModal({
+      customerId: loan.customer_id,
+      customerName: loan.customer_name,
+      status: loan.customer_status,
+      note: loan.status_note || '',
+      saving: false,
+      error: ''
+    });
+  }
+
+  const handleNoteSubmit = async (e) => {
+    e.preventDefault();
+    if (!noteModal) return;
+    try {
+      setNoteModal(m => ({ ...m, saving: true, error: '' }));
+      await API.put(`/customers/${noteModal.customerId}/status-note`, {
+        note: noteModal.note,
+        status: noteModal.status
+      });
+      setNoteModal(null);
+      load();
+    } catch (err) {
+      setNoteModal(m => ({
+        ...m,
+        saving: false,
+        error: err.response?.data?.error || err.message || 'Failed to update note.'
+      }));
     }
   }
 
@@ -552,6 +573,41 @@ export default function Loans() {
                 Confirm Reverse
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {noteModal && (
+        <div className="note-modal-overlay" onMouseDown={e => e.target === e.currentTarget && !noteModal.saving && setNoteModal(null)}>
+          <div className="note-modal">
+            <div className="note-modal-header">
+              <div>
+                <span className="note-modal-eyebrow">Manager Note</span>
+                <h3>Edit note</h3>
+                <p>{noteModal.customerName}</p>
+              </div>
+              <button type="button" className="note-modal-close" onClick={() => setNoteModal(null)} disabled={noteModal.saving} aria-label="Close note editor">
+                ×
+              </button>
+            </div>
+            <form onSubmit={handleNoteSubmit}>
+              <label className="note-modal-label" htmlFor="loan-status-note">Note / reason</label>
+              <textarea
+                id="loan-status-note"
+                className="note-modal-textarea"
+                rows="5"
+                value={noteModal.note}
+                onChange={e => setNoteModal(m => ({ ...m, note: e.target.value }))}
+                autoFocus
+              />
+              {noteModal.error && <div className="note-modal-error">{noteModal.error}</div>}
+              <div className="note-modal-actions">
+                <button type="button" className="btn btn-light" onClick={() => setNoteModal(null)} disabled={noteModal.saving}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={noteModal.saving}>
+                  {noteModal.saving ? 'Saving...' : 'Save Note'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
