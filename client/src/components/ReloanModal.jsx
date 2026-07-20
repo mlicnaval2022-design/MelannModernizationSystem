@@ -48,6 +48,7 @@ const getRecommendedAmount = data => {
 const getDefaultPrincipal = (type, data) => {
   if (type === 'Recon') return data?.active_balance || '';
   if (type === 'Reloan') return '0';
+  if (isNewLoanType(type)) return '';
   return getRecommendedAmount(data);
 };
 
