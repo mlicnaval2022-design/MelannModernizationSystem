@@ -101,6 +101,27 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
     }
   };
 
+  const removeUploadedFile = (event, field) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setForm(f => ({ ...f, [field]: null }));
+  };
+
+  const renderUploadPreview = (field, alt) => (
+    <div className="upload-preview">
+      <img src={getImageUrl(form[field])} alt={alt} />
+      <button
+        type="button"
+        className="upload-delete-btn"
+        onClick={(event) => removeUploadedFile(event, field)}
+        title="Remove picture"
+        aria-label="Remove picture"
+      >
+        ×
+      </button>
+    </div>
+  );
+
   const handleSave = async () => {
     try {
       setSaving(true);
@@ -523,7 +544,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
             <div className="wsc-body">
               <label className="upload-dropzone">
                 <input type="file" style={{display:'none'}} onChange={e => handleFileUpload(e.target.files[0], 'photo_client')} />
-                {form.photo_client ? <img src={getImageUrl(form.photo_client)} alt="Profile" style={{width:'100%', borderRadius: 8}}/> : (
+                {form.photo_client ? renderUploadPreview('photo_client', 'Profile') : (
                   <>
                     <div className="icon">☁️</div>
                     <strong>Click to upload</strong>
@@ -541,7 +562,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
             <div className="wsc-body">
               <label className="upload-dropzone">
                 <input type="file" style={{display:'none'}} onChange={e => handleFileUpload(e.target.files[0], 'photo_business_proof')} />
-                {form.photo_business_proof ? <img src={getImageUrl(form.photo_business_proof)} alt="Proof" style={{width:'100%', borderRadius: 8}}/> : (
+                {form.photo_business_proof ? renderUploadPreview('photo_business_proof', 'Proof') : (
                   <>
                     <div className="icon">☁️</div>
                     <strong>Click to upload</strong>
@@ -560,7 +581,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
               <div className="wsc-body">
                 <label className="upload-dropzone">
                   <input type="file" style={{display:'none'}} onChange={e => handleFileUpload(e.target.files[0], 'photo_id_front')} />
-                  {form.photo_id_front ? <img src={getImageUrl(form.photo_id_front)} alt="ID Front" style={{width:'100%', borderRadius: 8}}/> : (
+                  {form.photo_id_front ? renderUploadPreview('photo_id_front', 'ID Front') : (
                     <>
                       <div className="icon">☁️</div>
                       <strong>Click to upload</strong>
@@ -575,7 +596,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
               <div className="wsc-body">
                 <label className="upload-dropzone">
                   <input type="file" style={{display:'none'}} onChange={e => handleFileUpload(e.target.files[0], 'photo_id_back')} />
-                  {form.photo_id_back ? <img src={getImageUrl(form.photo_id_back)} alt="ID Back" style={{width:'100%', borderRadius: 8}}/> : (
+                  {form.photo_id_back ? renderUploadPreview('photo_id_back', 'ID Back') : (
                     <>
                       <div className="icon">☁️</div>
                       <strong>Click to upload</strong>
