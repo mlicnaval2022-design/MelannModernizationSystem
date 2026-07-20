@@ -140,7 +140,14 @@ const ReloanModal = ({ isOpen, onClose, customerId, customer, loanType = 'Reloan
     const interestAmount = principal * (interest / 100);
     const totalAmount = principal + interestAmount;
     const totalForRelease = totalAmount;
-    const paymentPerDay = terms > 0 ? Math.ceil(totalAmount / terms) : 0;
+    
+    let workingDays = 0;
+    if (terms > 0) {
+      const fullWeeks = Math.floor(terms / 7);
+      const remainder = terms % 7;
+      workingDays = (fullWeeks * 6) + Math.min(remainder, 6);
+    }
+    const paymentPerDay = workingDays > 0 ? Math.ceil(totalAmount / workingDays) : 0;
 
     return {
       today,
