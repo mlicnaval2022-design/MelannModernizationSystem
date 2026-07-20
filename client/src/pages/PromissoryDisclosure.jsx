@@ -342,15 +342,54 @@ function DisclosurePreview({ data }) {
         .ds-borrower { display: grid; grid-template-columns: 1fr 220px; gap: 80px; margin: 30px 20px 8px; }
         .ds-footer { display: flex; justify-content: space-between; background: #11244a; color: #dbe5f4; padding: 10px 34px; font-size: 11px; font-weight: 800; }
         @media print {
-          @page { size: legal portrait; margin: 0; }
+          @page { size: legal portrait; margin: 0.16in 0.14in 0.22in 0.14in; }
           body { margin: 0 !important; background: #fff !important; }
           body * { visibility: hidden !important; }
           #disclosure-printable, #disclosure-printable * { visibility: visible !important; }
           #disclosure-printable {
+            display: flex !important;
+            flex-direction: column !important;
             position: absolute !important; left: 0 !important; top: 0 !important;
-            width: 8.5in !important; min-height: 14in !important; max-width: none !important;
-            box-shadow: none !important; margin: 0 !important; overflow: hidden !important;
+            width: 8.22in !important; height: 13.62in !important; min-height: 0 !important; max-width: none !important;
+            border: 1.5px solid #1f365f !important; box-shadow: none !important; margin: 0 !important; overflow: hidden !important;
           }
+          .ds-header { flex: 0 0 auto !important; padding: 0.18in 0.32in !important; gap: 0.16in !important; border-left-width: 0.09in !important; }
+          .ds-company { font-size: 22pt !important; letter-spacing: 1.1px !important; }
+          .ds-sub { margin-top: 0.045in !important; font-size: 8.8pt !important; }
+          .ds-badge { min-width: 2.35in !important; padding: 0.08in 0.14in !important; border: 1.5px solid #45699d !important; border-radius: 0.08in !important; }
+          .ds-badge-title { font-size: 15pt !important; }
+          .ds-badge-id { margin-top: 0.03in !important; font-size: 11.5pt !important; }
+          .ds-body { flex: 1 1 auto !important; min-height: 0 !important; display: flex !important; flex-direction: column !important; padding: 0.1in 0.25in 0.05in !important; overflow: hidden !important; }
+          .ds-section { margin-bottom: 0.07in !important; border: 1.5px solid #9aabc4 !important; border-radius: 0.06in !important; break-inside: avoid !important; }
+          .ds-section:last-of-type { flex: 1 1 auto !important; display: flex !important; flex-direction: column !important; min-height: 2.5in !important; margin-bottom: 0.04in !important; }
+          .ds-section-title { padding: 0.035in 0.12in !important; font-size: 10.6pt !important; letter-spacing: 0.35px !important; }
+          .ds-section-body { padding: 0.065in 0.12in !important; }
+          .ds-section:last-of-type .ds-section-body { flex: 1 1 auto !important; display: flex !important; flex-direction: column !important; padding-bottom: 0.075in !important; }
+          .ds-grid-2 { gap: 0.06in 0.2in !important; }
+          .ds-grid-3 { gap: 0.06in 0.16in !important; }
+          .ds-field { grid-template-columns: 1.14in 1fr !important; gap: 0.05in !important; font-size: 8pt !important; min-height: 0.15in !important; }
+          .ds-field b { min-height: 0.125in !important; border-bottom: 1.4px solid #a9b7ca !important; }
+          .ds-charge-strip { margin-top: 0.055in !important; border: 1.2px solid #c3cfdd !important; border-radius: 0.04in !important; }
+          .ds-charge-strip .ds-field { padding: 0.028in 0.065in !important; grid-template-columns: 1fr auto !important; font-size: 7.4pt !important; }
+          .ds-charge-strip .ds-field b { border-bottom: 0 !important; }
+          .ds-schedule { gap: 0.07in !important; }
+          .ds-schedule table { font-size: 7.35pt !important; }
+          .ds-schedule th { border-bottom: 0.9px solid #d5dce8 !important; padding: 0.023in 0.015in !important; line-height: 1.08 !important; }
+          .ds-schedule td { border-bottom: 0.35px solid #f1f4f8 !important; padding: 0.016in 0.015in !important; line-height: 1.06 !important; }
+          .ds-schedule table:not(:last-child) { border-right: 1.2px solid #9fb0c8 !important; padding-right: 0.05in !important; }
+          .ds-section:last-of-type .ds-grid-2 { gap: 0.035in 0.18in !important; }
+          .ds-section:last-of-type .ds-field { font-size: 7.5pt !important; min-height: 0.13in !important; }
+          .ds-section:last-of-type .ds-field b { min-height: 0.105in !important; }
+          .ds-signatures { gap: 0.16in !important; margin: 0.36in 0 0.12in !important; }
+          .ds-signature { font-size: 6.7pt !important; }
+          .ds-line { border-top: 1.4px solid #253a61 !important; margin-bottom: 0.04in !important; }
+          .ds-authorized-signature { transform: translateY(-0.03in) !important; }
+          .ds-authorized-signature-img { width: 0.82in !important; margin: -0.24in auto -0.04in !important; }
+          .ds-authorized-name { padding-top: 0.035in !important; margin-bottom: 0.025in !important; }
+          .ds-ack { font-size: 7.15pt !important; line-height: 1.1 !important; margin: 0.075in 0 !important; }
+          .ds-clause { font-size: 6.9pt !important; line-height: 1.1 !important; }
+          .ds-borrower { grid-template-columns: 1fr 1.45in !important; gap: 0.5in !important; margin: auto 0.15in 0 !important; padding-top: 0.18in !important; }
+          .ds-footer { flex: 0 0 auto !important; margin-top: auto !important; padding: 0.045in 0.32in !important; font-size: 7.4pt !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
       `}</style>
