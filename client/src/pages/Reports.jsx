@@ -642,6 +642,7 @@ export default function Reports() {
       .from(exportRoot)
       .save()
       .finally(() => exportHost.remove())
+  }
 
   const handleExportExcel = () => {
     if (!data || data.error) return

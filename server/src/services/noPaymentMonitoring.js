@@ -1,6 +1,7 @@
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const dayjs = require('dayjs');
 const isBetween = require('dayjs/plugin/isBetween');
+const { sqlNotSunday } = require('./operationDays');
 dayjs.extend(isBetween);
 
 async function getHolidays() {
@@ -32,7 +33,7 @@ async function evaluateLoan(loan, holidays, settings, todayStr = dayjs().format(
   const excludeSundays = settings['exclude_sundays'] !== 'false'; // default true
   
   // Get all active payments
-  const payments = await dbAll(`SELECT date_paid, amount_paid FROM tblPayment WHERE loan_id = ? AND status = 'active'`, [loan.id]);
+  const payments = await dbAll(`SELECT date_paid, amount_paid FROM tblPayment WHERE loan_id = ? AND status = 'active' AND ${sqlNotSunday('date_paid')}`, [loan.id]);
   
   const paymentDates = new Set();
   payments.forEach(p => {

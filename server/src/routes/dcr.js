@@ -2,13 +2,16 @@ const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const dayjs = require('dayjs');
+const { requireOperationDate, sqlNotSunday } = require('../services/operationDays');
 const router = express.Router();
+const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
 
 const reconLoanTypesSql = `('recon', 'reconstruct', 'reconstructed')`;
 
 const getDcrLoanCondition = () => `
   l.date_released = ?
   AND l.status IN ('active', 'fully_paid')
+  AND ${sqlNotSunday('l.date_released')}
 `;
 
 const sumAmount = rows => rows.reduce((acc, row) => acc + Number(row.amount || row.amount_paid || 0), 0);
@@ -56,8 +59,9 @@ router.get('/summary', authenticateToken, async (req, res) => {
   try {
     const { date, branch_id } = req.query;
     if (!date) return res.status(400).json({ error: 'Date is required' });
+    requireOperationDate(date, 'DCR date');
 
-    let pCond = `p.date_paid = ? AND p.status IN ('active', 'penalty')`;
+    let pCond = `p.date_paid = ? AND p.status IN ('active', 'penalty') AND ${sqlNotSunday('p.date_paid')}`;
     let lCond = getDcrLoanCondition();
     let eCond = `e.transaction_date = ? AND e.status = 'active'`;
     let cbCond = `entry_date = ?`;
@@ -237,7 +241,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: err.message, stack: err.stack });
+    res.status(err.statusCode || 500).json({ error: err.message, stack: err.statusCode ? undefined : err.stack });
   }
 });
 
@@ -246,6 +250,7 @@ router.get('/loan-releases', authenticateToken, async (req, res) => {
   try {
     const { date } = req.query;
     if (!date) return res.status(400).json({ error: 'Date is required' });
+    requireOperationDate(date, 'Release date');
 
     const releases = await dbAll(`
       SELECT l.id as loan_id, l.customer_id, l.principal as loan_amount, l.loan_type, l.date_released, l.status,
@@ -256,14 +261,14 @@ router.get('/loan-releases', authenticateToken, async (req, res) => {
       JOIN tblCustomer c ON l.customer_id = c.id
       LEFT JOIN tblCollector co ON l.collector_id = co.id
       LEFT JOIN tblBranch b ON l.branch_id = b.id
-      WHERE l.date_released = ? AND l.status IN ('active', 'fully_paid')
+      WHERE l.date_released = ? AND l.status IN ('active', 'fully_paid') AND ${sqlNotSunday('l.date_released')}
       ORDER BY c.last_name ASC, c.first_name ASC
     `, [date]);
 
     res.json(releases);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Server error fetching loan releases' });
+    res.status(error.statusCode || 500).json({ error: error.statusCode ? error.message : 'Server error fetching loan releases' });
   }
 });
 
@@ -301,6 +306,7 @@ router.post('/save-ytd', authenticateToken, async (req, res) => {
 router.post('/close', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   try {
     const { date, branch_id, denom, ytd_beg_releases, ytd_beg_collections, ytd_beg_expenses } = req.body;
+    requireOperationDate(date, 'DCR date');
     
     // Check if already closed
     let existingQuery = `SELECT * FROM tblDailyCashReport WHERE report_date = ?`;
@@ -318,7 +324,7 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
     const dcr_number = `DCR-${date.replace(/-/g, '')}-${nextNum}`;
 
     // Recalculate totals server-side
-    let pCond = `p.date_paid = ? AND p.status IN ('active', 'penalty')`;
+    let pCond = `p.date_paid = ? AND p.status IN ('active', 'penalty') AND ${sqlNotSunday('p.date_paid')}`;
     let lCond = getDcrLoanCondition();
     let eCond = `e.transaction_date = ? AND e.status = 'active'`;
     let cbCond = `entry_date = ?`;
@@ -420,7 +426,7 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
       await dbRun(`UPDATE tblLoan SET dcr_id = ? WHERE id IN (SELECT l.id FROM tblLoan l JOIN tblCustomer c ON l.customer_id = c.id WHERE ${lCond}) AND dcr_id IS NULL`, [dcrId, ...lParams]);
       await dbRun(`UPDATE tblTransaction SET dcr_id = ? WHERE id IN (SELECT t.id FROM tblTransaction t WHERE ${eCond.replace(/e\./g, 't.')}) AND dcr_id IS NULL`, [dcrId, ...eParams]);
     } else {
-      await dbRun(`UPDATE tblPayment SET dcr_id = ? WHERE date_paid = ? AND status IN ('active', 'penalty') AND dcr_id IS NULL`, [dcrId, date]);
+      await dbRun(`UPDATE tblPayment SET dcr_id = ? WHERE date_paid = ? AND status IN ('active', 'penalty') AND ${sqlNotSunday('date_paid')} AND dcr_id IS NULL`, [dcrId, date]);
       await dbRun(`UPDATE tblLoan SET dcr_id = ? WHERE id IN (SELECT l.id FROM tblLoan l WHERE ${lCond}) AND dcr_id IS NULL`, [dcrId, ...lParams]);
       await dbRun(`UPDATE tblTransaction SET dcr_id = ? WHERE transaction_date = ? AND status = 'active' AND dcr_id IS NULL`, [dcrId, date]);
     }
@@ -429,7 +435,7 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
 
     res.json({ message: 'Day successfully closed', dcr_number, variance, expected_ending_cash, actual_cash_count });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendRouteError(res, err);
   }
 });
 

@@ -2,7 +2,9 @@ const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { runPastDueUpdate } = require('../services/pastDueUpdater');
+const { requireOperationDate, sqlNotSunday } = require('../services/operationDays');
 const router = express.Router();
+const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
 
 const toDateKey = date => {
   const year = date.getFullYear();
@@ -16,7 +18,7 @@ router.post('/run-pastdue', authenticateToken, requireRole('admin', 'manager'), 
   try {
     await runPastDueUpdate();
     res.json({ message: 'Past-due update completed' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendRouteError(res, err); }
 });
 
 router.get('/customers-metrics', authenticateToken, async (req, res) => {
@@ -28,7 +30,7 @@ router.get('/customers-metrics', authenticateToken, async (req, res) => {
       new_this_month: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')`)).c,
       new_last_month: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', '-1 month')`)).c
     });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendRouteError(res, err); }
 });
 
 router.get('/dashboard', authenticateToken, async (req, res) => {
@@ -39,8 +41,8 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
     yesterdayDate.setDate(yesterdayDate.getDate() - 1);
     const yesterday = toDateKey(yesterdayDate);
     
-    // Find the most recent date before today that has active collections
-    const latestPaymentDateRes = await dbGet(`SELECT MAX(date_paid) as max_date FROM tblPayment WHERE status IN ('active', 'penalty') AND date_paid < ?`, [today]);
+    // Find the most recent operating date before today that has active collections
+    const latestPaymentDateRes = await dbGet(`SELECT MAX(date_paid) as max_date FROM tblPayment WHERE status IN ('active', 'penalty') AND date_paid < ? AND ${sqlNotSunday('date_paid')}`, [today]);
     const latestPaymentDate = latestPaymentDateRes?.max_date || yesterday;
 
     const epoch = new Date('2026-01-01T00:00:00Z');
@@ -57,18 +59,18 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       total_customers: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='active'`)).c,
       new_customers_this_month: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='active' AND strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')`)).c,
       expected_collections_today: (await dbGet(`SELECT COALESCE(SUM(amortization), 0) as total FROM tblLoan WHERE status='active'`)).total,
-      collections_this_month: (await dbGet(`SELECT COALESCE(SUM(amount_paid), 0) as total FROM tblPayment WHERE status IN ('active', 'penalty') AND strftime('%Y-%m', date_paid) = strftime('%Y-%m', 'now')`)).total,
-      collections_last_month: (await dbGet(`SELECT COALESCE(SUM(amount_paid), 0) as total FROM tblPayment WHERE status IN ('active', 'penalty') AND strftime('%Y-%m', date_paid) = strftime('%Y-%m', 'now', '-1 month')`)).total,
+      collections_this_month: (await dbGet(`SELECT COALESCE(SUM(amount_paid), 0) as total FROM tblPayment WHERE status IN ('active', 'penalty') AND strftime('%Y-%m', date_paid) = strftime('%Y-%m', 'now') AND ${sqlNotSunday('date_paid')}`)).total,
+      collections_last_month: (await dbGet(`SELECT COALESCE(SUM(amount_paid), 0) as total FROM tblPayment WHERE status IN ('active', 'penalty') AND strftime('%Y-%m', date_paid) = strftime('%Y-%m', 'now', '-1 month') AND ${sqlNotSunday('date_paid')}`)).total,
       demand_letters_sent: 0,
       total_active_loans: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='active'`)).c,
       total_pastdue: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE date_maturity < ? AND status NOT IN ('fullpaid','reversed')`, [today])).c,
       total_pastdue_amount: (await dbGet(`SELECT COALESCE(SUM(balance), 0) as total FROM tblLoan WHERE date_maturity < ? AND status NOT IN ('fullpaid','reversed')`, [today])).total,
       total_fullpaid: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='fullpaid'`)).c,
-      collections_today: (await dbGet(`SELECT COALESCE(SUM(amount_paid),0) as total FROM tblPayment WHERE date_paid=? AND status IN ('active', 'penalty')`, [today])).total,
-      collections_yesterday: (await dbGet(`SELECT COALESCE(SUM(amount_paid),0) as total FROM tblPayment WHERE date_paid=? AND status IN ('active', 'penalty')`, [latestPaymentDate])).total,
+      collections_today: (await dbGet(`SELECT COALESCE(SUM(amount_paid),0) as total FROM tblPayment WHERE date_paid=? AND status IN ('active', 'penalty') AND ${sqlNotSunday('date_paid')}`, [today])).total,
+      collections_yesterday: (await dbGet(`SELECT COALESCE(SUM(amount_paid),0) as total FROM tblPayment WHERE date_paid=? AND status IN ('active', 'penalty') AND ${sqlNotSunday('date_paid')}`, [latestPaymentDate])).total,
       yesterday_str: latestPaymentDate,
-      releases_today: (await dbGet(`SELECT COALESCE(SUM(principal),0) as total FROM tblLoan WHERE date_released = ? AND status IN ('active', 'fully_paid')`, [today])).total,
-      loans_released_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE date_released = ? AND status IN ('active', 'fully_paid')`, [today])).c,
+      releases_today: (await dbGet(`SELECT COALESCE(SUM(principal),0) as total FROM tblLoan WHERE date_released = ? AND status IN ('active', 'fully_paid') AND ${sqlNotSunday('date_released')}`, [today])).total,
+      loans_released_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE date_released = ? AND status IN ('active', 'fully_paid') AND ${sqlNotSunday('date_released')}`, [today])).c,
       total_portfolio: (await dbGet(`SELECT COALESCE(SUM(balance),0) as total FROM tblLoan WHERE status IN ('active','pastdue')`)).total,
       fully_paid_today: (await dbGet(`SELECT COUNT(DISTINCT customer_id) as c FROM tblCustomerStatusHistory WHERE new_status='FULLY PAID' AND date(created_at) = date('now', 'localtime')`)).c,
       eligible_for_reloan: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='FULLY PAID'`)).c,
@@ -80,7 +82,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
           co.id, 
           co.first_name || ' ' || co.last_name as name,
           1000000 as target,
-          COALESCE((SELECT SUM(amount_paid) FROM tblPayment WHERE collector_id = co.id AND date_paid BETWEEN ? AND ? AND status IN ('active', 'penalty')), 0) as collected
+          COALESCE((SELECT SUM(amount_paid) FROM tblPayment WHERE collector_id = co.id AND date_paid BETWEEN ? AND ? AND status IN ('active', 'penalty') AND ${sqlNotSunday('date_paid')}), 0) as collected
         FROM tblCollector co
         WHERE co.is_active = 1
         AND LOWER(co.first_name || ' ' || co.last_name) NOT LIKE '%pastdue%'
@@ -131,7 +133,7 @@ router.get('/daily-collection', authenticateToken, async (req, res) => {
       LEFT JOIN tblLoan l ON p.loan_id = l.id
       LEFT JOIN tblCustomer c ON p.customer_id = c.id
       LEFT JOIN tblCollector co ON p.collector_id = co.id
-      WHERE p.date_paid BETWEEN ? AND ? AND p.status IN ('active', 'penalty')
+      WHERE p.date_paid BETWEEN ? AND ? AND p.status IN ('active', 'penalty') AND ${sqlNotSunday('p.date_paid')}
       ORDER BY p.date_paid, co.last_name
     `, [from, to]);
     res.json({ payments, total: payments.reduce((s, p) => s + p.amount_paid, 0), date_from: from, date_to: to });
@@ -142,7 +144,7 @@ router.get('/monthly-releases', authenticateToken, async (req, res) => {
   try {
     const y = String(req.query.year || new Date().getFullYear());
     const m = String(req.query.month || (new Date().getMonth() + 1)).padStart(2, '0');
-    const loans = await dbAll(`SELECT l.*, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id WHERE strftime('%Y',l.date_released)=? AND strftime('%m',l.date_released)=? AND l.status != 'reversed' ORDER BY l.date_released`, [y, m]);
+    const loans = await dbAll(`SELECT l.*, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id WHERE strftime('%Y',l.date_released)=? AND strftime('%m',l.date_released)=? AND l.status != 'reversed' AND ${sqlNotSunday('l.date_released')} ORDER BY l.date_released`, [y, m]);
     res.json({ loans, total_principal: loans.reduce((s, l) => s + l.principal, 0), year: y, month: m });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -158,6 +160,7 @@ router.get('/release-report', authenticateToken, async (req, res) => {
       LEFT JOIN tblCollector co ON l.collector_id = co.id
       WHERE l.date_released BETWEEN ? AND ?
         AND l.status != 'reversed'
+        AND ${sqlNotSunday('l.date_released')}
       ORDER BY l.date_released, co.last_name, c.full_name
     `, [from, to]);
     res.json({ loans, total_principal: loans.reduce((s, l) => s + Number(l.principal || 0), 0), date_from: from, date_to: to });
@@ -195,7 +198,7 @@ router.get('/payments-encoded', authenticateToken, async (req, res) => {
   try {
     const from = req.query.date_from || new Date().toISOString().split('T')[0];
     const to = req.query.date_to || from;
-    const data = await dbAll(`SELECT p.*, l.loan_code, c.full_name as customer_name, u.full_name as encoded_by_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id LEFT JOIN tblUser u ON p.encoded_by = u.id WHERE p.date_paid BETWEEN ? AND ? AND p.status IN ('active', 'penalty') ORDER BY p.created_at`, [from, to]);
+    const data = await dbAll(`SELECT p.*, l.loan_code, c.full_name as customer_name, u.full_name as encoded_by_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id LEFT JOIN tblUser u ON p.encoded_by = u.id WHERE p.date_paid BETWEEN ? AND ? AND p.status IN ('active', 'penalty') AND ${sqlNotSunday('p.date_paid')} ORDER BY p.created_at`, [from, to]);
     res.json({ data, total: data.reduce((s, p) => s + p.amount_paid, 0) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -264,6 +267,7 @@ router.get('/loan-type', authenticateToken, async (req, res) => {
       LEFT JOIN tblCollector co ON l.collector_id = co.id
       WHERE l.date_released BETWEEN ? AND ?
         AND l.status != 'reversed'
+        AND ${sqlNotSunday('l.date_released')}
       ORDER BY l.date_released, co.last_name, c.full_name
     `, [from, to]);
     res.json({ loans, date_from: from, date_to: to });
@@ -275,6 +279,7 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
     const { collector_id, date } = req.query;
     if (!collector_id) return res.status(400).json({ error: 'Please select a collector' });
     const targetDate = date || new Date().toISOString().split('T')[0];
+    requireOperationDate(targetDate, 'Collection sheet date');
 
     // Get collector info
     const collector = await dbGet(`SELECT id, collector_code, first_name, last_name FROM tblCollector WHERE id = ?`, [collector_id]);
@@ -286,7 +291,7 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
         l.date_released, l.date_maturity, l.balance, l.total_paid, l.status, l.insurance,
         COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown') as customer_name,
         c.customer_code,
-        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status IN ('active', 'penalty')) as collected_today
+        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status IN ('active', 'penalty') AND ${sqlNotSunday('date_paid')}) as collected_today
       FROM tblLoan l
       LEFT JOIN tblCustomer c ON l.customer_id = c.id
       WHERE l.collector_id = ? AND LOWER(l.status) IN ('active', 'pastdue') AND COALESCE(l.balance, 0) > 0

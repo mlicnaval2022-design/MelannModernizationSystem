@@ -580,6 +580,8 @@ async function initializeDatabase() {
   const loanCols = await dbAll(`PRAGMA table_info(tblLoan)`);
   const loanColNames = new Set(loanCols.map(c => c.name));
   if (!loanColNames.has('previous_balance')) await dbRun(`ALTER TABLE tblLoan ADD COLUMN previous_balance REAL DEFAULT 0`);
+  if (!loanColNames.has('penalty')) await dbRun(`ALTER TABLE tblLoan ADD COLUMN penalty REAL DEFAULT 0`);
+  if (!loanColNames.has('passbook')) await dbRun(`ALTER TABLE tblLoan ADD COLUMN passbook REAL DEFAULT 0`);
 
   const ciCols = await dbAll(`PRAGMA table_info(tblCreditInvestigation)`);
   const ciColNames = new Set(ciCols.map(c => c.name));
@@ -596,11 +598,6 @@ async function initializeDatabase() {
   if (!dcrColNames.has('total_withdrawals')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN total_withdrawals REAL DEFAULT 0`);
   if (!dcrColNames.has('total_bank_charges')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN total_bank_charges REAL DEFAULT 0`);
   if (!dcrColNames.has('total_bank_interest')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN total_bank_interest REAL DEFAULT 0`);
-
-  const loanCols = await dbAll(`PRAGMA table_info(tblLoan)`);
-  const loanColNames = new Set(loanCols.map(c => c.name));
-  if (!loanColNames.has('penalty')) await dbRun(`ALTER TABLE tblLoan ADD COLUMN penalty REAL DEFAULT 0`);
-  if (!loanColNames.has('passbook')) await dbRun(`ALTER TABLE tblLoan ADD COLUMN passbook REAL DEFAULT 0`);
 
   const paymentCols = await dbAll(`PRAGMA table_info(tblPayment)`);
   const paymentColNames = new Set(paymentCols.map(c => c.name));

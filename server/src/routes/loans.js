@@ -2,7 +2,9 @@ const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { computeAmortization, computeMaturityDate, generateAmortizationSchedule, computeNetProceeds } = require('../services/loanCalculator');
+const { requireOperationDate, sqlNotSunday } = require('../services/operationDays');
 const router = express.Router();
+const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
 
 const isNewLoanType = type => ['new', 'new loan'].includes(String(type || '').trim().toLowerCase());
 const passbookForLoan = loan => isNewLoanType(loan?.loan_type) ? 50 : Number(loan?.passbook || 0);
@@ -33,10 +35,11 @@ router.get('/sheet/collection', authenticateToken, async (req, res) => {
     const { collector_id, date } = req.query;
     if (!collector_id) return res.status(400).json({ error: 'collector_id required' });
     const targetDate = date || new Date().toISOString().split('T')[0];
+    requireOperationDate(targetDate, 'Collection sheet date');
     
     const loans = await dbAll(`
       SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, c.photo_client, c.photo_id_front,
-             (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status IN ('active', 'penalty')) as collected_today
+             (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status IN ('active', 'penalty') AND ${sqlNotSunday('date_paid')}) as collected_today
       FROM tblLoan l
       JOIN tblCustomer c ON l.customer_id = c.id
       WHERE l.collector_id = ? AND LOWER(l.status) IN ('active', 'pastdue') AND COALESCE(l.balance, 0) > 0
@@ -50,7 +53,7 @@ router.get('/sheet/collection', authenticateToken, async (req, res) => {
     };
     
     res.json({ loans, summary });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendRouteError(res, err); }
 });
 
 router.get('/lookup/client', authenticateToken, async (req, res) => {
@@ -104,6 +107,7 @@ router.post('/', authenticateToken, async (req, res) => {
   try {
     const { customer_id, collector_id, branch_id, loan_type, principal, interest_rate, date_released, previous_balance, penalty, passbook, remarks, status } = req.body;
     if (!customer_id || !principal || !date_released) return res.status(400).json({ error: 'customer_id, principal, date_released required' });
+    requireOperationDate(date_released, 'Release date');
     const { interest_amount, total_amortization, amortization } = computeAmortization(principal, interest_rate || 0, 45);
     const date_maturity = computeMaturityDate(date_released, 45);
     const balanceAmount = Number(previous_balance || 0);
@@ -120,7 +124,7 @@ router.post('/', authenticateToken, async (req, res) => {
       [loan_code, customer_id, collector_id, branch_id || null, loan_type || 'New', principal, interest_rate || 0, interest_amount, 45, date_released, date_maturity, amortization, total_amortization, 0, 0, 0, 0, 0, net_proceeds, total_amortization, balanceAmount, penaltyAmount, passbookAmount, '', remarks, req.user.id, loan_status]);
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'LOAN', result.lastID, `New loan created (${loan_status}): ${loan_code}`]);
     res.status(201).json({ id: result.lastID, loan_code, amortization, total_amortization, date_maturity, net_proceeds });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendRouteError(res, err); }
 });
 
 router.put('/:id/edit', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
@@ -131,6 +135,7 @@ router.put('/:id/edit', authenticateToken, requireRole('admin', 'manager'), asyn
     if (!principal || !loan_period || !date_released) {
       return res.status(400).json({ error: 'Principal, loan period, and date released are required' });
     }
+    requireOperationDate(date_released, 'Release date');
 
     const loan = await dbGet('SELECT * FROM tblLoan WHERE id = ?', [loan_id]);
     if (!loan) return res.status(404).json({ error: 'Loan not found' });
@@ -184,7 +189,7 @@ router.put('/:id/edit', authenticateToken, requireRole('admin', 'manager'), asyn
   } catch (err) {
     await dbRun('ROLLBACK').catch(() => {});
     console.error('Error editing loan:', err);
-    res.status(500).json({ error: 'Server error editing loan' });
+    res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'Server error editing loan' });
   }
 });
 
@@ -301,6 +306,7 @@ router.post('/:id/manager-decision', authenticateToken, requireRole('admin', 'ma
     if (decision === 'approve' || decision === 'reduce') {
       const updatedLoan = await dbGet('SELECT * FROM tblLoan WHERE id = ?', [loan_id]);
       const date_released = new Date().toISOString().split('T')[0];
+      requireOperationDate(date_released, 'Release date');
       const date_maturity = computeMaturityDate(date_released, updatedLoan.loan_period || 45);
       
       await dbRun(`UPDATE tblLoan SET date_released=?, date_maturity=? WHERE id=?`, [date_released, date_maturity, loan_id]);
@@ -317,7 +323,7 @@ router.post('/:id/manager-decision', authenticateToken, requireRole('admin', 'ma
     }
 
     res.json({ message: 'Manager decision recorded successfully' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendRouteError(res, err); }
 });
 
 router.post('/:id/release', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
@@ -327,6 +333,7 @@ router.post('/:id/release', authenticateToken, requireRole('admin', 'manager'), 
     if (loan.status !== 'approved') return res.status(400).json({ error: 'Only approved loans can be released' });
 
     const date_released = req.body.date_released || loan.date_released;
+    requireOperationDate(date_released, 'Release date');
     const date_maturity = computeMaturityDate(date_released, 45);
 
     // Mark active and generate schedule
@@ -339,7 +346,7 @@ router.post('/:id/release', authenticateToken, requireRole('admin', 'manager'), 
     await dbRun(`INSERT INTO tblCustomerStatusHistory (customer_id, previous_status, new_status, changed_by, remarks) VALUES (?, (SELECT status FROM tblCustomer WHERE id=?), 'active', ?, 'Loan Released')`, [loan.customer_id, loan.customer_id, req.user.id]);
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'RELEASE', 'LOAN', loan.id, `Loan Released`]);
     res.json({ message: 'Loan released successfully' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { sendRouteError(res, err); }
 });
 
 router.post('/:id/approve-reloan', authenticateToken, async (req, res) => {

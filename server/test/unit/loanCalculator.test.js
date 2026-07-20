@@ -7,6 +7,7 @@ const {
   generateAmortizationSchedule,
   getWorkingDays,
 } = require('../../src/services/loanCalculator');
+const { isSundayDate, requireOperationDate, sqlNotSunday } = require('../../src/services/operationDays');
 
 test('computeAmortization calculates add-on interest across working days', () => {
   assert.deepEqual(computeAmortization(10000, 10, 45), {
@@ -32,4 +33,14 @@ test('generateAmortizationSchedule skips Sundays and keeps payment order', () =>
   assert.deepEqual(schedule.map((entry) => entry.period_number), [1, 2, 3]);
   assert.equal(schedule[0].loan_id, 12);
   assert.equal(schedule[0].amount_due, 100);
+});
+
+test('operation date helpers identify and reject Sundays', () => {
+  assert.equal(isSundayDate('2026-07-19'), true);
+  assert.equal(isSundayDate('2026-07-20'), false);
+  assert.throws(
+    () => requireOperationDate('2026-07-19', 'Payment date'),
+    /Payment date cannot be Sunday/
+  );
+  assert.equal(sqlNotSunday('p.date_paid'), "strftime('%w', p.date_paid) != '0'");
 });
