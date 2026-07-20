@@ -124,7 +124,7 @@ router.post('/', authenticateToken, async (req, res) => {
       ? (isNewLoanType(loan_type || 'New') ? 50 : 0)
       : Number(passbook || 0);
     const { service_fee, total_deductions } = computeNetProceeds(principal, 0, 0, 0, 0);
-    const net_proceeds = Number(principal || 0);
+    const net_proceeds = Number(principal || 0) - balanceAmount - penaltyAmount - passbookAmount;
     const maxLoan = await dbGet("SELECT MAX(CAST(REPLACE(loan_code, 'LN-', '') AS INTEGER)) as c FROM tblLoan");
     const loan_code = `LN-${String((maxLoan?.c || 0) + 1).padStart(6, '0')}`;
     const loan_status = status || 'pending';

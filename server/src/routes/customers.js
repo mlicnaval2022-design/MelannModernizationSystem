@@ -864,7 +864,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
     const shouldPostPriorBalance = ['Recon', 'Re-Loan'].includes(normalizedLoanType);
     const newLoanPreviousBalance = balanceAmount;
     const totalCharges = newLoanPreviousBalance + penaltyAmount + passbookAmount;
-    const netProceeds = amount;
+    const netProceeds = amount - totalCharges;
 
     await dbRun('BEGIN IMMEDIATE TRANSACTION');
     transactionStarted = true;
