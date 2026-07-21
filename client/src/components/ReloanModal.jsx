@@ -30,6 +30,20 @@ const addCalendarDays = (dateValue, days) => {
   return toInputDate(date);
 };
 
+const getPayableDays = (startDate, totalDays) => {
+  if (!startDate || totalDays <= 0) return totalDays;
+  let payableDays = 0;
+  const start = new Date(`${startDate}T00:00:00`);
+  for (let i = 1; i <= totalDays; i++) {
+    const current = new Date(start);
+    current.setDate(start.getDate() + i);
+    if (current.getDay() !== 0) {
+      payableDays++;
+    }
+  }
+  return payableDays;
+};
+
 const findLatestLoan = loans => [...(loans || [])].sort((a, b) => {
   const byDate = String(b.date_released || b.created_at || '').localeCompare(String(a.date_released || a.created_at || ''));
   return byDate || Number(b.id || 0) - Number(a.id || 0);
@@ -129,7 +143,8 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
     const releaseCharges = balance + penalty + passbook;
     
     const days = Number(form.days || 0);
-    const dailyPayment = days > 0 ? Math.ceil(totalLoanAmount / days) : 0;
+    const payableDays = getPayableDays(form.loanDate, days);
+    const dailyPayment = payableDays > 0 ? Math.ceil(totalLoanAmount / payableDays) : 0;
 
     return {
       principal,
@@ -246,7 +261,7 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
           <div className="loan-entry-success-actions">
             <button type="button" className="reloan-secondary" onClick={() => openLoanDocument('promissory')}>Print Promissory Note</button>
             <button type="button" className="reloan-secondary" onClick={() => openLoanDocument('disclosure')}>View Disclosure Statement</button>
-            <button type="button" className="reloan-secondary" onClick={openSoa}>View SOA</button>
+            <button type="button" className="reloan-secondary" onClick={() => { window.location.href = '/promissory-disclosure?tab=promissory'; }}>View SOA</button>
             <button type="button" className="reloan-primary" onClick={() => { setSuccess(null); setSelectedCustomer(null); setSelectedCustomerId(null); setAccount(null); }}>Input Another Loan</button>
             <button type="button" className="reloan-secondary" onClick={() => { onReloanSubmitted?.(); onClose(); }}>Close</button>
           </div>
