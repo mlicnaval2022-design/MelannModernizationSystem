@@ -7,8 +7,7 @@ const STEPS = [
   { id: 2, title: 'Address Information', sub: 'Current address details', icon: '📍' },
   { id: 3, title: 'Contact Information', sub: 'Contact & online details', icon: '📞' },
   { id: 4, title: 'Business Information', sub: 'Business & employment', icon: '🏪' },
-  { id: 5, title: 'Identification', sub: 'ID and document details', icon: '🪪' },
-  { id: 6, title: 'Proposed Loan', sub: 'Loan details & assignment', icon: '📄' }
+  { id: 5, title: 'Identification', sub: 'ID and document details', icon: '🪪' }
 ];
 
 export default function CustomerWizard({ initialData, onClose, onSaved, collectors, branches }) {
@@ -139,7 +138,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
     }
   };
 
-  const nextStep = () => { if (step < 6) setStep(step + 1); };
+  const nextStep = () => { if (step < 5) setStep(step + 1); };
   const prevStep = () => { if (step > 1) setStep(step - 1); };
 
   const renderStepContent = () => {
@@ -180,6 +179,13 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
                 <option value="Filipino">Filipino</option><option value="Foreigner">Foreigner</option>
               </select>
             </div>
+          </div>
+
+          <div className="form-group" style={{ marginTop: '15px' }}><label>Assigned Collector *</label>
+            <select className="form-control" value={form.collector_id} onChange={e => setForm({...form, collector_id: e.target.value})}>
+              <option value="">Select Collector</option>
+              {collectors.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+            </select>
           </div>
 
           <label className="section-label">Customer Classification *</label>
@@ -495,36 +501,6 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
           </div>
         </div>
       );
-      case 6: return (
-        <div className="wizard-step-content">
-          <div className="wizard-section-header">
-            <span className="icon">📄</span>
-            <div>
-              <h3>Proposed Loan</h3>
-              <p>Enter the requested loan details.</p>
-            </div>
-          </div>
-          <div className="form-group"><label>Collector *</label>
-            <select className="form-control" value={form.collector_id} onChange={e => setForm({...form, collector_id: e.target.value})}>
-              <option value="">Select Collector</option>
-              {collectors.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
-            </select>
-          </div>
-          <div className="form-group"><label>Loan Type *</label>
-            <select className="form-control" value={form.loan_type || 'New Loan'} onChange={e => setForm({...form, loan_type: e.target.value})}>
-              <option value="New Loan">New Loan</option>
-              <option value="Re-Loan">Re-Loan</option>
-            </select>
-          </div>
-          <div className="form-group"><label>Proposed Principal Amount *</label>
-            <input type="number" className="form-control" value={form.proposed_principal} onChange={e => setForm({...form, proposed_principal: e.target.value})} />
-          </div>
-          <div className="form-group"><label>Loan Purpose *</label>
-            <textarea className="form-control" rows="3" value={form.loan_purpose} onChange={handleUpper('loan_purpose')}></textarea>
-          </div>
-          {error && <div className="login-error" style={{marginTop: 20}}>⚠️ {error}</div>}
-        </div>
-      );
     }
   };
 
@@ -642,9 +618,9 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
 
         <div className="wizard-body">
           <div className="wizard-left-sidebar">
-            <div className="step-indicator">STEP {step} OF 6</div>
+            <div className="step-indicator">STEP {step} OF 5</div>
             <div className="step-progress-track">
-              <div className="step-progress-fill" style={{ width: `${(step/6)*100}%` }}></div>
+              <div className="step-progress-fill" style={{ width: `${(step/5)*100}%` }}></div>
             </div>
             
             <div className="wizard-nav-list">
@@ -681,7 +657,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <div style={{ display: 'flex', gap: 10 }}>
             {step > 1 && <button className="btn btn-secondary" onClick={prevStep}>&lt; Back</button>}
-            {step < 6 ? 
+            {step < 5 ? 
               <button className="btn btn-primary" onClick={nextStep} style={{background:'#1d4ed8', color:'#fff', padding:'10px 24px', border:'none', borderRadius:8}}>Next &gt;</button> : 
               <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{background:'#1d4ed8', color:'#fff', padding:'10px 24px', border:'none', borderRadius:8}}>{saving ? 'Saving...' : 'Save Registration'}</button>
             }
