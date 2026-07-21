@@ -324,6 +324,7 @@ async function initializeDatabase() {
       beginning_cash REAL DEFAULT 0,
       total_collections REAL DEFAULT 0,
       total_releases REAL DEFAULT 0,
+      display_total_releases REAL DEFAULT 0,
       total_expenses REAL DEFAULT 0,
       other_income REAL DEFAULT 0,
       other_disbursements REAL DEFAULT 0,
@@ -598,6 +599,7 @@ async function initializeDatabase() {
   if (!dcrColNames.has('total_withdrawals')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN total_withdrawals REAL DEFAULT 0`);
   if (!dcrColNames.has('total_bank_charges')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN total_bank_charges REAL DEFAULT 0`);
   if (!dcrColNames.has('total_bank_interest')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN total_bank_interest REAL DEFAULT 0`);
+  if (!dcrColNames.has('display_total_releases')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN display_total_releases REAL DEFAULT 0`);
 
   const paymentCols = await dbAll(`PRAGMA table_info(tblPayment)`);
   const paymentColNames = new Set(paymentCols.map(c => c.name));

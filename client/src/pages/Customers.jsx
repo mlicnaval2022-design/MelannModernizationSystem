@@ -955,7 +955,7 @@ export default function Customers() {
                     <td>
                       <div className="cell-info-row" style={{ alignItems: 'flex-start' }}>
                         <MapPin style={{ marginTop: '2px' }} />
-                        <div style={{ maxWidth: '200px', lineHeight: '1.4' }}>{r.address || '—'}</div>
+                        <div style={{ maxWidth: '200px', lineHeight: '1.4' }}>{[r.address, r.sitio, r.purok, r.brgy, r.city, r.province].filter(Boolean).join(', ') || '—'}</div>
                       </div>
                     </td>
                     <td>
