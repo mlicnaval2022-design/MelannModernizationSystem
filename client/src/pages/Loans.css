@@ -98,6 +98,8 @@
 
 .loans-modern .loans-entry-card .btn {
   position: relative;
+  display: block;
+  width: 100%;
   min-height: 139px;
   border: 1px solid #e0e8f2 !important;
   border-radius: 8px;
@@ -108,6 +110,7 @@
   font-weight: 900;
   padding: 76px 14px 34px;
   white-space: normal;
+  text-align: center;
 }
 
 .loans-modern .loans-entry-card .btn::before {
@@ -131,6 +134,7 @@
   font-size: 11px;
   line-height: 1.25;
   font-weight: 600;
+  text-align: center;
 }
 
 .loans-modern .loans-entry-card .btn:nth-child(1)::after {
