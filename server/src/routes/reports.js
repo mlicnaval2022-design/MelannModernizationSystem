@@ -6,13 +6,6 @@ const { requireOperationDate, sqlNotSunday, isSundayDate } = require('../service
 const router = express.Router();
 const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
 
-const toDateKey = date => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
 const toLocalDateString = (date = new Date()) => {
   const localDate = new Date(date);
   localDate.setMinutes(localDate.getMinutes() - localDate.getTimezoneOffset());
@@ -51,10 +44,10 @@ router.get('/customers-metrics', authenticateToken, async (req, res) => {
 
 router.get('/dashboard', authenticateToken, async (req, res) => {
   try {
+    const today = toLocalDateString();
     const now = new Date();
-    const today = toDateKey(now);
     
-    // Find the most recent operating date before today that has active collections
+    // Find the most recent date before today that has active collections
     const latestPaymentDateRes = await dbGet(`SELECT MAX(date_paid) as max_date FROM tblPayment WHERE status IN ('active', 'penalty') AND date_paid < ? AND ${sqlNotSunday('date_paid')}`, [today]);
     const latestPaymentDate = latestPaymentDateRes?.max_date || getPreviousOperationDate(today);
 
@@ -102,7 +95,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
         ORDER BY collected DESC
       `, [cycleStartStr, cycleEndStr]),
       recent_activities: await dbAll(`SELECT * FROM tblLogtime ORDER BY created_at DESC LIMIT 10`),
-      pending_ci: await dbAll(`SELECT l.id, c.full_name, l.principal, l.created_at FROM tblLoan l JOIN tblCustomer c ON l.customer_id = c.id WHERE l.status = 'pending' ORDER BY l.created_at DESC LIMIT 5`),
+      pending_ci: await dbAll(`SELECT l.id, c.full_name, l.principal, l.created_at FROM tblLoan l JOIN tblCustomer c ON l.customer_id = c.id JOIN tblLoan l ON l.loan_id = l.id WHERE l.status = 'pending' ORDER BY l.created_at DESC LIMIT 5`),
       pending_ci_count: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='pending'`)).c,
       for_approval_count: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='for_approval'`)).c,
       pending_reloan_count: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='reloan_pending'`)).c,
@@ -110,9 +103,9 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       rejected_reloan_count: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='rejected' AND loan_type='Re-Loan'`)).c,
       approved_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='approved' AND DATE(updated_at)=?`, [today])).c,
       rejected_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='rejected' AND DATE(updated_at)=?`, [today])).c,
-      monitoring_alerts_active: (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert m JOIN tblCustomer c ON m.customer_id = c.id WHERE m.status='Active' AND LOWER(c.status) IN ('active', 'recon')`)).c,
-      monitoring_alerts_escalated: (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert m JOIN tblCustomer c ON m.customer_id = c.id WHERE m.status='Active' AND m.alert_level='Day 4+' AND LOWER(c.status) IN ('active', 'recon')`)).c,
-      monitoring_alerts_resolved_today: (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert m JOIN tblCustomer c ON m.customer_id = c.id WHERE m.status='Resolved' AND DATE(m.resolved_at)=? AND LOWER(c.status) IN ('active', 'recon')`, [today])).c,
+      monitoring_alerts_active: (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert m JOIN tblCustomer c ON m.customer_id = c.id JOIN tblLoan l ON m.loan_id = l.id WHERE m.status='Active' AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`)).c,
+      monitoring_alerts_escalated: (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert m JOIN tblCustomer c ON m.customer_id = c.id JOIN tblLoan l ON m.loan_id = l.id WHERE m.status='Active' AND m.alert_level='Day 4+' AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`)).c,
+      monitoring_alerts_resolved_today: (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert m JOIN tblCustomer c ON m.customer_id = c.id JOIN tblLoan l ON m.loan_id = l.id WHERE m.status='Resolved' AND DATE(m.resolved_at)=? AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`, [today])).c,
       account_status_distribution: await dbAll(`SELECT status, COUNT(*) as count FROM tblLoan GROUP BY status`),
       aging_report: await dbGet(`
         SELECT 
@@ -133,22 +126,7 @@ router.get('/daily-collection', authenticateToken, async (req, res) => {
   try {
     const from = req.query.date_from || new Date().toISOString().split('T')[0];
     const to = req.query.date_to || from;
-    const payments = await dbAll(`
-      SELECT p.*, l.loan_code, l.loan_type, l.date_maturity, l.status as loan_status,
-        CASE
-          WHEN l.date_maturity IS NOT NULL AND JULIANDAY(p.date_paid) > JULIANDAY(l.date_maturity)
-          THEN CAST(JULIANDAY(p.date_paid) - JULIANDAY(l.date_maturity) AS INTEGER)
-          ELSE 0
-        END as days_past_due,
-        c.full_name as customer_name, c.customer_code,
-        co.first_name || ' ' || co.last_name as collector_name
-      FROM tblPayment p
-      LEFT JOIN tblLoan l ON p.loan_id = l.id
-      LEFT JOIN tblCustomer c ON p.customer_id = c.id
-      LEFT JOIN tblCollector co ON p.collector_id = co.id
-      WHERE p.date_paid BETWEEN ? AND ? AND p.status IN ('active', 'penalty') AND ${sqlNotSunday('p.date_paid')}
-      ORDER BY p.date_paid, co.last_name
-    `, [from, to]);
+    const payments = await dbAll(`SELECT p.*, l.loan_code, l.loan_type, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCollector co ON p.collector_id = co.id WHERE p.date_paid BETWEEN ? AND ? AND p.status IN ('active', 'penalty') AND ${sqlNotSunday('p.date_paid')} ORDER BY p.date_paid, co.last_name`, [from, to]);
     res.json({ payments, total: payments.reduce((s, p) => s + p.amount_paid, 0), date_from: from, date_to: to });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -157,7 +135,7 @@ router.get('/monthly-releases', authenticateToken, async (req, res) => {
   try {
     const y = String(req.query.year || new Date().getFullYear());
     const m = String(req.query.month || (new Date().getMonth() + 1)).padStart(2, '0');
-    const loans = await dbAll(`SELECT l.*, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id WHERE strftime('%Y',l.date_released)=? AND strftime('%m',l.date_released)=? AND l.status != 'reversed' AND ${sqlNotSunday('l.date_released')} ORDER BY l.date_released`, [y, m]);
+    const loans = await dbAll(`SELECT l.*, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id JOIN tblLoan l ON l.loan_id = l.id LEFT JOIN tblCollector co ON l.collector_id = co.id WHERE strftime('%Y',l.date_released)=? AND strftime('%m',l.date_released)=? AND l.status != 'reversed' AND ${sqlNotSunday('l.date_released')} ORDER BY l.date_released`, [y, m]);
     res.json({ loans, total_principal: loans.reduce((s, l) => s + l.principal, 0), year: y, month: m });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -169,7 +147,7 @@ router.get('/release-report', authenticateToken, async (req, res) => {
     const loans = await dbAll(`
       SELECT l.*, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name
       FROM tblLoan l
-      LEFT JOIN tblCustomer c ON l.customer_id = c.id
+      LEFT JOIN tblCustomer c ON l.customer_id = c.id JOIN tblLoan l ON l.loan_id = l.id
       LEFT JOIN tblCollector co ON l.collector_id = co.id
       WHERE l.date_released BETWEEN ? AND ?
         AND l.status != 'reversed'
@@ -189,7 +167,7 @@ router.get('/past-due', authenticateToken, async (req, res) => {
              co.first_name || ' ' || co.last_name as collector_name,
              CAST(ROUND(JULIANDAY('now') - JULIANDAY(l.date_maturity)) AS INTEGER) as days_overdue
       FROM tblLoan l
-      LEFT JOIN tblCustomer c ON l.customer_id = c.id
+      LEFT JOIN tblCustomer c ON l.customer_id = c.id JOIN tblLoan l ON l.loan_id = l.id
       LEFT JOIN tblCollector co ON l.collector_id = co.id
       WHERE l.date_maturity BETWEEN ? AND ?
         AND l.status IN ('active','pastdue')
@@ -211,7 +189,7 @@ router.get('/payments-encoded', authenticateToken, async (req, res) => {
   try {
     const from = req.query.date_from || new Date().toISOString().split('T')[0];
     const to = req.query.date_to || from;
-    const data = await dbAll(`SELECT p.*, l.loan_code, c.full_name as customer_name, u.full_name as encoded_by_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id LEFT JOIN tblUser u ON p.encoded_by = u.id WHERE p.date_paid BETWEEN ? AND ? AND p.status IN ('active', 'penalty') AND ${sqlNotSunday('p.date_paid')} ORDER BY p.created_at`, [from, to]);
+    const data = await dbAll(`SELECT p.*, l.loan_code, c.full_name as customer_name, u.full_name as encoded_by_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblUser u ON p.encoded_by = u.id WHERE p.date_paid BETWEEN ? AND ? AND p.status IN ('active', 'penalty') AND ${sqlNotSunday('p.date_paid')} ORDER BY p.created_at`, [from, to]);
     res.json({ data, total: data.reduce((s, p) => s + p.amount_paid, 0) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -228,7 +206,7 @@ router.get('/payments-reversed', authenticateToken, async (req, res) => {
              p.reversal_reason
       FROM tblPayment p
       LEFT JOIN tblLoan l ON p.loan_id = l.id
-      LEFT JOIN tblCustomer c ON p.customer_id = c.id
+      LEFT JOIN tblCustomer c ON p.customer_id = c.id JOIN tblLoan l ON p.loan_id = l.id
       LEFT JOIN tblCollector co ON p.collector_id = co.id
       LEFT JOIN tblUser u ON p.reversed_by = u.id
       WHERE p.status = 'reversed' AND DATE(p.reversed_at) BETWEEN ? AND ?
@@ -246,7 +224,7 @@ router.get('/payments-reversed', authenticateToken, async (req, res) => {
 router.get('/maturity-check', authenticateToken, async (req, res) => {
   try {
     const days = req.query.days_ahead || 30;
-    const loans = await dbAll(`SELECT l.*, c.full_name as customer_name, c.contact, co.first_name || ' ' || co.last_name as collector_name, CAST(ROUND(JULIANDAY(l.date_maturity) - JULIANDAY('now')) AS INTEGER) as days_to_maturity FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id WHERE l.status = 'active' AND JULIANDAY(l.date_maturity) - JULIANDAY('now') BETWEEN 0 AND ? ORDER BY l.date_maturity ASC`, [days]);
+    const loans = await dbAll(`SELECT l.*, c.full_name as customer_name, c.contact, co.first_name || ' ' || co.last_name as collector_name, CAST(ROUND(JULIANDAY(l.date_maturity) - JULIANDAY('now')) AS INTEGER) as days_to_maturity FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id JOIN tblLoan l ON l.loan_id = l.id LEFT JOIN tblCollector co ON l.collector_id = co.id WHERE l.status = 'active' AND JULIANDAY(l.date_maturity) - JULIANDAY('now') BETWEEN 0 AND ? ORDER BY l.date_maturity ASC`, [days]);
     res.json({ loans, days_ahead: days });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -254,7 +232,7 @@ router.get('/maturity-check', authenticateToken, async (req, res) => {
 router.get('/full-paid', authenticateToken, async (req, res) => {
   try {
     const { date_from, date_to } = req.query;
-    let q = `SELECT l.*, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id WHERE l.status = 'fullpaid'`;
+    let q = `SELECT l.*, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id JOIN tblLoan l ON l.loan_id = l.id LEFT JOIN tblCollector co ON l.collector_id = co.id WHERE l.status = 'fullpaid'`;
     const p = [];
     if (date_from) { q += ` AND DATE(l.updated_at) >= ?`; p.push(date_from); }
     if (date_to) { q += ` AND DATE(l.updated_at) <= ?`; p.push(date_to); }
@@ -276,7 +254,7 @@ router.get('/loan-type', authenticateToken, async (req, res) => {
     const loans = await dbAll(`
       SELECT l.*, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name
       FROM tblLoan l
-      LEFT JOIN tblCustomer c ON l.customer_id = c.id
+      LEFT JOIN tblCustomer c ON l.customer_id = c.id JOIN tblLoan l ON l.loan_id = l.id
       LEFT JOIN tblCollector co ON l.collector_id = co.id
       WHERE l.date_released BETWEEN ? AND ?
         AND l.status != 'reversed'
@@ -308,7 +286,7 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
         (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status = 'active' AND LOWER(COALESCE(remarks, '')) LIKE '%old balance%' AND ${sqlNotSunday('date_paid')}) as balance_collected_today,
         (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status = 'penalty' AND ${sqlNotSunday('date_paid')}) as penalty_collected_today
       FROM tblLoan l
-      LEFT JOIN tblCustomer c ON l.customer_id = c.id
+      LEFT JOIN tblCustomer c ON l.customer_id = c.id JOIN tblLoan l ON l.loan_id = l.id
       WHERE l.collector_id = ?
         AND (
           (LOWER(l.status) IN ('active', 'pastdue') AND COALESCE(l.balance, 0) > 0)
@@ -323,43 +301,9 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
       ORDER BY c.full_name ASC
     `, [targetDate, targetDate, targetDate, collector_id, targetDate]);
 
-    const loansByCustomer = loans.reduce((acc, loan) => {
-      if (!acc.has(loan.customer_id)) acc.set(loan.customer_id, []);
-      acc.get(loan.customer_id).push(loan);
-      return acc;
-    }, new Map());
-
-    const collectionLoans = [];
-    loansByCustomer.forEach(customerLoans => {
-      const activeTransferLoan = customerLoans.find(loan =>
-        String(loan.status || '').toLowerCase() === 'active' &&
-        ['reloan', 'recon'].includes(String(loan.loan_type || '').toLowerCase().replace(/[^a-z0-9]/g, '')) &&
-        loan.date_released === targetDate
-      );
-
-      if (!activeTransferLoan) {
-        collectionLoans.push(...customerLoans);
-        return;
-      }
-
-      const priorCollections = customerLoans
-        .filter(loan => loan.id !== activeTransferLoan.id && String(loan.status || '').toLowerCase() === 'fullpaid')
-        .reduce((totals, loan) => {
-          totals.balance += Number(loan.balance_collected_today || 0);
-          return totals;
-        }, { balance: 0 });
-
-      activeTransferLoan.reloan_balance_note = priorCollections.balance;
-      collectionLoans.push(activeTransferLoan);
-      collectionLoans.push(...customerLoans.filter(loan =>
-        loan.id !== activeTransferLoan.id &&
-        String(loan.status || '').toLowerCase() !== 'fullpaid'
-      ));
-    });
-
     // Compute days past due for each loan
     const refDate = new Date(targetDate + 'T00:00:00');
-    collectionLoans.forEach(l => {
+    loans.forEach(l => {
       let dpd = 0;
       if (l.date_maturity) {
         const mat = new Date(l.date_maturity + 'T00:00:00');
@@ -371,10 +315,10 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
     });
 
     // Calculate summary totals
-    const totalCollection = collectionLoans.reduce((s, l) => s + (l.collected_today || 0) + (l.reloan_balance_note || 0) + (l.reloan_penalty_note || 0), 0);
+    const totalCollection = loans.reduce((s, l) => s + (l.collected_today || 0), 0);
 
     res.json({
-      loans: collectionLoans,
+      loans,
       collector_id,
       date: targetDate,
       collector: { id: collector?.id, name: collectorName },
@@ -429,7 +373,7 @@ router.get('/disclosure-statement', authenticateToken, async (req, res) => {
         b.branch_name,
         co.first_name || ' ' || co.last_name as collector_name
       FROM tblLoan l
-      JOIN tblCustomer c ON l.customer_id = c.id
+      JOIN tblCustomer c ON l.customer_id = c.id JOIN tblLoan l ON l.loan_id = l.id
       LEFT JOIN tblBranch b ON l.branch_id = b.id
       LEFT JOIN tblCollector co ON l.collector_id = co.id
     `;
@@ -480,60 +424,11 @@ router.get('/disclosure-statement', authenticateToken, async (req, res) => {
 router.get('/monitoring-summary', authenticateToken, async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
-    const tab = req.query.monitoring_tab || req.query.tab || 'new';
-    const tabLabels = {
-      new: 'New (Day 3)',
-      monitoring: 'Under Monitoring',
-      ptp: 'Promise to Pay',
-      escalated: 'Escalated',
-    };
-
-    let tabWhere = `m.status = 'Active' AND m.alert_level IN ('Day 3', 'Day 4+')`;
-    const tabParams = [];
-    if (tab === 'new') {
-      tabWhere = `m.status = 'Active' AND m.alert_level = 'Day 3' AND m.sequence_number = 1`;
-    } else if (tab === 'ptp') {
-      tabWhere = `m.status = 'Active' AND EXISTS (
-        SELECT 1 FROM tblPromiseToPay ptp
-        WHERE ptp.alert_id = m.id AND ptp.status IN ('Pending', 'Due Today')
-      )`;
-    } else if (tab === 'escalated') {
-      tabWhere = `m.status = 'Active' AND m.alert_level = 'Day 4+'`;
-    }
-
-    const rows = await dbAll(`
-      SELECT m.*,
-             c.customer_code,
-             c.full_name as customer_name,
-             c.contact,
-             l.loan_code,
-             l.balance,
-             co.first_name || ' ' || co.last_name as collector_name,
-             b.branch_name,
-             lp.date_paid as last_payment_date,
-             lp.amount_paid as last_payment_amount
-      FROM tblMonitoringAlert m
-      LEFT JOIN tblCustomer c ON m.customer_id = c.id
-      LEFT JOIN tblLoan l ON m.loan_id = l.id
-      LEFT JOIN tblCollector co ON m.collector_id = co.id
-      LEFT JOIN tblBranch b ON m.branch_id = b.id
-      LEFT JOIN (
-        SELECT p1.loan_id, p1.date_paid, p1.amount_paid
-        FROM tblPayment p1
-        JOIN (
-          SELECT loan_id, MAX(date_paid || printf('%010d', id)) as payment_key
-          FROM tblPayment
-          WHERE status = 'active'
-          GROUP BY loan_id
-        ) latest ON latest.loan_id = p1.loan_id AND latest.payment_key = p1.date_paid || printf('%010d', p1.id)
-      ) lp ON lp.loan_id = m.loan_id
-      WHERE ${tabWhere}
-      ORDER BY co.last_name, c.full_name, m.updated_at DESC
-    `, tabParams);
-
-    const activeClientsMonitoredToday = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id WHERE a.status='Active' AND LOWER(c.status) IN ('active', 'recon')`)).c;
-    const escalatedAccounts = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id WHERE a.alert_level='Day 4+' AND a.status='Active' AND LOWER(c.status) IN ('active', 'recon')`)).c;
-    const resolvedAccounts = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id WHERE a.status='Resolved' AND LOWER(c.status) IN ('active', 'recon')`)).c;
+    
+    // 10 Reports required
+    const activeClientsMonitoredToday = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id JOIN tblLoan l ON a.loan_id = l.id WHERE a.status='Active' AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`)).c;
+    const escalatedAccounts = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id JOIN tblLoan l ON a.loan_id = l.id WHERE a.alert_level='Day 4+' AND a.status='Active' AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`)).c;
+    const resolvedAccounts = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id JOIN tblLoan l ON a.loan_id = l.id WHERE a.status='Resolved' AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`)).c;
     
     // Follow-up success rate
     const totalFollowUps = (await dbGet(`SELECT COUNT(*) as c FROM tblFollowUp`)).c;
@@ -542,21 +437,27 @@ router.get('/monitoring-summary', authenticateToken, async (req, res) => {
     
     const summaryPTP = (await dbGet(`SELECT COUNT(*) as c, COALESCE(SUM(promised_amount),0) as total FROM tblPromiseToPay WHERE status='Pending'`));
     
-    const followUpLogs = await dbAll(`SELECT f.*, a.loan_id FROM tblFollowUp f JOIN tblMonitoringAlert a ON f.alert_id = a.id JOIN tblCustomer c ON a.customer_id = c.id WHERE LOWER(c.status) IN ('active', 'recon') ORDER BY f.created_at DESC LIMIT 5`);
+    const followUpLogs = await dbAll(`SELECT f.*, a.loan_id FROM tblFollowUp f JOIN tblMonitoringAlert a ON f.alert_id = a.id JOIN tblCustomer c ON a.customer_id = c.id JOIN tblLoan l ON a.loan_id = l.id WHERE LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct') ORDER BY f.created_at DESC LIMIT 5`);
     
-    const alertsByBranch = await dbAll(`SELECT u.branch_id, COUNT(*) as count FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id JOIN tblUser u ON c.encoded_by = u.id WHERE a.status='Active' AND LOWER(c.status) IN ('active', 'recon') GROUP BY u.branch_id`);
+    const alertsByBranch = await dbAll(`SELECT u.branch_id, COUNT(*) as count FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id JOIN tblLoan l ON a.loan_id = l.id JOIN tblUser u ON c.encoded_by = u.id WHERE a.status='Active' AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct') GROUP BY u.branch_id`);
     
-    const clientsApproachingDay3 = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id WHERE a.status='Active' AND a.consecutive_days = 2 AND LOWER(c.status) IN ('active', 'recon')`)).c;
+    const clientsApproachingDay3 = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id JOIN tblLoan l ON a.loan_id = l.id WHERE a.status='Active' AND a.consecutive_days = 2 AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`)).c;
     
-    const chronicMissedPayments = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id WHERE a.sequence_number >= 3 AND LOWER(c.status) IN ('active', 'recon')`)).c;
+    const chronicMissedPayments = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id JOIN tblLoan l ON a.loan_id = l.id WHERE a.sequence_number >= 3 AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`)).c;
     
-    const unresolvedOver7Days = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id WHERE a.status='Active' AND a.consecutive_days >= 7 AND LOWER(c.status) IN ('active', 'recon')`)).c;
-
+    const unresolvedOver7Days = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id JOIN tblLoan l ON a.loan_id = l.id WHERE a.status='Active' AND a.consecutive_days >= 7 AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`)).c;
+    
     res.json({
-      as_of: today,
-      tab,
-      tab_label: tabLabels[tab] || tabLabels.new,
-      rows
+      activeClientsMonitoredToday,
+      escalatedAccounts,
+      resolvedAccounts,
+      collectorPerformance,
+      summaryPTP,
+      followUpLogs,
+      alertsByBranch,
+      clientsApproachingDay3,
+      chronicMissedPayments,
+      unresolvedOver7Days
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

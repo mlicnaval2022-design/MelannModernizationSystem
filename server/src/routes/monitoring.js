@@ -8,7 +8,7 @@ router.get('/alerts', authenticateToken, async (req, res) => {
   try {
     const { tab, branch_id, collector_id } = req.query;
     
-    let baseCond = `LOWER(c.status) IN ('active', 'recon')`;
+    let baseCond = `LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`;
     const params = [];
 
     // Role-based access
