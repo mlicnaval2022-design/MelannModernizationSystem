@@ -304,12 +304,24 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
         l.date_released, l.date_maturity, l.balance, l.total_paid, l.status, l.insurance,
         COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown') as customer_name,
         c.customer_code,
-        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status IN ('active', 'penalty') AND ${sqlNotSunday('date_paid')}) as collected_today
+        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status IN ('active', 'penalty') AND ${sqlNotSunday('date_paid')}) as collected_today,
+        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status = 'active' AND LOWER(COALESCE(remarks, '')) LIKE '%old balance%' AND ${sqlNotSunday('date_paid')}) as balance_collected_today,
+        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status = 'penalty' AND ${sqlNotSunday('date_paid')}) as penalty_collected_today
       FROM tblLoan l
       LEFT JOIN tblCustomer c ON l.customer_id = c.id
-      WHERE l.collector_id = ? AND LOWER(l.status) IN ('active', 'pastdue') AND COALESCE(l.balance, 0) > 0
+      WHERE l.collector_id = ?
+        AND (
+          (LOWER(l.status) IN ('active', 'pastdue') AND COALESCE(l.balance, 0) > 0)
+          OR EXISTS (
+            SELECT 1 FROM tblPayment p
+            WHERE p.loan_id = l.id
+              AND p.date_paid = ?
+              AND p.status IN ('active', 'penalty')
+              AND ${sqlNotSunday('p.date_paid')}
+          )
+        )
       ORDER BY c.full_name ASC
-    `, [targetDate, collector_id]);
+    `, [targetDate, targetDate, targetDate, collector_id, targetDate]);
 
     // Compute days past due for each loan
     const refDate = new Date(targetDate + 'T00:00:00');

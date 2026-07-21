@@ -781,6 +781,164 @@
   font-weight: 700;
 }
 
+.loan-entry-modal select,
+.loan-entry-modal textarea {
+  width: 100%;
+  border: 1px solid #d8ddec;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #151936;
+  padding: 12px 14px;
+  font: inherit;
+  font-weight: 600;
+  outline: none;
+}
+
+.loan-entry-search {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 14px;
+  background: #ffffff;
+  border: 1px solid #e2e6f2;
+  border-radius: 8px;
+}
+
+.loan-entry-search .reloan-field {
+  margin-bottom: 0;
+}
+
+.loan-entry-results {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.loan-entry-results button {
+  display: grid;
+  grid-template-columns: 120px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.loan-entry-results em {
+  font-style: normal;
+  color: #475569;
+  font-weight: 700;
+}
+
+.loan-entry-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.loan-entry-card {
+  padding: 18px;
+}
+
+.loan-entry-card dl,
+.loan-entry-side-card dl {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.loan-entry-card dl div,
+.loan-preview div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+}
+
+.loan-entry-card dt,
+.loan-preview span {
+  color: #64748b;
+  font-weight: 700;
+}
+
+.loan-entry-card dd,
+.loan-preview strong {
+  margin: 0;
+  color: #0f172a;
+  font-weight: 800;
+  text-align: right;
+}
+
+.loan-entry-form-grid {
+  grid-template-columns: minmax(340px, 1fr) minmax(340px, 1fr) minmax(300px, 0.8fr);
+}
+
+.loan-status-badge {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.loan-status-badge.hold,
+.loan-status-badge.relax {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.loan-preview {
+  margin-top: 14px;
+  padding: 18px;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  background: #eef2ff;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 24px;
+}
+
+.loan-preview h3 {
+  grid-column: 1 / -1;
+  margin: 0 0 8px;
+  color: #312e81;
+}
+
+.loan-entry-success {
+  width: min(620px, 94vw);
+  padding: 32px;
+  border-radius: 8px;
+  background: #ffffff;
+  text-align: center;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.24);
+}
+
+.loan-entry-success h2 {
+  margin: 0 0 8px;
+  color: #047857;
+}
+
+.loan-entry-success p {
+  margin: 0 0 24px;
+  color: #475569;
+  font-weight: 800;
+}
+
+.loan-entry-success-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
 @keyframes reloan-spin {
   to { transform: rotate(360deg); }
 }
@@ -803,6 +961,10 @@
   .reloan-header,
   .reloan-title-block,
   .reloan-id-panel,
+  .loan-entry-search,
+  .loan-entry-summary-grid,
+  .loan-entry-form-grid,
+  .loan-preview,
   .reloan-field,
   .reloan-select-row,
   .reloan-split,
