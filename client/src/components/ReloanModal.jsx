@@ -122,11 +122,15 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
     const principal = Number(form.principal || 0);
     const interestRate = Number(form.interestRate || 0);
     const interestAmount = principal * (interestRate / 100);
-    const totalLoanAmount = principal + interestAmount;
+    const totalLoanAmount = Math.ceil(principal + interestAmount);
     const balance = Number(form.balance || 0);
     const penalty = Number(form.penalty || 0);
     const passbook = Number(form.passbook || 0);
     const releaseCharges = balance + penalty + passbook;
+    
+    const days = Number(form.days || 0);
+    const dailyPayment = days > 0 ? Math.ceil(totalLoanAmount / days) : 0;
+
     return {
       principal,
       interestAmount,
@@ -136,6 +140,7 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
       passbook,
       releaseCharges,
       netRelease: principal,
+      dailyPayment,
       dueDate: form.loanDate ? addCalendarDays(form.loanDate, form.days) : ''
     };
   }, [form]);
@@ -331,6 +336,7 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
                   <div className="reloan-section-title">Computed Amounts</div>
                   <label className="reloan-field"><span>Amount of Interest</span><input value={peso(computed.interestAmount)} readOnly /></label>
                   <label className="reloan-field"><span>Total Loan Amount</span><input value={peso(computed.totalLoanAmount)} readOnly /></label>
+                  <label className="reloan-field"><span>Daily Payment</span><input value={peso(computed.dailyPayment)} readOnly /></label>
                   <label className="reloan-field"><span>Balance</span><input type="number" min="0" step="0.01" value={form.balance} onChange={e => updateForm('balance', e.target.value)} /></label>
                   <label className="reloan-field"><span>Penalty</span><input type="number" min="0" step="0.01" value={form.penalty} onChange={e => updateForm('penalty', e.target.value)} /></label>
                   <label className="reloan-field"><span>Passbook</span><input type="number" min="0" step="0.01" value={form.passbook} onChange={e => updateForm('passbook', e.target.value)} /></label>
@@ -353,9 +359,10 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
                     ['Client Code', clientCode], ['Client Name', clientName], ['Collector', collectorName],
                     ['Loan Type', form.loanType], ['Loan Date', form.loanDate], ['Principal Amount', peso(computed.principal)],
                     ['Interest Rate', `${form.interestRate || 0}%`], ['Amount of Interest', peso(computed.interestAmount)],
-                    ['Total Loan Amount', peso(computed.totalLoanAmount)], ['Balance', peso(computed.balance)],
-                    ['Penalty', peso(computed.penalty)], ['Passbook', peso(computed.passbook)],
-                    ['Net Release Amount', peso(computed.netRelease)], ['Number of Days', form.days], ['Due Date', computed.dueDate]
+                    ['Total Loan Amount', peso(computed.totalLoanAmount)], ['Daily Payment', peso(computed.dailyPayment)],
+                    ['Balance', peso(computed.balance)], ['Penalty', peso(computed.penalty)],
+                    ['Passbook', peso(computed.passbook)], ['Net Release Amount', peso(computed.netRelease)],
+                    ['Number of Days', form.days], ['Due Date', computed.dueDate]
                   ].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value || '-'}</strong></div>)}
                 </section>
               )}

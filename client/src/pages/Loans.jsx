@@ -4,6 +4,8 @@ import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import FullyPaid from './FullyPaid'
 import ReloanModal from '../components/ReloanModal'
+import { FilePlus, RefreshCw, Wrench, FileText } from 'lucide-react'
+import './Loans.css'
 
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 
@@ -183,7 +185,7 @@ export default function Loans() {
   const schColor = (s) => ({ paid: 'badge-active', unpaid: 'badge-inactive', overdue: 'badge-pastdue' }[s] || 'badge-inactive')
 
   return (
-    <div>
+    <div className="loans-modern">
       <div className="page-toolbar">
         <div className="search-input-wrap">
           <span className="search-icon">🔍</span>
@@ -207,6 +209,7 @@ export default function Loans() {
         ].map(tab => (
           <div 
             key={tab.value}
+            className={status === tab.value ? 'active' : ''}
             onClick={() => setStatus(tab.value)}
             style={{ 
               padding: '6px 14px', 
@@ -227,21 +230,41 @@ export default function Loans() {
       {status === 'input' ? (
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16, marginBottom: 16 }}>
-            <section className="card" style={{ padding: 20 }}>
+            <section className="card loans-entry-card" style={{ padding: 20 }}>
               <h4 style={{ margin: '0 0 12px', color: '#1e293b' }}>Loan Entry Actions</h4>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button className="btn btn-dark" onClick={() => openInputLoan('NEW')}>NEW</button>
-                <button className="btn btn-dark" onClick={() => openInputLoan('RELOAN')}>RELOAN</button>
-                <button className="btn btn-dark" onClick={() => openInputLoan('RECON')}>RECON</button>
-                <button className="btn btn-light" style={{ border: '1px solid #cbd5e1' }} onClick={() => navigate(`/customers${search ? `?search=${encodeURIComponent(search)}` : ''}`)}>View SOA</button>
+                <button className="btn btn-dark" onClick={() => openInputLoan('NEW')}>
+                  <FilePlus size={24} style={{ position: 'absolute', top: '26px', left: '50%', transform: 'translateX(-50%)', zIndex: 1, strokeWidth: 2 }} />
+                  NEW
+                </button>
+                <button className="btn btn-dark" onClick={() => openInputLoan('RELOAN')}>
+                  <RefreshCw size={24} style={{ position: 'absolute', top: '26px', left: '50%', transform: 'translateX(-50%)', zIndex: 1, strokeWidth: 2 }} />
+                  RELOAN
+                </button>
+                <button className="btn btn-dark" onClick={() => openInputLoan('RECON')}>
+                  <Wrench size={24} style={{ position: 'absolute', top: '26px', left: '50%', transform: 'translateX(-50%)', zIndex: 1, strokeWidth: 2 }} />
+                  RECON
+                </button>
+                <button className="btn btn-light" style={{ border: '1px solid #cbd5e1' }} onClick={() => navigate(`/customers${search ? `?search=${encodeURIComponent(search)}` : ''}`)}>
+                  <FileText size={24} style={{ position: 'absolute', top: '26px', left: '50%', transform: 'translateX(-50%)', zIndex: 1, strokeWidth: 2 }} />
+                  View SOA
+                </button>
               </div>
             </section>
 
-            <section className="card" style={{ padding: 20 }}>
-              <h4 style={{ margin: '0 0 12px', color: '#1e293b' }}>Current Account Status</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
-                {['NEW', 'RELOAN', 'RECON', 'DRAFT', 'FOR APPROVAL', 'APPROVED', 'RELEASED', 'HOLD', 'REJECTED', 'CANCELLED'].map(label => (
-                  <span key={label} className={`badge badge-${label.toLowerCase().replace(/\s+/g, '-')}`} style={{ justifyContent: 'center' }}>{label}</span>
+            <section className="card loans-overview-card" style={{ padding: 20 }}>
+              <h4 style={{ margin: '0 0 12px', color: '#1e293b' }}>Loan Input Overview</h4>
+              <div className="loans-overview-list">
+                {[
+                  ['NEW', 'Use for first-time loans.'],
+                  ['RELOAN', 'Use for clients with existing loan history.'],
+                  ['RECON', 'Use to reconstruct or adjust loan records.'],
+                  ['View SOA', 'View detailed loan history and balances.']
+                ].map(([label, text]) => (
+                  <div className={`loans-overview-row ${label.toLowerCase().replace(/\s+/g, '-')}`} key={label}>
+                    <span>{label}</span>
+                    <p>{text}</p>
+                  </div>
                 ))}
               </div>
             </section>
