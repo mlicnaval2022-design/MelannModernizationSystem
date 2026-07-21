@@ -11,7 +11,7 @@ function computeAmortization(principal, interestRate, loanPeriod) {
   const r = parseFloat(interestRate);
   const period = parseInt(loanPeriod) || 45;
   const interest = p * (r / 100);
-  const totalAmount = p + interest;
+  const totalAmount = Math.ceil(p + interest);
   const workingDays = getWorkingDays(period);
   const amortization = Math.ceil(totalAmount / workingDays);
   return {

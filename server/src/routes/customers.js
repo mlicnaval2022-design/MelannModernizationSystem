@@ -760,7 +760,7 @@ router.post('/', authenticateToken, async (req, res) => {
     const interestRate = 15;
     const loanPeriod = 45;
     const interestAmount = principal * (interestRate / 100);
-    const totalAmortization = principal + interestAmount;
+    const totalAmortization = Math.ceil(principal + interestAmount);
     const amortization = principal > 0 ? Math.ceil(totalAmortization / 39) : 0;
     const dateMaturity = computeMaturityDate(date_released, loanPeriod);
 
@@ -874,12 +874,13 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
     const normalizedLoanType = normalizeLoanType(loan_type);
     if (!normalizedLoanType) return res.status(400).json({ error: 'Loan Type is required and must be NEW, RELOAN, or RECON.' });
     if (amount <= 0) return res.status(400).json({ error: 'Invalid loan amount.' });
-    if (![30, 45, 60].includes(period)) return res.status(400).json({ error: 'Number of Days must be 30, 45, or 60.' });
+    if (!Number.isInteger(period) || period <= 0) return res.status(400).json({ error: 'Number of Days must be greater than zero.' });
     const loanStatus = 'active';
     const actionName = normalizedLoanType === 'RECON' ? 'RECON_APP' : normalizedLoanType === 'NEW' ? 'NEW_LOAN_APP' : 'RELOAN_APP';
     const defaultRemarks = `Auto-created via ${normalizedLoanType} loan input`;
+    const storedLoanType = normalizedLoanType === 'RELOAN' ? 'Re-Loan' : normalizedLoanType === 'NEW' ? 'New' : 'RECON';
     const interestAmount = amount * (interestRate / 100);
-    const totalAmortization = amount + interestAmount;
+    const totalAmortization = Math.ceil(amount + interestAmount);
     const workingDays = getWorkingDays(period);
     const amortization = amount > 0 && workingDays > 0 ? Math.ceil(totalAmortization / workingDays) : 0;
     const dateMaturity = computeMaturityDate(releaseDate, period);
@@ -889,8 +890,8 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
       ? (normalizedLoanType === 'NEW' ? 50 : 0)
       : Number(passbook || 0);
     const shouldPostPriorBalance = ['RECON', 'RELOAN'].includes(normalizedLoanType);
-    const newLoanPreviousBalance = balanceAmount;
-    const totalCharges = newLoanPreviousBalance + penaltyAmount + passbookAmount;
+    const newLoanPreviousBalance = 0;
+    const totalCharges = balanceAmount + penaltyAmount + passbookAmount;
     const netProceeds = amount;
 
     await dbRun('BEGIN IMMEDIATE TRANSACTION');
@@ -970,7 +971,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
       : null;
     
     const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, net_proceeds, balance, previous_balance, penalty, passbook, status, remarks, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [loan_code, customer.id, customer.collector_id, customer.branch_id, normalizedLoanType, amount, interestRate, interestAmount, period, releaseDate, dateMaturity, amortization, totalAmortization, netProceeds, totalAmortization, newLoanPreviousBalance, penaltyAmount, passbookAmount, loanStatus, remarks || defaultRemarks, req.user.id]
+      [loan_code, customer.id, customer.collector_id, customer.branch_id, storedLoanType, amount, interestRate, interestAmount, period, releaseDate, dateMaturity, amortization, totalAmortization, netProceeds, totalAmortization, newLoanPreviousBalance, penaltyAmount, passbookAmount, loanStatus, remarks || defaultRemarks, req.user.id]
     );
     const penaltyEntry = await postLoanPenaltyEntry({
       loan: { id: result.lastID, loan_code, collector_id: customer.collector_id, balance: totalAmortization },
