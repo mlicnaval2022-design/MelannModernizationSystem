@@ -12,6 +12,16 @@ const toLocalDateString = (date = new Date()) => {
   return localDate.toISOString().split('T')[0];
 };
 
+const buildClientAddress = (loan) => [
+  loan.customer_address_line || loan.address,
+  loan.customer_sitio,
+  loan.customer_purok,
+  loan.customer_brgy,
+  loan.customer_city,
+  loan.customer_province,
+  loan.customer_zip_code
+].map(part => String(part || '').trim()).filter(Boolean).join(', ');
+
 const getPreviousOperationDate = (dateValue) => {
   const date = new Date(`${dateValue}T00:00:00`);
 
@@ -415,6 +425,13 @@ router.get('/disclosure-statement', authenticateToken, async (req, res) => {
         c.middle_name,
         c.full_name as customer_name,
         c.address,
+        c.address as customer_address_line,
+        c.sitio as customer_sitio,
+        c.purok as customer_purok,
+        c.brgy as customer_brgy,
+        c.city as customer_city,
+        c.province as customer_province,
+        c.zip_code as customer_zip_code,
         c.contact,
         c.secondary_contact,
         c.birth_date,
@@ -458,6 +475,10 @@ router.get('/disclosure-statement', authenticateToken, async (req, res) => {
     }
 
     const loan = loans[0];
+    const clientAddress = buildClientAddress(loan);
+    loan.address = clientAddress || loan.address;
+    loan.customer_address = loan.address;
+    loan.full_address = loan.address;
     const schedule = await dbAll(`
       SELECT period_number, due_date, amount_due, amount_paid, status
       FROM tblAmortizationSchedule

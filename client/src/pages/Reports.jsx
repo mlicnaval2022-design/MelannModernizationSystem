@@ -19,6 +19,29 @@ const displayDate = value => value ? new Date(`${value}T00:00:00`).toLocaleDateS
 const shortDate = value => value ? new Date(`${value}T00:00:00`).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '-'
 const fmtMoney = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const rawMoney = value => Number(value || 0).toFixed(2)
+const toDisplayCase = value => String(value || '')
+  .toLocaleLowerCase('en-PH')
+  .replace(/(^|[^\p{L}\p{N}])(\p{L})/gu, (_, prefix, char) => prefix + char.toLocaleUpperCase('en-PH'))
+  .replace(/\bIi\b/g, 'II')
+  .replace(/\bIii\b/g, 'III')
+  .replace(/\bIv\b/g, 'IV')
+  .replace(/\bVi\b/g, 'VI')
+const formatClientAddress = loan => {
+  const direct = loan.full_address || loan.customer_address
+  if (direct) return toDisplayCase(direct)
+
+  const composed = [
+    loan.customer_address_line || loan.address,
+    loan.customer_sitio,
+    loan.customer_purok,
+    loan.customer_brgy,
+    loan.customer_city,
+    loan.customer_province,
+    loan.customer_zip_code
+  ].map(part => String(part || '').trim()).filter(Boolean).join(', ')
+
+  return composed ? toDisplayCase(composed) : '-'
+}
 const safeFilePart = value => String(value || '')
   .trim()
   .replace(/[^a-z0-9]+/gi, '-')
@@ -1192,6 +1215,7 @@ export default function Reports() {
       const businessNature = loan.business_type || loan.business_name || loan.occupation || '-'
       const purpose = loan.loan_purpose || loan.remarks || 'Additional Capital'
       const idDocument = [loan.id_type, loan.id_number].filter(Boolean).join(' - ') || '-'
+      const clientAddress = formatClientAddress(loan)
       const collateral = loan.collateral || '-'
       const netProceed = Number(loan.net_proceeds || principal)
       const charges = Number(loan.service_fee || 0) + Number(loan.insurance || 0) + Number(loan.notarial_fee || 0) + Number(loan.filing_fee || 0) + Number(loan.total_deductions || 0)
@@ -1353,7 +1377,7 @@ export default function Reports() {
                 <div>
                   {field('Name', fullName, true)}
                   {field('Code', loan.customer_code)}
-                  {field('Address', loan.address)}
+                  {field('Address', clientAddress)}
                   {field('Age', calculateAge(loan.birth_date))}
                   {field('Nature of Business', businessNature)}
                 </div>
@@ -1442,7 +1466,7 @@ export default function Reports() {
                 <div className="ds-grid-2">
                   <div>
                     {field('Name', fullName, true)}
-                    {field('Address', loan.address)}
+                    {field('Address', clientAddress)}
                   </div>
                   <div>
                     {field('Birthday', shortDate(loan.birth_date))}

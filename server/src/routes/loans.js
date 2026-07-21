@@ -8,6 +8,15 @@ const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ er
 
 const isNewLoanType = type => ['new', 'new loan'].includes(String(type || '').trim().toLowerCase());
 const passbookForLoan = loan => isNewLoanType(loan?.loan_type) ? 50 : Number(loan?.passbook || 0);
+const buildClientAddress = loan => [
+  loan.customer_address_line || loan.customer_address || loan.address,
+  loan.customer_sitio,
+  loan.customer_purok,
+  loan.customer_brgy,
+  loan.customer_city,
+  loan.customer_province,
+  loan.customer_zip_code
+].map(part => String(part || '').trim()).filter(Boolean).join(', ');
 const generateLoanReference = async (releaseDate) => {
   const datePart = String(releaseDate || new Date().toISOString().split('T')[0]).replace(/-/g, '');
   const latest = await dbGet(
@@ -21,7 +30,7 @@ const generateLoanReference = async (releaseDate) => {
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { search, status, customer_id, collector_id } = req.query;
-    let q = `SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, c.status as customer_status, (SELECT h.remarks FROM tblCustomerStatusHistory h WHERE h.customer_id = l.customer_id AND LOWER(h.new_status) = LOWER(c.status) ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as status_note, c.photo_client, c.photo_id_front, co.first_name || ' ' || co.last_name as collector_name, b.branch_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id LEFT JOIN tblBranch b ON l.branch_id = b.id WHERE NOT EXISTS (
+    let q = `SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, c.status as customer_status, (SELECT h.remarks FROM tblCustomerStatusHistory h WHERE h.customer_id = l.customer_id AND LOWER(h.new_status) = LOWER(c.status) ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as status_note, c.photo_client, c.photo_id_front, c.address as customer_address_line, c.sitio as customer_sitio, c.purok as customer_purok, c.brgy as customer_brgy, c.city as customer_city, c.province as customer_province, c.zip_code as customer_zip_code, co.first_name || ' ' || co.last_name as collector_name, b.branch_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id LEFT JOIN tblBranch b ON l.branch_id = b.id WHERE NOT EXISTS (
       SELECT 1 FROM tblLoan dup
       WHERE dup.customer_id = l.customer_id
         AND dup.date_released = l.date_released
@@ -44,7 +53,15 @@ router.get('/', authenticateToken, async (req, res) => {
     if (customer_id) { q += ` AND l.customer_id = ?`; p.push(customer_id); }
     if (collector_id) { q += ` AND l.collector_id = ?`; p.push(collector_id); }
     q += ` ORDER BY l.created_at DESC`;
-    res.json(await dbAll(q, p));
+    const loans = await dbAll(q, p);
+    res.json(loans.map(loan => {
+      const address = buildClientAddress(loan);
+      return {
+        ...loan,
+        customer_address: address || loan.customer_address_line || '',
+        full_address: address || loan.customer_address_line || ''
+      };
+    }));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 router.get('/sheet/collection', authenticateToken, async (req, res) => {

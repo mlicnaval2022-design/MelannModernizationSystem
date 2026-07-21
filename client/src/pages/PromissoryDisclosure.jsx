@@ -65,6 +65,22 @@ const toDisplayCase = value => String(value || '')
   .replace(/\bIii\b/g, 'III')
   .replace(/\bIv\b/g, 'IV')
   .replace(/\bVi\b/g, 'VI')
+const formatClientAddress = loan => {
+  const direct = loan.full_address || loan.customer_address
+  if (direct) return toDisplayCase(direct)
+
+  const composed = [
+    loan.customer_address_line || loan.address,
+    loan.customer_sitio,
+    loan.customer_purok,
+    loan.customer_brgy,
+    loan.customer_city,
+    loan.customer_province,
+    loan.customer_zip_code
+  ].map(part => String(part || '').trim()).filter(Boolean).join(', ')
+
+  return composed ? toDisplayCase(composed) : '-'
+}
 const formatBorrowerName = loan => {
   const orderedName = [loan.first_name, loan.middle_name, loan.last_name]
     .map(part => String(part || '').trim())
@@ -167,13 +183,24 @@ export default function PromissoryDisclosure() {
     setLoadingDoc(true)
     setError('')
     API.get('/reports/disclosure-statement', { params: { loan_id: selectedId } })
-      .then(res => setDocumentData(res.data))
+      .then(res => {
+        const selectedLoan = loans.find(loan => String(loan.id) === String(selectedId)) || {}
+        setDocumentData({
+          ...res.data,
+          loan: {
+            ...selectedLoan,
+            ...res.data.loan,
+            full_address: res.data.loan?.full_address || selectedLoan.full_address,
+            customer_address: res.data.loan?.customer_address || selectedLoan.customer_address,
+          }
+        })
+      })
       .catch(err => {
         setDocumentData(null)
         setError(err.response?.data?.error || 'Unable to load promissory.')
       })
       .finally(() => setLoadingDoc(false))
-  }, [selectedId])
+  }, [loans, selectedId])
 
   const printDocument = () => setTimeout(() => window.print(), 100)
 
@@ -315,6 +342,7 @@ function DisclosurePreview({ data }) {
   const businessNature = loan.business_type || loan.business_name || loan.occupation || '-'
   const purpose = loan.loan_purpose || loan.remarks || 'Additional Capital'
   const idDocument = [loan.id_type, loan.id_number].filter(Boolean).join(' - ') || '-'
+  const clientAddress = formatClientAddress(loan)
   const netProceed = Number(loan.net_proceeds || principal)
   const charges = Number(loan.service_fee || 0) + Number(loan.insurance || 0) + Number(loan.notarial_fee || 0) + Number(loan.filing_fee || 0) + Number(loan.total_deductions || 0) + Number(loan.penalty || 0) + Number(loan.passbook || 0) + Number(loan.previous_balance || 0)
   const schedule = (data.schedule || []).slice(0, 45)
@@ -446,7 +474,7 @@ function DisclosurePreview({ data }) {
             <div>
               {field('Name', fullName, true)}
               {field('Code', loan.customer_code)}
-              {field('Address', loan.address)}
+              {field('Address', clientAddress)}
               {field('Age', calculateAge(loan.birth_date))}
               {field('Nature of Business', businessNature)}
             </div>
@@ -541,7 +569,7 @@ function DisclosurePreview({ data }) {
             <div className="ds-grid-2">
               <div>
                 {field('Name', fullName, true)}
-                {field('Address', loan.address)}
+                {field('Address', clientAddress)}
               </div>
               <div>
                 {field('Birthday', shortDate(loan.birth_date))}
@@ -583,7 +611,7 @@ function DocumentPreview({ data }) {
   const displayLoanPeriod = disclosurePeriod(loanPeriod)
   const maturityDate = loan.date_maturity || addDays(loan.date_released, loanPeriod)
   const fullName = formatBorrowerName(loan)
-  const borrowerAddress = loan.address ? toDisplayCase(loan.address) : '-'
+  const borrowerAddress = formatClientAddress(loan)
   const collateral = loan.collateral || '-'
   const words = amountInWords(principal)
   const penaltyAmount = Number(loan.penalty || 0)

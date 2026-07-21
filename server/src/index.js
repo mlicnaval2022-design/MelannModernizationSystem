@@ -1,11 +1,13 @@
-require('dotenv').config();
+const path = require('path');
+
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const { createApp } = require('./app');
 const { initializeDatabase } = require('./db/database');
 const { startPastDueScheduler } = require('./services/pastDueUpdater');
 const { startNoPaymentMonitoringScheduler } = require('./services/noPaymentMonitoring');
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 initializeDatabase().then(() => {
   startPastDueScheduler();
