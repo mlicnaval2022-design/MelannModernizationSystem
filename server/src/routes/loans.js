@@ -109,10 +109,23 @@ router.get('/sheet/collection', authenticateToken, async (req, res) => {
       ));
     });
 
+    const pbInsDst = await dbGet(`
+      SELECT COALESCE(SUM(passbook), 0) as total
+      FROM tblLoan
+      WHERE collector_id = ?
+        AND date_released = ?
+        AND LOWER(COALESCE(status, '')) != 'reversed'
+        AND COALESCE(passbook, 0) > 0
+        AND ${sqlNotSunday('date_released')}
+    `, [collector_id, targetDate]);
+    const pbInsDstTotal = Number(pbInsDst?.total || 0);
+
     const summary = {
       total_clients: collectionLoans.length,
       total_due: collectionLoans.reduce((s, l) => s + l.amortization, 0),
       total_collected: collectionLoans.reduce((s, l) => s + (l.collected_today || 0) + (l.reloan_balance_note || 0) + (l.reloan_penalty_note || 0), 0),
+      pb_ins_dst: pbInsDstTotal,
+      passbook_total: pbInsDstTotal,
     };
     
     res.json({ loans: collectionLoans, summary });

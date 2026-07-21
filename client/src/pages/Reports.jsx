@@ -3195,11 +3195,12 @@ export default function Reports() {
       )
     }
     if (active === 'collection-sheet') {
-      const { loans = [], collector: apiCollector, signatures = {} } = data
+      const { loans = [], collector: apiCollector, signatures = {}, summary = {} } = data
       const collName = collectors.find(c => c.id == params.collector_id)
       const collectorDisplayName = apiCollector?.name || (collName ? `${collName.last_name}, ${collName.first_name}`.toUpperCase() : 'UNASSIGNED')
       const collectionDate = params.date || toDateInputValue(new Date())
       const displayCollDate = new Date(collectionDate + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
+      const pbInsDstTotal = Number(summary.pbInsDst ?? summary.pb_ins_dst ?? summary.passbookTotal ?? summary.passbook_total ?? 0)
 
       const isReconLoan = (loan) => (loan.loan_type || '').toLowerCase().includes('recon')
 
@@ -3322,10 +3323,14 @@ export default function Reports() {
           <tbody>{entries.map((entry, i) => <tr key={`${keyPrefix}-${i}`} style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>{entryCells(entry)}</tr>)}</tbody>
         </table>
       )
-      const blankCashLine = label => (
+      const cashSummaryAmount = amount => Number(amount || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })
+      const cashSummaryNoteStyle = { color: CL.pastdue, fontWeight: 800, fontSize: '8.5pt', lineHeight: 1 }
+      const blankCashLine = (label, value = null) => (
         <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
           <span style={{ color: '#555', flex: '0 0 90px', fontSize: '8.5pt' }}>{label}:</span>
-          <span style={{ flex: 1, borderBottom: '1.5px solid #000', height: 14 }}></span>
+          <span style={{ flex: 1, borderBottom: '1.5px solid #000', height: 14, display: 'flex', alignItems: 'flex-end', paddingLeft: value ? 4 : 0 }}>
+            {value && <span style={cashSummaryNoteStyle}>{value}</span>}
+          </span>
         </div>
       )
       const blankCashLineSingle = label => (
@@ -3393,7 +3398,13 @@ export default function Reports() {
           <div style={{ flex: '0 0 auto' }}>
             {showSideBoxes ? headerBox('DAILY CASH SUMMARY', (
               <>
-                {['Total Collection', 'PB/Ins/DST', 'Field Release', 'Total Expense', 'Grand Total'].map(blankCashLine)}
+                {[
+                  ['Total Collection'],
+                  ['PB/Ins/DST', pbInsDstTotal > 0 ? `PB: ${cashSummaryAmount(pbInsDstTotal)}` : null],
+                  ['Field Release'],
+                  ['Total Expense'],
+                  ['Grand Total']
+                ].map(([label, value]) => blankCashLine(label, value))}
                 <div style={{ borderTop: '1.5px solid '+CL.navy, margin: '6px -8px -6px -8px', padding: '6px 8px 6px' }}>
                    {blankCashLine('Over / Short')}
                 </div>
