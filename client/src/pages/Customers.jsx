@@ -45,6 +45,10 @@ export default function Customers() {
   const [penaltyLoan, setPenaltyLoan] = useState(null)
   const [editingPenaltyPayment, setEditingPenaltyPayment] = useState(null)
   const [printModeLoan, setPrintModeLoan] = useState(null)
+  const [loanDeleteTarget, setLoanDeleteTarget] = useState(null)
+  const [loanDeleteProcessing, setLoanDeleteProcessing] = useState(false)
+  const [loanDeleteSuccess, setLoanDeleteSuccess] = useState(null)
+  const [loanDeleteError, setLoanDeleteError] = useState(null)
   const suppressNextPrintRef = useRef(false)
 
   useEffect(() => {
@@ -220,15 +224,25 @@ export default function Customers() {
   }
 
   const deleteLoanFromSoa = async (loan) => {
-    const loanCode = loan?.loan_code || `Loan ${loan?.id}`;
-    if (!window.confirm(`Delete ${loanCode} and all related payments/schedules? This will permanently remove this specific loan from the SOA.`)) return;
+    if (!loan?.id || loanDeleteProcessing) return;
+    const loanCode = loan.loan_code || `Loan ${loan.id}`;
     try {
+      setLoanDeleteProcessing(true);
       await API.delete(`/loans/${loan.id}`);
+      setSoaData(prev => prev ? ({
+        ...prev,
+        loans: (prev.loans || []).filter(l => l.id !== loan.id),
+        payments: (prev.payments || []).filter(p => p.loan_id !== loan.id && p.loan_code !== loan.loan_code)
+      }) : prev);
       setSelectedLoanForPayments(prev => prev?.id === loan.id ? null : prev);
-      if (soaData?.customer?.id) await openSoa(soaData.customer.id);
-      await load();
+      setPrintModeLoan(prev => prev?.id === loan.id ? null : prev);
+      setLoanDeleteTarget(null);
+      setLoanDeleteSuccess(`${loanCode} successfully deleted.`);
+      load();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to delete loan');
+      setLoanDeleteError(err.response?.data?.error || 'Failed to delete loan');
+    } finally {
+      setLoanDeleteProcessing(false);
     }
   }
 
@@ -1262,7 +1276,7 @@ export default function Customers() {
                         {loans.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Loan Code</th><th>Type</th><th>Date Released</th><th>Maturity</th><th>Period</th><th>Principal</th><th>Interest Rate</th><th>Interest Amount</th><th>Total Loan</th><th>Amortization</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead><tbody>{loans.map(l => (<tr key={l.id} onClick={() => setSelectedLoanForPayments(l)} style={{ cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><td className="mono" style={{color: '#2563eb', fontWeight: '600'}} title="View payment history for this loan">{l.loan_code}</td><td>
   {l.loan_type || '-'}
   {String(l.status).toLowerCase() === 'reversed' && <span style={{ color: '#ef4444', marginLeft: '6px', fontWeight: 'bold', fontSize: '11px' }}>(REVERSED)</span>}
-</td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td><td><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><button className="action-btn" onClick={(e) => { e.stopPropagation(); setPrintModeLoan(l); }}><i className="bi bi-printer"></i> Print</button><button className="action-btn" style={{ borderColor: '#fecaca', color: '#dc2626', background: '#fff5f5' }} onClick={(e) => { e.stopPropagation(); deleteLoanFromSoa(l); }}><i className="bi bi-trash"></i> Delete</button></div></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
+</td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td><td><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><button className="action-btn" onClick={(e) => { e.stopPropagation(); setPrintModeLoan(l); }}><i className="bi bi-printer"></i> Print</button><button className="action-btn" style={{ borderColor: '#fecaca', color: '#dc2626', background: '#fff5f5' }} onClick={(e) => { e.stopPropagation(); setLoanDeleteTarget(l); }}><i className="bi bi-trash"></i> Delete</button></div></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
                       </div>
                     )}
 
@@ -2289,6 +2303,54 @@ export default function Customers() {
                 Save
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {loanDeleteTarget && (
+        <div className="modal-overlay" style={{ zIndex: 100002, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15, 23, 42, 0.68)', padding: 20 }}>
+          <div style={{ width: '100%', maxWidth: 460, background: '#fff', borderRadius: 14, boxShadow: '0 24px 60px rgba(15, 23, 42, 0.28)', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '24px 26px 18px', borderBottom: '1px solid #e2e8f0' }}>
+              <div style={{ width: 46, height: 46, borderRadius: 12, background: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+                <i className="bi bi-trash" style={{ fontSize: 22 }}></i>
+              </div>
+              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#0f172a' }}>Delete loan?</h3>
+              <p style={{ margin: '8px 0 0', color: '#64748b', fontSize: 14, lineHeight: 1.5 }}>
+                This will permanently remove <strong style={{ color: '#0f172a' }}>{loanDeleteTarget.loan_code || `Loan ${loanDeleteTarget.id}`}</strong> from the SOA, including its payments and schedules.
+              </p>
+            </div>
+            <div style={{ padding: '18px 26px 24px', display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-light" style={{ border: '1px solid #cbd5e1' }} onClick={() => setLoanDeleteTarget(null)} disabled={loanDeleteProcessing}>Cancel</button>
+              <button type="button" className="btn btn-danger" onClick={() => deleteLoanFromSoa(loanDeleteTarget)} disabled={loanDeleteProcessing}>
+                {loanDeleteProcessing ? 'Deleting...' : 'Yes, Delete Loan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loanDeleteSuccess && (
+        <div className="modal-overlay" style={{ zIndex: 100003, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15, 23, 42, 0.55)', padding: 20 }}>
+          <div style={{ width: '100%', maxWidth: 420, background: '#fff', borderRadius: 14, boxShadow: '0 24px 60px rgba(15, 23, 42, 0.24)', padding: 26, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+            <div style={{ width: 52, height: 52, borderRadius: 14, background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+              <i className="bi bi-check-lg" style={{ fontSize: 26 }}></i>
+            </div>
+            <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#0f172a' }}>Loan Deleted</h3>
+            <p style={{ margin: '8px 0 22px', color: '#64748b', fontSize: 14 }}>{loanDeleteSuccess}</p>
+            <button type="button" className="btn btn-primary" onClick={() => setLoanDeleteSuccess(null)}>OK</button>
+          </div>
+        </div>
+      )}
+
+      {loanDeleteError && (
+        <div className="modal-overlay" style={{ zIndex: 100003, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15, 23, 42, 0.55)', padding: 20 }}>
+          <div style={{ width: '100%', maxWidth: 420, background: '#fff', borderRadius: 14, boxShadow: '0 24px 60px rgba(15, 23, 42, 0.24)', padding: 26, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+            <div style={{ width: 52, height: 52, borderRadius: 14, background: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+              <i className="bi bi-exclamation-triangle" style={{ fontSize: 24 }}></i>
+            </div>
+            <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#0f172a' }}>Delete Failed</h3>
+            <p style={{ margin: '8px 0 22px', color: '#64748b', fontSize: 14 }}>{loanDeleteError}</p>
+            <button type="button" className="btn btn-primary" onClick={() => setLoanDeleteError(null)}>OK</button>
           </div>
         </div>
       )}
