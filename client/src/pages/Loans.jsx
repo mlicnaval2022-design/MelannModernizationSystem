@@ -205,7 +205,7 @@ export default function Loans() {
           { value: 'fullpaid', label: 'Fully Paid' },
           { value: 'reloan_pending', label: 'Pending Reloans' },
           { value: 'approved', label: 'Approved (Not Released)' },
-          { value: 'reversed', label: 'Reversed' }
+
         ].map(tab => (
           <div 
             key={tab.value}

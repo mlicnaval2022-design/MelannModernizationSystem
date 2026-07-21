@@ -403,9 +403,6 @@ export default function Payments() {
             <button className={`payment-tab ${activeTab === 'reverse' ? 'active' : ''}`} onClick={() => setActiveTab('reverse')}>
               Reverse Payment
             </button>
-            <button className={`payment-tab ${activeTab === 'reverse-loan' ? 'active' : ''}`} onClick={() => setActiveTab('reverse-loan')}>
-              Reverse Loan
-            </button>
           </>
         )}
       </div>

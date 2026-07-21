@@ -1948,10 +1948,11 @@ export default function Customers() {
               {/* Payment History Logic */}
               {(() => {
                 const loanPayments = getPaymentHistoryRows(selectedLoanForPayments);
-                const totalPaid = loanPayments.reduce((sum, p) => sum + Number(p.amount_paid || 0), 0);
+                const validPayments = loanPayments.filter(p => isGoodPayment(p));
+                const totalPaid = validPayments.reduce((sum, p) => sum + Number(p.amount_paid || 0), 0);
                 const totalPayable = Number(selectedLoanForPayments.total_amortization || selectedLoanForPayments.principal);
                 const paymentRate = totalPayable > 0 ? Math.min(100, (totalPaid / totalPayable) * 100).toFixed(2) : 0;
-                const lastPaymentDate = loanPayments.length > 0 ? loanPayments[0].date_paid : '-';
+                const lastPaymentDate = validPayments.length > 0 ? validPayments[0].date_paid : '-';
 
                 return (
                   <>
@@ -2054,7 +2055,7 @@ export default function Customers() {
                         </div>
                         <div>
                           <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '2px', letterSpacing: '0.5px' }}>TOTAL PAYMENTS</div>
-                          <div style={{ fontSize: '18px', fontWeight: '700', color: '#2563eb' }}>{loanPayments.length}</div>
+                          <div style={{ fontSize: '18px', fontWeight: '700', color: '#2563eb' }}>{validPayments.length}</div>
                           <div style={{ fontSize: '12px', color: '#64748b' }}>Transactions</div>
                         </div>
                       </div>
