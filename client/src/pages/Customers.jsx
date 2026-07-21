@@ -46,7 +46,6 @@ export default function Customers() {
   const [soaLoading, setSoaLoading] = useState(false)
   const [soaTab, setSoaTab] = useState('summary')
   const [selectedLoanForPayments, setSelectedLoanForPayments] = useState(null)
-  const [paymentSortOrder, setPaymentSortOrder] = useState('desc')
   const [penaltyLoan, setPenaltyLoan] = useState(null)
   const [editingPenaltyPayment, setEditingPenaltyPayment] = useState(null)
   const [printModeLoan, setPrintModeLoan] = useState(null)
@@ -1594,15 +1593,6 @@ export default function Customers() {
                           <span><b>Method:</b> Non-compounding</span>
                         </div>
                         <table className="f-soa-ledger-table-new f-soa-penalty-table">
-                          <colgroup>
-                            <col style={{ width: '15.5%' }} />
-                            <col style={{ width: '14.5%' }} />
-                            <col style={{ width: '11.5%' }} />
-                            <col style={{ width: '12.5%' }} />
-                            <col style={{ width: '10%' }} />
-                            <col style={{ width: '18%' }} />
-                            <col style={{ width: '18%' }} />
-                          </colgroup>
                           <thead>
                             <tr>
                               <th>PERIOD</th>
@@ -1619,11 +1609,7 @@ export default function Customers() {
                               <tr key={row.periodNo} className={index % 2 === 0 ? 'f-soa-row-even' : 'f-soa-row-odd'}>
                                 <td>
                                   Period {row.periodNo}
-                                  <span className="f-soa-penalty-period-range">
-                                    <span>{formatDateShort(row.periodStart)}</span>
-                                    <em>to</em>
-                                    <span>{formatDateShort(row.periodEnd)}</span>
-                                  </span>
+                                  <span>{formatDateShort(row.periodStart)} - {formatDateShort(row.periodEnd)}</span>
                                 </td>
                                 <td>{formatMoneyExact(row.beginningBalance)}</td>
                                 <td className={row.paymentMade > 0 ? 'f-soa-penalty-payment' : ''}>{formatMoneyExactDeduction(row.paymentMade)}</td>
@@ -1961,16 +1947,12 @@ export default function Customers() {
 
               {/* Payment History Logic */}
               {(() => {
-                let loanPayments = getPaymentHistoryRows(selectedLoanForPayments);
-                loanPayments = [...loanPayments].sort((a, b) => {
-                  const dateA = new Date(a.date_paid || 0).getTime();
-                  const dateB = new Date(b.date_paid || 0).getTime();
-                  return paymentSortOrder === 'desc' ? dateB - dateA : dateA - dateB;
-                });
-                const totalPaid = loanPayments.reduce((sum, p) => sum + Number(p.amount_paid || 0), 0);
+                const loanPayments = getPaymentHistoryRows(selectedLoanForPayments);
+                const validPayments = loanPayments.filter(p => isGoodPayment(p));
+                const totalPaid = validPayments.reduce((sum, p) => sum + Number(p.amount_paid || 0), 0);
                 const totalPayable = Number(selectedLoanForPayments.total_amortization || selectedLoanForPayments.principal);
                 const paymentRate = totalPayable > 0 ? Math.min(100, (totalPaid / totalPayable) * 100).toFixed(2) : 0;
-                const lastPaymentDate = loanPayments.length > 0 ? loanPayments[0].date_paid : '-';
+                const lastPaymentDate = validPayments.length > 0 ? validPayments[0].date_paid : '-';
 
                 return (
                   <>
@@ -1980,13 +1962,7 @@ export default function Customers() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                           <thead style={{ backgroundColor: '#0d6efd', color: '#ffffff' }}>
                             <tr>
-                              <th 
-                                style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
-                                onClick={() => setPaymentSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
-                                title="Click to sort by date (Oldest to Latest / Latest to Oldest)"
-                              >
-                                DATE {paymentSortOrder === 'desc' ? <i className="bi bi-arrow-down" style={{marginLeft: '4px'}}></i> : <i className="bi bi-arrow-up" style={{marginLeft: '4px'}}></i>}
-                              </th>
+                              <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>DATE</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENT CODE</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENTS</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>RUNNING BALANCE</th>
@@ -2079,7 +2055,7 @@ export default function Customers() {
                         </div>
                         <div>
                           <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '2px', letterSpacing: '0.5px' }}>TOTAL PAYMENTS</div>
-                          <div style={{ fontSize: '18px', fontWeight: '700', color: '#2563eb' }}>{loanPayments.length}</div>
+                          <div style={{ fontSize: '18px', fontWeight: '700', color: '#2563eb' }}>{validPayments.length}</div>
                           <div style={{ fontSize: '12px', color: '#64748b' }}>Transactions</div>
                         </div>
                       </div>
@@ -2213,11 +2189,7 @@ export default function Customers() {
                             <tr key={row.periodNo} style={{ borderBottom: idx === computation.rows.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
                               <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>
                                 Period {row.periodNo}
-                                <div style={{ fontSize: '11px', fontWeight: '500', color: '#64748b', marginTop: '2px', lineHeight: '1.35' }}>
-                                  <div>{formatDateShort(row.periodStart)}</div>
-                                  <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>to</div>
-                                  <div>{formatDateShort(row.periodEnd)}</div>
-                                </div>
+                                <div style={{ fontSize: '11px', fontWeight: '500', color: '#64748b', marginTop: '2px' }}>{formatDateLong(row.periodStart)} - {formatDateLong(row.periodEnd)}</div>
                               </td>
                               <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>{formatPhpExact(row.beginningBalance)}</td>
                               <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: '700', color: row.paymentMade > 0 ? '#dc2626' : '#2563eb' }}>{formatPhpDeduction(row.paymentMade)}</td>

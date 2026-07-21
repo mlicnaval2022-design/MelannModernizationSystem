@@ -3,7 +3,7 @@ import API from '../services/api'
 import dayjs from 'dayjs'
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 const today = () => dayjs().format('YYYY-MM-DD')
-const CATS = ['Rent', 'Utilities', 'Salaries', 'Supplies', 'Transportation', 'Miscellaneous', 'Meals', 'Gasoline', 'Short Overages', 'Cash Advance', 'Pastdue Incentives', 'Docstamp', 'Bonus', 'Pres fund', 'Birthday Cash Gift', 'Birthday Cake', 'Load Employee', 'Others']
+const CATS = ['auditors allowance', 'bank transportation', 'BIR', 'BIR Payment', 'birthday cake', 'Bookkeeping', 'Car Payment Toyota', 'Car Payments - Isuzu', 'Cash Advance', 'Diesel', 'DOC Stamp', 'Doctors Fee', 'Electric Bill', 'Gasoline', 'Groceries', 'Insurance', 'Kids Savings', 'load employee', 'meals collector', 'medicine', 'Melanie Salary', 'Monica Salary', 'motor oil', 'Motor Oil', 'Motorcycle Parts', 'NOTARIAL FEE', 'Office Equipments', 'Office Furnitures', 'Office Supplies', 'Other Expenses', 'PAG IBIG', 'Petty Cash', 'PHILHEALTH', 'Salaries Wages', 'SEC', 'SHORT OVERAGES', 'snacks birthday', 'Snacks Bread', 'SSS']
 
 const TABS = [
   { id: 'Expense', label: 'Expenses', icon: '🧾' },
