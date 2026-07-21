@@ -116,7 +116,10 @@ export default function Loans() {
   };
 
   const viewSoa = (customerId, codeOrName = '') => {
-    navigate(`/customers${codeOrName ? `?search=${encodeURIComponent(codeOrName)}` : ''}`);
+    const params = new URLSearchParams();
+    if (codeOrName) params.set('search', codeOrName);
+    if (customerId) params.set('openSoa', customerId);
+    navigate(`/customers${params.toString() ? `?${params.toString()}` : ''}`);
   };
 
   const filteredRows = rows.filter(r => {

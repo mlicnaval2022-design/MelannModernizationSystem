@@ -222,6 +222,13 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
     }
   };
 
+  const openLoanDocument = (tab) => {
+    const params = new URLSearchParams();
+    if (success?.loan_code) params.set('loan', success.loan_code);
+    params.set('tab', tab);
+    window.location.href = `/promissory-disclosure?${params.toString()}`;
+  };
+
   if (success) {
     return (
       <div className="reloan-overlay">
@@ -229,8 +236,8 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
           <h2>Loan successfully recorded.</h2>
           <p>{success.loan_code}</p>
           <div className="loan-entry-success-actions">
-            <button type="button" className="reloan-secondary" onClick={() => window.location.href = '/promissory-disclosure'}>Print Promissory Note</button>
-            <button type="button" className="reloan-secondary" onClick={() => window.location.href = '/promissory-disclosure'}>View Disclosure Statement</button>
+            <button type="button" className="reloan-secondary" onClick={() => openLoanDocument('promissory')}>Print Promissory Note</button>
+            <button type="button" className="reloan-secondary" onClick={() => openLoanDocument('disclosure')}>View Disclosure Statement</button>
             <button type="button" className="reloan-secondary" onClick={openSoa}>View SOA</button>
             <button type="button" className="reloan-primary" onClick={() => { setSuccess(null); setSelectedCustomer(null); setSelectedCustomerId(null); setAccount(null); }}>Input Another Loan</button>
             <button type="button" className="reloan-secondary" onClick={() => { onReloanSubmitted?.(); onClose(); }}>Close</button>

@@ -24,6 +24,11 @@ export default function Customers() {
     if (q !== null && q !== search) setSearch(q)
   }, [searchParams])
 
+  useEffect(() => {
+    const openSoaId = searchParams.get('openSoa')
+    if (openSoaId) openSoa(openSoaId)
+  }, [searchParams])
+
   const [status, setStatus] = useState('')
   const [branchFilter, setBranchFilter] = useState('')
   const [collectorFilter, setCollectorFilter] = useState('')
