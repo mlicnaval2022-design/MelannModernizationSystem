@@ -300,6 +300,7 @@ select.form-control option { background: var(--bg-secondary); }
 .badge-overdue   { background: #ffedd5; color: #ea580c; }
 .badge-recon     { background: #dbeafe; color: #2563eb; }
 .badge-new       { background: #e0e7ff; color: #4f46e5; }
+.badge-cycle     { background: #eef2ff; color: #3730a3; }
 .badge-reversed  { background: rgba(230,147,10,0.10); color: var(--accent-warning); }
 .badge-inactive  { background: rgba(122,141,164,0.12); color: var(--text-muted); }
 .badge-admin     { background: rgba(18,58,99,0.10); color: var(--blue-dark); }

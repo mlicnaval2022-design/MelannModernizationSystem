@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import html2pdf from 'html2pdf.js'
 import API from '../services/api'
 import letterheadImg from '../assets/melann-letterhead.jpg'
@@ -82,12 +83,15 @@ const formatBorrowerName = loan => {
 }
 
 export default function PromissoryDisclosure() {
+  const [searchParams] = useSearchParams()
+  const targetLoanCode = searchParams.get('loan') || ''
+  const targetTab = searchParams.get('tab') || ''
   const [loans, setLoans] = useState([])
-  const [search, setSearch] = useState('')
-  const [releaseDate, setReleaseDate] = useState(toDateInputValue(new Date()))
+  const [search, setSearch] = useState(targetLoanCode)
+  const [releaseDate, setReleaseDate] = useState(targetLoanCode ? '' : toDateInputValue(new Date()))
   const [selectedId, setSelectedId] = useState('')
   const [documentData, setDocumentData] = useState(null)
-  const [activeTab, setActiveTab] = useState('promissory')
+  const [activeTab, setActiveTab] = useState(targetTab === 'disclosure' ? 'disclosure' : 'promissory')
   const [loadingList, setLoadingList] = useState(false)
   const [loadingDoc, setLoadingDoc] = useState(false)
   const [error, setError] = useState('')
@@ -128,16 +132,32 @@ export default function PromissoryDisclosure() {
   useEffect(() => { loadLoans() }, [])
 
   useEffect(() => {
+    if (!targetLoanCode) return
+    setSearch(targetLoanCode)
+    setReleaseDate('')
+    if (targetTab === 'disclosure' || targetTab === 'promissory') setActiveTab(targetTab)
+  }, [targetLoanCode, targetTab])
+
+  useEffect(() => {
     if (filteredLoans.length === 0) {
       setSelectedId('')
       setDocumentData(null)
       return
     }
 
-    if (!filteredLoans.some(loan => String(loan.id) === String(selectedId))) {
+    const targetLoan = targetLoanCode
+      ? filteredLoans.find(loan => String(loan.loan_code || '').toLowerCase() === targetLoanCode.toLowerCase())
+      : null
+
+    if (targetLoan && String(targetLoan.id) !== String(selectedId)) {
+      setSelectedId(String(targetLoan.id))
+      return
+    }
+
+    if (!targetLoanCode && !filteredLoans.some(loan => String(loan.id) === String(selectedId))) {
       setSelectedId(String(filteredLoans[0].id))
     }
-  }, [filteredLoans, selectedId])
+  }, [filteredLoans, selectedId, targetLoanCode])
 
   useEffect(() => {
     if (!selectedId) {
@@ -640,7 +660,7 @@ function DocumentPreview({ data }) {
       <div className="xl-check-grid">
         <div>
           <div className="xl-check">ü</div>
-          <div className="xl-sig-name">{fullName}</div>
+          <div className="xl-sig-name">&nbsp;</div>
           <div className="xl-sig-label">Printed Name and Signature</div>
         </div>
         <div>
