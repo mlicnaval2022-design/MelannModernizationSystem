@@ -16,6 +16,9 @@ const toDateKey = date => {
 const getYesterdayKey = () => {
   const yesterday = new Date()
   yesterday.setDate(yesterday.getDate() - 1)
+  if (yesterday.getDay() === 0) {
+    yesterday.setDate(yesterday.getDate() - 1)
+  }
   return toDateKey(yesterday)
 }
 
