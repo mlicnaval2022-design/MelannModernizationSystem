@@ -115,6 +115,8 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
   const clientName = account?.full_name || activeCustomer?.full_name || activeCustomer?.client_name || '';
   const clientCode = account?.customer_code || activeCustomer?.customer_code || '';
   const canOverride = hasRole?.('admin', 'manager') || ['admin', 'manager'].includes(String(user?.role || '').toLowerCase());
+  const dayOptions = ['30', '45', '60'];
+  const isCustomDays = form.days && !dayOptions.includes(String(form.days));
 
   const computed = useMemo(() => {
     const principal = Number(form.principal || 0);
@@ -182,6 +184,7 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
     if (!computed.principal || computed.principal <= 0) return 'Principal Amount is required.';
     if (!form.loanDate) return 'Loan Date is required.';
     if (!form.days) return 'Number of Days is required.';
+    if (Number(form.days) <= 0) return 'Number of Days must be greater than zero.';
     if (computed.balance < 0 || computed.penalty < 0 || computed.passbook < 0) return 'Balance, Penalty, and Passbook cannot be negative.';
     return '';
   };
@@ -319,7 +322,8 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
                   <label className="reloan-field"><span>Loan Type <b>*</b></span><select value={form.loanType} onChange={e => updateForm('loanType', e.target.value)}><option value="">Select Loan Type</option><option value="NEW">NEW</option><option value="RELOAN">RELOAN</option><option value="RECON">RECON</option></select></label>
                   <label className="reloan-field"><span>Loan Date <b>*</b></span><input type="date" value={form.loanDate} onChange={e => updateForm('loanDate', e.target.value)} /></label>
                   <label className="reloan-field"><span>Principal Amount <b>*</b></span><input type="number" min="1" step="0.01" value={form.principal} onChange={e => updateForm('principal', e.target.value)} /></label>
-                  <label className="reloan-field"><span>Number of Days <b>*</b></span><select value={form.days} onChange={e => updateForm('days', e.target.value)}><option value="30">30 Days</option><option value="45">45 Days</option><option value="60">60 Days</option></select></label>
+                  <label className="reloan-field"><span>Number of Days <b>*</b></span><select value={isCustomDays ? 'OTHER' : form.days} onChange={e => updateForm('days', e.target.value === 'OTHER' ? '' : e.target.value)}><option value="30">30 Days</option><option value="45">45 Days</option><option value="60">60 Days</option><option value="OTHER">Others</option></select></label>
+                  {(isCustomDays || form.days === '') && <label className="reloan-field"><span>Custom Days <b>*</b></span><input type="number" min="1" step="1" placeholder="Enter number of days" value={form.days} onChange={e => updateForm('days', e.target.value)} /></label>}
                   <label className="reloan-field"><span>Interest Rate</span><input type="number" min="0" step="0.01" value={form.interestRate} onChange={e => updateForm('interestRate', e.target.value)} readOnly={!canOverride && false} /></label>
                   <label className="reloan-field"><span>Payment Frequency</span><select value={form.paymentFrequency} onChange={e => updateForm('paymentFrequency', e.target.value)}><option>Daily</option><option>Weekly</option><option>Monthly</option></select></label>
                 </section>
@@ -346,12 +350,11 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
                 <section className="loan-preview">
                   <h3>Loan Preview</h3>
                   {[
-                    ['Client Code', clientCode], ['Client Name', clientName], ['Collector', collectorName], ['Branch', branchName],
+                    ['Client Code', clientCode], ['Client Name', clientName], ['Collector', collectorName],
                     ['Loan Type', form.loanType], ['Loan Date', form.loanDate], ['Principal Amount', peso(computed.principal)],
                     ['Interest Rate', `${form.interestRate || 0}%`], ['Amount of Interest', peso(computed.interestAmount)],
                     ['Total Loan Amount', peso(computed.totalLoanAmount)], ['Balance', peso(computed.balance)],
                     ['Penalty', peso(computed.penalty)], ['Passbook', peso(computed.passbook)],
-                    ['Promissory Charges', peso(computed.releaseCharges)],
                     ['Net Release Amount', peso(computed.netRelease)], ['Number of Days', form.days], ['Due Date', computed.dueDate]
                   ].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value || '-'}</strong></div>)}
                 </section>

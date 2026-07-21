@@ -660,7 +660,7 @@ function DocumentPreview({ data }) {
       <div className="xl-check-grid">
         <div>
           <div className="xl-check">ü</div>
-          <div className="xl-sig-name">{fullName}</div>
+          <div className="xl-sig-name">&nbsp;</div>
           <div className="xl-sig-label">Printed Name and Signature</div>
         </div>
         <div>
