@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import FullyPaid from './FullyPaid'
@@ -8,9 +9,10 @@ const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits:
 
 export default function Loans() {
   const { hasRole } = useAuth()
+  const navigate = useNavigate()
   const [rows, setRows] = useState([])
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('active') // Default to active loans
+  const [status, setStatus] = useState('input')
   const [loading, setLoading] = useState(true)
 
   // Filters
@@ -36,7 +38,7 @@ export default function Loans() {
       client_name: r.customer_name,
       collector_name: r.collector_name
     });
-    setLoanActionType('Recon');
+    setLoanActionType('RECON');
     setReloanModalOpen(true);
   }
 
@@ -47,7 +49,7 @@ export default function Loans() {
       client_name: r.customer_name,
       collector_name: r.collector_name
     });
-    setLoanActionType('Reloan'); // Default to Reloan, modal has dropdown for New/Reloan/Recon
+    setLoanActionType('RELOAN');
     setReloanModalOpen(true);
   }
 
@@ -95,12 +97,27 @@ export default function Loans() {
   };
 
   const load = () => { 
+    if (status === 'input') {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true); 
     API.get('/loans', { params: { search, status } })
        .then(r => setRows(r.data))
        .finally(() => setLoading(false)) 
   }
   useEffect(() => { load() }, [search, status])
+
+  const openInputLoan = (type = 'RELOAN', selectedCustomer = null) => {
+    setLoanActionType(type);
+    setReloanCustomer(selectedCustomer);
+    setReloanModalOpen(true);
+  };
+
+  const viewSoa = (customerId, codeOrName = '') => {
+    navigate(`/customers${codeOrName ? `?search=${encodeURIComponent(codeOrName)}` : ''}`);
+  };
 
   const filteredRows = rows.filter(r => {
     if (filterCollector && (r.collector_name || 'Unassigned') !== filterCollector) return false;
@@ -169,11 +186,12 @@ export default function Loans() {
           <span className="search-icon">🔍</span>
           <input id="loan-search" className="form-control" placeholder="Search name, code, loan#..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <button className="btn btn-dark" onClick={() => { setLoanActionType('Reloan'); setReloanCustomer(null); setReloanModalOpen(true); }}>+ Add Loan</button>
+        <button className="btn btn-dark" onClick={() => openInputLoan('RELOAN')}>+ Input Loan</button>
       </div>
 
       <div className="custom-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '15px', overflowX: 'auto', paddingBottom: '5px' }}>
         {[
+          { value: 'input', label: 'Input Loans' },
           { value: '', label: 'All Status' },
           { value: 'relax', label: 'Relax' },
           { value: 'hold', label: 'Hold' },
@@ -203,7 +221,35 @@ export default function Loans() {
         ))}
       </div>
 
-      {status === 'fullpaid' ? (
+      {status === 'input' ? (
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16, marginBottom: 16 }}>
+            <section className="card" style={{ padding: 20 }}>
+              <h4 style={{ margin: '0 0 12px', color: '#1e293b' }}>Loan Entry Actions</h4>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button className="btn btn-dark" onClick={() => openInputLoan('NEW')}>NEW</button>
+                <button className="btn btn-dark" onClick={() => openInputLoan('RELOAN')}>RELOAN</button>
+                <button className="btn btn-dark" onClick={() => openInputLoan('RECON')}>RECON</button>
+                <button className="btn btn-light" style={{ border: '1px solid #cbd5e1' }} onClick={() => navigate(`/customers${search ? `?search=${encodeURIComponent(search)}` : ''}`)}>View SOA</button>
+              </div>
+            </section>
+
+            <section className="card" style={{ padding: 20 }}>
+              <h4 style={{ margin: '0 0 12px', color: '#1e293b' }}>Current Account Status</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+                {['NEW', 'RELOAN', 'RECON', 'DRAFT', 'FOR APPROVAL', 'APPROVED', 'RELEASED', 'HOLD', 'REJECTED', 'CANCELLED'].map(label => (
+                  <span key={label} className={`badge badge-${label.toLowerCase().replace(/\s+/g, '-')}`} style={{ justifyContent: 'center' }}>{label}</span>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <section className="card" style={{ padding: 20 }}>
+            <h4 style={{ margin: '0 0 12px', color: '#1e293b' }}>Recent Loan-Entry Activity</h4>
+            <p style={{ margin: 0, color: '#64748b' }}>Recently processed transactions appear in the status tabs. Use SOA for previous loans, payments, penalties, adjustments, and running balances.</p>
+          </section>
+        </div>
+      ) : status === 'fullpaid' ? (
         <FullyPaid search={search} />
       ) : (
         <>
@@ -226,11 +272,11 @@ export default function Loans() {
           <div className="table-wrapper">
             <table className="data-table">
               <thead>
-                <tr><th>Loan #</th><th>Customer</th><th>Type</th><th>Principal</th><th>Balance</th><th>Released</th><th>Maturity</th><th>Collector</th><th>Status</th><th>Actions</th></tr>
+                <tr><th>Loan #</th><th>Customer</th><th>Type</th><th>Principal</th><th>Balance</th><th>Released</th><th>Maturity</th><th>Collector</th><th>Status</th></tr>
               </thead>
             <tbody>
-              {loading ? <tr className="loading-row"><td colSpan={10}>⏳ Loading...</td></tr>
-                : filteredRows.length === 0 ? <tr><td colSpan={10} className="empty-state">No loans found</td></tr>
+              {loading ? <tr className="loading-row"><td colSpan={9}>⏳ Loading...</td></tr>
+                : filteredRows.length === 0 ? <tr><td colSpan={9} className="empty-state">No loans found</td></tr>
                 : filteredRows.map(r => (
                   <tr key={r.id}>
                     <td><span className="mono">{r.loan_code}</span></td>
@@ -262,30 +308,6 @@ export default function Loans() {
                           </>
                         )
                       })()}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button className="btn btn-secondary btn-sm" onClick={() => viewDetail(r.id)}>View</button>
-                        {['relax', 'hold'].includes(r.customer_status?.toLowerCase()) && (
-                          <button className="btn btn-light btn-sm" style={{ border: '1px solid #cbd5e1' }} onClick={() => handleEditNote(r)}>Edit Note</button>
-                        )}
-                        {hasRole('admin', 'manager') && r.status === 'active' && (
-                          <>
-                            <button className="btn btn-sm" style={{ background: '#0369a1', color: '#fff', border: 'none' }} onClick={() => triggerRecon(r)}>Recon</button>
-                            <button className="btn btn-warning btn-sm" onClick={() => setEditModal({...r, date_released: r.date_released ? new Date(r.date_released).toISOString().split('T')[0] : ''})}>Edit</button>
-                            <button className="btn btn-danger btn-sm" onClick={() => handleReverse(r.id)}>Reverse</button>
-                          </>
-                        )}
-                        {hasRole('admin', 'manager') && r.status === 'reloan_pending' && (
-                          <>
-                            <button className="btn btn-success btn-sm" onClick={() => handleApproveReloan(r.id)}>Approve</button>
-                            <button className="btn btn-danger btn-sm" onClick={() => handleRejectReloan(r.id)}>Reject</button>
-                          </>
-                        )}
-                        {hasRole('admin', 'manager') && r.status === 'approved' && (
-                          <button className="btn btn-dark btn-sm" onClick={() => triggerAddLoan(r)}>Add Loan</button>
-                        )}
-                      </div>
                     </td>
                   </tr>
                 ))}
@@ -497,6 +519,7 @@ export default function Loans() {
         customerId={reloanCustomer?.id}
         customer={reloanCustomer}
         loanType={loanActionType}
+        onViewSoa={(customerId) => viewSoa(customerId, reloanCustomer?.customer_code || reloanCustomer?.client_name || search)}
         onReloanSubmitted={() => {
           setReloanModalOpen(false);
           load();

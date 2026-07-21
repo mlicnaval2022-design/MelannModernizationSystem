@@ -8,7 +8,7 @@ const path = require('path');
 const fs = require('fs');
 
 const router = express.Router();
-const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
+const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.stack ? err.stack.toString() : err.message });
 
 const uploadDir = path.join(__dirname, '../../../uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -98,7 +98,15 @@ async function postPriorLoanBalancePayment({ customerId, sourceLoanId, amount, u
 
   const datePaid = date_released || todayDateOnly();
   requireOperationDate(datePaid, 'Payment date');
-  const balanceBefore = Number(sourceLoan.balance || 0);
+  const latestPayment = await dbGet(
+    `SELECT balance_after FROM tblPayment
+     WHERE loan_id = ? AND status = 'active'
+     ORDER BY date_paid DESC, id DESC LIMIT 1`,
+    [sourceLoan.id]
+  );
+  const loanBalance = Number(sourceLoan.balance || 0);
+  const latestRunningBalance = Number(latestPayment?.balance_after || 0);
+  const balanceBefore = Math.max(loanBalance, latestRunningBalance);
   const balanceAfter = Math.max(0, balanceBefore - paymentAmount);
   const maxCodeRes = await dbGet(`SELECT MAX(CAST(payment_code AS INTEGER)) as max_code FROM tblPayment WHERE customer_id = ?`, [customerId]);
   const nextCode = (maxCodeRes?.max_code || 0) + 1;
@@ -215,6 +223,24 @@ const getPenaltyRate = (daysOverdue) => {
   if (daysOverdue >= 8) return 2;
   if (daysOverdue >= 1) return 1;
   return 0;
+};
+
+const normalizeLoanType = value => {
+  const type = String(value || '').trim().toUpperCase().replace(/[-\s]/g, '');
+  if (type === 'NEW') return 'NEW';
+  if (type === 'RECON') return 'RECON';
+  if (type === 'RELOAN') return 'RELOAN';
+  return '';
+};
+
+const generateLoanReference = async (releaseDate) => {
+  const datePart = String(releaseDate || new Date().toISOString().split('T')[0]).replace(/-/g, '');
+  const latest = await dbGet(
+    `SELECT loan_code FROM tblLoan WHERE loan_code LIKE ? ORDER BY loan_code DESC LIMIT 1`,
+    [`LN-${datePart}-%`]
+  );
+  const next = latest?.loan_code ? Number(String(latest.loan_code).split('-').pop()) + 1 : 1;
+  return `LN-${datePart}-${String(next).padStart(4, '0')}`;
 };
 
 const getPaymentConsistency = (loan, payments) => {
@@ -840,17 +866,18 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
     const customer = await dbGet('SELECT * FROM tblCustomer WHERE id = ?', [req.params.id]);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
     
-    const maxLoan = await dbGet("SELECT MAX(CAST(REPLACE(loan_code, 'LN-', '') AS INTEGER)) as c FROM tblLoan");
-    const loan_code = `LN-${String((maxLoan?.c || 0) + 1).padStart(6, '0')}`;
     const releaseDate = date_released || new Date().toISOString().split('T')[0];
     requireOperationDate(releaseDate, 'Release date');
     const amount = Number(principal) || 0;
     const period = Number(loan_period) || 45;
     const interestRate = Number(interest_rate) || 0;
-    const normalizedLoanType = loan_type === 'Recon' ? 'Recon' : (loan_type === 'New' ? 'New' : 'Re-Loan');
+    const normalizedLoanType = normalizeLoanType(loan_type);
+    if (!normalizedLoanType) return res.status(400).json({ error: 'Loan Type is required and must be NEW, RELOAN, or RECON.' });
+    if (amount <= 0) return res.status(400).json({ error: 'Invalid loan amount.' });
+    if (![30, 45, 60].includes(period)) return res.status(400).json({ error: 'Number of Days must be 30, 45, or 60.' });
     const loanStatus = 'active';
-    const actionName = normalizedLoanType === 'Recon' ? 'RECON_APP' : 'RELOAN_APP';
-    const defaultRemarks = normalizedLoanType === 'Recon' ? 'Auto-created via Recon application' : 'Auto-created via Re-Loan application';
+    const actionName = normalizedLoanType === 'RECON' ? 'RECON_APP' : normalizedLoanType === 'NEW' ? 'NEW_LOAN_APP' : 'RELOAN_APP';
+    const defaultRemarks = `Auto-created via ${normalizedLoanType} loan input`;
     const interestAmount = amount * (interestRate / 100);
     const totalAmortization = amount + interestAmount;
     const workingDays = getWorkingDays(period);
@@ -859,15 +886,61 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
     const balanceAmount = Number(previous_balance || 0);
     const penaltyAmount = Number(penalty || 0);
     const passbookAmount = passbook === undefined || passbook === null || passbook === ''
-      ? (normalizedLoanType === 'New' ? 50 : 0)
+      ? (normalizedLoanType === 'NEW' ? 50 : 0)
       : Number(passbook || 0);
-    const shouldPostPriorBalance = ['Recon', 'Re-Loan'].includes(normalizedLoanType);
+    const shouldPostPriorBalance = ['RECON', 'RELOAN'].includes(normalizedLoanType);
     const newLoanPreviousBalance = balanceAmount;
     const totalCharges = newLoanPreviousBalance + penaltyAmount + passbookAmount;
-    const netProceeds = amount - totalCharges;
+    const netProceeds = amount;
 
     await dbRun('BEGIN IMMEDIATE TRANSACTION');
     transactionStarted = true;
+
+    const latestLoan = await dbGet(
+      `SELECT * FROM tblLoan WHERE customer_id = ? ORDER BY COALESCE(date_released, created_at) DESC, id DESC LIMIT 1`,
+      [customer.id]
+    );
+    const activeLoan = await dbGet(
+      `SELECT id, loan_code, balance FROM tblLoan
+       WHERE customer_id = ?
+         AND LOWER(status) IN ('active', 'pastdue', 'approved', 'for_approval', 'pending', 'reloan_pending')
+         AND COALESCE(balance, 0) > 0
+       ORDER BY id DESC LIMIT 1`,
+      [customer.id]
+    );
+    const customerStatus = String(customer.status || '').trim().toUpperCase();
+    if (normalizedLoanType === 'NEW' && activeLoan) {
+      const err = new Error('This client already has an active loan and cannot be processed as NEW.');
+      err.statusCode = 400;
+      throw err;
+    }
+    if (normalizedLoanType === 'NEW' && ['HOLD', 'RELAX'].includes(customerStatus)) {
+      const err = new Error(`This client is ${customerStatus} and cannot be processed as NEW.`);
+      err.statusCode = 400;
+      throw err;
+    }
+    if (normalizedLoanType === 'RELOAN') {
+      if (!latestLoan) {
+        const err = new Error('This client is not eligible for RELOAN. Previous loan has not been completed.');
+        err.statusCode = 400;
+        throw err;
+      }
+      if (['HOLD', 'RELAX'].includes(customerStatus)) {
+        const err = new Error(`This client is not eligible for RELOAN. Client is on ${customerStatus} status.`);
+        err.statusCode = 400;
+        throw err;
+      }
+      if (Number(activeLoan?.balance || 0) > 0 && balanceAmount <= 0) {
+        const err = new Error('This client is not eligible for RELOAN. Existing unpaid balance must be reviewed through SOA.');
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+    if (normalizedLoanType === 'RECON' && !latestLoan) {
+      const err = new Error('This client is not eligible for RECON. Please review the account status and required approval.');
+      err.statusCode = 400;
+      throw err;
+    }
 
     const duplicateActiveLoan = await dbGet(
       `SELECT id, loan_code FROM tblLoan
@@ -883,6 +956,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
       err.statusCode = 409;
       throw err;
     }
+    const loan_code = await generateLoanReference(releaseDate);
 
     const priorBalancePayment = shouldPostPriorBalance
       ? await postPriorLoanBalancePayment({

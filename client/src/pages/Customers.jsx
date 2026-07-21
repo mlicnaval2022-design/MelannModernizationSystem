@@ -218,6 +218,19 @@ export default function Customers() {
     }
   }
 
+  const deleteLoanFromSoa = async (loan) => {
+    const loanCode = loan?.loan_code || `Loan ${loan?.id}`;
+    if (!window.confirm(`Delete ${loanCode} and all related payments/schedules? This will permanently remove this specific loan from the SOA.`)) return;
+    try {
+      await API.delete(`/loans/${loan.id}`);
+      setSelectedLoanForPayments(prev => prev?.id === loan.id ? null : prev);
+      if (soaData?.customer?.id) await openSoa(soaData.customer.id);
+      await load();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete loan');
+    }
+  }
+
   const itemsPerPage = 10;
   const totalPages = Math.ceil(rows.length / itemsPerPage);
   const currentRows = rows.slice((page - 1) * itemsPerPage, page * itemsPerPage);
@@ -1248,7 +1261,7 @@ export default function Customers() {
                         {loans.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Loan Code</th><th>Type</th><th>Date Released</th><th>Maturity</th><th>Period</th><th>Principal</th><th>Interest Rate</th><th>Interest Amount</th><th>Total Loan</th><th>Amortization</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead><tbody>{loans.map(l => (<tr key={l.id} onClick={() => setSelectedLoanForPayments(l)} style={{ cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><td className="mono" style={{color: '#2563eb', fontWeight: '600'}} title="View payment history for this loan">{l.loan_code}</td><td>
   {l.loan_type || '-'}
   {String(l.status).toLowerCase() === 'reversed' && <span style={{ color: '#ef4444', marginLeft: '6px', fontWeight: 'bold', fontSize: '11px' }}>(REVERSED)</span>}
-</td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td><td><button className="action-btn" onClick={(e) => { e.stopPropagation(); setPrintModeLoan(l); }}><i className="bi bi-printer"></i> Print</button></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
+</td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td><td><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><button className="action-btn" onClick={(e) => { e.stopPropagation(); setPrintModeLoan(l); }}><i className="bi bi-printer"></i> Print</button><button className="action-btn" style={{ borderColor: '#fecaca', color: '#dc2626', background: '#fff5f5' }} onClick={(e) => { e.stopPropagation(); deleteLoanFromSoa(l); }}><i className="bi bi-trash"></i> Delete</button></div></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
                       </div>
                     )}
 

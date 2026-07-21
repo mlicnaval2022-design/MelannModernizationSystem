@@ -8,6 +8,15 @@ const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ er
 
 const isNewLoanType = type => ['new', 'new loan'].includes(String(type || '').trim().toLowerCase());
 const passbookForLoan = loan => isNewLoanType(loan?.loan_type) ? 50 : Number(loan?.passbook || 0);
+const generateLoanReference = async (releaseDate) => {
+  const datePart = String(releaseDate || new Date().toISOString().split('T')[0]).replace(/-/g, '');
+  const latest = await dbGet(
+    `SELECT loan_code FROM tblLoan WHERE loan_code LIKE ? ORDER BY loan_code DESC LIMIT 1`,
+    [`LN-${datePart}-%`]
+  );
+  const next = latest?.loan_code ? Number(String(latest.loan_code).split('-').pop()) + 1 : 1;
+  return `LN-${datePart}-${String(next).padStart(4, '0')}`;
+};
 
 router.get('/', authenticateToken, async (req, res) => {
   try {
@@ -47,12 +56,24 @@ router.get('/sheet/collection', authenticateToken, async (req, res) => {
     
     const loans = await dbAll(`
       SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, c.photo_client, c.photo_id_front,
-             (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status IN ('active', 'penalty') AND ${sqlNotSunday('date_paid')}) as collected_today
+             (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status IN ('active', 'penalty') AND ${sqlNotSunday('date_paid')}) as collected_today,
+             (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status = 'active' AND LOWER(COALESCE(remarks, '')) LIKE '%old balance%' AND ${sqlNotSunday('date_paid')}) as balance_collected_today,
+             (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status = 'penalty' AND ${sqlNotSunday('date_paid')}) as penalty_collected_today
       FROM tblLoan l
       JOIN tblCustomer c ON l.customer_id = c.id
-      WHERE l.collector_id = ? AND LOWER(l.status) IN ('active', 'pastdue') AND COALESCE(l.balance, 0) > 0
+      WHERE l.collector_id = ?
+        AND (
+          (LOWER(l.status) IN ('active', 'pastdue') AND COALESCE(l.balance, 0) > 0)
+          OR EXISTS (
+            SELECT 1 FROM tblPayment p
+            WHERE p.loan_id = l.id
+              AND p.date_paid = ?
+              AND p.status IN ('active', 'penalty')
+              AND ${sqlNotSunday('p.date_paid')}
+          )
+        )
       ORDER BY CAST(c.customer_code AS INTEGER) ASC, c.customer_code ASC
-    `, [targetDate, collector_id]);
+    `, [targetDate, targetDate, targetDate, collector_id, targetDate]);
     
     const summary = {
       total_clients: loans.length,
@@ -124,9 +145,8 @@ router.post('/', authenticateToken, async (req, res) => {
       ? (isNewLoanType(loan_type || 'New') ? 50 : 0)
       : Number(passbook || 0);
     const { service_fee, total_deductions } = computeNetProceeds(principal, 0, 0, 0, 0);
-    const net_proceeds = Number(principal || 0) - balanceAmount - penaltyAmount - passbookAmount;
-    const maxLoan = await dbGet("SELECT MAX(CAST(REPLACE(loan_code, 'LN-', '') AS INTEGER)) as c FROM tblLoan");
-    const loan_code = `LN-${String((maxLoan?.c || 0) + 1).padStart(6, '0')}`;
+    const net_proceeds = Number(principal || 0);
+    const loan_code = await generateLoanReference(date_released);
     const loan_status = status || 'pending';
     const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, service_fee, insurance, notarial_fee, filing_fee, total_deductions, net_proceeds, balance, previous_balance, penalty, passbook, or_number, remarks, created_by, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [loan_code, customer_id, collector_id, branch_id || null, loan_type || 'New', principal, interest_rate || 0, interest_amount, 45, date_released, date_maturity, amortization, total_amortization, 0, 0, 0, 0, 0, net_proceeds, total_amortization, balanceAmount, penaltyAmount, passbookAmount, '', remarks, req.user.id, loan_status]);
@@ -393,11 +413,26 @@ router.delete('/:id', authenticateToken, requireRole('admin', 'manager'), async 
     const loan_id = req.params.id;
     const loan = await dbGet('SELECT * FROM tblLoan WHERE id = ?', [loan_id]);
     if (!loan) return res.status(404).json({ error: 'Loan not found' });
-    
-    await dbRun('DELETE FROM tblLoan WHERE id = ?', [loan_id]);
-    await dbRun('DELETE FROM tblCreditInvestigation WHERE loan_id = ?', [loan_id]);
-    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, 
-      [req.user.id, req.user.username, 'DELETE', 'LOAN', loan_id, `Deleted loan ${loan.loan_code}`]);
+
+    await dbRun('BEGIN IMMEDIATE TRANSACTION');
+    try {
+      await dbRun('DELETE FROM tblPayment WHERE loan_id = ?', [loan_id]);
+      await dbRun('DELETE FROM tblAmortizationSchedule WHERE loan_id = ?', [loan_id]);
+      await dbRun('DELETE FROM tblCreditInvestigation WHERE loan_id = ?', [loan_id]);
+      await dbRun('DELETE FROM tblCharge WHERE loan_id = ?', [loan_id]);
+      await dbRun('DELETE FROM tblBreakdown WHERE loan_id = ?', [loan_id]);
+      await dbRun('DELETE FROM tblColl_Data WHERE loan_id = ?', [loan_id]);
+      await dbRun('DELETE FROM tblMonitoringAlert WHERE loan_id = ?', [loan_id]);
+      await dbRun('DELETE FROM tblGovernmentComplianceClients WHERE loan_id = ?', [loan_id]);
+      await dbRun('DELETE FROM tblCICSubmissionRecord WHERE loan_id = ?', [loan_id]);
+      await dbRun('DELETE FROM tblLoan WHERE id = ?', [loan_id]);
+      await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
+        [req.user.id, req.user.username, 'DELETE', 'LOAN', loan_id, `Deleted loan ${loan.loan_code} and related payments/schedules`]);
+      await dbRun('COMMIT');
+    } catch (err) {
+      await dbRun('ROLLBACK');
+      throw err;
+    }
     
     res.json({ message: 'Loan deleted successfully' });
   } catch (err) { res.status(500).json({ error: err.message }); }
