@@ -683,10 +683,13 @@ router.get('/:id/reloan-eval', authenticateToken, async (req, res) => {
       collection_efficiency = Math.round((sched.on_time / sched.total_payments) * 100);
     }
 
-    const is_fully_paid = customer.status === 'FULLY PAID';
+    const customerStatus = String(customer.status || '').trim().toUpperCase();
+    const is_fully_paid = customerStatus === 'FULLY PAID';
+    const is_relax = customerStatus === 'RELAX';
     const no_active_loan = !activeOrPastDueLoans || activeOrPastDueLoans.count === 0;
     const no_outstanding_balance = !activeOrPastDueLoans || !activeOrPastDueLoans.total_balance || activeOrPastDueLoans.total_balance <= 0;
-    const is_good_standing = is_fully_paid && no_active_loan && no_outstanding_balance;
+    const has_loan_history = Number(stats?.total_loans || 0) > 0;
+    const is_good_standing = (is_fully_paid || (is_relax && has_loan_history)) && no_active_loan && no_outstanding_balance;
 
     // Allow new loan if there's no outstanding balance, even if customer status isn't 'FULLY PAID'
     const can_proceed = no_outstanding_balance;
@@ -819,7 +822,7 @@ router.put('/:id/relax', authenticateToken, requireRole('admin', 'manager'), asy
       return res.status(400).json({ error: `Cannot relax this client because there is an outstanding balance amounting to ₱${balance.toLocaleString('en-US', {minimumFractionDigits: 2})}. Please settle the remaining balance before proceeding.` });
     }
     
-    await dbRun(`UPDATE tblCustomer SET status='inactive', updated_at=datetime('now') WHERE id=?`, [req.params.id]);
+    await dbRun(`UPDATE tblCustomer SET status='RELAX', updated_at=datetime('now') WHERE id=?`, [req.params.id]);
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'RELAX', 'CUSTOMER', req.params.id, `Relaxed client account`]);
     res.json({ message: 'Customer relaxed successfully' });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
@@ -915,7 +918,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
       err.statusCode = 400;
       throw err;
     }
-    if (normalizedLoanType === 'NEW' && ['HOLD', 'RELAX'].includes(customerStatus)) {
+    if (normalizedLoanType === 'NEW' && customerStatus === 'HOLD') {
       const err = new Error(`This client is ${customerStatus} and cannot be processed as NEW.`);
       err.statusCode = 400;
       throw err;
@@ -926,7 +929,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
         err.statusCode = 400;
         throw err;
       }
-      if (['HOLD', 'RELAX'].includes(customerStatus)) {
+      if (customerStatus === 'HOLD') {
         const err = new Error(`This client is not eligible for RELOAN. Client is on ${customerStatus} status.`);
         err.statusCode = 400;
         throw err;
@@ -947,7 +950,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
       `SELECT id, loan_code FROM tblLoan
        WHERE customer_id = ?
          AND date_released = ?
-         AND LOWER(loan_type) = LOWER(?)
+         AND UPPER(REPLACE(REPLACE(loan_type, '-', ''), ' ', '')) = ?
          AND LOWER(status) IN ('active', 'pending', 'approved', 'for_approval', 'reloan_pending')
        ORDER BY id DESC LIMIT 1`,
       [customer.id, releaseDate, normalizedLoanType]

@@ -79,7 +79,18 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       loans_released_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE date_released = ? AND status IN ('active', 'fully_paid') AND ${sqlNotSunday('date_released')}`, [today])).c,
       total_portfolio: (await dbGet(`SELECT COALESCE(SUM(balance),0) as total FROM tblLoan WHERE status IN ('active','pastdue')`)).total,
       fully_paid_today: (await dbGet(`SELECT COUNT(DISTINCT customer_id) as c FROM tblCustomerStatusHistory WHERE new_status='FULLY PAID' AND date(created_at) = date('now', 'localtime')`)).c,
-      eligible_for_reloan: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='FULLY PAID'`)).c,
+      eligible_for_reloan: (await dbGet(`
+        SELECT COUNT(*) as c
+        FROM tblCustomer c
+        WHERE UPPER(c.status) IN ('FULLY PAID', 'RELAX')
+          AND NOT EXISTS (
+            SELECT 1
+            FROM tblLoan l
+            WHERE l.customer_id = c.id
+              AND LOWER(l.status) IN ('active', 'pastdue')
+              AND COALESCE(l.balance, 0) > 0
+          )
+      `)).c,
       recon_count: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='RECON'`)).c,
       relax_count: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='RELAX'`)).c,
       hold_count: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='hold'`)).c,
