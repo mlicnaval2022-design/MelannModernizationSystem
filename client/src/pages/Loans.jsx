@@ -191,7 +191,6 @@ export default function Loans() {
           <span className="search-icon">🔍</span>
           <input id="loan-search" className="form-control" placeholder="Search name, code, loan#..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <button className="btn btn-dark" onClick={() => openInputLoan('RELOAN')}>+ Input Loan</button>
       </div>
 
       <div className="custom-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '15px', overflowX: 'auto', paddingBottom: '5px' }}>
