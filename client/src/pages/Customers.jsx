@@ -274,7 +274,7 @@ export default function Customers() {
 
   const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
   const formatMoneyExact = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const formatPhp = (value) => `PHP ${Number(value || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
+  const formatPhp = (value) => `PHP ${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const formatPhpExact = (value) => `PHP ${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const formatMoneyExactDeduction = (value) => Number(value || 0) > 0 ? `-${formatMoneyExact(value)}` : formatMoneyExact(0);
   const formatPhpDeduction = (value) => Number(value || 0) > 0 ? `-${formatPhpExact(value)}` : formatPhpExact(0);
