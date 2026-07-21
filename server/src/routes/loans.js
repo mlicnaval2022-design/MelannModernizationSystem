@@ -75,13 +75,47 @@ router.get('/sheet/collection', authenticateToken, async (req, res) => {
       ORDER BY CAST(c.customer_code AS INTEGER) ASC, c.customer_code ASC
     `, [targetDate, targetDate, targetDate, collector_id, targetDate]);
     
+    const loansByCustomer = loans.reduce((acc, loan) => {
+      if (!acc.has(loan.customer_id)) acc.set(loan.customer_id, []);
+      acc.get(loan.customer_id).push(loan);
+      return acc;
+    }, new Map());
+
+    const collectionLoans = [];
+    loansByCustomer.forEach(customerLoans => {
+      const activeTransferLoan = customerLoans.find(loan =>
+        String(loan.status || '').toLowerCase() === 'active' &&
+        ['reloan', 'recon'].includes(String(loan.loan_type || '').toLowerCase().replace(/[^a-z0-9]/g, '')) &&
+        loan.date_released === targetDate
+      );
+
+      if (!activeTransferLoan) {
+        collectionLoans.push(...customerLoans);
+        return;
+      }
+
+      const priorCollections = customerLoans
+        .filter(loan => loan.id !== activeTransferLoan.id && String(loan.status || '').toLowerCase() === 'fullpaid')
+        .reduce((totals, loan) => {
+          totals.balance += Number(loan.balance_collected_today || 0);
+          return totals;
+        }, { balance: 0 });
+
+      activeTransferLoan.reloan_balance_note = priorCollections.balance;
+      collectionLoans.push(activeTransferLoan);
+      collectionLoans.push(...customerLoans.filter(loan =>
+        loan.id !== activeTransferLoan.id &&
+        String(loan.status || '').toLowerCase() !== 'fullpaid'
+      ));
+    });
+
     const summary = {
-      total_clients: loans.length,
-      total_due: loans.reduce((s, l) => s + l.amortization, 0),
-      total_collected: loans.reduce((s, l) => s + l.collected_today, 0),
+      total_clients: collectionLoans.length,
+      total_due: collectionLoans.reduce((s, l) => s + l.amortization, 0),
+      total_collected: collectionLoans.reduce((s, l) => s + (l.collected_today || 0) + (l.reloan_balance_note || 0) + (l.reloan_penalty_note || 0), 0),
     };
     
-    res.json({ loans, summary });
+    res.json({ loans: collectionLoans, summary });
   } catch (err) { sendRouteError(res, err); }
 });
 

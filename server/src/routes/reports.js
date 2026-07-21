@@ -323,9 +323,43 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
       ORDER BY c.full_name ASC
     `, [targetDate, targetDate, targetDate, collector_id, targetDate]);
 
+    const loansByCustomer = loans.reduce((acc, loan) => {
+      if (!acc.has(loan.customer_id)) acc.set(loan.customer_id, []);
+      acc.get(loan.customer_id).push(loan);
+      return acc;
+    }, new Map());
+
+    const collectionLoans = [];
+    loansByCustomer.forEach(customerLoans => {
+      const activeTransferLoan = customerLoans.find(loan =>
+        String(loan.status || '').toLowerCase() === 'active' &&
+        ['reloan', 'recon'].includes(String(loan.loan_type || '').toLowerCase().replace(/[^a-z0-9]/g, '')) &&
+        loan.date_released === targetDate
+      );
+
+      if (!activeTransferLoan) {
+        collectionLoans.push(...customerLoans);
+        return;
+      }
+
+      const priorCollections = customerLoans
+        .filter(loan => loan.id !== activeTransferLoan.id && String(loan.status || '').toLowerCase() === 'fullpaid')
+        .reduce((totals, loan) => {
+          totals.balance += Number(loan.balance_collected_today || 0);
+          return totals;
+        }, { balance: 0 });
+
+      activeTransferLoan.reloan_balance_note = priorCollections.balance;
+      collectionLoans.push(activeTransferLoan);
+      collectionLoans.push(...customerLoans.filter(loan =>
+        loan.id !== activeTransferLoan.id &&
+        String(loan.status || '').toLowerCase() !== 'fullpaid'
+      ));
+    });
+
     // Compute days past due for each loan
     const refDate = new Date(targetDate + 'T00:00:00');
-    loans.forEach(l => {
+    collectionLoans.forEach(l => {
       let dpd = 0;
       if (l.date_maturity) {
         const mat = new Date(l.date_maturity + 'T00:00:00');
@@ -337,10 +371,10 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
     });
 
     // Calculate summary totals
-    const totalCollection = loans.reduce((s, l) => s + (l.collected_today || 0), 0);
+    const totalCollection = collectionLoans.reduce((s, l) => s + (l.collected_today || 0) + (l.reloan_balance_note || 0) + (l.reloan_penalty_note || 0), 0);
 
     res.json({
-      loans,
+      loans: collectionLoans,
       collector_id,
       date: targetDate,
       collector: { id: collector?.id, name: collectorName },

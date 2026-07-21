@@ -3271,6 +3271,8 @@ export default function Reports() {
       }
 
       const cs = { borderBottom: '1.2px solid #000', verticalAlign: 'middle', padding: '2px 1px' }
+      const collectionNoteStyle = { display: 'block', color: CL.pastdue, fontSize: '7.5pt', fontWeight: 800, lineHeight: 1.05 }
+      const collectionAmountText = amount => Number(amount || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })
       const entryCells = (entry) => {
         if (!entry) return <td colSpan={7} style={{ border: 'none', padding: 0 }}></td>
         if (entry.type === 'header') return (
@@ -3285,6 +3287,9 @@ export default function Reports() {
         )
         const c = entry.client
         const rowColor = entry.color === CL.pastdue ? CL.pastdue : (isReconLoan(c) ? CL.recon : entry.color)
+        const penaltyNote = Number(c.reloan_penalty_note || c.penalty_collected_today || 0)
+        const balanceNote = Number(c.reloan_balance_note || 0)
+        const regularCollected = Math.max(0, Number(c.collected_today || 0) - Number(c.penalty_collected_today || 0))
         return (<>
           <td style={{ ...cs, fontWeight: 600, fontSize: '7pt', textAlign: 'center', width: '5%' }}>{entry.rowNum}</td>
           <td style={{ ...cs, fontSize: '10pt', fontWeight: 700, color: rowColor, width: '12%' }}>{c.customer_code}</td>
@@ -3293,9 +3298,10 @@ export default function Reports() {
           <td style={{ ...cs, textAlign: 'center', fontSize: '6pt', color: rowColor, fontWeight: 600, width: '4%', paddingLeft: 0, paddingRight: 0 }}>{c.days_past_due}</td>
           <td style={{ ...cs, textAlign: 'right', fontSize: '7pt', width: '8%', paddingLeft: 0 }}>{c.amortization ? Number(c.amortization).toLocaleString() : '0'}</td>
           <td style={{ ...cs, width: '19%', verticalAlign: 'bottom', paddingLeft: 2 }}>
-            {c.collected_today > 0
-              ? <span style={{ fontSize: '7.5pt', fontWeight: 600 }}>{peso(c.collected_today)}</span>
-              : <div style={{ height: 12 }}></div>}
+            {regularCollected > 0 && <span style={{ fontSize: '7.5pt', fontWeight: 600 }}>{peso(regularCollected)}</span>}
+            {balanceNote > 0 && <span style={collectionNoteStyle}>{collectionAmountText(balanceNote)} bal.</span>}
+            {penaltyNote > 0 && <span style={collectionNoteStyle}>{collectionAmountText(penaltyNote)} Pen.</span>}
+            {regularCollected <= 0 && balanceNote <= 0 && penaltyNote <= 0 && <div style={{ height: 12 }}></div>}
           </td>
         </>)
       }
