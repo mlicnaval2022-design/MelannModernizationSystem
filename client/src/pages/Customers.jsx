@@ -8,6 +8,7 @@ import '../soa-v2.css'
 import '../customers.css'
 import '../customers-v2.css'
 import CustomerWizard from '../components/CustomerWizard'
+import ReloanModal from '../components/ReloanModal'
 import logoImg from '../assets/logo.png'
 import { Users, CheckCircle, XCircle, Calendar, Search, Filter, FileText, Phone, Mail, MapPin, User, MoreVertical, BarChart2, Plus, Printer, X, PieChart, List, Wallet, Scale, CalendarDays, CalendarClock, Info } from 'lucide-react'
 
@@ -38,6 +39,7 @@ export default function Customers() {
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
+  const [reloanModalOpen, setReloanModalOpen] = useState(false)
 
   
   const [soaModal, setSoaModal] = useState(false)
@@ -1102,6 +1104,9 @@ export default function Customers() {
                         <p className="soa-brand-sub-v2">STATEMENT OF ACCOUNT</p>
                       </div>
                       <div className="soa-actions-v2 screen-only">
+                        <button className="soa-btn-primary-v2" style={{ background: '#10b981', color: '#fff' }} onClick={() => setReloanModalOpen(true)}>
+                          <Plus size={16} /> Input Loan
+                        </button>
                         <button className="soa-btn-outline-v2" onClick={() => setSoaModal(false)}>
                           Back
                         </button>
@@ -2380,6 +2385,18 @@ export default function Customers() {
           </div>
         </div>
       )}
+
+      <ReloanModal 
+        isOpen={reloanModalOpen} 
+        onClose={() => setReloanModalOpen(false)} 
+        customerId={soaData?.id} 
+        customer={soaData}
+        loanType="NEW"
+        onReloanSubmitted={() => {
+          setReloanModalOpen(false);
+          openSoa(soaData.id);
+        }}
+      />
     </div>
   )
 }

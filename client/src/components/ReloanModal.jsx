@@ -166,7 +166,6 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
     if (!type) return { ok: false, message: 'Loan Type is required.' };
     if (status === 'HOLD') return { ok: false, message: `This client is not eligible for ${type}. Client is on ${status} status.` };
     if (type === 'NEW' && activeLoan) return { ok: false, message: 'This client already has an active loan and cannot be processed as NEW.' };
-    if (type === 'RELOAN' && !latestLoan) return { ok: false, message: 'This client is not eligible for RELOAN. Please review the client SOA and approval status.' };
     if (type === 'RECON' && !latestLoan) return { ok: false, message: 'This client is not eligible for RECON. Please review the account status and required approval.' };
     return { ok: true, message: 'Eligible for loan encoding subject to approval controls.' };
   }, [activeCustomerId, activeLoan, form.loanType, latestLoan, status]);
