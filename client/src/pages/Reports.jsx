@@ -3399,21 +3399,20 @@ export default function Reports() {
         </div>
       )
       const pageHeader = (showSideBoxes = true) => (
-        <div className="collection-sheet-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 20 }}>
+        <div className="collection-sheet-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
           <div style={{ flex: '0 0 auto' }}>
             {showSideBoxes ? headerBox('DENOMINATION', [...[1000, 500, 200, 100, 50, 20, 10, 5, 1].map(denominationLine), denominationTotalLine()], 225) : <div style={{ width: 225 }}></div>}
           </div>
           <div style={{ flex: '1 1 auto', minWidth: 0, textAlign: 'center' }}>
-            <div style={{ fontWeight: 700, fontSize: '15pt', color: CL.navy, letterSpacing: 0.2 }}>MELANN LENDING INVESTOR CORPORATION</div>
-            <div style={{ fontWeight: 700, fontSize: '11pt', color: CL.navy }}>FIELD COLLECTION SHEET</div>
-            <div style={{ fontSize: '8pt', color: '#999', marginBottom: 12 }}>Legal Portrait - Two-Column Field Format</div>
+            <div style={{ fontWeight: 700, fontSize: '14pt', color: CL.navy, letterSpacing: 0.2 }}>MELANN LENDING INVESTOR CORPORATION</div>
+            <div style={{ fontWeight: 700, fontSize: '10.5pt', color: CL.navy, marginBottom: 4 }}>FIELD COLLECTION SHEET</div>
             
-            <div style={{ fontSize: '11pt', fontWeight: 700, color: '#333' }}>
+            <div style={{ fontSize: '10pt', fontWeight: 700, color: '#333', marginBottom: 6 }}>
               {collectorDisplayName} &nbsp;|&nbsp; {displayCollDate}
             </div>
 
-            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 12, flexWrap: 'wrap' }}>
-              <div style={{ background: CL.navy, color: '#fff', padding: '2px 8px', borderRadius: 2, fontSize: '8pt', fontWeight: 700 }}>
+            <div style={{ display: 'flex', gap: 5, justifyContent: 'center', marginTop: 4, flexWrap: 'wrap' }}>
+              <div style={{ background: CL.navy, color: '#fff', padding: '1.5px 7px', borderRadius: 2, fontSize: '7.5pt', fontWeight: 700 }}>
                 Overall Total Client: {totalClientsCount}
               </div>
               {[
@@ -3422,24 +3421,17 @@ export default function Reports() {
                 { label: 'Overdue', count: groups.overdue.length, color: CL.overdue },
                 { label: 'Past Due', count: groups.pastdue.length, color: CL.pastdue }
               ].map(b => (
-                <div key={b.label} style={{ background: b.color, color: '#fff', padding: '2px 8px', borderRadius: 2, fontSize: '8pt', fontWeight: 600 }}>
+                <div key={b.label} style={{ background: b.color, color: '#fff', padding: '1.5px 7px', borderRadius: 2, fontSize: '7.5pt', fontWeight: 600 }}>
                   {b.label}: {b.count}
                 </div>
               ))}
             </div>
             
-            <div style={{ marginTop: 10, padding: '4px 16px', border: '1.5px solid ' + CL.navy, borderRadius: 4, display: 'inline-block', textAlign: 'center', background: '#f8fafc' }}>
-              <div style={{ fontWeight: 800, fontSize: '8pt', color: CL.navy, marginBottom: 2 }}>DAILY TARGET</div>
-              <div style={{ fontSize: '11pt', fontWeight: 700, color: '#d9534f' }}>
+            <div style={{ marginTop: 6, padding: '3px 12px', border: '1.2px solid ' + CL.navy, borderRadius: 4, display: 'inline-block', textAlign: 'center', background: '#f8fafc' }}>
+              <div style={{ fontWeight: 800, fontSize: '7.5pt', color: CL.navy, marginBottom: 1 }}>DAILY TARGET</div>
+              <div style={{ fontSize: '9.5pt', fontWeight: 700, color: '#d9534f' }}>
                 {peso([...groups.active, ...groups.overdue].reduce((sum, c) => sum + Number(c.amortization || 0), 0))}
               </div>
-            </div>
-
-            <div style={{ fontSize: '7pt', color: '#777', display: 'flex', gap: 10, justifyContent: 'center', marginTop: 6, flexWrap: 'wrap' }}>
-              <span><b style={{ color: CL.active }}>-</b> Active</span>
-              <span><b style={{ color: CL.recon }}>-</b> Recon</span>
-              <span><b style={{ color: CL.overdue }}>-</b> Overdue</span>
-              <span><b style={{ color: CL.pastdue }}>-</b> Past Due</span>
             </div>
           </div>
           <div style={{ flex: '0 0 auto' }}>
