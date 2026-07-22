@@ -561,7 +561,7 @@ export default function Reports() {
     Object.values(groups).forEach(arr => arr.sort((a, b) => (a.customer_name || '').localeCompare(b.customer_name || '')))
 
     const totalClientsCount = groups.active.length + groups.recon.length + groups.overdue.length + groups.pastdue.length
-    const targetAmount = [...groups.active, ...groups.overdue].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
+    const targetAmount = [...groups.active, ...groups.overdue.filter(c => !isReconLoan(c))].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
     const pesoFmt = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-P${f}` : `P${f}` }
     const fDatePdf = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }) : '-'
 
@@ -3441,8 +3441,8 @@ export default function Reports() {
         if (groups[cls]) groups[cls].push(c)
       })
 
-      const targetAmount = [...groups.active, ...groups.overdue].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
-      const totalActiveClients = groups.active.length + groups.overdue.length
+      const targetAmount = [...groups.active, ...groups.overdue.filter(c => !isReconLoan(c))].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
+      const totalActiveClients = groups.active.length + groups.overdue.filter(c => !isReconLoan(c)).length
 
       return (
         <div style={{ background: '#fff', padding: 40, fontFamily: 'Arial, Helvetica, sans-serif', maxWidth: 600, margin: '0 auto', border: '1px solid #ddd', borderRadius: 8, marginTop: 20 }}>
@@ -3685,7 +3685,7 @@ export default function Reports() {
             <div style={{ marginTop: 6, padding: '3px 12px', border: '1.2px solid ' + CL.navy, borderRadius: 4, display: 'inline-block', textAlign: 'center', background: '#f8fafc' }}>
               <div style={{ fontWeight: 800, fontSize: '7.5pt', color: CL.navy, marginBottom: 1 }}>DAILY TARGET</div>
               <div style={{ fontSize: '9.5pt', fontWeight: 700, color: '#d9534f' }}>
-                {peso([...groups.active, ...groups.overdue].reduce((sum, c) => sum + Number(c.amortization || 0), 0))}
+                {peso([...groups.active, ...groups.overdue.filter(c => !isReconLoan(c))].reduce((sum, c) => sum + Number(c.amortization || 0), 0))}
               </div>
             </div>
           </div>

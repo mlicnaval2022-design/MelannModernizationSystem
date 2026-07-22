@@ -22,6 +22,20 @@ const buildClientAddress = (loan) => [
   loan.customer_zip_code
 ].map(part => String(part || '').trim()).filter(Boolean).join(', ');
 
+const ensureCollectionFieldReleaseTable = () => dbRun(`
+  CREATE TABLE IF NOT EXISTS tblCollectionFieldRelease (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    collector_id INTEGER NOT NULL,
+    report_date TEXT NOT NULL,
+    amount REAL DEFAULT 0,
+    created_by INTEGER,
+    updated_by INTEGER,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(collector_id, report_date)
+  )
+`);
+
 const getPreviousOperationDate = (dateValue) => {
   const date = new Date(`${dateValue}T00:00:00`);
 
@@ -31,6 +45,77 @@ const getPreviousOperationDate = (dateValue) => {
 
   return toLocalDateString(date);
 };
+
+router.get('/collection-sheet/field-releases', authenticateToken, async (req, res) => {
+  try {
+    const targetDate = req.query.date || new Date().toISOString().split('T')[0];
+    requireOperationDate(targetDate, 'Field release date');
+    await ensureCollectionFieldReleaseTable();
+
+    const rows = await dbAll(`
+      SELECT co.id as collector_id,
+             co.collector_code,
+             co.first_name,
+             co.last_name,
+             COALESCE(fr.amount, 0) as amount
+      FROM tblCollector co
+      LEFT JOIN tblCollectionFieldRelease fr
+        ON fr.collector_id = co.id
+       AND fr.report_date = ?
+      WHERE co.is_active = 1
+        AND (
+          (LOWER(co.last_name) = 'torreta' AND LOWER(co.first_name) = 'angelito')
+          OR (LOWER(co.last_name) IN ('domingono', 'dominggono') AND LOWER(co.first_name) = 'renato')
+          OR (LOWER(co.last_name) = 'jugar' AND LOWER(co.first_name) = 'noel')
+          OR (LOWER(co.last_name) = 'caballes' AND LOWER(co.first_name) = 'eddie')
+          OR (LOWER(co.last_name) = 'rosal' AND LOWER(co.first_name) = 'aldie')
+          OR (LOWER(co.last_name) = 'laude' AND LOWER(co.first_name) = 'reynaldo')
+        )
+      ORDER BY CASE
+        WHEN LOWER(co.last_name) = 'torreta' AND LOWER(co.first_name) = 'angelito' THEN 1
+        WHEN LOWER(co.last_name) IN ('domingono', 'dominggono') AND LOWER(co.first_name) = 'renato' THEN 2
+        WHEN LOWER(co.last_name) = 'jugar' AND LOWER(co.first_name) = 'noel' THEN 3
+        WHEN LOWER(co.last_name) = 'caballes' AND LOWER(co.first_name) = 'eddie' THEN 4
+        WHEN LOWER(co.last_name) = 'rosal' AND LOWER(co.first_name) = 'aldie' THEN 5
+        WHEN LOWER(co.last_name) = 'laude' AND LOWER(co.first_name) = 'reynaldo' THEN 6
+        ELSE 99
+      END
+    `, [targetDate]);
+
+    res.json({ date: targetDate, releases: rows });
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.post('/collection-sheet/field-releases', authenticateToken, async (req, res) => {
+  try {
+    const targetDate = req.body.date || new Date().toISOString().split('T')[0];
+    const releases = Array.isArray(req.body.releases) ? req.body.releases : [];
+    requireOperationDate(targetDate, 'Field release date');
+    await ensureCollectionFieldReleaseTable();
+
+    await dbRun('BEGIN IMMEDIATE TRANSACTION');
+    try {
+      for (const release of releases) {
+        const collectorId = Number(release.collector_id);
+        const amount = Number(release.amount || 0);
+        if (!collectorId || amount < 0) continue;
+
+        await dbRun(`
+          INSERT INTO tblCollectionFieldRelease (collector_id, report_date, amount, created_by, updated_by)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(collector_id, report_date)
+          DO UPDATE SET amount = excluded.amount, updated_by = excluded.updated_by, updated_at = datetime('now')
+        `, [collectorId, targetDate, amount, req.user.id, req.user.id]);
+      }
+      await dbRun('COMMIT');
+    } catch (err) {
+      await dbRun('ROLLBACK').catch(() => {});
+      throw err;
+    }
+
+    res.json({ message: 'Field release amounts saved', date: targetDate });
+  } catch (err) { sendRouteError(res, err); }
+});
 
 // Manual past-due updater trigger (admin/manager)
 router.post('/run-pastdue', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
@@ -292,6 +377,7 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
     if (!collector_id) return res.status(400).json({ error: 'Please select a collector' });
     const targetDate = date || new Date().toISOString().split('T')[0];
     requireOperationDate(targetDate, 'Collection sheet date');
+    await ensureCollectionFieldReleaseTable();
 
     // Get collector info
     const collector = await dbGet(`SELECT id, collector_code, first_name, last_name FROM tblCollector WHERE id = ?`, [collector_id]);
@@ -384,6 +470,13 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
         AND ${sqlNotSunday('date_released')}
     `, [collector_id, targetDate]);
     const pbInsDstTotal = Number(pbInsDst?.total || 0);
+    const fieldRelease = await dbGet(`
+      SELECT COALESCE(amount, 0) as amount
+      FROM tblCollectionFieldRelease
+      WHERE collector_id = ?
+        AND report_date = ?
+    `, [collector_id, targetDate]);
+    const fieldReleaseTotal = Number(fieldRelease?.amount || 0);
 
     // Calculate summary totals
     const totalCollection = collectionLoans.reduce((s, l) => s + Number(l.collected_today || 0), 0);
@@ -397,7 +490,7 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
         totalCollection,
         pbInsDst: pbInsDstTotal,
         passbookTotal: pbInsDstTotal,
-        fieldRelease: 0,
+        fieldRelease: fieldReleaseTotal,
         totalExpense: 0,
         grandTotal: totalCollection
       },

@@ -349,6 +349,17 @@ async function initializeDatabase() {
       closed_at TEXT DEFAULT (datetime('now')),
       remarks TEXT
     );
+    CREATE TABLE IF NOT EXISTS tblCollectionFieldRelease (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      collector_id INTEGER NOT NULL,
+      report_date TEXT NOT NULL,
+      amount REAL DEFAULT 0,
+      created_by INTEGER,
+      updated_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(collector_id, report_date)
+    );
     CREATE TABLE IF NOT EXISTS tblCashOnBank (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       branch_id INTEGER,
