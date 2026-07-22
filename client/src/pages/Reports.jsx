@@ -3,7 +3,7 @@ import API from '../services/api'
 import logoImg from '../assets/logo.png'
 import html2pdf from 'html2pdf.js'
 import { jsPDF } from 'jspdf'
-import 'jspdf-autotable'
+import autoTable from 'jspdf-autotable'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })
 const toDateInputValue = date => {
@@ -664,7 +664,7 @@ export default function Reports() {
     })
 
     // --- Render table ---
-    doc.autoTable({
+    autoTable(doc, {
       startY: curY,
       margin: { left: marginL, right: marginR },
       head: [['#', 'Code', 'Client Name', 'Due', 'DPD', 'Daily', 'Collected']],
