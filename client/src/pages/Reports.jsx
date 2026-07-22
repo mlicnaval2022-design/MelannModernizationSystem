@@ -5,6 +5,7 @@ import html2pdf from 'html2pdf.js'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+const CL = { navy: '#0D1B3D', active: '#1F2933', recon: '#1565C0', overdue: '#EF6C00', pastdue: '#D71920', lightBg: '#F5F7FA' }
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })
 const toDateInputValue = date => {
   const year = date.getFullYear()
@@ -560,8 +561,10 @@ export default function Reports() {
     })
     Object.values(groups).forEach(arr => arr.sort((a, b) => (a.customer_name || '').localeCompare(b.customer_name || '')))
 
-    const totalClientsCount = groups.active.length + groups.recon.length + groups.overdue.length + groups.pastdue.length
-    const targetAmount = [...groups.active, ...groups.overdue.filter(c => !isReconLoan(c))].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
+    const baseClientsCount = groups.active.length + groups.recon.length + groups.overdue.length + groups.pastdue.length
+    const totalClientsCount = params.manual_clients ? Number(params.manual_clients) : baseClientsCount
+    const baseTarget = [...groups.active, ...groups.overdue.filter(c => !isReconLoan(c))].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
+    const targetAmount = params.manual_target ? Number(params.manual_target) : baseTarget
     const pesoFmt = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-P${f}` : `P${f}` }
     const fDatePdf = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }) : '-'
 
@@ -1363,6 +1366,16 @@ export default function Reports() {
         <div className="form-group"><label className="form-label">Collection Date</label>
           <input type="date" className="form-control" value={params.date || toDateInputValue(new Date())} onChange={e => { const nextParams = { ...params, date: e.target.value }; setParams(nextParams); if (params.collector_id) run(active, nextParams); }} />
         </div>
+        {(active === 'daily-target' || active === 'collection-sheet') && (
+          <>
+            <div className="form-group"><label className="form-label">Manual Target Amt.</label>
+              <input type="number" className="form-control" placeholder="Auto" value={params.manual_target || ''} onChange={e => { const nextParams = { ...params, manual_target: e.target.value }; setParams(nextParams); if (params.collector_id) run(active, nextParams); }} style={{ width: 160 }} />
+            </div>
+            <div className="form-group"><label className="form-label">Manual Active Clients</label>
+              <input type="number" className="form-control" placeholder="Auto" value={params.manual_clients || ''} onChange={e => { const nextParams = { ...params, manual_clients: e.target.value }; setParams(nextParams); if (params.collector_id) run(active, nextParams); }} style={{ width: 160 }} />
+            </div>
+          </>
+        )}
       </>
     )
     if (active === 'disclosure-statement') return (
@@ -3441,8 +3454,12 @@ export default function Reports() {
         if (groups[cls]) groups[cls].push(c)
       })
 
-      const targetAmount = [...groups.active, ...groups.overdue.filter(c => !isReconLoan(c))].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
-      const totalActiveClients = groups.active.length + groups.overdue.filter(c => !isReconLoan(c)).length
+      const calculatedTarget = [...groups.active, ...groups.overdue.filter(c => !isReconLoan(c))].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
+      const calculatedClients = groups.active.length + groups.overdue.filter(c => !isReconLoan(c)).length
+
+      const targetAmount = params.manual_target ? Number(params.manual_target) : calculatedTarget
+      const totalActiveClients = params.manual_clients ? Number(params.manual_clients) : calculatedClients
+      const peso = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-₱${f}` : `₱${f}` }
 
       return (
         <div style={{ background: '#fff', padding: 40, fontFamily: 'Arial, Helvetica, sans-serif', maxWidth: 600, margin: '0 auto', border: '1px solid #ddd', borderRadius: 8, marginTop: 20 }}>
@@ -3494,10 +3511,12 @@ export default function Reports() {
       })
       Object.values(groups).forEach(arr => arr.sort((a, b) => formatCollectionClientName(a).localeCompare(formatCollectionClientName(b))))
 
-      const totalClientsCount = groups.active.length + groups.recon.length + groups.overdue.length + groups.pastdue.length
+      const baseClientsCount = groups.active.length + groups.recon.length + groups.overdue.length + groups.pastdue.length
+      const totalClientsCount = params.manual_clients ? Number(params.manual_clients) : baseClientsCount
+      const baseTarget = [...groups.active, ...groups.overdue.filter(c => !isReconLoan(c))].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
+      const targetAmount = params.manual_target ? Number(params.manual_target) : baseTarget
 
       /* ── Color constants ── */
-      const CL = { navy: '#0D1B3D', active: '#1F2933', recon: '#1565C0', overdue: '#EF6C00', pastdue: '#D71920', lightBg: '#F5F7FA' }
       const peso = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-₱${f}` : `₱${f}` }
       const fDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }) : '-'
 
@@ -3685,7 +3704,7 @@ export default function Reports() {
             <div style={{ marginTop: 6, padding: '3px 12px', border: '1.2px solid ' + CL.navy, borderRadius: 4, display: 'inline-block', textAlign: 'center', background: '#f8fafc' }}>
               <div style={{ fontWeight: 800, fontSize: '7.5pt', color: CL.navy, marginBottom: 1 }}>DAILY TARGET</div>
               <div style={{ fontSize: '9.5pt', fontWeight: 700, color: '#d9534f' }}>
-                {peso([...groups.active, ...groups.overdue.filter(c => !isReconLoan(c))].reduce((sum, c) => sum + Number(c.amortization || 0), 0))}
+                {peso(targetAmount)}
               </div>
             </div>
           </div>
