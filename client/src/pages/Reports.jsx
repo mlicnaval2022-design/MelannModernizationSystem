@@ -1335,6 +1335,16 @@ export default function Reports() {
         <div className="form-group"><label className="form-label">Collection Date</label>
           <input type="date" className="form-control" value={params.date || toDateInputValue(new Date())} onChange={e => { const nextParams = { ...params, date: e.target.value }; setParams(nextParams); if (params.collector_id) run(active, nextParams); }} />
         </div>
+        {active === 'daily-target' && (
+          <>
+            <div className="form-group"><label className="form-label">Manual Target Amt.</label>
+              <input type="number" className="form-control" placeholder="Auto" value={params.manual_target || ''} onChange={e => { const nextParams = { ...params, manual_target: e.target.value }; setParams(nextParams); if (params.collector_id) run(active, nextParams); }} style={{ width: 160 }} />
+            </div>
+            <div className="form-group"><label className="form-label">Manual Active Clients</label>
+              <input type="number" className="form-control" placeholder="Auto" value={params.manual_clients || ''} onChange={e => { const nextParams = { ...params, manual_clients: e.target.value }; setParams(nextParams); if (params.collector_id) run(active, nextParams); }} style={{ width: 160 }} />
+            </div>
+          </>
+        )}
       </>
     )
     if (active === 'disclosure-statement') return (
@@ -3413,8 +3423,12 @@ export default function Reports() {
         if (groups[cls]) groups[cls].push(c)
       })
 
-      const targetAmount = [...groups.active, ...groups.overdue].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
-      const totalActiveClients = groups.active.length + groups.overdue.length
+      const calculatedTarget = [...groups.active, ...groups.overdue].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
+      const calculatedClients = groups.active.length + groups.overdue.length
+
+      const targetAmount = params.manual_target ? Number(params.manual_target) : calculatedTarget
+      const totalActiveClients = params.manual_clients ? Number(params.manual_clients) : calculatedClients
+      const peso = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-₱${f}` : `₱${f}` }
 
       return (
         <div style={{ background: '#fff', padding: 40, fontFamily: 'Arial, Helvetica, sans-serif', maxWidth: 600, margin: '0 auto', border: '1px solid #ddd', borderRadius: 8, marginTop: 20 }}>
