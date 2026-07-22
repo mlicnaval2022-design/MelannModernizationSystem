@@ -3239,6 +3239,8 @@ export default function Reports() {
       })
       Object.values(groups).forEach(arr => arr.sort((a, b) => (a.customer_name || '').localeCompare(b.customer_name || '')))
 
+      const totalClientsCount = groups.active.length + groups.recon.length + groups.overdue.length + groups.pastdue.length
+
       /* ── Color constants ── */
       const CL = { navy: '#0D1B3D', active: '#1F2933', recon: '#1565C0', overdue: '#EF6C00', pastdue: '#D71920', lightBg: '#F5F7FA' }
       const peso = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-₱${f}` : `₱${f}` }
@@ -3296,7 +3298,7 @@ export default function Reports() {
       }
 
       const cs = { borderBottom: '1.2px solid #000', verticalAlign: 'middle', padding: '2px 1px' }
-      const collectionNoteStyle = { display: 'block', color: CL.pastdue, fontSize: '7.5pt', fontWeight: 800, lineHeight: 1.05 }
+      const collectionNoteStyle = { display: 'block', color: CL.pastdue, lineHeight: 1.05 }
       const collectionAmountText = amount => Number(amount || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })
       const entryCells = (entry) => {
         if (!entry) return <td colSpan={7} style={{ border: 'none', padding: 0 }}></td>
@@ -3324,8 +3326,18 @@ export default function Reports() {
           <td style={{ ...cs, textAlign: 'right', fontSize: '7pt', width: '8%', paddingLeft: 0 }}>{c.amortization ? Number(c.amortization).toLocaleString() : '0'}</td>
           <td style={{ ...cs, width: '19%', verticalAlign: 'bottom', paddingLeft: 2 }}>
             {regularCollected > 0 && <span style={{ fontSize: '7.5pt', fontWeight: 600 }}>{peso(regularCollected)}</span>}
-            {balanceNote > 0 && <span style={collectionNoteStyle}>{collectionAmountText(balanceNote)} bal.</span>}
-            {penaltyNote > 0 && <span style={collectionNoteStyle}>{collectionAmountText(penaltyNote)} Pen.</span>}
+            {balanceNote > 0 && (
+              <span style={collectionNoteStyle}>
+                <span style={{ fontSize: '9.5pt', fontWeight: 800 }}>{collectionAmountText(balanceNote)}</span>{' '}
+                <span style={{ fontSize: '6.5pt', fontWeight: 600 }}>bal.</span>
+              </span>
+            )}
+            {penaltyNote > 0 && (
+              <span style={collectionNoteStyle}>
+                <span style={{ fontSize: '9.5pt', fontWeight: 800 }}>{collectionAmountText(penaltyNote)}</span>{' '}
+                <span style={{ fontSize: '6.5pt', fontWeight: 600 }}>Pen.</span>
+              </span>
+            )}
             {regularCollected <= 0 && balanceNote <= 0 && penaltyNote <= 0 && <div style={{ height: 12 }}></div>}
           </td>
         </>)
@@ -3349,11 +3361,11 @@ export default function Reports() {
       )
       const cashSummaryAmount = amount => Number(amount || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })
       const cashSummaryNoteStyle = { color: CL.pastdue, fontWeight: 800, fontSize: '8.5pt', lineHeight: 1 }
-      const blankCashLine = (label, value = null) => (
+      const blankCashLine = (label, value = null, isRed = false) => (
         <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
-          <span style={{ color: '#555', flex: '0 0 90px', fontSize: '8.5pt' }}>{label}:</span>
+          <span style={{ color: isRed ? CL.pastdue : '#555', fontWeight: isRed ? 700 : 400, flex: '0 0 90px', fontSize: '8.5pt' }}>{label}:</span>
           <span style={{ flex: 1, borderBottom: '1.5px solid #000', height: 14, display: 'flex', alignItems: 'flex-end', paddingLeft: value ? 4 : 0 }}>
-            {value && <span style={cashSummaryNoteStyle}>{value}</span>}
+            {value && (typeof value === 'string' ? <span style={cashSummaryNoteStyle}>{value}</span> : value)}
           </span>
         </div>
       )
@@ -3401,6 +3413,9 @@ export default function Reports() {
             </div>
 
             <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 12, flexWrap: 'wrap' }}>
+              <div style={{ background: CL.navy, color: '#fff', padding: '2px 8px', borderRadius: 2, fontSize: '8pt', fontWeight: 700 }}>
+                Overall Total Client: {totalClientsCount}
+              </div>
               {[
                 { label: 'Active', count: groups.active.length, color: CL.active },
                 { label: 'Recon', count: groups.recon.length, color: CL.recon },
@@ -3424,11 +3439,17 @@ export default function Reports() {
               <>
                 {[
                   ['Total Collection'],
-                  ['PB/Ins/DST', pbInsDstTotal > 0 ? `PB: ${cashSummaryAmount(pbInsDstTotal)}` : null],
+                  ['PB/Ins/DST', pbInsDstTotal > 0 ? (
+                    <span style={{ color: CL.pastdue, lineHeight: 1, display: 'inline-flex', alignItems: 'baseline', gap: 3 }}>
+                      <span style={{ fontSize: '6.5pt', fontWeight: 600 }}>PB:</span>
+                      <span style={{ fontSize: '10pt', fontWeight: 800 }}>{cashSummaryAmount(pbInsDstTotal)}</span>
+                    </span>
+                  ) : null],
+                  ['Total', null, true],
                   ['Field Release'],
                   ['Total Expense'],
-                  ['Grand Total']
-                ].map(([label, value]) => blankCashLine(label, value))}
+                  ['Grand Total', null, true]
+                ].map(([label, value, isRed]) => blankCashLine(label, value, isRed))}
                 <div style={{ borderTop: '1.5px solid '+CL.navy, margin: '6px -8px -6px -8px', padding: '6px 8px 6px' }}>
                    {blankCashLine('Over / Short')}
                 </div>
@@ -3437,25 +3458,26 @@ export default function Reports() {
           </div>
         </div>
       )
-      const pageFooter = (
-        <div className="collection-sheet-page-footer" style={{ borderTop: '2px solid '+CL.navy, paddingTop: 12, display: 'flex', justifyContent: 'space-between', pageBreakInside: 'avoid' }}>
-          {[
-            { role: 'Collector', name: collectorDisplayName },
-            { role: 'Checked by', name: signatures.checkedBy || 'MARILYN O. RELOBA' },
-            { role: 'Encoded by', name: signatures.encodedBy || 'IT/ACCOUNTING CLERK' },
-            { role: 'Approved by', name: signatures.approvedBy || 'VICTORIO L. RELOBA JR.' }
-          ].map(sig => (
-            <div key={sig.role} style={{ width: '22%', textAlign: 'center' }}>
-              <div style={{ fontSize: '7pt', color: '#666', lineHeight: 1.1, marginBottom: 18 }}>{sig.role}</div>
-              <div style={{ borderBottom: '1.5px solid #000', marginBottom: 3 }}></div>
-              <div style={{ fontWeight: 600, fontSize: '7pt', lineHeight: 1.1 }}>{sig.name}</div>
-              {sig.role === 'Collector' && (
-                <div style={{ fontWeight: 700, fontSize: '7pt', lineHeight: 1.1, marginTop: 4, textAlign: 'left' }}>
-                  Collection Date: {displayCollDate}
-                </div>
-              )}
-            </div>
-          ))}
+      const pageFooter = (currentPage, totalPages) => (
+        <div className="collection-sheet-page-footer" style={{ borderTop: '2px solid '+CL.navy, paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6, pageBreakInside: 'avoid' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            {[
+              { role: 'Collector', name: collectorDisplayName },
+              { role: 'Checked by', name: signatures.checkedBy || 'MARILYN O. RELOBA' },
+              { role: 'Encoded by', name: signatures.encodedBy || 'IT/ACCOUNTING CLERK' },
+              { role: 'Approved by', name: signatures.approvedBy || 'VICTORIO L. RELOBA JR.' }
+            ].map(sig => (
+              <div key={sig.role} style={{ width: '22%', textAlign: 'center' }}>
+                <div style={{ fontSize: '7pt', color: '#666', lineHeight: 1.1, marginBottom: 18 }}>{sig.role}</div>
+                <div style={{ borderBottom: '1.5px solid #000', marginBottom: 3 }}></div>
+                <div style={{ fontWeight: 600, fontSize: '7pt', lineHeight: 1.1 }}>{sig.name}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid '+CL.navy, paddingTop: 4, fontSize: '7.5pt', color: '#333', fontWeight: 600 }}>
+            <span>Collection Date: {displayCollDate}</span>
+            <span>Page {currentPage} of {totalPages}</span>
+          </div>
         </div>
       )
 
@@ -3476,7 +3498,7 @@ export default function Reports() {
                   {renderClientColumn(page.right, `R${pageIndex}`)}
                 </div>
               </div>
-              {pageFooter}
+              {pageFooter(pageIndex + 1, pages.length)}
             </div>
           ))}
 
