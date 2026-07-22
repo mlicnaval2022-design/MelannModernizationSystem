@@ -12,6 +12,16 @@ const toLocalDateString = (date = new Date()) => {
   return localDate.toISOString().split('T')[0];
 };
 
+const buildClientAddress = (loan) => [
+  loan.customer_address_line || loan.address,
+  loan.customer_sitio,
+  loan.customer_purok,
+  loan.customer_brgy,
+  loan.customer_city,
+  loan.customer_province,
+  loan.customer_zip_code
+].map(part => String(part || '').trim()).filter(Boolean).join(', ');
+
 const getPreviousOperationDate = (dateValue) => {
   const date = new Date(`${dateValue}T00:00:00`);
 
@@ -79,7 +89,18 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       loans_released_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE date_released = ? AND status IN ('active', 'fully_paid') AND ${sqlNotSunday('date_released')}`, [today])).c,
       total_portfolio: (await dbGet(`SELECT COALESCE(SUM(balance),0) as total FROM tblLoan WHERE status IN ('active','pastdue')`)).total,
       fully_paid_today: (await dbGet(`SELECT COUNT(DISTINCT customer_id) as c FROM tblCustomerStatusHistory WHERE new_status='FULLY PAID' AND date(created_at) = date('now', 'localtime')`)).c,
-      eligible_for_reloan: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='FULLY PAID'`)).c,
+      eligible_for_reloan: (await dbGet(`
+        SELECT COUNT(*) as c
+        FROM tblCustomer c
+        WHERE UPPER(c.status) IN ('FULLY PAID', 'RELAX')
+          AND NOT EXISTS (
+            SELECT 1
+            FROM tblLoan l
+            WHERE l.customer_id = c.id
+              AND LOWER(l.status) IN ('active', 'pastdue')
+              AND COALESCE(l.balance, 0) > 0
+          )
+      `)).c,
       recon_count: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='RECON'`)).c,
       relax_count: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='RELAX'`)).c,
       hold_count: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='hold'`)).c,
@@ -205,7 +226,7 @@ router.get('/payments-reversed', authenticateToken, async (req, res) => {
              u.full_name as reversed_by_name,
              p.reversal_reason
       FROM tblPayment p
-      LEFT
+      LEFT JOIN tblLoan l ON p.loan_id = l.id
       LEFT JOIN tblCustomer c ON p.customer_id = c.id
       LEFT JOIN tblCollector co ON p.collector_id = co.id
       LEFT JOIN tblUser u ON p.reversed_by = u.id
@@ -314,16 +335,65 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
       l.days_past_due = Math.max(0, dpd);
     });
 
+    const loansByCustomer = loans.reduce((acc, loan) => {
+      if (!acc.has(loan.customer_id)) acc.set(loan.customer_id, []);
+      acc.get(loan.customer_id).push(loan);
+      return acc;
+    }, new Map());
+
+    const collectionLoans = [];
+    loansByCustomer.forEach(customerLoans => {
+      const activeTransferLoan = customerLoans.find(loan =>
+        String(loan.status || '').toLowerCase() === 'active' &&
+        ['reloan', 'recon'].includes(String(loan.loan_type || '').toLowerCase().replace(/[^a-z0-9]/g, '')) &&
+        loan.date_released === targetDate
+      );
+
+      if (!activeTransferLoan) {
+        collectionLoans.push(...customerLoans);
+        return;
+      }
+
+      const priorCollections = customerLoans
+        .filter(loan => loan.id !== activeTransferLoan.id && String(loan.status || '').toLowerCase() === 'fullpaid')
+        .reduce((totals, loan) => {
+          totals.balance += Number(loan.balance_collected_today || 0);
+          totals.penalty += Number(loan.penalty_collected_today || 0);
+          return totals;
+        }, { balance: 0, penalty: 0 });
+
+      activeTransferLoan.reloan_balance_note = priorCollections.balance;
+      activeTransferLoan.reloan_penalty_note = priorCollections.penalty;
+      collectionLoans.push(activeTransferLoan);
+      collectionLoans.push(...customerLoans.filter(loan =>
+        loan.id !== activeTransferLoan.id &&
+        String(loan.status || '').toLowerCase() !== 'fullpaid'
+      ));
+    });
+
+    const pbInsDst = await dbGet(`
+      SELECT COALESCE(SUM(passbook), 0) as total
+      FROM tblLoan
+      WHERE collector_id = ?
+        AND date_released = ?
+        AND LOWER(COALESCE(status, '')) != 'reversed'
+        AND COALESCE(passbook, 0) > 0
+        AND ${sqlNotSunday('date_released')}
+    `, [collector_id, targetDate]);
+    const pbInsDstTotal = Number(pbInsDst?.total || 0);
+
     // Calculate summary totals
-    const totalCollection = loans.reduce((s, l) => s + (l.collected_today || 0), 0);
+    const totalCollection = collectionLoans.reduce((s, l) => s + Number(l.collected_today || 0), 0);
 
     res.json({
-      loans,
+      loans: collectionLoans,
       collector_id,
       date: targetDate,
       collector: { id: collector?.id, name: collectorName },
       summary: {
         totalCollection,
+        pbInsDst: pbInsDstTotal,
+        passbookTotal: pbInsDstTotal,
         fieldRelease: 0,
         totalExpense: 0,
         grandTotal: totalCollection
@@ -355,6 +425,13 @@ router.get('/disclosure-statement', authenticateToken, async (req, res) => {
         c.middle_name,
         c.full_name as customer_name,
         c.address,
+        c.address as customer_address_line,
+        c.sitio as customer_sitio,
+        c.purok as customer_purok,
+        c.brgy as customer_brgy,
+        c.city as customer_city,
+        c.province as customer_province,
+        c.zip_code as customer_zip_code,
         c.contact,
         c.secondary_contact,
         c.birth_date,
@@ -398,6 +475,10 @@ router.get('/disclosure-statement', authenticateToken, async (req, res) => {
     }
 
     const loan = loans[0];
+    const clientAddress = buildClientAddress(loan);
+    loan.address = clientAddress || loan.address;
+    loan.customer_address = loan.address;
+    loan.full_address = loan.address;
     const schedule = await dbAll(`
       SELECT period_number, due_date, amount_due, amount_paid, status
       FROM tblAmortizationSchedule

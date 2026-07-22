@@ -65,6 +65,22 @@ const toDisplayCase = value => String(value || '')
   .replace(/\bIii\b/g, 'III')
   .replace(/\bIv\b/g, 'IV')
   .replace(/\bVi\b/g, 'VI')
+const formatClientAddress = loan => {
+  const direct = loan.full_address || loan.customer_address
+  if (direct) return toDisplayCase(direct)
+
+  const composed = [
+    loan.customer_address_line || loan.address,
+    loan.customer_sitio,
+    loan.customer_purok,
+    loan.customer_brgy,
+    loan.customer_city,
+    loan.customer_province,
+    loan.customer_zip_code
+  ].map(part => String(part || '').trim()).filter(Boolean).join(', ')
+
+  return composed ? toDisplayCase(composed) : '-'
+}
 const formatBorrowerName = loan => {
   const orderedName = [loan.first_name, loan.middle_name, loan.last_name]
     .map(part => String(part || '').trim())
@@ -167,13 +183,24 @@ export default function PromissoryDisclosure() {
     setLoadingDoc(true)
     setError('')
     API.get('/reports/disclosure-statement', { params: { loan_id: selectedId } })
-      .then(res => setDocumentData(res.data))
+      .then(res => {
+        const selectedLoan = loans.find(loan => String(loan.id) === String(selectedId)) || {}
+        setDocumentData({
+          ...res.data,
+          loan: {
+            ...selectedLoan,
+            ...res.data.loan,
+            full_address: res.data.loan?.full_address || selectedLoan.full_address,
+            customer_address: res.data.loan?.customer_address || selectedLoan.customer_address,
+          }
+        })
+      })
       .catch(err => {
         setDocumentData(null)
         setError(err.response?.data?.error || 'Unable to load promissory.')
       })
       .finally(() => setLoadingDoc(false))
-  }, [selectedId])
+  }, [loans, selectedId])
 
   const printDocument = () => setTimeout(() => window.print(), 100)
 
@@ -308,13 +335,23 @@ function DisclosurePreview({ data }) {
   const totalLoan = Number(loan.total_amortization || loan.principal || 0)
   const interestRate = Number(loan.interest_rate || 0)
   const loanPeriod = Number(loan.loan_period || 0)
-  const displayLoanPeriod = disclosurePeriod(loanPeriod)
   const amortization = Number(loan.amortization || 0)
   const maturityDate = loan.date_maturity || addDays(loan.date_released, loanPeriod)
   const fullName = formatBorrowerName(loan)
+  const phone = [loan.contact, loan.secondary_contact].filter(Boolean).join('/')
+  const businessNature = loan.business_type || loan.business_name || loan.occupation || '-'
+  const purpose = loan.loan_purpose || loan.remarks || 'Additional Capital'
+  const idDocument = [loan.id_type, loan.id_number].filter(Boolean).join(' - ') || '-'
+  const clientAddress = formatClientAddress(loan)
   const netProceed = Number(loan.net_proceeds || principal)
   const charges = Number(loan.service_fee || 0) + Number(loan.insurance || 0) + Number(loan.notarial_fee || 0) + Number(loan.filing_fee || 0) + Number(loan.total_deductions || 0) + Number(loan.penalty || 0) + Number(loan.passbook || 0) + Number(loan.previous_balance || 0)
   const schedule = (data.schedule || []).slice(0, 45)
+  const scheduleRowsPerColumn = Math.ceil(schedule.length / 3)
+  const scheduleColumns = [
+    schedule.slice(0, scheduleRowsPerColumn),
+    schedule.slice(scheduleRowsPerColumn, scheduleRowsPerColumn * 2),
+    schedule.slice(scheduleRowsPerColumn * 2),
+  ]
   const collateral = loan.collateral || '-'
   const field = (label, value, strong = false) => (
     <div className="ds-field">
@@ -351,12 +388,15 @@ function DisclosurePreview({ data }) {
         .ds-schedule th { color: #142b57; font-weight: 900; border-bottom: 1px solid #d9e2ef; padding: 5px 3px; }
         .ds-schedule td { border-bottom: 1px solid #edf1f6; padding: 4px 3px; text-align: center; }
         .ds-schedule .money { text-align: right; font-weight: 700; }
-        .ds-signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin: 34px 0 18px; }
+        .ds-schedule .balance { color: #df4b43; }
+        .ds-disclosure-head { display: flex; justify-content: space-between; color: #667085; font-size: 13px; margin-bottom: 18px; }
+        .ds-signatures { display: grid; grid-template-columns: minmax(260px, 360px); justify-content: center; margin: 28px 0 20px; }
         .ds-signature { text-align: center; color: #7a8699; font-size: 10px; }
         .ds-line { border-top: 1px solid #142b57; margin-bottom: 7px; height: 1px; }
-        .ds-authorized-signature { position: relative; padding-top: 0; transform: translateY(-6px); }
-        .ds-authorized-signature-img { display: block; width: 104px; height: auto; margin: -33px auto -5px; filter: brightness(0); }
-        .ds-authorized-name { color: #293344; font-weight: 900; border-top: 1px solid #142b57; padding-top: 5px; margin-bottom: 4px; }
+        .ds-certified-signature { position: relative; padding-top: 48px; }
+        .ds-manager-signature-img { position: absolute; left: 50%; bottom: 30px; width: 170px; max-height: 76px; transform: translateX(-50%); object-fit: contain; filter: drop-shadow(0.15px 0px 0px #000) drop-shadow(-0.15px 0px 0px #000) drop-shadow(0px 0.15px 0px #000) drop-shadow(0px -0.15px 0px #000); }
+        .ds-signer-name { color: #000; font-weight: 900; letter-spacing: 0.4px; }
+        .ds-signer-position { color: #3f4a5c; font-weight: 700; margin-top: 2px; }
         .ds-ack { font-size: 11px; line-height: 1.35; font-weight: 800; margin: 16px 0; }
         .ds-clause { font-size: 11px; line-height: 1.35; font-style: italic; color: #3f4a5c; }
         .ds-borrower { display: grid; grid-template-columns: 1fr 220px; gap: 80px; margin: 30px 20px 8px; }
@@ -397,15 +437,17 @@ function DisclosurePreview({ data }) {
           .ds-schedule th { border-bottom: 0.9px solid #d5dce8 !important; padding: 0.023in 0.015in !important; line-height: 1.08 !important; }
           .ds-schedule td { border-bottom: 0.35px solid #f1f4f8 !important; padding: 0.016in 0.015in !important; line-height: 1.06 !important; }
           .ds-schedule table:not(:last-child) { border-right: 1.2px solid #9fb0c8 !important; padding-right: 0.05in !important; }
+          .ds-disclosure-head { font-size: 7.4pt !important; margin-bottom: 0.04in !important; }
           .ds-section:last-of-type .ds-grid-2 { gap: 0.035in 0.18in !important; }
           .ds-section:last-of-type .ds-field { font-size: 7.5pt !important; min-height: 0.13in !important; }
           .ds-section:last-of-type .ds-field b { min-height: 0.105in !important; }
-          .ds-signatures { gap: 0.16in !important; margin: 0.36in 0 0.12in !important; }
+          .ds-signatures { grid-template-columns: 2.65in !important; margin: 0.16in 0 0.08in !important; }
           .ds-signature { font-size: 6.7pt !important; }
+          .ds-certified-signature { padding-top: 0.45in !important; }
+          .ds-manager-signature-img { bottom: 0.19in !important; width: 1.55in !important; max-height: 0.58in !important; }
+          .ds-signer-name { letter-spacing: 0.15px !important; }
+          .ds-signer-position { margin-top: 0.01in !important; }
           .ds-line { border-top: 1.4px solid #253a61 !important; margin-bottom: 0.04in !important; }
-          .ds-authorized-signature { transform: translateY(-0.03in) !important; }
-          .ds-authorized-signature-img { width: 0.82in !important; margin: -0.24in auto -0.04in !important; }
-          .ds-authorized-name { padding-top: 0.035in !important; margin-bottom: 0.025in !important; }
           .ds-ack { font-size: 7.15pt !important; line-height: 1.1 !important; margin: 0.075in 0 !important; }
           .ds-clause { font-size: 6.9pt !important; line-height: 1.1 !important; }
           .ds-borrower { grid-template-columns: 1fr 1.45in !important; gap: 0.5in !important; margin: auto 0.15in 0 !important; padding-top: 0.18in !important; }
@@ -432,16 +474,18 @@ function DisclosurePreview({ data }) {
             <div>
               {field('Name', fullName, true)}
               {field('Code', loan.customer_code)}
-              {field('Address', loan.address)}
+              {field('Address', clientAddress)}
               {field('Age', calculateAge(loan.birth_date))}
-              {field('Nature of Business', loan.business_type || loan.business_name || loan.occupation)}
+              {field('Nature of Business', businessNature)}
             </div>
             <div>
-              {field('Phone Number', [loan.contact, loan.secondary_contact].filter(Boolean).join('/'))}
+              {field('Phone Number', phone)}
               {field('Birthday', shortDate(loan.birth_date))}
               {field('Gender', loan.gender)}
-              {field('Purpose of Loan', loan.loan_purpose || loan.remarks || 'Additional Capital')}
-              {field('ID Document', [loan.id_type, loan.id_number].filter(Boolean).join(' - '))}
+              {field('Purpose of Loan', purpose)}
+              {field('Email Address', loan.email)}
+              {field('FB Account', loan.fb_account || loan.messenger_account)}
+              {field('ID Document', idDocument)}
             </div>
           </div>
         </section>
@@ -453,43 +497,51 @@ function DisclosurePreview({ data }) {
               <div>
                 {field('Date Release', shortDate(loan.date_released))}
                 {field('Maturity', shortDate(maturityDate))}
-                {field('Loan Period', `${displayLoanPeriod} days`)}
+                {field('Total Regular Loan Balance', fmtMoney(totalLoan), true)}
+                {field('Emergency Balance', fmtMoney(0))}
               </div>
               <div>
+                {field('Loan Period', loanPeriod)}
                 {field('Principal', fmtMoney(principal), true)}
                 {field('Loan Total', fmtMoney(totalLoan), true)}
-                {field('Payment / Day', fmtMoney(amortization), true)}
+                {field('Amortization', fmtMoney(totalLoan), true)}
               </div>
               <div>
-                {field('Interest Rate', `${interestRate}%`, true)}
+                {field('Total Interest %', `${interestRate.toFixed(2)}%`, true)}
+                {field('Payment / Day', fmtMoney(amortization), true)}
                 {field('Loan Type', loan.loan_type)}
                 {field('Loan Status', loan.status, true)}
               </div>
             </div>
             <div className="ds-charge-strip">
-              {field('Service Fee', fmtMoney(loan.service_fee))}
               {field('Insurance', fmtMoney(loan.insurance))}
-              {field('Passbook', fmtMoney(loan.passbook))}
-              {field('Penalty', fmtMoney(loan.penalty))}
-              {field('Prev. Balance', fmtMoney(loan.previous_balance))}
+              {field('Delivery', fmtMoney(0))}
+              {field('Collection', fmtMoney(0))}
+              {field('Service fee', fmtMoney(loan.service_fee))}
               {field('Total Charges', fmtMoney(charges), true)}
-              {field('Net Proceed', fmtMoney(netProceed), true)}
-              {field('Collateral', collateral, true)}
-              {field('Late Penalty', '5% / month')}
+              {field('Passbook', fmtMoney(0))}
+              {field('Penalty', fmtMoney(0))}
+              {field('Prev.Balance', fmtMoney(0))}
               {field('Total Payment', fmtMoney(loan.total_paid))}
+              {field('Net Proceed', fmtMoney(netProceed), true)}
             </div>
+            <div className="ds-grid-2" style={{ marginTop: 10 }}>
+              {field('Monthly Effective Interest Rate:', '12.00%', true)}
+              {field('Collateral:', collateral, true)}
+            </div>
+            <div style={{ marginTop: 10, fontSize: 12 }}>Conditional Charges (if applicable) &nbsp; Late Payment Penalty: &nbsp; 5% per month on the remaining balance</div>
           </div>
         </section>
 
         <section className="ds-section">
           <div className="ds-section-title">Amortization Schedule</div>
           <div className="ds-section-body ds-schedule">
-            {[0, 1, 2].map(columnIndex => (
+            {scheduleColumns.map((column, columnIndex) => (
               <table key={columnIndex}>
-                <thead><tr><th>No.</th><th>Date</th><th>Amortization</th><th>Balance</th></tr></thead>
+                <thead><tr><th>No.</th><th>Date</th><th>Amortization</th><th>Running Balance<br />(Principal)</th></tr></thead>
                 <tbody>
-                  {schedule.filter((_, idx) => idx % 3 === columnIndex).map((row, idx) => {
-                    const no = row.period_number || (idx * 3) + columnIndex + 1
+                  {column.map((row, idx) => {
+                    const no = row.period_number || (columnIndex * scheduleRowsPerColumn) + idx + 1
                     const amount = Number(row.amount_due || amortization || 0)
                     const balance = Math.max(totalLoan - (amount * no), 0)
                     return (
@@ -497,7 +549,7 @@ function DisclosurePreview({ data }) {
                         <td>{no}</td>
                         <td>{shortDate(row.due_date)}</td>
                         <td className="money">{fmtMoney(amount)}</td>
-                        <td className="money">{fmtMoney(balance)}</td>
+                        <td className="money balance">{fmtMoney(balance)}</td>
                       </tr>
                     )
                   })}
@@ -510,21 +562,32 @@ function DisclosurePreview({ data }) {
         <section className="ds-section">
           <div className="ds-section-title">Disclosure Statement</div>
           <div className="ds-section-body">
-            <div className="ds-grid-2">
-              <div>{field('Name', fullName, true)}{field('Address', loan.address)}</div>
-              <div>{field('Birthday', shortDate(loan.birth_date))}{field('Nationality', loan.nationality || 'Filipino')}{field('Gender', loan.gender)}</div>
+            <div className="ds-disclosure-head">
+              <span>(On Loans/Credit Transaction As required under R.A. 3765, Truth in Lending Act)</span>
+              <b>Loan ID: {loan.loan_code || loan.id}</b>
             </div>
-            <div style={{ color: '#142b57', fontWeight: 900, marginTop: 20 }}>CERTIFIED CORRECT:</div>
+            <div className="ds-grid-2">
+              <div>
+                {field('Name', fullName, true)}
+                {field('Address', clientAddress)}
+              </div>
+              <div>
+                {field('Birthday', shortDate(loan.birth_date))}
+                {field('Nationality', loan.nationality || 'Filipino')}
+                {field('Gender', loan.gender)}
+              </div>
+            </div>
+            <div style={{ color: '#142b57', fontWeight: 900, marginTop: 22 }}>CERTIFIED CORRECT:</div>
             <div className="ds-signatures">
-              {[1, 2].map(item => <div className="ds-signature" key={item}><div className="ds-line" />Signature of Authorized Representative<br />Over Printed Name / Position</div>)}
-              <div className="ds-signature ds-authorized-signature">
-                <img className="ds-authorized-signature-img" src={marilynSignature} alt="Marilyn O. Reloba signature" />
-                <div className="ds-authorized-name">MARILYN O. RELOBA</div>
-                Signature of Authorized Representative<br />Over Printed Name / Position
+              <div className="ds-signature ds-certified-signature">
+                <img className="ds-manager-signature-img" src={marilynSignature} alt="Marilyn O. Reloba signature" />
+                <div className="ds-line"></div>
+                <div className="ds-signer-name">MARILYN O. RELOBA</div>
+                <div className="ds-signer-position">Branch Manager</div>
               </div>
             </div>
             <div className="ds-ack">I ACKNOWLEDGE RECEIPT OF A COPY OF THIS STATEMENT PRIOR TO THE CONSUMMATION OF THE CREDIT TRANSACTION AND THAT I UNDERSTAND AND FULLY AGREE TO THE TERMS AND CONDITIONS THEREOF:</div>
-            <div className="ds-clause">In the event of borrower's death during the active period of the loan, the total unpaid balance of the loan will be deemed paid, provided that the account is not in a past due status.</div>
+            <div className="ds-clause">In the event of borrower's death during the active period of the loan, the total unpaid balance of the loan will be deemed paid, provided that the account is not in a past due status. This clause does not apply in cases of death, resulting from war, natural calamities, natural disaster, criminal acts, illegal activities, participation in extreme sports, substance abuse and suicide.</div>
             <div className="ds-borrower">
               <div className="ds-signature"><div className="ds-line" />Signature of Borrower Over Printed Name</div>
               <div className="ds-signature"><div className="ds-line" />Date</div>
@@ -548,7 +611,7 @@ function DocumentPreview({ data }) {
   const displayLoanPeriod = disclosurePeriod(loanPeriod)
   const maturityDate = loan.date_maturity || addDays(loan.date_released, loanPeriod)
   const fullName = formatBorrowerName(loan)
-  const borrowerAddress = loan.address ? toDisplayCase(loan.address) : '-'
+  const borrowerAddress = formatClientAddress(loan)
   const collateral = loan.collateral || '-'
   const words = amountInWords(principal)
   const penaltyAmount = Number(loan.penalty || 0)

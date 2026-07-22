@@ -15,6 +15,7 @@ export default function DailyCashReport() {
   const [selectedClients, setSelectedClients] = useState(new Set());
   const [sendingTo, setSendingTo] = useState(null);
   const [ytdSaving, setYtdSaving] = useState(false);
+  const [error, setError] = useState('');
   const [alertModal, setAlertModal] = useState(null);
   
   // Denominations - kept for closing the day, though hidden from print view
@@ -30,6 +31,7 @@ export default function DailyCashReport() {
 
   const loadData = async () => {
     setLoading(true);
+    setError('');
     try {
       const bRes = await API.get('/branches');
       setBranches(bRes.data);
@@ -50,7 +52,11 @@ export default function DailyCashReport() {
       } else {
         setDenom({ count_1000: 0, count_500: 0, count_200: 0, count_100: 0, count_50: 0, count_20: 0, count_coins: 0 });
       }
-    } catch (err) { console.error(err); } 
+    } catch (err) {
+      console.error(err);
+      setData(null);
+      setError(err?.response?.data?.error || err?.message || 'Failed to load Daily Cash Report.');
+    } 
     finally { setLoading(false); }
   };
 
@@ -59,7 +65,15 @@ export default function DailyCashReport() {
   const fmt = (num) => Number(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   if (!data && loading) return <div style={{padding: 20}}>Loading Daily Cash Report...</div>;
-  if (!data) return null;
+  if (!data) return (
+    <div style={{ maxWidth: 900, margin: '24px auto', padding: 20, background: '#fff', border: '1px solid #fecaca', borderRadius: 10, color: '#7f1d1d' }}>
+      <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 6 }}>Daily Cash Report failed to load</div>
+      <div style={{ fontSize: 13 }}>{error || 'Please try reloading the report.'}</div>
+      <button onClick={loadData} disabled={loading} style={{ marginTop: 14, padding: '8px 14px', borderRadius: 6, border: '1px solid #fca5a5', background: '#fff', color: '#b91c1c', fontWeight: 700, cursor: 'pointer' }}>
+        {loading ? 'Loading...' : 'Retry'}
+      </button>
+    </div>
+  );
 
   // Group collections by collector for "4. COLLECTIONS"
   const collByCollector = (data.collections || []).reduce((acc, c) => {

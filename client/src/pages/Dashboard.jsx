@@ -6,6 +6,22 @@ import '../dashboard.css'
 
 function fmt(n) { return Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }
 
+const toDateKey = date => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const getYesterdayKey = () => {
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (yesterday.getDay() === 0) {
+    yesterday.setDate(yesterday.getDate() - 1)
+  }
+  return toDateKey(yesterday)
+}
+
 export default function Dashboard() {
   useAuth()
   const navigate = useNavigate()
@@ -14,9 +30,18 @@ export default function Dashboard() {
   const [errorMsg, setErrorMsg] = useState('')
 
   const fetchDashboardData = () => {
-    API.get('/reports/dashboard')
-      .then(r => {
-        setData(r.data)
+    const yesterday = getYesterdayKey()
+
+    Promise.all([
+      API.get('/reports/dashboard'),
+      API.get('/reports/daily-collection', { params: { date_from: yesterday, date_to: yesterday } })
+    ])
+      .then(([dashboardRes, yesterdayCollectionRes]) => {
+        setData({
+          ...dashboardRes.data,
+          collections_yesterday: yesterdayCollectionRes.data?.total || 0,
+          yesterday_str: yesterday
+        })
         setLoading(false)
         setErrorMsg('')
       })

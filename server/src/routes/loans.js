@@ -8,6 +8,15 @@ const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ er
 
 const isNewLoanType = type => ['new', 'new loan'].includes(String(type || '').trim().toLowerCase());
 const passbookForLoan = loan => isNewLoanType(loan?.loan_type) ? 50 : Number(loan?.passbook || 0);
+const buildClientAddress = loan => [
+  loan.customer_address_line || loan.customer_address || loan.address,
+  loan.customer_sitio,
+  loan.customer_purok,
+  loan.customer_brgy,
+  loan.customer_city,
+  loan.customer_province,
+  loan.customer_zip_code
+].map(part => String(part || '').trim()).filter(Boolean).join(', ');
 const generateLoanReference = async (releaseDate) => {
   const datePart = String(releaseDate || new Date().toISOString().split('T')[0]).replace(/-/g, '');
   const latest = await dbGet(
@@ -21,7 +30,7 @@ const generateLoanReference = async (releaseDate) => {
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { search, status, customer_id, collector_id } = req.query;
-    let q = `SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, c.status as customer_status, (SELECT h.remarks FROM tblCustomerStatusHistory h WHERE h.customer_id = l.customer_id AND LOWER(h.new_status) = LOWER(c.status) ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as status_note, c.photo_client, c.photo_id_front, co.first_name || ' ' || co.last_name as collector_name, b.branch_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id LEFT JOIN tblBranch b ON l.branch_id = b.id WHERE NOT EXISTS (
+    let q = `SELECT l.*, COALESCE(NULLIF(c.full_name, ''), c.last_name || ', ' || c.first_name, 'Unknown Customer (Deleted)') as customer_name, c.customer_code, c.status as customer_status, (SELECT h.remarks FROM tblCustomerStatusHistory h WHERE h.customer_id = l.customer_id AND LOWER(h.new_status) = LOWER(c.status) ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as status_note, c.photo_client, c.photo_id_front, c.address as customer_address_line, c.sitio as customer_sitio, c.purok as customer_purok, c.brgy as customer_brgy, c.city as customer_city, c.province as customer_province, c.zip_code as customer_zip_code, co.first_name || ' ' || co.last_name as collector_name, b.branch_name FROM tblLoan l LEFT JOIN tblCustomer c ON l.customer_id = c.id LEFT JOIN tblCollector co ON l.collector_id = co.id LEFT JOIN tblBranch b ON l.branch_id = b.id WHERE NOT EXISTS (
       SELECT 1 FROM tblLoan dup
       WHERE dup.customer_id = l.customer_id
         AND dup.date_released = l.date_released
@@ -44,7 +53,15 @@ router.get('/', authenticateToken, async (req, res) => {
     if (customer_id) { q += ` AND l.customer_id = ?`; p.push(customer_id); }
     if (collector_id) { q += ` AND l.collector_id = ?`; p.push(collector_id); }
     q += ` ORDER BY l.created_at DESC`;
-    res.json(await dbAll(q, p));
+    const loans = await dbAll(q, p);
+    res.json(loans.map(loan => {
+      const address = buildClientAddress(loan);
+      return {
+        ...loan,
+        customer_address: address || loan.customer_address_line || '',
+        full_address: address || loan.customer_address_line || ''
+      };
+    }));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 router.get('/sheet/collection', authenticateToken, async (req, res) => {
@@ -75,13 +92,60 @@ router.get('/sheet/collection', authenticateToken, async (req, res) => {
       ORDER BY CAST(c.customer_code AS INTEGER) ASC, c.customer_code ASC
     `, [targetDate, targetDate, targetDate, collector_id, targetDate]);
     
+    const loansByCustomer = loans.reduce((acc, loan) => {
+      if (!acc.has(loan.customer_id)) acc.set(loan.customer_id, []);
+      acc.get(loan.customer_id).push(loan);
+      return acc;
+    }, new Map());
+
+    const collectionLoans = [];
+    loansByCustomer.forEach(customerLoans => {
+      const activeTransferLoan = customerLoans.find(loan =>
+        String(loan.status || '').toLowerCase() === 'active' &&
+        ['reloan', 'recon'].includes(String(loan.loan_type || '').toLowerCase().replace(/[^a-z0-9]/g, '')) &&
+        loan.date_released === targetDate
+      );
+
+      if (!activeTransferLoan) {
+        collectionLoans.push(...customerLoans);
+        return;
+      }
+
+      const priorCollections = customerLoans
+        .filter(loan => loan.id !== activeTransferLoan.id && String(loan.status || '').toLowerCase() === 'fullpaid')
+        .reduce((totals, loan) => {
+          totals.balance += Number(loan.balance_collected_today || 0);
+          return totals;
+        }, { balance: 0 });
+
+      activeTransferLoan.reloan_balance_note = priorCollections.balance;
+      collectionLoans.push(activeTransferLoan);
+      collectionLoans.push(...customerLoans.filter(loan =>
+        loan.id !== activeTransferLoan.id &&
+        String(loan.status || '').toLowerCase() !== 'fullpaid'
+      ));
+    });
+
+    const pbInsDst = await dbGet(`
+      SELECT COALESCE(SUM(passbook), 0) as total
+      FROM tblLoan
+      WHERE collector_id = ?
+        AND date_released = ?
+        AND LOWER(COALESCE(status, '')) != 'reversed'
+        AND COALESCE(passbook, 0) > 0
+        AND ${sqlNotSunday('date_released')}
+    `, [collector_id, targetDate]);
+    const pbInsDstTotal = Number(pbInsDst?.total || 0);
+
     const summary = {
-      total_clients: loans.length,
-      total_due: loans.reduce((s, l) => s + l.amortization, 0),
-      total_collected: loans.reduce((s, l) => s + l.collected_today, 0),
+      total_clients: collectionLoans.length,
+      total_due: collectionLoans.reduce((s, l) => s + l.amortization, 0),
+      total_collected: collectionLoans.reduce((s, l) => s + (l.collected_today || 0) + (l.reloan_balance_note || 0) + (l.reloan_penalty_note || 0), 0),
+      pb_ins_dst: pbInsDstTotal,
+      passbook_total: pbInsDstTotal,
     };
     
-    res.json({ loans, summary });
+    res.json({ loans: collectionLoans, summary });
   } catch (err) { sendRouteError(res, err); }
 });
 

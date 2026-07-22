@@ -18,6 +18,52 @@ const yesterday = () => {
 const displayDate = value => value ? new Date(`${value}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '-'
 const shortDate = value => value ? new Date(`${value}T00:00:00`).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '-'
 const fmtMoney = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const rawMoney = value => Number(value || 0).toFixed(2)
+const toDisplayCase = value => String(value || '')
+  .toLocaleLowerCase('en-PH')
+  .replace(/(^|[^\p{L}\p{N}])(\p{L})/gu, (_, prefix, char) => prefix + char.toLocaleUpperCase('en-PH'))
+  .replace(/\bIi\b/g, 'II')
+  .replace(/\bIii\b/g, 'III')
+  .replace(/\bIv\b/g, 'IV')
+  .replace(/\bVi\b/g, 'VI')
+const formatClientAddress = loan => {
+  const direct = loan.full_address || loan.customer_address
+  if (direct) return toDisplayCase(direct)
+
+  const composed = [
+    loan.customer_address_line || loan.address,
+    loan.customer_sitio,
+    loan.customer_purok,
+    loan.customer_brgy,
+    loan.customer_city,
+    loan.customer_province,
+    loan.customer_zip_code
+  ].map(part => String(part || '').trim()).filter(Boolean).join(', ')
+
+  return composed ? toDisplayCase(composed) : '-'
+}
+const safeFilePart = value => String(value || '')
+  .trim()
+  .replace(/[^a-z0-9]+/gi, '-')
+  .replace(/^-+|-+$/g, '')
+  .toLowerCase() || 'report'
+const csvCell = value => {
+  const text = value === null || value === undefined ? '' : String(value)
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+}
+const downloadCsv = (filename, rows) => {
+  const csv = rows.map(row => row.map(csvCell).join(',')).join('\r\n')
+  const blob = new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename.endsWith('.csv') ? filename : `${filename}.csv`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+const dateOnly = value => value ? String(value).slice(0, 10) : ''
 const calculateAge = birthDate => {
   if (!birthDate) return '-'
   const birth = new Date(`${birthDate}T00:00:00`)
@@ -33,6 +79,18 @@ const addDays = (value, days) => {
   const date = new Date(`${value}T00:00:00`)
   if (Number.isNaN(date.getTime())) return ''
   date.setDate(date.getDate() + Number(days || 0))
+  return toDateInputValue(date)
+}
+const addCollectionDaysSkippingSunday = (value, days) => {
+  if (!value) return ''
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return ''
+  let counted = 0
+  const target = Number(days || 0)
+  while (counted < target) {
+    date.setDate(date.getDate() + 1)
+    if (date.getDay() !== 0) counted += 1
+  }
   return toDateInputValue(date)
 }
 const getMonthRange = (year, month) => {
@@ -104,6 +162,126 @@ const getMonthlyReleaseRange = params => {
     date_to: (periods[periods.length - 1] || fallback).date_to,
   }
 }
+const COLLECTION_STATUS_GROUPS = [
+  { key: 'active', label: 'Active', color: '#1F2933' },
+  { key: 'recon', label: 'Recon', color: '#1565C0' },
+  { key: 'overdue', label: 'Overdue', color: '#EF6C00' },
+  { key: 'pastdue', label: 'Past Due', color: '#D71920' },
+]
+const REPORT_PRINT_CLARITY_CSS = `
+  @media print {
+    #printable-area,
+    #printable-area * {
+      color-adjust: exact !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    #printable-area {
+      color: #111827 !important;
+      font-weight: 500 !important;
+    }
+
+    #printable-area .data-table,
+    #printable-area table.data-table,
+    #printable-area .table-responsive-print {
+      border-color: #334155 !important;
+      box-shadow: none !important;
+    }
+
+    #printable-area .data-table {
+      border-collapse: collapse !important;
+    }
+
+    #printable-area .data-table th {
+      background: #e5e7eb !important;
+      color: #0f172a !important;
+      border: 1.35px solid #334155 !important;
+      font-weight: 900 !important;
+      text-shadow: none !important;
+    }
+
+    #printable-area .data-table td {
+      color: #111827 !important;
+      border: 1.15px solid #475569 !important;
+      font-weight: 600 !important;
+      text-shadow: none !important;
+    }
+
+    #printable-area .data-table tbody tr:nth-child(even) td {
+      background: #f8fafc !important;
+    }
+
+    #printable-area .data-table tfoot td,
+    #printable-area .data-table tfoot th,
+    #printable-area tr[style*="GRAND"],
+    #printable-area .fw-bold {
+      color: #0f172a !important;
+      font-weight: 900 !important;
+    }
+
+    #printable-area .text-success,
+    #printable-area .text-accent,
+    #printable-area td[style*="#16a34a"],
+    #printable-area span[style*="#16a34a"] {
+      color: #047857 !important;
+      font-weight: 900 !important;
+    }
+
+    #printable-area .text-danger,
+    #printable-area td[style*="#dc2626"],
+    #printable-area span[style*="#dc2626"] {
+      color: #b91c1c !important;
+      font-weight: 900 !important;
+    }
+
+    #printable-area .mono,
+    #printable-area .tag,
+    #printable-area .badge {
+      color: #0f172a !important;
+      border-color: #475569 !important;
+      font-weight: 800 !important;
+    }
+
+    #printable-area h1,
+    #printable-area h2,
+    #printable-area h3,
+    #printable-area .modal-title {
+      color: #0f172a !important;
+      font-weight: 900 !important;
+    }
+
+    #printable-area div[style*="#64748b"],
+    #printable-area div[style*="var(--text-muted)"],
+    #printable-area span[style*="#64748b"],
+    #printable-area .nav-section-label {
+      color: #334155 !important;
+      font-weight: 700 !important;
+    }
+
+    #printable-area div[style*="borderBottom"],
+    #printable-area div[style*="border-bottom"] {
+      border-color: #334155 !important;
+    }
+  }
+`
+const classifyCollectionAccount = account => {
+  const dpd = Math.max(0, parseInt(account?.days_past_due ?? account?.days_overdue, 10) || 0)
+  if (dpd >= 45) return 'pastdue'
+  if (dpd >= 1) return 'overdue'
+  if ((account?.loan_type || '').toLowerCase().includes('recon')) return 'recon'
+  return 'active'
+}
+const groupCollectionAccounts = accounts => COLLECTION_STATUS_GROUPS.map(group => ({
+  ...group,
+  rows: (accounts || [])
+    .filter(account => classifyCollectionAccount(account) === group.key)
+    .sort((a, b) =>
+      String(a.customer_name || '').localeCompare(String(b.customer_name || '')) ||
+      String(a.date_paid || '').localeCompare(String(b.date_paid || '')) ||
+      String(a.loan_code || '').localeCompare(String(b.loan_code || ''))
+    )
+}))
 const getCollectorRows = payments => Object.entries(payments.reduce((acc, p) => {
   const name = p.collector_name || 'Unassigned'
   if (!acc[name]) acc[name] = { collector: name, payment_count: 0, total_amount: 0, payments: [] }
@@ -152,6 +330,15 @@ const getReleaseCollectorRows = loans => Object.entries(loans.reduce((acc, l) =>
 }, {}))
   .map(([, row]) => ({ ...row, loans: row.loans.sort((a, b) => String(a.date_released || '').localeCompare(String(b.date_released || '')) || String(a.customer_name || '').localeCompare(String(b.customer_name || ''))) }))
   .sort((a, b) => a.collector.localeCompare(b.collector))
+
+const loanPrincipal = loan => Number(loan?.principal || 0)
+const loanInterest = loan => {
+  const explicitInterest = Number(loan?.interest_amount || 0)
+  if (explicitInterest > 0) return explicitInterest
+  const paidOverPrincipal = Number(loan?.total_paid || 0) - loanPrincipal(loan)
+  return paidOverPrincipal > 0 ? paidOverPrincipal : 0
+}
+const loanTotalAmount = loan => loanPrincipal(loan) + loanInterest(loan)
 
 const getMaturityCollectorRows = loans => Object.entries(loans.reduce((acc, l) => {
   const name = l.collector_name || 'Unassigned'
@@ -263,7 +450,6 @@ const REPORT_TYPES = [
   { key: 'collection-report', label: '📅 Collection Report', desc: 'Daily and monthly collections' },
   { key: 'monthly-releases', label: '🚀 Releases Report', desc: 'Daily and monthly releases' },
   { key: 'past-due', label: '⚠️ Loans Maturity Checker', desc: 'Loans by maturity date range' },
-  { key: 'payments-encoded', label: '💳 Payments Encoded', desc: 'Payments encoded by date range' },
   { key: 'payments-reversed', label: '↩️ Payments Reversed', desc: 'Reversed payments by date range' },
   { key: 'maturity-check', label: '📆 Maturity Checker', desc: 'Loans maturing soon' },
   { key: 'full-paid', label: '✅ Fully Paid Loans', desc: 'Fully paid loan accounts' },
@@ -281,7 +467,7 @@ export default function Reports() {
   const [releaseSubTab, setReleaseSubTab] = useState('daily')
   const [monthlySubTab, setMonthlySubTab] = useState('by-collector')
   const [releaseMonthlySubTab, setReleaseMonthlySubTab] = useState('by-collector')
-  const [params, setParams] = useState({ date_from: yesterday(), date_to: yesterday(), year: new Date().getFullYear(), month: new Date().getMonth() + 1, collection_month: 'all', collection_cycle_type: '30', collection_cycle: 'all', release_cycle_type: '30', release_cycle: 'all', days_ahead: 30, collector_id: '', disclosure_search: '', disclosure_loan_id: '' })
+  const [params, setParams] = useState({ date_from: yesterday(), date_to: yesterday(), year: new Date().getFullYear(), month: new Date().getMonth() + 1, collection_month: 'all', collection_cycle_type: '30', collection_cycle: 'all', release_cycle_type: '30', release_cycle: 'all', days_ahead: 30, collector_id: '', disclosure_search: '', disclosure_loan_id: '', monitoring_tab: 'new' })
   const [collectors, setCollectors] = useState([])
   const [collectorsLoaded, setCollectorsLoaded] = useState(false)
   const [data, setData] = useState(null)
@@ -295,6 +481,7 @@ export default function Reports() {
       window.print()
     }, 100)
   }
+
 
   const printCollectionSheet = async () => {
     if (!params.collector_id) {
@@ -419,6 +606,252 @@ export default function Reports() {
       .finally(() => exportHost.remove())
   }
 
+  const handleExportExcel = () => {
+    if (!data || data.error) return
+
+    const addMeta = (rows, title, details = []) => [
+      [title],
+      ...details.filter(row => row.some(value => value !== '' && value !== null && value !== undefined)),
+      [],
+      ...rows,
+    ]
+    const periodLabel = `${dateOnly(data.date_from || params.date_from)} to ${dateOnly(data.date_to || params.date_to)}`
+    const write = (name, rows) => downloadCsv(`${safeFilePart(name)}.csv`, rows)
+
+    if (active === 'collection-report') {
+      const payments = data.payments || []
+      if (collectionSubTab === 'monthly') {
+        const matrix = getMonthlyCollectionMatrix(payments, params)
+        const cycleLabel = params.collection_cycle_type === '45' ? '45 Days / 1.5 Month' : '30 Days / By Month'
+        const headers = monthlySubTab === 'overall'
+          ? ['Summary', ...matrix.periods.map(period => period.label), 'Grand Total']
+          : ['Collector', ...matrix.periods.map(period => period.label), 'Total Collection']
+        const body = monthlySubTab === 'overall'
+          ? [[
+              'Overall Total',
+              ...matrix.periods.map(period => rawMoney(matrix.periodTotals[period.key]?.amount || 0)),
+              rawMoney(matrix.periods.reduce((sum, period) => sum + Number(matrix.periodTotals[period.key]?.amount || 0), 0)),
+            ]]
+          : [
+              ...matrix.rows.map(row => [
+                row.collector,
+                ...matrix.periods.map(period => rawMoney(row.periods[period.key]?.amount || 0)),
+                rawMoney(row.total_amount),
+              ]),
+              [
+                'GRAND TOTAL',
+                ...matrix.periods.map(period => rawMoney(matrix.periodTotals[period.key]?.amount || 0)),
+                rawMoney(matrix.rows.reduce((sum, row) => sum + Number(row.total_amount || 0), 0)),
+              ],
+            ]
+        write(`collection-monthly-${cycleLabel}-${monthlySubTab}-${params.year}`, addMeta([headers, ...body], 'Collection Report - Monthly', [['Cycle Type', cycleLabel], ['View', monthlySubTab], ['Year', params.year]]))
+        return
+      }
+
+      const collectorRows = getCollectorRows(payments)
+      const rows = [
+        ['Collector', 'No. of Payments', 'Total Collection'],
+        ...collectorRows.map(row => [row.collector, row.payment_count, rawMoney(row.total_amount)]),
+        ['GRAND TOTAL', collectorRows.reduce((sum, row) => sum + Number(row.payment_count || 0), 0), rawMoney(data.total || collectorRows.reduce((sum, row) => sum + Number(row.total_amount || 0), 0))],
+        [],
+        ['Details'],
+        ['Client Code', 'Date Paid', 'Client', 'OR Number', 'Loan Number', 'Amount Paid', 'Balance After', 'Collector'],
+        ...payments.map(payment => [
+          payment.customer_code,
+          dateOnly(payment.date_paid),
+          payment.customer_name,
+          payment.or_number,
+          payment.loan_code,
+          rawMoney(payment.amount_paid),
+          rawMoney(payment.balance_after),
+          payment.collector_name || 'Unassigned',
+        ]),
+      ]
+      write(`collection-daily-${periodLabel}`, addMeta(rows, 'Collection Report - Daily', [['Period', periodLabel]]))
+      return
+    }
+
+    if (active === 'monthly-releases') {
+      const loans = data.loans || []
+      if (releaseSubTab === 'monthly') {
+        const matrix = getMonthlyReleaseMatrix(loans, params)
+        const cycleLabel = params.release_cycle_type === '45' ? '45 Days / 1.5 Month' : '30 Days / By Month'
+        const headers = releaseMonthlySubTab === 'overall'
+          ? ['Summary', ...matrix.periods.map(period => period.label), 'Grand Total']
+          : ['Collector', ...matrix.periods.map(period => period.label), 'Total Release Amount']
+        const body = releaseMonthlySubTab === 'overall'
+          ? [[
+              'Overall Total',
+              ...matrix.periods.map(period => rawMoney(matrix.periodTotals[period.key]?.amount || 0)),
+              rawMoney(matrix.periods.reduce((sum, period) => sum + Number(matrix.periodTotals[period.key]?.amount || 0), 0)),
+            ]]
+          : [
+              ...matrix.rows.map(row => [
+                row.collector,
+                ...matrix.periods.map(period => rawMoney(row.periods[period.key]?.amount || 0)),
+                rawMoney(row.total_amount),
+              ]),
+              [
+                'GRAND TOTAL',
+                ...matrix.periods.map(period => rawMoney(matrix.periodTotals[period.key]?.amount || 0)),
+                rawMoney(matrix.rows.reduce((sum, row) => sum + Number(row.total_amount || 0), 0)),
+              ],
+            ]
+        write(`releases-monthly-${cycleLabel}-${releaseMonthlySubTab}-${params.year}`, addMeta([headers, ...body], 'Releases Report - Monthly', [['Cycle Type', cycleLabel], ['View', releaseMonthlySubTab], ['Year', params.year]]))
+        return
+      }
+
+      const collectorRows = getReleaseCollectorRows(loans)
+      const rows = [
+        ['Collector', 'No. of Loans', 'New Count', 'New Amount', 'Reloan Count', 'Reloan Amount', 'Recon Count', 'Recon Amount', 'Total Principal'],
+        ...collectorRows.map(row => [row.collector, row.loan_count, row.new_count, rawMoney(row.new_amount), row.reloan_count, rawMoney(row.reloan_amount), row.recon_count, rawMoney(row.recon_amount), rawMoney(row.total_principal)]),
+        ['GRAND TOTAL', collectorRows.reduce((sum, row) => sum + Number(row.loan_count || 0), 0), '', '', '', '', '', '', rawMoney(data.total_principal || collectorRows.reduce((sum, row) => sum + Number(row.total_principal || 0), 0))],
+        [],
+        ['Details'],
+        ['Client Code', 'Client', 'Loan Number', 'Loan Type', 'Principal', 'Date Released', 'Maturity Date', 'Collector'],
+        ...loans.map(loan => [
+          loan.customer_code,
+          loan.customer_name,
+          loan.loan_code,
+          loan.loan_type,
+          rawMoney(loan.principal),
+          dateOnly(loan.date_released),
+          dateOnly(loan.date_maturity),
+          loan.collector_name || 'Unassigned',
+        ]),
+      ]
+      write(`releases-daily-${periodLabel}`, addMeta(rows, 'Releases Report - Daily', [['Period', periodLabel]]))
+      return
+    }
+
+    if (active === 'past-due') {
+      const loans = data.loans || []
+      const rows = [
+        ['Collector', 'Customer Code', 'Customer Name', 'Loan Number', 'Principal', 'Interest', 'Total Loan Amount', 'Running Balance', 'Date Released', 'Maturity Date', 'Days Overdue'],
+        ...loans.map(loan => [
+          loan.collector_name || 'Unassigned',
+          loan.customer_code,
+          loan.customer_name,
+          loan.loan_code,
+          rawMoney(loan.principal),
+          rawMoney(loan.interest_amount),
+          rawMoney(Number(loan.principal || 0) + Number(loan.interest_amount || 0)),
+          rawMoney(loan.balance),
+          dateOnly(loan.date_released),
+          dateOnly(loan.date_maturity),
+          loan.days_overdue || loan.days_past_due || '',
+        ]),
+      ]
+      write(`loans-maturity-checker-${periodLabel}`, addMeta(rows, 'Loans Maturity Checker', [['Maturity Date', periodLabel], ['Total Loan Amount', rawMoney(data.total_loan_amount)], ['Total Running Balance', rawMoney(data.total_balance)]]))
+      return
+    }
+
+    if (active === 'payments-reversed') {
+      const payments = data.payments || []
+      const rows = [
+        ['Collector', 'Customer Code', 'Customer Name', 'OR Number', 'Loan Number', 'Date Paid', 'Amount Paid', 'Reversed At', 'Reversed By', 'Reason'],
+        ...payments.map(payment => [
+          payment.collector_name || 'Unassigned',
+          payment.customer_code,
+          payment.customer_name,
+          payment.or_number,
+          payment.loan_code,
+          dateOnly(payment.date_paid),
+          rawMoney(payment.amount_paid),
+          dateOnly(payment.reversed_at || payment.updated_at),
+          payment.reversed_by_name || payment.reversed_by || '',
+          payment.reversal_reason || payment.reason || '',
+        ]),
+      ]
+      write(`payments-reversed-${periodLabel}`, addMeta(rows, 'Payments Reversed', [['Period', periodLabel], ['Total Reversed', rawMoney(data.total_amount)]]))
+      return
+    }
+
+    if (active === 'full-paid') {
+      const loans = data.loans || []
+      const rows = [
+        ['Collector', 'Customer Code', 'Customer Name', 'Loan Number', 'Date Released', 'Principal', 'Interest', 'Total Loan Amount', 'Total Paid', 'Date Fully Paid'],
+        ...loans.map(loan => [
+          loan.collector_name || 'Unassigned',
+          loan.customer_code,
+          loan.customer_name,
+          loan.loan_code,
+          dateOnly(loan.date_released),
+          rawMoney(loanPrincipal(loan)),
+          rawMoney(loanInterest(loan)),
+          rawMoney(loanTotalAmount(loan)),
+          rawMoney(loan.total_paid),
+          dateOnly(loan.date_fully_paid || loan.updated_at),
+        ]),
+      ]
+      write(`full-paid-loans-${periodLabel}`, addMeta(rows, 'Full Paid Loans', [['Period', periodLabel], ['Total Principal', rawMoney(data.total_principal)], ['Total Interest', rawMoney(data.total_interest)], ['Total Loan Amount', rawMoney(data.total_loan_amount)]]))
+      return
+    }
+
+    if (active === 'collection-sheet') {
+      const loans = data.loans || []
+      const rows = [
+        ['Client Code', 'Client Name', 'Loan Number', 'Loan Type', 'Principal', 'Running Balance', 'Amortization', 'Date Released', 'Maturity Date', 'Collector', 'Contact Number'],
+        ...loans.map(loan => [
+          loan.customer_code,
+          loan.customer_name,
+          loan.loan_code,
+          loan.loan_type,
+          rawMoney(loan.principal),
+          rawMoney(loan.balance),
+          rawMoney(loan.amortization),
+          dateOnly(loan.date_released),
+          dateOnly(loan.date_maturity),
+          loan.collector_name || data.collector_name || '',
+          loan.contact || loan.phone || '',
+        ]),
+      ]
+      write(`collection-sheet-${data.collector_name || params.collector_id || 'collector'}-${dateOnly(params.date || new Date().toISOString())}`, addMeta(rows, 'Collection Sheet', [['Collection Date', dateOnly(params.date || new Date().toISOString())], ['Collector', data.collector_name || params.collector_id]]))
+      return
+    }
+
+    if (active === 'disclosure-statement') {
+      const loan = data.loan || {}
+      const schedule = data.schedule || []
+      const rows = [
+        ['Loan Information'],
+        ['Client', loan.customer_name || [loan.last_name, loan.first_name, loan.middle_name].filter(Boolean).join(', ')],
+        ['Loan Number', loan.loan_code || loan.id],
+        ['Loan Type', loan.loan_type],
+        ['Principal', rawMoney(loan.principal)],
+        ['Interest Rate', loan.interest_rate],
+        ['Loan Period', loan.loan_period],
+        ['Amortization', rawMoney(loan.amortization)],
+        ['Date Released', dateOnly(loan.date_released)],
+        ['Maturity Date', dateOnly(loan.date_maturity)],
+        ['Purpose', loan.loan_purpose || loan.remarks],
+        [],
+        ['Amortization Schedule'],
+        ['Period', 'Due Date', 'Amount Due', 'Balance'],
+        ...schedule.map((item, index) => [item.period_number || index + 1, dateOnly(item.due_date), rawMoney(item.amount_due), rawMoney(item.balance)]),
+      ]
+      write(`disclosure-statement-${loan.loan_code || loan.id || 'loan'}`, addMeta(rows, 'Disclosure Statement'))
+      return
+    }
+
+    if (active === 'monitoring-summary') {
+      const rows = data.rows || []
+      const exportRows = [
+        ['Client Code', 'Client Name', 'Running Balance', 'Last Payment', 'Contact Number', 'Remarks'],
+        ...rows.map(row => [
+          row.customer_code,
+          row.customer_name,
+          rawMoney(row.balance),
+          row.last_payment_date ? `${dateOnly(row.last_payment_date)} - ${rawMoney(row.last_payment_amount)}` : '',
+          row.contact,
+          '',
+        ]),
+      ]
+      write(`monitoring-summary-${data.tab_label || params.monitoring_tab}`, addMeta(exportRows, `Monitoring Summary - ${data.tab_label || ''}`, [['As of', dateOnly(data.as_of || new Date().toISOString())], ['Total Clients', rows.length]]))
+    }
+
+  }
+
   const loadCollectors = () => {
     if (!collectorsLoaded) {
       API.get('/collectors').then(r => { setCollectors(r.data); setCollectorsLoaded(true) })
@@ -449,6 +882,11 @@ export default function Reports() {
     }
     if (key === 'collection-sheet' || key === 'daily-target') { loadCollectors(); setParams(p => ({ ...p, date: toDateInputValue(new Date()) })) }
     if (key === 'disclosure-statement') { setParams(p => ({ ...p, disclosure_loan_id: '' })) }
+    if (key === 'monitoring-summary') {
+      const nextParams = { ...params, monitoring_tab: params.monitoring_tab || 'new' }
+      setParams(nextParams)
+      run(key, nextParams)
+    }
   }
 
   const run = async (reportKey = active, reportParams = params, subTab = collectionSubTab) => {
@@ -477,12 +915,29 @@ export default function Reports() {
           loan_id: finalParams.disclosure_loan_id,
         }
       }
+      if (reportKey === 'monitoring-summary') {
+        const r = await API.get('/monitoring/alerts', { params: { tab: finalParams.monitoring_tab || 'new' } })
+        const labels = {
+          new: 'New (Day 3)',
+          monitoring: 'Under Monitoring',
+          ptp: 'Promise to Pay',
+          escalated: 'Escalated',
+        }
+        setData({
+          as_of: toDateInputValue(new Date()),
+          tab: finalParams.monitoring_tab || 'new',
+          tab_label: labels[finalParams.monitoring_tab || 'new'],
+          rows: Array.isArray(r.data) ? r.data : [],
+        })
+        return
+      }
       if (reportKey === 'daily-target') {
         endpoint = 'collection-sheet'
       }
       const r = await API.get(`/reports/${endpoint}`, { params: finalParams })
       setData(r.data)
-      return r.data
+    } catch (err) {
+      setData({ error: err.response?.data?.error || err.message || 'Failed to generate report.' })
     } finally { setLoading(false) }
   }
 
@@ -567,6 +1022,31 @@ export default function Reports() {
           </>
         )
       }
+    }
+    if (active === 'monitoring-summary') {
+      const monitoringTabs = [
+        { id: 'new', label: 'New (Day 3)' },
+        { id: 'monitoring', label: 'Under Monitoring' },
+        { id: 'ptp', label: 'Promise to Pay' },
+        { id: 'escalated', label: 'Escalated' },
+      ]
+      return (
+        <div className="form-group">
+          <label className="form-label">Monitoring Table</label>
+          <select
+            className="form-control"
+            value={params.monitoring_tab || 'new'}
+            onChange={e => {
+              const nextParams = { ...params, monitoring_tab: e.target.value }
+              setParams(nextParams)
+              run('monitoring-summary', nextParams)
+            }}
+            style={{ minWidth: 240 }}
+          >
+            {monitoringTabs.map(tab => <option key={tab.id} value={tab.id}>{tab.label}</option>)}
+          </select>
+        </div>
+      )
     }
     if (['past-due', 'payments-encoded', 'payments-reversed', 'full-paid', 'loan-type'].includes(active)) return (
       <>
@@ -671,12 +1151,13 @@ export default function Reports() {
       const interestRate = Number(loan.interest_rate || 0)
       const loanPeriod = Number(loan.loan_period || 0)
       const amortization = Number(loan.amortization || 0)
-      const maturityDate = loan.date_maturity || addDays(loan.date_released, loanPeriod)
+      const maturityDate = loan.date_maturity || addCollectionDaysSkippingSunday(loan.date_released, loanPeriod)
       const fullName = loan.customer_name || [loan.last_name, loan.first_name, loan.middle_name].filter(Boolean).join(', ')
       const phone = [loan.contact, loan.secondary_contact].filter(Boolean).join('/')
       const businessNature = loan.business_type || loan.business_name || loan.occupation || '-'
       const purpose = loan.loan_purpose || loan.remarks || 'Additional Capital'
       const idDocument = [loan.id_type, loan.id_number].filter(Boolean).join(' - ') || '-'
+      const clientAddress = formatClientAddress(loan)
       const collateral = loan.collateral || '-'
       const netProceed = Number(loan.net_proceeds || principal)
       const charges = Number(loan.service_fee || 0) + Number(loan.insurance || 0) + Number(loan.notarial_fee || 0) + Number(loan.filing_fee || 0) + Number(loan.total_deductions || 0)
@@ -684,12 +1165,23 @@ export default function Reports() {
       const schedule = rawSchedule.length > 0 ? rawSchedule.map((item, idx) => {
         const amount = Number(item.amount_due || amortization || 0)
         const paidThrough = rawSchedule.slice(0, idx + 1).reduce((sum, row) => sum + Number(row.amount_due || amortization || 0), 0)
-        return { no: item.period_number || idx + 1, date: item.due_date, amount, balance: Math.max(totalLoan - paidThrough, 0) }
+        const periodNumber = Number(item.period_number || idx + 1)
+        return {
+          no: periodNumber,
+          date: addCollectionDaysSkippingSunday(loan.date_released, periodNumber) || item.due_date,
+          amount,
+          balance: Math.max(totalLoan - paidThrough, 0),
+        }
       }) : Array.from({ length: Math.max(loanPeriod, 1) }, (_, idx) => {
         const count = Math.max(loanPeriod, 1)
         const isLast = idx === count - 1
         const amount = isLast ? Math.max(totalLoan - (amortization * idx), 0) : amortization
-        return { no: idx + 1, date: addDays(loan.date_released, idx + 1), amount, balance: Math.max(totalLoan - (amortization * idx) - amount, 0) }
+        return {
+          no: idx + 1,
+          date: addCollectionDaysSkippingSunday(loan.date_released, idx + 1),
+          amount,
+          balance: Math.max(totalLoan - (amortization * idx) - amount, 0),
+        }
       })
       const scheduleRowsPerColumn = Math.ceil(schedule.length / 3)
       const scheduleColumns = [
@@ -740,8 +1232,12 @@ export default function Reports() {
             .ds-schedule .money { text-align: right; font-weight: 700; }
             .ds-schedule .balance { color: #df4b43; }
             .ds-disclosure-head { display: flex; justify-content: space-between; color: #667085; font-size: 13px; margin-bottom: 18px; }
-            .ds-signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin: 42px 0 20px; }
+            .ds-signatures { display: grid; grid-template-columns: minmax(260px, 360px); justify-content: center; margin: 28px 0 20px; }
             .ds-signature { text-align: center; color: #7a8699; font-size: 11px; }
+            .ds-certified-signature { position: relative; padding-top: 48px; }
+            .ds-manager-signature-img { position: absolute; left: 50%; bottom: 30px; width: 170px; max-height: 76px; transform: translateX(-50%); object-fit: contain; filter: drop-shadow(0.15px 0px 0px #000) drop-shadow(-0.15px 0px 0px #000) drop-shadow(0px 0.15px 0px #000) drop-shadow(0px -0.15px 0px #000); }
+            .ds-signer-name { color: #000; font-weight: 900; letter-spacing: 0.4px; }
+            .ds-signer-position { color: #3f4a5c; font-weight: 700; margin-top: 2px; }
             .ds-line { border-top: 1px solid #142b57; margin-bottom: 8px; height: 1px; }
             .ds-ack { font-size: 12px; line-height: 1.45; font-weight: 800; margin: 18px 0; }
             .ds-clause { font-size: 12px; line-height: 1.5; font-style: italic; color: #3f4a5c; }
@@ -791,8 +1287,12 @@ export default function Reports() {
               .ds-section:last-of-type .ds-grid-2 { gap: 0.035in 0.18in !important; }
               .ds-section:last-of-type .ds-field { font-size: 7.5pt !important; min-height: 0.13in !important; }
               .ds-section:last-of-type .ds-field b { min-height: 0.105in !important; }
-              .ds-signatures { gap: 0.16in !important; margin: 0.36in 0 0.12in !important; }
+              .ds-signatures { grid-template-columns: 2.65in !important; margin: 0.16in 0 0.08in !important; }
               .ds-signature { font-size: 6.7pt !important; }
+              .ds-certified-signature { padding-top: 0.45in !important; }
+              .ds-manager-signature-img { bottom: 0.19in !important; width: 1.55in !important; max-height: 0.58in !important; }
+              .ds-signer-name { letter-spacing: 0.15px !important; }
+              .ds-signer-position { margin-top: 0.01in !important; }
               .ds-line { border-top: 1.4px solid #253a61 !important; margin-bottom: 0.04in !important; }
               .ds-ack { font-size: 7.15pt !important; line-height: 1.1 !important; margin: 0.075in 0 !important; }
               .ds-clause { font-size: 6.9pt !important; line-height: 1.1 !important; }
@@ -819,7 +1319,7 @@ export default function Reports() {
                 <div>
                   {field('Name', fullName, true)}
                   {field('Code', loan.customer_code)}
-                  {field('Address', loan.address)}
+                  {field('Address', clientAddress)}
                   {field('Age', calculateAge(loan.birth_date))}
                   {field('Nature of Business', businessNature)}
                 </div>
@@ -908,7 +1408,7 @@ export default function Reports() {
                 <div className="ds-grid-2">
                   <div>
                     {field('Name', fullName, true)}
-                    {field('Address', loan.address)}
+                    {field('Address', clientAddress)}
                   </div>
                   <div>
                     {field('Birthday', shortDate(loan.birth_date))}
@@ -918,12 +1418,11 @@ export default function Reports() {
                 </div>
                 <div style={{ color: '#142b57', fontWeight: 900, marginTop: 22 }}>CERTIFIED CORRECT:</div>
                 <div className="ds-signatures">
-                  {[1, 2, 3].map(item => (
-                    <div className="ds-signature" key={item}>
-                      <div className="ds-line"></div>
-                      Signature of Authorized Representative<br />Over Printed Name / Position
-                    </div>
-                  ))}
+                  <div className="ds-signature ds-certified-signature">
+                    <div className="ds-line"></div>
+                    <div className="ds-signer-name">MARILYN O. RELOBA</div>
+                    <div className="ds-signer-position">Branch Manager</div>
+                  </div>
                 </div>
                 <div className="ds-ack">I ACKNOWLEDGE RECEIPT OF A COPY OF THIS STATEMENT PRIOR TO THE CONSUMMATION OF THE CREDIT TRANSACTION AND THAT I UNDERSTAND AND FULLY AGREE TO THE TERMS AND CONDITIONS THEREOF:</div>
                 <div className="ds-clause">In the event of borrower's death during the active period of the loan, the total unpaid balance of the loan will be deemed paid, provided that the account is not in a past due status. This clause does not apply in cases of death, resulting from war, natural calamities, natural disaster, criminal acts, illegal activities, participation in extreme sports, substance abuse and suicide.</div>
@@ -952,12 +1451,153 @@ export default function Reports() {
         return (
           <>
             <style>{`
+              .monthly-overall-screen {
+                width: 100%;
+                max-width: 100%;
+                overflow-x: hidden !important;
+              }
+              .monthly-overall-chart {
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                overflow: hidden;
+              }
+              .monthly-overall-chart > div,
+              .monthly-overall-chart svg {
+                max-width: 100%;
+              }
+              .monthly-overall-screen table {
+                table-layout: fixed;
+                width: 100%;
+                min-width: 0 !important;
+              }
+              .monthly-overall-screen th,
+              .monthly-overall-screen td {
+                min-width: 0 !important;
+                padding: 8px 6px !important;
+                font-size: 11px;
+                line-height: 1.15;
+                white-space: normal;
+                overflow-wrap: anywhere;
+              }
+              .monthly-overall-screen th:first-child,
+              .monthly-overall-screen td:first-child {
+                width: 11%;
+                text-align: left;
+              }
+              .monthly-overall-screen th:not(:first-child),
+              .monthly-overall-screen td:not(:first-child) {
+                width: auto;
+              }
+              .monthly-overall-screen .period-range-print {
+                display: none;
+              }
+              .monthly-overall-screen .text-success {
+                white-space: nowrap;
+                font-size: 11px;
+              }
+              .monthly-matrix-fit-screen {
+                width: 100%;
+                max-width: 100%;
+                overflow-x: hidden !important;
+              }
+              .monthly-matrix-fit-screen table {
+                table-layout: fixed;
+                width: 100%;
+                min-width: 0 !important;
+              }
+              .monthly-matrix-fit-screen th,
+              .monthly-matrix-fit-screen td {
+                min-width: 0 !important;
+                padding: 7px 5px !important;
+                font-size: 11px;
+                line-height: 1.15;
+                white-space: normal;
+                overflow-wrap: anywhere;
+              }
+              .monthly-matrix-fit-screen th:first-child,
+              .monthly-matrix-fit-screen td:first-child {
+                width: 12%;
+                text-align: left;
+              }
+              .monthly-matrix-fit-screen th:last-child,
+              .monthly-matrix-fit-screen td:last-child {
+                width: 11%;
+              }
+              .monthly-matrix-fit-screen th:not(:first-child),
+              .monthly-matrix-fit-screen td:not(:first-child) {
+                text-align: right;
+              }
+              .monthly-matrix-fit-screen .period-range-print {
+                display: none;
+              }
+              .monthly-matrix-fit-screen .text-success {
+                white-space: nowrap;
+                font-size: 11px;
+              }
+              @media (max-width: 1200px) {
+                .monthly-overall-screen th,
+                .monthly-overall-screen td,
+                .monthly-overall-screen .text-success {
+                  font-size: 10px;
+                }
+                .monthly-overall-screen th,
+                .monthly-overall-screen td {
+                  padding: 7px 4px !important;
+                }
+                .monthly-matrix-fit-screen th,
+                .monthly-matrix-fit-screen td,
+                .monthly-matrix-fit-screen .text-success {
+                  font-size: 10px;
+                }
+                .monthly-matrix-fit-screen th,
+                .monthly-matrix-fit-screen td {
+                  padding: 6px 3px !important;
+                }
+              }
               @media print {
                 @page { size: landscape; margin: 10mm; }
                 table { min-width: auto !important; width: 100% !important; zoom: 0.9; }
                 th, td { min-width: 0 !important; font-size: 9px !important; padding: 3px 4px !important; }
                 th div { font-size: 9px !important; }
                 .table-responsive-print { overflow: visible !important; }
+                .monthly-collection-fit-print {
+                  border-radius: 0 !important;
+                  overflow: visible !important;
+                  width: 100% !important;
+                }
+                .monthly-collection-fit-print table {
+                  table-layout: fixed !important;
+                  width: 100% !important;
+                  min-width: 0 !important;
+                  zoom: 1 !important;
+                }
+                .monthly-collection-fit-print th,
+                .monthly-collection-fit-print td {
+                  font-size: 6.4px !important;
+                  line-height: 1.05 !important;
+                  padding: 1.5px 2px !important;
+                  min-width: 0 !important;
+                  white-space: normal !important;
+                  overflow-wrap: anywhere !important;
+                }
+                .monthly-collection-fit-print th:first-child,
+                .monthly-collection-fit-print td:first-child {
+                  width: 10.5% !important;
+                  text-align: left !important;
+                }
+                .monthly-collection-fit-print th:not(:first-child),
+                .monthly-collection-fit-print td:not(:first-child) {
+                  width: 6.88% !important;
+                  text-align: right !important;
+                }
+                .monthly-collection-fit-print .period-range-print {
+                  display: none !important;
+                }
+                .monthly-collection-fit-print .fw-bold,
+                .monthly-collection-fit-print .fw-600 {
+                  font-weight: 800 !important;
+                }
                 .monthly-print-detailed { display: none !important; }
                 ${printMode === 'detailed' ? `
                 .monthly-print-summary { display: none !important; }
@@ -979,7 +1619,7 @@ export default function Reports() {
               <div className="fw-bold text-success">Grand Total: ₱ {fmt(total)}</div>
             </div>
             {monthlySubTab === 'overall' && (
-              <div style={{ marginBottom: 20, height: 350, background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '16px 16px 0 0' }}>
+              <div className="monthly-overall-chart" style={{ marginBottom: 20, height: 350, background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '16px 16px 0 0' }}>
                 {matrix.periods.length > 0 ? (
                   printMode === 'summary' ? (
                     <div style={{ width: 1000, height: 350, margin: '0 auto' }}>
@@ -1023,18 +1663,21 @@ export default function Reports() {
                 )}
               </div>
             )}
-            <div className="table-responsive-print" style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
-              <table className="data-table" style={{ minWidth: Math.max(760, 220 + matrix.periods.length * 150 + 150) }}>
+            <div
+              className={`table-responsive-print monthly-matrix-fit-screen ${monthlySubTab === 'overall' ? 'monthly-overall-screen monthly-collection-fit-print' : 'monthly-collection-fit-print'}`}
+              style={{ overflowX: 'hidden', border: '1px solid var(--border)', borderRadius: 8 }}
+            >
+              <table className="data-table" style={{ minWidth: 0, width: '100%' }}>
                 <thead>
                   <tr>
-                    <th style={{ minWidth: 220 }}>{monthlySubTab === 'by-collector' ? 'Collector' : 'Summary'}</th>
+                    <th style={{ minWidth: 0 }}>{monthlySubTab === 'by-collector' ? 'Collector' : 'Summary'}</th>
                     {matrix.periods.map(period => (
-                      <th key={period.key} className="text-right" title={period.rangeLabel} style={{ minWidth: 150 }}>
+                      <th key={period.key} className="text-right" title={period.rangeLabel} style={{ minWidth: 0 }}>
                         <div>{period.label}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, textTransform: 'none', letterSpacing: 0 }}>{period.rangeLabel}</div>
+                        <div className="period-range-print" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, textTransform: 'none', letterSpacing: 0 }}>{period.rangeLabel}</div>
                       </th>
                     ))}
-                    <th className="text-right" style={{ minWidth: 150 }}>Total Collection</th>
+                    <th className="text-right" style={{ minWidth: 0 }}>Total Collection</th>
                   </tr>
                 </thead>
                 {monthlySubTab === 'by-collector' ? (
@@ -1174,6 +1817,34 @@ export default function Reports() {
       return (
         <>
           <style>{`
+            .maturity-summary-wrap {
+              overflow-x: visible !important;
+              min-width: 0;
+            }
+            .maturity-summary-table {
+              width: 100%;
+              table-layout: fixed;
+              border-collapse: collapse;
+            }
+            .maturity-summary-table th,
+            .maturity-summary-table td {
+              padding: 8px 6px;
+              font-size: 11px;
+              line-height: 1.25;
+            }
+            .maturity-summary-table th {
+              font-size: 9px;
+              letter-spacing: 0.25px;
+              white-space: normal;
+            }
+            .maturity-summary-table .money-cell {
+              white-space: nowrap;
+              font-size: 11px;
+            }
+            .maturity-summary-table .collector-cell {
+              word-break: normal;
+              overflow-wrap: anywhere;
+            }
             @media print {
               ${printMode === 'detailed' ? `
               .reports-screen-only { display: none !important; }
@@ -1291,66 +1962,66 @@ export default function Reports() {
     }
 
     if (active === 'monitoring-summary') {
+      if (data.error) {
+        return (
+          <div className="empty-state" style={{ color: '#b91c1c' }}>
+            <p>Unable to load Monitoring Summary.</p>
+            <p style={{ fontSize: 12 }}>{data.error}</p>
+          </div>
+        )
+      }
+      const rows = data.rows || data.alerts || (Array.isArray(data) ? data : [])
+      const tabLabel = data.tab_label || 'Under Monitoring'
+      const todayLabel = displayDate(data.as_of || toDateInputValue(new Date()))
       return (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-          <div className="card-v2" style={{ padding: 20 }}>
-            <h3 style={{ margin: '0 0 15px 0' }}>🚨 3-Day Monitoring Overview</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-                <span style={{ color: 'var(--text-muted)' }}>Active Clients Monitored Today</span>
-                <strong style={{ fontSize: 16 }}>{data.activeClientsMonitoredToday}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-                <span style={{ color: 'var(--text-muted)' }}>Escalated Accounts (Day 4+)</span>
-                <strong style={{ fontSize: 16, color: '#ef4444' }}>{data.escalatedAccounts}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-                <span style={{ color: 'var(--text-muted)' }}>Resolved Accounts</span>
-                <strong style={{ fontSize: 16, color: '#10b981' }}>{data.resolvedAccounts}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-                <span style={{ color: 'var(--text-muted)' }}>Clients Approaching Day 3 (Pre-alert)</span>
-                <strong style={{ fontSize: 16, color: '#f59e0b' }}>{data.clientsApproachingDay3}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-                <span style={{ color: 'var(--text-muted)' }}>Chronic Missed Payments (3+ times)</span>
-                <strong style={{ fontSize: 16, color: '#b91c1c' }}>{data.chronicMissedPayments}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-muted)' }}>Unresolved Alerts Over 7 Days</span>
-                <strong style={{ fontSize: 16, color: '#7f1d1d' }}>{data.unresolvedOver7Days}</strong>
-              </div>
+        <div id="printable-area" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <style>{`${REPORT_PRINT_CLARITY_CSS}
+            @media print {
+              @page { size: landscape; margin: 9mm; }
+              .monitoring-actions { display: none !important; }
+              #printable-area table.data-table th,
+              #printable-area table.data-table td { font-size: 10px !important; padding: 6px 7px !important; }
+              .monitoring-print-title { text-align: center !important; }
+              .monitoring-remarks { min-width: 190px !important; height: 28px !important; }
+            }
+          `}</style>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
+            <div className="monitoring-print-title">
+              <h3 style={{ margin: 0 }}>3-Day Monitoring - {tabLabel}</h3>
+              <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>As of {todayLabel}</div>
+              <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>Total Clients: <b>{rows.length}</b></div>
+            </div>
+            <div className="monitoring-actions" style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>🖨️ Print</button>
             </div>
           </div>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div className="card-v2" style={{ padding: 20 }}>
-              <h3 style={{ margin: '0 0 15px 0' }}>🤝 PTP & Follow-Ups</h3>
-              <div style={{ display: 'flex', gap: 20 }}>
-                <div style={{ flex: 1, textAlign: 'center', padding: 15, background: '#f0fdf4', borderRadius: 8 }}>
-                  <div style={{ fontSize: 12, color: '#15803d' }}>Follow-Up Success Rate</div>
-                  <strong style={{ fontSize: 24, color: '#16a34a' }}>{data.collectorPerformance}</strong>
-                </div>
-                <div style={{ flex: 1, textAlign: 'center', padding: 15, background: '#f8fafc', borderRadius: 8 }}>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Pending PTPs</div>
-                  <strong style={{ fontSize: 24 }}>{data.summaryPTP?.c || 0}</strong>
-                  <div style={{ fontSize: 12, color: '#10b981' }}>₱ {fmt(data.summaryPTP?.total || 0)}</div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="card-v2" style={{ padding: 20, flex: 1 }}>
-              <h3 style={{ margin: '0 0 15px 0' }}>📝 Recent Follow-Up Logs</h3>
-              {data.followUpLogs && data.followUpLogs.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {data.followUpLogs.map(log => (
-                    <div key={log.id} style={{ fontSize: 13, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
-                      <strong>{new Date(log.created_at).toLocaleDateString()}</strong> - {log.follow_up_method} <br/>
-                      <span style={{ color: log.contact_result === 'Promised to Pay' ? '#10b981' : '#64748b' }}>Result: {log.contact_result}</span>
-                    </div>
+
+          <div className="card-v2" style={{ padding: 18 }}>
+            <div className="table-responsive-print" style={{ overflowX: 'auto' }}>
+              <table className="data-table" style={{ minWidth: 980 }}>
+                <thead>
+                  <tr>
+                    <th>Client Code</th>
+                    <th>Client Name</th>
+                    <th className="text-right">Running Balance</th>
+                    <th>Last Payment</th>
+                    <th>Contact Number</th>
+                    <th>Remarks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.length === 0 ? <tr><td colSpan={6} className="empty-state">No clients found for this monitoring table</td></tr> : rows.map(row => (
+                    <tr key={row.id}>
+                      <td className="mono">{row.customer_code || '-'}</td>
+                      <td className="fw-600">{row.customer_name || '-'}</td>
+                      <td className="text-right fw-bold">₱ {fmt(row.balance || 0)}</td>
+                      <td>{row.last_payment_date ? `${shortDate(row.last_payment_date)} - ₱ ${fmt(row.last_payment_amount || 0)}` : '-'}</td>
+                      <td>{row.contact || '-'}</td>
+                      <td className="monitoring-remarks"></td>
+                    </tr>
                   ))}
-                </div>
-              ) : <div className="empty-state">No recent logs</div>}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -1368,12 +2039,133 @@ export default function Reports() {
         return (
           <>
             <style>{`
+              .release-overall-screen {
+                width: 100%;
+                max-width: 100%;
+                overflow-x: hidden !important;
+              }
+              .release-overall-chart {
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                overflow: hidden;
+              }
+              .release-overall-chart > div,
+              .release-overall-chart svg {
+                max-width: 100%;
+              }
+              .release-overall-screen table {
+                table-layout: fixed;
+                width: 100%;
+                min-width: 0 !important;
+              }
+              .release-overall-screen th,
+              .release-overall-screen td {
+                min-width: 0 !important;
+                padding: 8px 6px !important;
+                font-size: 11px;
+                line-height: 1.15;
+                white-space: normal;
+                overflow-wrap: anywhere;
+              }
+              .release-overall-screen th:first-child,
+              .release-overall-screen td:first-child {
+                width: 11%;
+                text-align: left;
+              }
+              .release-overall-screen th:not(:first-child),
+              .release-overall-screen td:not(:first-child) {
+                width: auto;
+              }
+              .release-overall-screen .period-range-print {
+                display: none;
+              }
+              .release-overall-screen .text-success {
+                white-space: nowrap;
+                font-size: 11px;
+              }
+              .release-matrix-fit-screen {
+                width: 100%;
+                max-width: 100%;
+                overflow-x: hidden !important;
+              }
+              .release-matrix-fit-screen table {
+                table-layout: fixed;
+                width: 100%;
+                min-width: 0 !important;
+              }
+              .release-matrix-fit-screen th,
+              .release-matrix-fit-screen td {
+                min-width: 0 !important;
+                padding: 7px 5px !important;
+                font-size: 11px;
+                line-height: 1.15;
+                white-space: normal;
+                overflow-wrap: anywhere;
+              }
+              .release-matrix-fit-screen th:first-child,
+              .release-matrix-fit-screen td:first-child {
+                width: 12%;
+                text-align: left;
+              }
+              .release-matrix-fit-screen th:last-child,
+              .release-matrix-fit-screen td:last-child {
+                width: 11%;
+              }
+              .release-matrix-fit-screen th:not(:first-child),
+              .release-matrix-fit-screen td:not(:first-child) {
+                text-align: right;
+              }
+              .release-matrix-fit-screen .period-range-print {
+                display: none;
+              }
+              .release-matrix-fit-screen .text-success {
+                white-space: nowrap;
+                font-size: 11px;
+              }
+              @media (max-width: 1200px) {
+                .release-overall-screen th,
+                .release-overall-screen td,
+                .release-overall-screen .text-success {
+                  font-size: 10px;
+                }
+                .release-overall-screen th,
+                .release-overall-screen td {
+                  padding: 7px 4px !important;
+                }
+                .release-matrix-fit-screen th,
+                .release-matrix-fit-screen td,
+                .release-matrix-fit-screen .text-success {
+                  font-size: 10px;
+                }
+                .release-matrix-fit-screen th,
+                .release-matrix-fit-screen td {
+                  padding: 6px 3px !important;
+                }
+              }
               @media print {
                 @page { size: landscape; margin: 10mm; }
                 table { min-width: auto !important; width: 100% !important; zoom: 0.9; }
                 th, td { min-width: 0 !important; font-size: 9px !important; padding: 3px 4px !important; }
                 th div { font-size: 9px !important; }
                 .table-responsive-print { overflow: visible !important; }
+                .release-overall-screen {
+                  border-radius: 0 !important;
+                  overflow: visible !important;
+                  width: 100% !important;
+                }
+                .release-overall-screen table {
+                  table-layout: fixed !important;
+                  width: 100% !important;
+                  min-width: 0 !important;
+                  zoom: 1 !important;
+                }
+                .release-overall-screen th,
+                .release-overall-screen td {
+                  font-size: 6.4px !important;
+                  line-height: 1.05 !important;
+                  padding: 1.5px 2px !important;
+                }
                 .release-monthly-print-detailed { display: none !important; }
                 ${printMode === 'detailed' ? `
                 .release-monthly-print-summary { display: none !important; }
@@ -1394,18 +2186,49 @@ export default function Reports() {
               </div>
               <div className="fw-bold text-success">Grand Total: ₱ {fmt(total_principal)}</div>
             </div>
-            <div className="table-responsive-print" style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
-              <table className="data-table" style={{ minWidth: Math.max(760, 220 + matrix.periods.length * 150 + 150) }}>
+            {releaseMonthlySubTab === 'overall' && (
+              <div className="release-overall-chart" style={{ marginBottom: 20, height: 350, background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '16px 16px 0 0' }}>
+                {matrix.periods.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={350} minWidth={300} minHeight={300}>
+                    <BarChart data={matrix.periods.map(p => ({ name: p.label, amount: matrix.periodTotals[p.key]?.amount || 0 }))} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="barGradientReleaseMonthly" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f59e0b" stopOpacity={1}/>
+                          <stop offset="100%" stopColor="#fbbf24" stopOpacity={0.6}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `â‚±${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
+                      <Tooltip
+                        cursor={{ fill: 'rgba(245, 158, 11, 0.08)' }}
+                        contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }}
+                        formatter={(val) => [`â‚± ${fmt(val)}`, 'Total Released']}
+                        labelStyle={{ color: '#0f172a', fontWeight: 700, marginBottom: 6, fontSize: 13 }}
+                      />
+                      <Bar dataKey="amount" fill="url(#barGradientReleaseMonthly)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={1000} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="empty-state">No data for chart</div>
+                )}
+              </div>
+            )}
+            <div
+              className={`table-responsive-print release-matrix-fit-screen ${releaseMonthlySubTab === 'overall' ? 'release-overall-screen' : ''}`}
+              style={{ overflowX: 'hidden', border: '1px solid var(--border)', borderRadius: 8 }}
+            >
+              <table className="data-table" style={{ minWidth: 0, width: '100%' }}>
                 <thead>
                   <tr>
-                    <th style={{ minWidth: 220 }}>{releaseMonthlySubTab === 'by-collector' ? 'Collector' : 'Summary'}</th>
+                    <th style={{ minWidth: 0 }}>{releaseMonthlySubTab === 'by-collector' ? 'Collector' : 'Summary'}</th>
                     {matrix.periods.map(period => (
-                      <th key={period.key} className="text-right" title={period.rangeLabel} style={{ minWidth: 150 }}>
+                      <th key={period.key} className="text-right" title={period.rangeLabel} style={{ minWidth: 0 }}>
                         <div>{period.label}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, textTransform: 'none', letterSpacing: 0 }}>{period.rangeLabel}</div>
+                        <div className="period-range-print" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, textTransform: 'none', letterSpacing: 0 }}>{period.rangeLabel}</div>
                       </th>
                     ))}
-                    <th className="text-right" style={{ minWidth: 150 }}>Total Release Amount</th>
+                    <th className="text-right" style={{ minWidth: 0 }}>Total Release Amount</th>
                   </tr>
                 </thead>
                 {releaseMonthlySubTab === 'by-collector' ? (
@@ -1631,7 +2454,7 @@ export default function Reports() {
                     </BarChart>
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={350} minWidth={300} minHeight={300}>
                     <BarChart data={chartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
                       <defs>
                         <linearGradient id="barGradientRelease" x1="0" y1="0" x2="0" y2="1">
@@ -1752,7 +2575,7 @@ export default function Reports() {
             }
           `}</style>
           <div id={(!selectedCollector && printMode === 'summary') ? "printable-area" : undefined} className="reports-screen-only" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-            <div style={{ overflowX: 'auto' }}>
+            <div className="maturity-summary-wrap">
             <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
               <div>
                 <div style={{ color: 'var(--blue-dark)', fontWeight: 700 }}>Loans Maturity Checker</div>
@@ -1760,7 +2583,15 @@ export default function Reports() {
               </div>
               <div className="fw-bold text-accent">Total Loan Amount: ₱ {fmt(totalLoanAmount)}</div>
             </div>
-            <table className="data-table">
+            <table className="data-table maturity-summary-table">
+              <colgroup>
+                <col style={{ width: '20%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '19%' }} />
+                <col style={{ width: '20%' }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Collector</th>
@@ -1768,16 +2599,18 @@ export default function Reports() {
                   <th className="text-right">Principal</th>
                   <th className="text-right">Interest Amount</th>
                   <th className="text-right">Total Loan Amount</th>
+                  <th className="text-right">Total Running Bal.</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 ? <tr><td colSpan={5} className="empty-state">No loans found for the selected maturity date range</td></tr> : rows.map(row => (
+                {rows.length === 0 ? <tr><td colSpan={6} className="empty-state">No loans found for the selected maturity date range</td></tr> : rows.map(row => (
                   <tr key={row.collector} onClick={() => setSelectedCollector(row)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedCollector(row) }} tabIndex={0} title="View collector clients" style={{ cursor: 'pointer' }}>
-                    <td className="fw-600">{row.collector}</td>
+                    <td className="fw-600 collector-cell">{row.collector}</td>
                     <td className="text-right fw-bold">{row.client_count}</td>
-                    <td className="text-right">₱ {fmt(row.total_principal)}</td>
-                    <td className="text-right">₱ {fmt(row.total_interest)}</td>
-                    <td className="text-right fw-bold text-accent">₱ {fmt(row.total_loan_amount)}</td>
+                    <td className="text-right money-cell">₱ {fmt(row.total_principal)}</td>
+                    <td className="text-right money-cell">₱ {fmt(row.total_interest)}</td>
+                    <td className="text-right fw-bold text-accent money-cell">₱ {fmt(row.total_loan_amount)}</td>
+                    <td className="text-right fw-bold money-cell">₱ {fmt(row.total_balance)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1786,9 +2619,10 @@ export default function Reports() {
                   <tr style={{ background: 'rgba(18,58,99,0.03)', borderTop: '2px solid var(--border)' }}>
                     <td className="fw-bold" style={{ color: 'var(--blue-dark)' }}>GRAND TOTAL</td>
                     <td className="text-right fw-bold">{totalClients}</td>
-                    <td className="text-right fw-bold">₱ {fmt(totalPrincipal)}</td>
-                    <td className="text-right fw-bold">₱ {fmt(totalInterest)}</td>
-                    <td className="text-right fw-bold text-accent">₱ {fmt(totalLoanAmount)}</td>
+                    <td className="text-right fw-bold money-cell">₱ {fmt(totalPrincipal)}</td>
+                    <td className="text-right fw-bold money-cell">₱ {fmt(totalInterest)}</td>
+                    <td className="text-right fw-bold text-accent money-cell">₱ {fmt(totalLoanAmount)}</td>
+                    <td className="text-right fw-bold money-cell">₱ {fmt(totalBalance)}</td>
                   </tr>
                 </tfoot>
               )}
@@ -2053,19 +2887,23 @@ export default function Reports() {
       const reportFrom = data.date_from || params.date_from
       const reportTo = data.date_to || params.date_to
       const totalPrincipal = loans.reduce((s, l) => s + Number(l.principal || 0), 0)
+      const totalInterest = loans.reduce((s, l) => s + loanInterest(l), 0)
+      const totalLoanAmount = loans.reduce((s, l) => s + loanTotalAmount(l), 0)
 
       const fullPaidCollectorRows = Object.entries(loans.reduce((acc, l) => {
         const name = l.collector_name || 'Unassigned'
-        if (!acc[name]) acc[name] = { collector: name, loan_count: 0, total_principal: 0, loans: [] }
+        if (!acc[name]) acc[name] = { collector: name, loan_count: 0, total_principal: 0, total_interest: 0, total_loan_amount: 0, loans: [] }
         acc[name].loan_count += 1
         acc[name].total_principal += Number(l.principal || 0)
+        acc[name].total_interest += loanInterest(l)
+        acc[name].total_loan_amount += loanTotalAmount(l)
         acc[name].loans.push(l)
         return acc
       }, {}))
         .map(([, row]) => ({ ...row, loans: row.loans.sort((a, b) => String(a.updated_at || '').localeCompare(String(b.updated_at || '')) || String(a.customer_name || '').localeCompare(String(b.customer_name || ''))) }))
         .sort((a, b) => a.collector.localeCompare(b.collector))
 
-      const chartData = fullPaidCollectorRows.map(r => ({ name: r.collector, amount: r.total_principal })).sort((a, b) => b.amount - a.amount)
+      const chartData = fullPaidCollectorRows.map(r => ({ name: r.collector, amount: r.total_loan_amount })).sort((a, b) => b.amount - a.amount)
 
       let transactionLabel = reportFrom === reportTo
         ? `Fully Paid Date: ${displayDate(reportFrom)}`
@@ -2089,16 +2927,18 @@ export default function Reports() {
           <div id={(!selectedCollector && printMode === 'summary') ? "printable-area" : undefined} className="fullpaid-screen-only" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             <div style={{ overflowX: 'auto' }}>
               <div style={{ marginBottom: 6, color: 'var(--blue-dark)', fontWeight: 700 }}>{transactionLabel}</div>
-              <div style={{ marginBottom: 12, color: '#16a34a', fontWeight: 700 }}>Total Principal: ₱ {fmt(totalPrincipal)}</div>
+              <div style={{ marginBottom: 12, color: '#16a34a', fontWeight: 700 }}>Total Loan Amount: &#8369; {fmt(totalLoanAmount)}</div>
               <table className="data-table">
-                <thead><tr><th>Collector</th><th className="text-right">No. of Clients</th><th className="text-right">Total Principal</th></tr></thead>
-                <tbody>{fullPaidCollectorRows.length === 0 ? <tr><td colSpan={3} className="empty-state">No fully paid clients found</td></tr> : fullPaidCollectorRows.map(row => <tr key={row.collector} onClick={() => setSelectedCollector(row)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedCollector(row) }} tabIndex={0} title="View fully paid details" style={{ cursor: 'pointer' }}><td className="fw-600">{row.collector}</td><td className="text-right">{row.loan_count}</td><td className="text-right fw-bold" style={{ color: '#16a34a' }}>₱ {fmt(row.total_principal)}</td></tr>)}</tbody>
+                <thead><tr><th>Collector</th><th className="text-right">No. of Clients</th><th className="text-right">Total Principal</th><th className="text-right">Interest</th><th className="text-right">Total Loan Amount</th></tr></thead>
+                <tbody>{fullPaidCollectorRows.length === 0 ? <tr><td colSpan={5} className="empty-state">No fully paid clients found</td></tr> : fullPaidCollectorRows.map(row => <tr key={row.collector} onClick={() => setSelectedCollector(row)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedCollector(row) }} tabIndex={0} title="View fully paid details" style={{ cursor: 'pointer' }}><td className="fw-600">{row.collector}</td><td className="text-right">{row.loan_count}</td><td className="text-right fw-bold" style={{ color: '#16a34a' }}>&#8369; {fmt(row.total_principal)}</td><td className="text-right fw-bold">&#8369; {fmt(row.total_interest)}</td><td className="text-right fw-bold" style={{ color: '#16a34a' }}>&#8369; {fmt(row.total_loan_amount)}</td></tr>)}</tbody>
                 {fullPaidCollectorRows.length > 0 && (
                   <tfoot>
                     <tr style={{ background: 'rgba(22,163,74,0.04)', borderTop: '2px solid var(--border)' }}>
                       <td className="fw-bold" style={{ color: 'var(--blue-dark)' }}>GRAND TOTAL</td>
                       <td className="text-right fw-bold">{fullPaidCollectorRows.reduce((sum, r) => sum + r.loan_count, 0)}</td>
-                      <td className="text-right fw-bold" style={{ color: '#16a34a', fontSize: '14px' }}>₱ {fmt(totalPrincipal)}</td>
+                      <td className="text-right fw-bold" style={{ color: '#16a34a', fontSize: '14px' }}>&#8369; {fmt(totalPrincipal)}</td>
+                      <td className="text-right fw-bold" style={{ fontSize: '14px' }}>&#8369; {fmt(totalInterest)}</td>
+                      <td className="text-right fw-bold" style={{ color: '#16a34a', fontSize: '14px' }}>&#8369; {fmt(totalLoanAmount)}</td>
                     </tr>
                   </tfoot>
                 )}
@@ -2122,7 +2962,7 @@ export default function Reports() {
                       <Tooltip 
                         cursor={{ fill: 'rgba(22, 163, 74, 0.08)' }} 
                         contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }} 
-                        formatter={(val) => [`₱ ${fmt(val)}`, 'Total Principal']} 
+                        formatter={(val) => [`${String.fromCharCode(8369)} ${fmt(val)}`, 'Total Loan Amount']}
                         labelStyle={{ color: '#0f172a', fontWeight: 700, marginBottom: 6, fontSize: 13 }} 
                       />
                       <Bar dataKey="amount" fill="url(#barGradientFullPaid)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={1000} />
@@ -2138,7 +2978,8 @@ export default function Reports() {
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
               <h2 style={{ margin: 0, color: '#16a34a' }}>Fully Paid Loans Report</h2>
               <div style={{ fontSize: 14, color: '#64748b' }}>{transactionLabel}</div>
-              <div style={{ fontSize: 16, fontWeight: 'bold', color: '#16a34a', marginTop: 6 }}>Grand Total Principal: ₱ {fmt(totalPrincipal)}</div>
+              <div style={{ fontSize: 16, fontWeight: 'bold', color: '#16a34a', marginTop: 6 }}>Grand Total Loan Amount: &#8369; {fmt(totalLoanAmount)}</div>
+              <div style={{ fontSize: 13, color: '#334155', marginTop: 4 }}>Principal: &#8369; {fmt(totalPrincipal)} &nbsp;|&nbsp; Interest: &#8369; {fmt(totalInterest)}</div>
             </div>
             {fullPaidCollectorRows.length === 0 ? <div className="empty-state">No fully paid clients found</div> : fullPaidCollectorRows.map(row => (
               <div key={row.collector} style={{ marginBottom: 30, pageBreakInside: 'avoid' }}>
@@ -2146,12 +2987,12 @@ export default function Reports() {
                   <div style={{ fontSize: 18, fontWeight: 'bold', color: 'var(--blue-dark)' }}>{row.collector}</div>
                   <div style={{ fontSize: 14, fontWeight: 'bold' }}>
                     Clients: {row.loan_count} &nbsp;|&nbsp;
-                    Total Principal: <span style={{ color: '#16a34a' }}>₱ {fmt(row.total_principal)}</span>
+                    Total Loan Amount: <span style={{ color: '#16a34a' }}>&#8369; {fmt(row.total_loan_amount)}</span>
                   </div>
                 </div>
                 <table className="data-table" style={{ width: '100%', fontSize: 12 }}>
                   <thead>
-                    <tr><th style={{ textAlign: 'left' }}>Client Code</th><th style={{ textAlign: 'left' }}>Client</th><th style={{ textAlign: 'left' }}>Loan#</th><th>Date Released</th><th className="text-right">Principal</th><th className="text-right">Total Paid</th></tr>
+                    <tr><th style={{ textAlign: 'left' }}>Client Code</th><th style={{ textAlign: 'left' }}>Client</th><th style={{ textAlign: 'left' }}>Loan#</th><th>Date Released</th><th className="text-right">Principal</th><th className="text-right">Interest</th><th className="text-right">Total Loan Amount</th><th className="text-right">Total Paid</th></tr>
                   </thead>
                   <tbody>
                     {row.loans?.map(l => (
@@ -2160,8 +3001,10 @@ export default function Reports() {
                         <td className="fw-600">{l.customer_name || '-'}</td>
                         <td className="mono">{l.loan_code || '-'}</td>
                         <td>{l.date_released}</td>
-                        <td className="text-right fw-bold" style={{ color: '#16a34a' }}>₱ {fmt(l.principal)}</td>
-                        <td className="text-right fw-bold text-success">₱ {fmt(l.total_paid)}</td>
+                        <td className="text-right fw-bold" style={{ color: '#16a34a' }}>&#8369; {fmt(l.principal)}</td>
+                        <td className="text-right fw-bold">&#8369; {fmt(loanInterest(l))}</td>
+                        <td className="text-right fw-bold" style={{ color: '#16a34a' }}>&#8369; {fmt(loanTotalAmount(l))}</td>
+                        <td className="text-right fw-bold text-success">&#8369; {fmt(l.total_paid)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2366,20 +3209,13 @@ export default function Reports() {
       )
     }
     if (active === 'collection-sheet') {
-      const { loans = [], collector: apiCollector, signatures = {} } = data
+      const { loans = [], collector: apiCollector, signatures = {}, summary = {} } = data
       const collName = collectors.find(c => c.id == params.collector_id)
       const collectorDisplayName = apiCollector?.name || (collName ? `${collName.last_name}, ${collName.first_name}`.toUpperCase() : 'UNASSIGNED')
       const collectionDate = params.date || toDateInputValue(new Date())
       const displayCollDate = new Date(collectionDate + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
+      const pbInsDstTotal = Number(summary.pbInsDst ?? summary.pb_ins_dst ?? summary.passbookTotal ?? summary.passbook_total ?? 0)
 
-      /* ── Classification helper (reusable, priority: PastDue > Overdue > Recon > Active) ── */
-      const classifyLoan = (loan) => {
-        const dpd = Math.max(0, parseInt(loan.days_past_due) || 0)
-        if (dpd >= 45) return 'pastdue'
-        if (dpd >= 1) return 'overdue'
-        if ((loan.loan_type || '').toLowerCase().includes('recon')) return 'recon'
-        return 'active'
-      }
       const isReconLoan = (loan) => (loan.loan_type || '').toLowerCase().includes('recon')
 
       /* ── Classify and deduplicate ── */
@@ -2389,9 +3225,11 @@ export default function Reports() {
         if (seen.has(l.id)) return
         seen.add(l.id)
         l.days_past_due = Math.max(0, parseInt(l.days_past_due) || 0)
-        groups[classifyLoan(l)].push(l)
+        groups[classifyCollectionAccount(l)].push(l)
       })
       Object.values(groups).forEach(arr => arr.sort((a, b) => (a.customer_name || '').localeCompare(b.customer_name || '')))
+
+      const totalClientsCount = groups.active.length + groups.recon.length + groups.overdue.length + groups.pastdue.length
 
       /* ── Color constants ── */
       const CL = { navy: '#0D1B3D', active: '#1F2933', recon: '#1565C0', overdue: '#EF6C00', pastdue: '#D71920', lightBg: '#F5F7FA' }
@@ -2450,6 +3288,8 @@ export default function Reports() {
       }
 
       const cs = { borderBottom: '1.2px solid #000', verticalAlign: 'middle', padding: '2px 1px' }
+      const collectionNoteStyle = { display: 'block', color: CL.pastdue, lineHeight: 1.05 }
+      const collectionAmountText = amount => Number(amount || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })
       const entryCells = (entry) => {
         if (!entry) return <td colSpan={7} style={{ border: 'none', padding: 0 }}></td>
         if (entry.type === 'header') return (
@@ -2464,6 +3304,9 @@ export default function Reports() {
         )
         const c = entry.client
         const rowColor = entry.color === CL.pastdue ? CL.pastdue : (isReconLoan(c) ? CL.recon : entry.color)
+        const penaltyNote = Number(c.reloan_penalty_note || c.penalty_collected_today || 0)
+        const balanceNote = Number(c.reloan_balance_note || 0)
+        const regularCollected = Math.max(0, Number(c.collected_today || 0) - Number(c.penalty_collected_today || 0))
         return (<>
           <td style={{ ...cs, fontWeight: 600, fontSize: '7pt', textAlign: 'center', width: '5%' }}>{entry.rowNum}</td>
           <td style={{ ...cs, fontSize: '10pt', fontWeight: 700, color: rowColor, width: '12%' }}>{c.customer_code}</td>
@@ -2472,9 +3315,20 @@ export default function Reports() {
           <td style={{ ...cs, textAlign: 'center', fontSize: '6pt', color: rowColor, fontWeight: 600, width: '4%', paddingLeft: 0, paddingRight: 0 }}>{c.days_past_due}</td>
           <td style={{ ...cs, textAlign: 'right', fontSize: '7pt', width: '8%', paddingLeft: 0 }}>{c.amortization ? Number(c.amortization).toLocaleString() : '0'}</td>
           <td style={{ ...cs, width: '19%', verticalAlign: 'bottom', paddingLeft: 2 }}>
-            {c.collected_today > 0
-              ? <span style={{ fontSize: '7.5pt', fontWeight: 600 }}>{peso(c.collected_today)}</span>
-              : <div style={{ height: 12 }}></div>}
+            {regularCollected > 0 && <span style={{ fontSize: '7.5pt', fontWeight: 600 }}>{peso(regularCollected)}</span>}
+            {balanceNote > 0 && (
+              <span style={collectionNoteStyle}>
+                <span style={{ fontSize: '9.5pt', fontWeight: 800 }}>{collectionAmountText(balanceNote)}</span>{' '}
+                <span style={{ fontSize: '6.5pt', fontWeight: 600 }}>bal.</span>
+              </span>
+            )}
+            {penaltyNote > 0 && (
+              <span style={collectionNoteStyle}>
+                <span style={{ fontSize: '9.5pt', fontWeight: 800 }}>{collectionAmountText(penaltyNote)}</span>{' '}
+                <span style={{ fontSize: '6.5pt', fontWeight: 600 }}>Pen.</span>
+              </span>
+            )}
+            {regularCollected <= 0 && balanceNote <= 0 && penaltyNote <= 0 && <div style={{ height: 12 }}></div>}
           </td>
         </>)
       }
@@ -2495,10 +3349,14 @@ export default function Reports() {
           <tbody>{entries.map((entry, i) => <tr key={`${keyPrefix}-${i}`} style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>{entryCells(entry)}</tr>)}</tbody>
         </table>
       )
-      const blankCashLine = label => (
+      const cashSummaryAmount = amount => Number(amount || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })
+      const cashSummaryNoteStyle = { color: CL.pastdue, fontWeight: 800, fontSize: '8.5pt', lineHeight: 1 }
+      const blankCashLine = (label, value = null, isRed = false) => (
         <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
-          <span style={{ color: '#555', flex: '0 0 90px', fontSize: '8.5pt' }}>{label}:</span>
-          <span style={{ flex: 1, borderBottom: '1.5px solid #000', height: 14 }}></span>
+          <span style={{ color: isRed ? CL.pastdue : '#555', fontWeight: isRed ? 700 : 400, flex: '0 0 90px', fontSize: '8.5pt' }}>{label}:</span>
+          <span style={{ flex: 1, borderBottom: '1.5px solid #000', height: 14, display: 'flex', alignItems: 'flex-end', paddingLeft: value ? 4 : 0 }}>
+            {value && (typeof value === 'string' ? <span style={cashSummaryNoteStyle}>{value}</span> : value)}
+          </span>
         </div>
       )
       const blankCashLineSingle = label => (
@@ -2531,42 +3389,57 @@ export default function Reports() {
         </div>
       )
       const pageHeader = (showSideBoxes = true) => (
-        <div className="collection-sheet-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 20 }}>
+        <div className="collection-sheet-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
           <div style={{ flex: '0 0 auto' }}>
             {showSideBoxes ? headerBox('DENOMINATION', [...[1000, 500, 200, 100, 50, 20, 10, 5, 1].map(denominationLine), denominationTotalLine()], 225) : <div style={{ width: 225 }}></div>}
           </div>
           <div style={{ flex: '1 1 auto', minWidth: 0, textAlign: 'center' }}>
-            <div style={{ fontWeight: 700, fontSize: '15pt', color: CL.navy, letterSpacing: 0.2 }}>MELANN LENDING INVESTOR CORPORATION</div>
-            <div style={{ fontWeight: 700, fontSize: '11pt', color: CL.navy }}>FIELD COLLECTION SHEET</div>
-            <div style={{ fontSize: '8pt', color: '#999', marginBottom: 12 }}>Legal Portrait - Two-Column Field Format</div>
+            <div style={{ fontWeight: 700, fontSize: '14pt', color: CL.navy, letterSpacing: 0.2 }}>MELANN LENDING INVESTOR CORPORATION</div>
+            <div style={{ fontWeight: 700, fontSize: '10.5pt', color: CL.navy, marginBottom: 4 }}>FIELD COLLECTION SHEET</div>
             
-            <div style={{ fontSize: '11pt', fontWeight: 700, color: '#333' }}>
+            <div style={{ fontSize: '10pt', fontWeight: 700, color: '#333', marginBottom: 6 }}>
               {collectorDisplayName} &nbsp;|&nbsp; {displayCollDate}
             </div>
 
-            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 5, justifyContent: 'center', marginTop: 4, flexWrap: 'wrap' }}>
+              <div style={{ background: CL.navy, color: '#fff', padding: '1.5px 7px', borderRadius: 2, fontSize: '7.5pt', fontWeight: 700 }}>
+                Overall Total Client: {totalClientsCount}
+              </div>
               {[
                 { label: 'Active', count: groups.active.length, color: CL.active },
                 { label: 'Recon', count: groups.recon.length, color: CL.recon },
                 { label: 'Overdue', count: groups.overdue.length, color: CL.overdue },
                 { label: 'Past Due', count: groups.pastdue.length, color: CL.pastdue }
               ].map(b => (
-                <div key={b.label} style={{ background: b.color, color: '#fff', padding: '2px 8px', borderRadius: 2, fontSize: '8pt', fontWeight: 600 }}>
+                <div key={b.label} style={{ background: b.color, color: '#fff', padding: '1.5px 7px', borderRadius: 2, fontSize: '7.5pt', fontWeight: 600 }}>
                   {b.label}: {b.count}
                 </div>
               ))}
             </div>
-            <div style={{ fontSize: '7pt', color: '#777', display: 'flex', gap: 10, justifyContent: 'center', marginTop: 4, flexWrap: 'wrap' }}>
-              <span><b style={{ color: CL.active }}>-</b> Active</span>
-              <span><b style={{ color: CL.recon }}>-</b> Recon</span>
-              <span><b style={{ color: CL.overdue }}>-</b> Overdue</span>
-              <span><b style={{ color: CL.pastdue }}>-</b> Past Due</span>
+            
+            <div style={{ marginTop: 6, padding: '3px 12px', border: '1.2px solid ' + CL.navy, borderRadius: 4, display: 'inline-block', textAlign: 'center', background: '#f8fafc' }}>
+              <div style={{ fontWeight: 800, fontSize: '7.5pt', color: CL.navy, marginBottom: 1 }}>DAILY TARGET</div>
+              <div style={{ fontSize: '9.5pt', fontWeight: 700, color: '#d9534f' }}>
+                {peso([...groups.active, ...groups.overdue].reduce((sum, c) => sum + Number(c.amortization || 0), 0))}
+              </div>
             </div>
           </div>
           <div style={{ flex: '0 0 auto' }}>
             {showSideBoxes ? headerBox('DAILY CASH SUMMARY', (
               <>
-                {['Total Collection', 'PB/Ins/DST', 'Field Release', 'Total Expense', 'Grand Total'].map(blankCashLine)}
+                {[
+                  ['Total Collection'],
+                  ['PB/Ins/DST', pbInsDstTotal > 0 ? (
+                    <span style={{ color: CL.pastdue, lineHeight: 1, display: 'inline-flex', alignItems: 'baseline', gap: 3 }}>
+                      <span style={{ fontSize: '6.5pt', fontWeight: 600 }}>PB:</span>
+                      <span style={{ fontSize: '10pt', fontWeight: 800 }}>{cashSummaryAmount(pbInsDstTotal)}</span>
+                    </span>
+                  ) : null],
+                  ['Total', null, true],
+                  ['Field Release'],
+                  ['Total Expense'],
+                  ['Grand Total', null, true]
+                ].map(([label, value, isRed]) => blankCashLine(label, value, isRed))}
                 <div style={{ borderTop: '1.5px solid '+CL.navy, margin: '6px -8px -6px -8px', padding: '6px 8px 6px' }}>
                    {blankCashLine('Over / Short')}
                 </div>
@@ -2575,25 +3448,26 @@ export default function Reports() {
           </div>
         </div>
       )
-      const pageFooter = (
-        <div className="collection-sheet-page-footer" style={{ borderTop: '2px solid '+CL.navy, paddingTop: 12, display: 'flex', justifyContent: 'space-between', pageBreakInside: 'avoid' }}>
-          {[
-            { role: 'Collector', name: collectorDisplayName },
-            { role: 'Checked by', name: signatures.checkedBy || 'MARILYN O. RELOBA' },
-            { role: 'Encoded by', name: signatures.encodedBy || 'IT/ACCOUNTING CLERK' },
-            { role: 'Approved by', name: signatures.approvedBy || 'VICTORIO L. RELOBA JR.' }
-          ].map(sig => (
-            <div key={sig.role} style={{ width: '22%', textAlign: 'center' }}>
-              <div style={{ fontSize: '7pt', color: '#666', lineHeight: 1.1, marginBottom: 18 }}>{sig.role}</div>
-              <div style={{ borderBottom: '1.5px solid #000', marginBottom: 3 }}></div>
-              <div style={{ fontWeight: 600, fontSize: '7pt', lineHeight: 1.1 }}>{sig.name}</div>
-              {sig.role === 'Collector' && (
-                <div style={{ fontWeight: 700, fontSize: '7pt', lineHeight: 1.1, marginTop: 4, textAlign: 'left' }}>
-                  Collection Date: {displayCollDate}
-                </div>
-              )}
-            </div>
-          ))}
+      const pageFooter = (currentPage, totalPages) => (
+        <div className="collection-sheet-page-footer" style={{ borderTop: '2px solid '+CL.navy, paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6, pageBreakInside: 'avoid' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            {[
+              { role: 'Collector', name: collectorDisplayName },
+              { role: 'Checked by', name: signatures.checkedBy || 'MARILYN O. RELOBA' },
+              { role: 'Encoded by', name: signatures.encodedBy || 'IT/ACCOUNTING CLERK' },
+              { role: 'Approved by', name: signatures.approvedBy || 'VICTORIO L. RELOBA JR.' }
+            ].map(sig => (
+              <div key={sig.role} style={{ width: '22%', textAlign: 'center' }}>
+                <div style={{ fontSize: '7pt', color: '#666', lineHeight: 1.1, marginBottom: 18 }}>{sig.role}</div>
+                <div style={{ borderBottom: '1.5px solid #000', marginBottom: 3 }}></div>
+                <div style={{ fontWeight: 600, fontSize: '7pt', lineHeight: 1.1 }}>{sig.name}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid '+CL.navy, paddingTop: 4, fontSize: '7.5pt', color: '#333', fontWeight: 600 }}>
+            <span>Collection Date: {displayCollDate}</span>
+            <span>Page {currentPage} of {totalPages}</span>
+          </div>
         </div>
       )
 
@@ -2614,7 +3488,7 @@ export default function Reports() {
                   {renderClientColumn(page.right, `R${pageIndex}`)}
                 </div>
               </div>
-              {pageFooter}
+              {pageFooter(pageIndex + 1, pages.length)}
             </div>
           ))}
 
@@ -2677,6 +3551,40 @@ export default function Reports() {
     return <pre style={{ fontSize: 12, color: 'var(--text-muted)' }}>{JSON.stringify(data, null, 2)}</pre>
   }
 
+  const renderCollectionPaymentRows = () => {
+    const groups = groupCollectionAccounts(selectedCollector?.payments || [])
+    if (groups.every(group => group.rows.length === 0)) {
+      return <tr><td colSpan={7} className="empty-state">No payment details</td></tr>
+    }
+
+    return groups.flatMap(group => {
+      const header = (
+        <tr key={`${group.key}-header`}>
+          <td colSpan={7} style={{ background: group.color, color: '#fff', fontWeight: 700, padding: '7px 12px', textTransform: 'uppercase', letterSpacing: 0.2 }}>
+            {group.label} - {group.rows.length} {group.rows.length === 1 ? 'Client' : 'Clients'}
+          </td>
+        </tr>
+      )
+      const empty = group.rows.length === 0 ? (
+        <tr key={`${group.key}-empty`}>
+          <td colSpan={7} className="empty-state" style={{ padding: '8px 12px', textAlign: 'center' }}>No clients in this classification</td>
+        </tr>
+      ) : null
+      const rows = group.rows.map(p => (
+        <tr key={`${group.key}-${p.id}`}>
+          <td className="mono">{p.customer_code || '-'}</td>
+          <td>{p.date_paid}</td>
+          <td className="fw-600">{p.customer_name || '-'}</td>
+          <td className="mono">{p.or_number || '-'}</td>
+          <td className="mono">{p.loan_code || '-'}</td>
+          <td className="text-right text-success fw-bold">₱ {fmt(p.amount_paid)}</td>
+          <td className="text-right">₱ {fmt(p.balance_after)}</td>
+        </tr>
+      ))
+      return empty ? [header, empty] : [header, ...rows]
+    })
+  }
+
   return (
     <div>
       <style>{`
@@ -2688,6 +3596,7 @@ export default function Reports() {
           .badge { padding: 2px 6px !important; font-size: 9px !important; }
           .modal-header, .modal-body { padding: 12px !important; }
         }
+        ${REPORT_PRINT_CLARITY_CSS}
       `}</style>
       <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 16 }}>
         <div className="card" style={{ padding: '12px 8px', height: 'fit-content' }}>
@@ -2709,7 +3618,8 @@ export default function Reports() {
               {renderParams()}
               <button id="btn-run-report" className="btn btn-primary" onClick={() => run(active, params, active === 'monthly-releases' ? releaseSubTab : collectionSubTab)} disabled={loading || (active === 'disclosure-statement' && !params.disclosure_search.trim() && !params.disclosure_loan_id)}>{loading ? '⏳ Running...' : '▶ Run Report'}</button>
               {(data || active === 'collection-sheet') && (
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button className="btn btn-secondary" onClick={handleExportExcel} disabled={loading || data?.error}>Export Excel</button>
                   {active === 'collection-sheet' ? (
                     <>
                       <button className="btn btn-secondary" onClick={printCollectionSheet} disabled={loading}>🖨️ Print</button>
@@ -2737,7 +3647,7 @@ export default function Reports() {
       </div>
       {selectedCollector && (
         <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setSelectedCollector(null)}>
-          <div className="modal modal-print-area" id="printable-area" style={{ maxWidth: 980 }}>
+          <div className="modal modal-print-area" id="printable-area" style={{ maxWidth: active === 'full-paid' ? 1180 : 980 }}>
             <div className="modal-header">
               <span className="modal-title">{active === 'full-paid' ? 'Fully Paid Details' : active === 'payments-reversed' ? 'Reversed Payment Details' : (active === 'monthly-releases' || active === 'loan-type') ? 'Release Details' : active === 'past-due' ? 'Maturity Details' : 'Collection Details'} - {selectedCollector.collector}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -2746,7 +3656,7 @@ export default function Reports() {
               </div>
             </div>
             <div className="modal-body">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: active === 'full-paid' ? 'repeat(5, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
                 <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-soft, #f8fafc)' }}>
                   <div className="nav-section-label" style={{ marginBottom: 4 }}>Collector</div>
                   <div className="fw-bold">{selectedCollector.collector}</div>
@@ -2759,6 +3669,18 @@ export default function Reports() {
                   <div className="nav-section-label" style={{ marginBottom: 4 }}>{active === 'payments-reversed' ? 'Total Reversed' : (active === 'monthly-releases' || active === 'loan-type') ? 'Total Released' : active === 'past-due' ? 'Total Balance' : active === 'full-paid' ? 'Total Principal' : 'Total Collection'}</div>
                   <div className={`fw-bold ${active === 'payments-reversed' ? '' : 'text-success'}`} style={active === 'payments-reversed' ? { color: '#dc2626' } : {}}>₱ {fmt(active === 'past-due' ? selectedCollector.total_balance : (selectedCollector.total_amount || selectedCollector.total_principal))}</div>
                 </div>
+                {active === 'full-paid' && (
+                  <>
+                    <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-soft, #f8fafc)' }}>
+                      <div className="nav-section-label" style={{ marginBottom: 4 }}>Interest</div>
+                      <div className="fw-bold">&#8369; {fmt(selectedCollector.total_interest || 0)}</div>
+                    </div>
+                    <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-soft, #f8fafc)' }}>
+                      <div className="nav-section-label" style={{ marginBottom: 4 }}>Total Loan Amount</div>
+                      <div className="fw-bold text-success">&#8369; {fmt(selectedCollector.total_loan_amount || 0)}</div>
+                    </div>
+                  </>
+                )}
               </div>
               <div style={{ maxHeight: '55vh', overflow: 'auto' }} className="modal-print-ready">
                 <table className="data-table">
@@ -2824,17 +3746,19 @@ export default function Reports() {
                    ) : active === 'full-paid' ? (
                     <>
                       <thead>
-                        <tr><th>Client Code</th><th>Client</th><th>Loan#</th><th>Date Released</th><th className="text-right">Principal</th><th className="text-right">Total Paid</th></tr>
+                        <tr><th>Client Code</th><th>Client</th><th>Loan#</th><th>Date Released</th><th className="text-right">Principal</th><th className="text-right">Interest</th><th className="text-right">Total Loan Amount</th><th className="text-right">Total Paid</th></tr>
                       </thead>
                       <tbody>
-                        {selectedCollector.loans?.length === 0 ? <tr><td colSpan={6} className="empty-state">No fully paid details</td></tr> : selectedCollector.loans?.map(l => (
+                        {selectedCollector.loans?.length === 0 ? <tr><td colSpan={8} className="empty-state">No fully paid details</td></tr> : selectedCollector.loans?.map(l => (
                           <tr key={l.id}>
                             <td className="mono">{l.customer_code || '-'}</td>
                             <td className="fw-600">{l.customer_name || '-'}</td>
                             <td className="mono">{l.loan_code || '-'}</td>
                             <td>{l.date_released}</td>
-                            <td className="text-right fw-bold" style={{ color: '#16a34a' }}>₱ {fmt(l.principal)}</td>
-                            <td className="text-right fw-bold text-success">₱ {fmt(l.total_paid)}</td>
+                            <td className="text-right fw-bold" style={{ color: '#16a34a' }}>&#8369; {fmt(l.principal)}</td>
+                            <td className="text-right fw-bold">&#8369; {fmt(loanInterest(l))}</td>
+                            <td className="text-right fw-bold text-success">&#8369; {fmt(loanTotalAmount(l))}</td>
+                            <td className="text-right fw-bold text-success">&#8369; {fmt(l.total_paid)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -2845,17 +3769,7 @@ export default function Reports() {
                         <tr><th>Client Code</th><th>Date Paid</th><th>Client</th><th>OR#</th><th>Loan#</th><th className="text-right">Amount</th><th className="text-right">Bal. After</th></tr>
                       </thead>
                       <tbody>
-                        {selectedCollector.payments?.length === 0 ? <tr><td colSpan={7} className="empty-state">No payment details</td></tr> : selectedCollector.payments?.map(p => (
-                          <tr key={p.id}>
-                            <td className="mono">{p.customer_code || '-'}</td>
-                            <td>{p.date_paid}</td>
-                            <td className="fw-600">{p.customer_name || '-'}</td>
-                            <td className="mono">{p.or_number || '-'}</td>
-                            <td className="mono">{p.loan_code || '-'}</td>
-                            <td className="text-right text-success fw-bold">₱ {fmt(p.amount_paid)}</td>
-                            <td className="text-right">₱ {fmt(p.balance_after)}</td>
-                          </tr>
-                        ))}
+                        {renderCollectionPaymentRows()}
                       </tbody>
                     </>
                   )}

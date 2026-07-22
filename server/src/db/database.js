@@ -571,10 +571,24 @@ async function initializeDatabase() {
   if (!customerColNames.has('for_bir')) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN for_bir INTEGER DEFAULT 0`);
   if (!customerColNames.has('for_cic')) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN for_cic INTEGER DEFAULT 0`);
   if (!customerColNames.has('for_sec')) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN for_sec INTEGER DEFAULT 0`);
+  if (!customerColNames.has('encoded_by')) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN encoded_by INTEGER`);
   
   const extCols = ['sitio', 'purok', 'brgy', 'city', 'gender', 'secondary_contact', 'email', 'income_per_month', 'expenses_per_month', 'loan_purpose', 'collateral', 'id_type', 'id_number', 'id_issue_date', 'id_expiry_date', 'id_issued_by', 'fb_account', 'nationality', 'customer_classification', 'risk_category', 'cic_verification', 'province', 'zip_code', 'length_of_stay', 'previous_address', 'messenger_account', 'preferred_contact_method', 'preferred_contact_time_from', 'preferred_contact_time_to', 'contact_notes', 'business_type', 'business_name', 'business_employees', 'permit_date_issued', 'permit_place_issued', 'permit_no', 'id_place_of_issue', 'tin_number', 'sss_number', 'id_notes', 'photo_id_front', 'photo_id_back', 'photo_business_proof', 'photo_client'];
   for (const c of extCols) {
     if (!customerColNames.has(c)) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN ${c} TEXT`);
+  }
+
+  const loanCols = await dbAll(`PRAGMA table_info(tblLoan)`);
+  const loanColNames = new Set(loanCols.map(c => c.name));
+  if (!loanColNames.has('previous_balance')) await dbRun(`ALTER TABLE tblLoan ADD COLUMN previous_balance REAL DEFAULT 0`);
+  if (!loanColNames.has('penalty')) await dbRun(`ALTER TABLE tblLoan ADD COLUMN penalty REAL DEFAULT 0`);
+  if (!loanColNames.has('passbook')) await dbRun(`ALTER TABLE tblLoan ADD COLUMN passbook REAL DEFAULT 0`);
+
+  const ciCols = await dbAll(`PRAGMA table_info(tblCreditInvestigation)`);
+  const ciColNames = new Set(ciCols.map(c => c.name));
+  const ciTextCols = ['loan_history', 'business_years', 'no_hardship', 'cb_rating'];
+  for (const c of ciTextCols) {
+    if (!ciColNames.has(c)) await dbRun(`ALTER TABLE tblCreditInvestigation ADD COLUMN ${c} TEXT`);
   }
 
   const dcrCols = await dbAll(`PRAGMA table_info(tblDailyCashReport)`);
@@ -586,11 +600,6 @@ async function initializeDatabase() {
   if (!dcrColNames.has('total_bank_charges')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN total_bank_charges REAL DEFAULT 0`);
   if (!dcrColNames.has('total_bank_interest')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN total_bank_interest REAL DEFAULT 0`);
   if (!dcrColNames.has('display_total_releases')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN display_total_releases REAL DEFAULT 0`);
-
-  const loanCols = await dbAll(`PRAGMA table_info(tblLoan)`);
-  const loanColNames = new Set(loanCols.map(c => c.name));
-  if (!loanColNames.has('penalty')) await dbRun(`ALTER TABLE tblLoan ADD COLUMN penalty REAL DEFAULT 0`);
-  if (!loanColNames.has('passbook')) await dbRun(`ALTER TABLE tblLoan ADD COLUMN passbook REAL DEFAULT 0`);
 
   const paymentCols = await dbAll(`PRAGMA table_info(tblPayment)`);
   const paymentColNames = new Set(paymentCols.map(c => c.name));

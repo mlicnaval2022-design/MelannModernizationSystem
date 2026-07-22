@@ -34,6 +34,7 @@ export default function Layout() {
   const [pwSaving, setPwSaving] = useState(false)
   const [pwError, setPwError] = useState('')
   const [pwSuccess, setPwSuccess] = useState('')
+  const [logoFailed, setLogoFailed] = useState(false)
   const [showNotif, setShowNotif] = useState(false)
   const [notifications, setNotifications] = useState([
     { id: 1, title: 'System Update', message: 'Your weekly collection report is ready to download.', time: '10 mins ago', color: '#3b82f6' },
@@ -99,7 +100,13 @@ export default function Layout() {
     <div className="app-layout">
       <aside className="sidebar">
         <div className="sidebar-brand" style={{ display: 'flex', justifyContent: 'center', padding: '15px 20px', borderBottom: '1px solid #1e293b' }}>
-          <img src={logoImg} alt="Melann Lending" style={{ maxWidth: '80%', height: 'auto' }} />
+          {logoFailed ? (
+            <div style={{ color: '#fff', fontWeight: 800, textAlign: 'center', lineHeight: 1.2 }}>
+              Melann Lending
+            </div>
+          ) : (
+            <img src={logoImg} alt="Melann Lending" onError={() => setLogoFailed(true)} style={{ maxWidth: '80%', height: 'auto' }} />
+          )}
         </div>
         <nav className="sidebar-nav">
           {sections.map(section => (
