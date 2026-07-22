@@ -3428,19 +3428,10 @@ export default function Reports() {
               ))}
             </div>
             
-            <div style={{ marginTop: 10, padding: '4px 10px', border: '1.5px solid ' + CL.navy, borderRadius: 4, display: 'inline-block', textAlign: 'center', background: '#f8fafc' }}>
+            <div style={{ marginTop: 10, padding: '4px 16px', border: '1.5px solid ' + CL.navy, borderRadius: 4, display: 'inline-block', textAlign: 'center', background: '#f8fafc' }}>
               <div style={{ fontWeight: 800, fontSize: '8pt', color: CL.navy, marginBottom: 2 }}>DAILY TARGET</div>
-              <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
-                <div>
-                  <div style={{ fontSize: '7pt', color: '#666', fontWeight: 600 }}>Total Active Client</div>
-                  <div style={{ fontSize: '10pt', fontWeight: 700 }}>{groups.active.length + groups.overdue.length}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '7pt', color: '#666', fontWeight: 600 }}>Target Amount</div>
-                  <div style={{ fontSize: '10pt', fontWeight: 700, color: '#d9534f' }}>
-                    {peso([...groups.active, ...groups.overdue].reduce((sum, c) => sum + Number(c.amortization || 0), 0))}
-                  </div>
-                </div>
+              <div style={{ fontSize: '11pt', fontWeight: 700, color: '#d9534f' }}>
+                {peso([...groups.active, ...groups.overdue].reduce((sum, c) => sum + Number(c.amortization || 0), 0))}
               </div>
             </div>
 
