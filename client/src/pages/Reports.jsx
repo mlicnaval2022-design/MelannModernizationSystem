@@ -314,7 +314,6 @@ export default function Reports() {
   }
 
   const handleExportPdf = async () => {
-    alert("To generate a text-readable PDF for your parser, please select 'Save as PDF' as the destination in the print dialog that will now open.");
     printCollectionSheet();
   }
 
