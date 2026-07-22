@@ -3,7 +3,7 @@ import API from '../services/api'
 import dayjs from 'dayjs'
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 const today = () => dayjs().format('YYYY-MM-DD')
-const CATS = ['auditors allowance', 'bank transportation', 'BIR', 'BIR Payment', 'birthday cake', 'Bookkeeping', 'Car Payment Toyota', 'Car Payments - Isuzu', 'Cash Advance', 'Diesel', 'DOC Stamp', 'Doctors Fee', 'Electric Bill', 'Gasoline', 'Groceries', 'Insurance', 'Kids Savings', 'load employee', 'meals collector', 'medicine', 'Melanie Salary', 'Monica Salary', 'motor oil', 'Motor Oil', 'Motorcycle Parts', 'NOTARIAL FEE', 'Office Equipments', 'Office Furnitures', 'Office Supplies', 'Other Expenses', 'PAG IBIG', 'Petty Cash', 'PHILHEALTH', 'Salaries Wages', 'SEC', 'SHORT OVERAGES', 'snacks birthday', 'Snacks Bread', 'SSS']
+const CATS = ['AUDITORS ALLOWANCE', 'BANK TRANSPORTATION', 'BIR', 'BIR PAYMENT', 'BIRTHDAY CAKE', 'BONUS', 'BOOKKEEPING', 'CAR PAYMENT TOYOTA', 'CAR PAYMENTS - ISUZU', 'CASH ADVANCE', 'DIESEL', 'DOC STAMP', 'DOCTORS FEE', 'ELECTRIC BILL', 'GASOLINE', 'GROCERIES', 'INSURANCE', 'KIDS SAVINGS', 'LOAD EMPLOYEE', 'MEALS COLLECTOR', 'MEDICINE', 'MELANIE SALARY', 'MONICA SALARY', 'MOTOR OIL', 'MOTORCYCLE PARTS', 'NOTARIAL FEE', 'OFFICE EQUIPMENTS', 'OFFICE FURNITURES', 'OFFICE SUPPLIES', 'OTHER EXPENSES', 'PAG IBIG', 'PASTDUE INCENTIVES', 'PETTY CASH', 'PHILHEALTH', 'PRES FUND', 'SALARIES WAGES', 'SEC', 'SHORT OVERAGES', 'SNACKS BIRTHDAY', 'SNACKS BREAD', 'SSS', 'TELEPHONE BILL', 'TIRE', 'TIRE LABOR CHARGE', 'TRANSPORTATION ALLOWANCE', 'TRANSPORTATION CASHIER', 'TRANSPORTATION EMPLOYEE', 'VULCATE', 'WATER', 'WATER BILL']
 
 const TABS = [
   { id: 'Expense', label: 'Expenses', icon: '🧾' },
