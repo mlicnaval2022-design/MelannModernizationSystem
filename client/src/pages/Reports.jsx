@@ -532,8 +532,10 @@ export default function Reports() {
     })
     Object.values(groups).forEach(arr => arr.sort((a, b) => (a.customer_name || '').localeCompare(b.customer_name || '')))
 
-    const totalClientsCount = groups.active.length + groups.recon.length + groups.overdue.length + groups.pastdue.length
-    const targetAmount = [...groups.active, ...groups.overdue].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
+    const baseClientsCount = groups.active.length + groups.recon.length + groups.overdue.length + groups.pastdue.length
+    const totalClientsCount = params.manual_clients ? Number(params.manual_clients) : baseClientsCount
+    const baseTarget = [...groups.active, ...groups.overdue].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
+    const targetAmount = params.manual_target ? Number(params.manual_target) : baseTarget
     const pesoFmt = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-P${f}` : `P${f}` }
     const fDatePdf = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }) : '-'
 
@@ -1335,7 +1337,7 @@ export default function Reports() {
         <div className="form-group"><label className="form-label">Collection Date</label>
           <input type="date" className="form-control" value={params.date || toDateInputValue(new Date())} onChange={e => { const nextParams = { ...params, date: e.target.value }; setParams(nextParams); if (params.collector_id) run(active, nextParams); }} />
         </div>
-        {active === 'daily-target' && (
+        {(active === 'daily-target' || active === 'collection-sheet') && (
           <>
             <div className="form-group"><label className="form-label">Manual Target Amt.</label>
               <input type="number" className="form-control" placeholder="Auto" value={params.manual_target || ''} onChange={e => { const nextParams = { ...params, manual_target: e.target.value }; setParams(nextParams); if (params.collector_id) run(active, nextParams); }} style={{ width: 160 }} />
@@ -3480,7 +3482,10 @@ export default function Reports() {
       })
       Object.values(groups).forEach(arr => arr.sort((a, b) => (a.customer_name || '').localeCompare(b.customer_name || '')))
 
-      const totalClientsCount = groups.active.length + groups.recon.length + groups.overdue.length + groups.pastdue.length
+      const baseClientsCount = groups.active.length + groups.recon.length + groups.overdue.length + groups.pastdue.length
+      const totalClientsCount = params.manual_clients ? Number(params.manual_clients) : baseClientsCount
+      const baseTarget = [...groups.active, ...groups.overdue].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
+      const targetAmount = params.manual_target ? Number(params.manual_target) : baseTarget
 
       /* ── Color constants ── */
       const peso = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-₱${f}` : `₱${f}` }
@@ -3670,7 +3675,7 @@ export default function Reports() {
             <div style={{ marginTop: 6, padding: '3px 12px', border: '1.2px solid ' + CL.navy, borderRadius: 4, display: 'inline-block', textAlign: 'center', background: '#f8fafc' }}>
               <div style={{ fontWeight: 800, fontSize: '7.5pt', color: CL.navy, marginBottom: 1 }}>DAILY TARGET</div>
               <div style={{ fontSize: '9.5pt', fontWeight: 700, color: '#d9534f' }}>
-                {peso([...groups.active, ...groups.overdue].reduce((sum, c) => sum + Number(c.amortization || 0), 0))}
+                {peso(targetAmount)}
               </div>
             </div>
           </div>
