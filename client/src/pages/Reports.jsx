@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import API from '../services/api'
 import logoImg from '../assets/logo.png'
 import html2pdf from 'html2pdf.js'
+import { jsPDF } from 'jspdf'
+import 'jspdf-autotable'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })
 const toDateInputValue = date => {
@@ -501,7 +503,241 @@ export default function Reports() {
   }
 
   const handleExportPdf = async () => {
-    printCollectionSheet();
+    if (!params.collector_id) {
+      alert('Please select a collector first.')
+      return
+    }
+
+    let reportData = data
+    if (!reportData) {
+      reportData = await run('collection-sheet', params)
+      if (!reportData) return
+    }
+
+    const { loans = [], collector: apiCollector, signatures: sigs = {} } = reportData
+    const collName = collectors.find(c => c.id == params.collector_id)
+    const collectorDisplayName = apiCollector?.name || (collName ? `${collName.last_name}, ${collName.first_name}`.toUpperCase() : 'UNASSIGNED')
+    const collectionDate = params.date || toDateInputValue(new Date())
+    const displayCollDate = new Date(collectionDate + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
+
+    // Classify loans into groups
+    const groups = { active: [], recon: [], overdue: [], pastdue: [] }
+    const seen = new Set()
+    loans.forEach(l => {
+      if (seen.has(l.id)) return
+      seen.add(l.id)
+      l.days_past_due = Math.max(0, parseInt(l.days_past_due) || 0)
+      groups[classifyCollectionAccount(l)].push(l)
+    })
+    Object.values(groups).forEach(arr => arr.sort((a, b) => (a.customer_name || '').localeCompare(b.customer_name || '')))
+
+    const totalClientsCount = groups.active.length + groups.recon.length + groups.overdue.length + groups.pastdue.length
+    const targetAmount = [...groups.active, ...groups.overdue].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
+    const pesoFmt = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-P${f}` : `P${f}` }
+    const fDatePdf = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }) : '-'
+
+    // Color definitions (RGB arrays for jsPDF)
+    const CL_PDF = {
+      navy: [13, 27, 61],
+      active: [31, 41, 51],
+      recon: [21, 101, 192],
+      overdue: [239, 108, 0],
+      pastdue: [215, 25, 32],
+      headerBg: [217, 240, 230],
+      white: [255, 255, 255]
+    }
+
+    // Create PDF - Legal size (8.5 x 14 inches)
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'in', format: [8.5, 14] })
+    const pageW = 8.5
+    const marginL = 0.4
+    const marginR = 0.4
+    const contentW = pageW - marginL - marginR
+    let curY = 0.4
+
+    // --- HEADER ---
+    doc.setFontSize(16)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...CL_PDF.navy)
+    doc.text('MELANN LENDING INVESTOR CORPORATION', pageW / 2, curY, { align: 'center' })
+    curY += 0.25
+
+    doc.setFontSize(12)
+    doc.text('FIELD COLLECTION SHEET', pageW / 2, curY, { align: 'center' })
+    curY += 0.25
+
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(51, 51, 51)
+    doc.text(`${collectorDisplayName}  |  ${displayCollDate}`, pageW / 2, curY, { align: 'center' })
+    curY += 0.3
+
+    // --- STATUS BADGES ---
+    const badges = [
+      { label: `Overall Total Client: ${totalClientsCount}`, color: CL_PDF.navy },
+      { label: `Active: ${groups.active.length}`, color: CL_PDF.active },
+      { label: `Recon: ${groups.recon.length}`, color: CL_PDF.recon },
+      { label: `Overdue: ${groups.overdue.length}`, color: CL_PDF.overdue },
+      { label: `Past Due: ${groups.pastdue.length}`, color: CL_PDF.pastdue }
+    ]
+    const badgeW = 1.35
+    const totalBadgeW = badges.length * badgeW + (badges.length - 1) * 0.08
+    let badgeX = (pageW - totalBadgeW) / 2
+    badges.forEach(b => {
+      doc.setFillColor(...b.color)
+      doc.roundedRect(badgeX, curY - 0.1, badgeW, 0.2, 0.04, 0.04, 'F')
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...CL_PDF.white)
+      doc.text(b.label, badgeX + badgeW / 2, curY + 0.02, { align: 'center' })
+      badgeX += badgeW + 0.08
+    })
+    curY += 0.3
+
+    // --- DAILY TARGET BOX ---
+    const targetBoxW = 2.2
+    const targetBoxX = (pageW - targetBoxW) / 2
+    doc.setDrawColor(...CL_PDF.navy)
+    doc.setLineWidth(0.015)
+    doc.roundedRect(targetBoxX, curY - 0.05, targetBoxW, 0.45, 0.05, 0.05, 'S')
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...CL_PDF.navy)
+    doc.text('DAILY TARGET', pageW / 2, curY + 0.08, { align: 'center' })
+    doc.setFontSize(12)
+    doc.setTextColor(215, 25, 32)
+    doc.text(pesoFmt(targetAmount), pageW / 2, curY + 0.3, { align: 'center' })
+    curY += 0.6
+
+    // --- Build table sections ---
+    const sections = [
+      { title: '1. ACTIVE CLIENTS', clients: groups.active, color: CL_PDF.active },
+      { title: '2. RECONSTRUCTED ACCOUNTS', clients: groups.recon, color: CL_PDF.recon },
+      { title: '3. OVERDUE CLIENTS', clients: groups.overdue, color: CL_PDF.overdue },
+      { title: '4. PAST DUE CLIENTS', clients: groups.pastdue, color: CL_PDF.pastdue }
+    ]
+
+    const tableBody = []
+    sections.forEach(section => {
+      // Section header row
+      tableBody.push([{
+        content: `${section.title} - ${section.clients.length} ${section.clients.length === 1 ? 'Client' : 'Clients'}`,
+        colSpan: 7,
+        styles: {
+          fillColor: section.color,
+          textColor: CL_PDF.white,
+          fontStyle: 'bold',
+          fontSize: 8,
+          halign: 'left',
+          cellPadding: { top: 0.04, bottom: 0.04, left: 0.06, right: 0.06 }
+        }
+      }])
+
+      if (section.clients.length === 0) {
+        tableBody.push([{
+          content: 'No clients in this classification',
+          colSpan: 7,
+          styles: { fontStyle: 'italic', textColor: [153, 153, 153], fontSize: 7, halign: 'center' }
+        }])
+      }
+
+      section.clients.forEach((c, i) => {
+        const rowColor = section.color === CL_PDF.pastdue ? CL_PDF.pastdue : ((c.loan_type || '').toLowerCase().includes('recon') ? CL_PDF.recon : section.color)
+        const penaltyNote = Number(c.reloan_penalty_note || c.penalty_collected_today || 0)
+        const balanceNote = Number(c.reloan_balance_note || 0)
+        const regularCollected = Math.max(0, Number(c.collected_today || 0) - Number(c.penalty_collected_today || 0))
+        let collectedText = ''
+        if (regularCollected > 0) collectedText += pesoFmt(regularCollected)
+        if (balanceNote > 0) collectedText += (collectedText ? '\n' : '') + `${Number(balanceNote).toLocaleString('en-PH', { maximumFractionDigits: 2 })} bal.`
+        if (penaltyNote > 0) collectedText += (collectedText ? '\n' : '') + `${Number(penaltyNote).toLocaleString('en-PH', { maximumFractionDigits: 2 })} Pen.`
+
+        tableBody.push([
+          { content: String(i + 1), styles: { halign: 'center', fontSize: 7 } },
+          { content: c.customer_code || '-', styles: { textColor: rowColor, fontStyle: 'bold', fontSize: 8 } },
+          { content: (c.customer_name || '').toUpperCase(), styles: { textColor: rowColor, fontStyle: 'bold', fontSize: 8 } },
+          { content: fDatePdf(c.date_maturity), styles: { halign: 'center', fontSize: 6 } },
+          { content: String(c.days_past_due || 0), styles: { halign: 'center', textColor: rowColor, fontStyle: 'bold', fontSize: 6 } },
+          { content: c.amortization ? Number(c.amortization).toLocaleString() : '0', styles: { halign: 'right', fontSize: 7 } },
+          { content: collectedText, styles: { halign: 'right', fontSize: 7, textColor: regularCollected > 0 ? [0, 0, 0] : [215, 25, 32] } }
+        ])
+      })
+    })
+
+    // --- Render table ---
+    doc.autoTable({
+      startY: curY,
+      margin: { left: marginL, right: marginR },
+      head: [['#', 'Code', 'Client Name', 'Due', 'DPD', 'Daily', 'Collected']],
+      body: tableBody,
+      headStyles: {
+        fillColor: CL_PDF.headerBg,
+        textColor: CL_PDF.navy,
+        fontStyle: 'bold',
+        fontSize: 7.5,
+        lineWidth: 0.01,
+        lineColor: CL_PDF.navy,
+        cellPadding: { top: 0.03, bottom: 0.03, left: 0.04, right: 0.04 }
+      },
+      styles: {
+        fontSize: 7,
+        cellPadding: { top: 0.02, bottom: 0.02, left: 0.04, right: 0.04 },
+        lineWidth: 0.005,
+        lineColor: [200, 200, 200],
+        overflow: 'linebreak'
+      },
+      columnStyles: {
+        0: { cellWidth: 0.35, halign: 'center' },
+        1: { cellWidth: 0.75 },
+        2: { cellWidth: 'auto' },
+        3: { cellWidth: 0.7, halign: 'center' },
+        4: { cellWidth: 0.35, halign: 'center' },
+        5: { cellWidth: 0.55, halign: 'right' },
+        6: { cellWidth: 0.9, halign: 'right' }
+      },
+      didDrawPage: (hookData) => {
+        // Footer on each page
+        const pageCount = doc.internal.getNumberOfPages()
+        const pageNum = doc.internal.getCurrentPageInfo().pageNumber
+        doc.setDrawColor(...CL_PDF.navy)
+        doc.setLineWidth(0.02)
+        doc.line(marginL, 13.3, pageW - marginR, 13.3)
+
+        // Signatures
+        const sigY = 13.45
+        const sigNames = [
+          { role: 'Collector', name: collectorDisplayName },
+          { role: 'Checked by', name: sigs.checkedBy || 'MARILYN O. RELOBA' },
+          { role: 'Encoded by', name: sigs.encodedBy || 'IT/ACCOUNTING CLERK' },
+          { role: 'Approved by', name: sigs.approvedBy || 'VICTORIO L. RELOBA JR.' }
+        ]
+        const sigSpacing = contentW / sigNames.length
+        sigNames.forEach((sig, idx) => {
+          const cx = marginL + sigSpacing * idx + sigSpacing / 2
+          doc.setFontSize(6)
+          doc.setFont('helvetica', 'normal')
+          doc.setTextColor(100, 100, 100)
+          doc.text(sig.role, cx, sigY, { align: 'center' })
+          doc.setLineWidth(0.01)
+          doc.setDrawColor(0, 0, 0)
+          doc.line(cx - 0.65, sigY + 0.22, cx + 0.65, sigY + 0.22)
+          doc.setFontSize(6.5)
+          doc.setFont('helvetica', 'bold')
+          doc.setTextColor(0, 0, 0)
+          doc.text(sig.name, cx, sigY + 0.32, { align: 'center' })
+        })
+
+        // Page number and date
+        doc.setFontSize(7)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(51, 51, 51)
+        doc.text(`Collection Date: ${displayCollDate}`, marginL, 13.85)
+        doc.text(`Page ${pageNum} of ${pageCount}`, pageW - marginR, 13.85, { align: 'right' })
+      }
+    })
+
+    // Save the PDF
+    const safeName = collectorDisplayName.replace(/[^a-zA-Z0-9]/g, '_')
+    doc.save(`Collection_Sheet_${safeName}_${collectionDate}.pdf`)
   }
 
   const handleExportDisclosurePdf = () => {
