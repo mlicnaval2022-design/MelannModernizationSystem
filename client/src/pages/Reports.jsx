@@ -26,6 +26,35 @@ const toDisplayCase = value => String(value || '')
   .replace(/\bIii\b/g, 'III')
   .replace(/\bIv\b/g, 'IV')
   .replace(/\bVi\b/g, 'VI')
+const middleInitial = value => {
+  const middle = String(value || '').trim()
+  if (!middle) return ''
+  const firstLetter = middle.match(/\p{L}/u)?.[0]
+  return firstLetter ? `${firstLetter.toLocaleUpperCase('en-PH')}.` : ''
+}
+const formatCollectionClientName = loan => {
+  const lastName = String(loan.last_name || '').trim()
+  const firstName = String(loan.first_name || '').trim()
+  const middleName = String(loan.middle_name || '').trim()
+
+  if (lastName || firstName) {
+    return [
+      lastName,
+      [firstName, middleInitial(middleName)].filter(Boolean).join(' ')
+    ].filter(Boolean).join(', ')
+  }
+
+  const rawName = String(loan.customer_name || '').trim()
+  const [rawLast, ...rest] = rawName.split(',')
+  if (rest.length === 0) return rawName
+
+  const givenParts = rest.join(',').trim().split(/\s+/).filter(Boolean)
+  if (givenParts.length <= 1) return rawName
+
+  const possibleMiddle = givenParts[givenParts.length - 1]
+  const firstNames = givenParts.slice(0, -1).join(' ')
+  return `${rawLast.trim()}, ${firstNames} ${middleInitial(possibleMiddle)}`.trim()
+}
 const formatClientAddress = loan => {
   const direct = loan.full_address || loan.customer_address
   if (direct) return toDisplayCase(direct)
@@ -795,7 +824,7 @@ export default function Reports() {
         ['Client Code', 'Client Name', 'Loan Number', 'Loan Type', 'Principal', 'Running Balance', 'Amortization', 'Date Released', 'Maturity Date', 'Collector', 'Contact Number'],
         ...loans.map(loan => [
           loan.customer_code,
-          loan.customer_name,
+          formatCollectionClientName(loan),
           loan.loan_code,
           loan.loan_type,
           rawMoney(loan.principal),
@@ -3228,7 +3257,7 @@ export default function Reports() {
         l.days_past_due = Math.max(0, parseInt(l.days_past_due) || 0)
         groups[classifyCollectionAccount(l)].push(l)
       })
-      Object.values(groups).forEach(arr => arr.sort((a, b) => (a.customer_name || '').localeCompare(b.customer_name || '')))
+      Object.values(groups).forEach(arr => arr.sort((a, b) => formatCollectionClientName(a).localeCompare(formatCollectionClientName(b))))
 
       const totalClientsCount = groups.active.length + groups.recon.length + groups.overdue.length + groups.pastdue.length
 
@@ -3257,7 +3286,7 @@ export default function Reports() {
         if (!entry) return 0
         if (entry.type === 'header') return 1
         if (entry.type === 'empty') return 1
-        return String(entry.client?.customer_name || '').length > 24 ? 1.35 : 1
+        return formatCollectionClientName(entry.client || {}).length > 24 ? 1.35 : 1
       }
       const splitByUnits = (entries, maxUnits) => {
         const cols = []
@@ -3311,7 +3340,7 @@ export default function Reports() {
         return (<>
           <td style={{ ...cs, fontWeight: 600, fontSize: '7pt', textAlign: 'center', width: '5%' }}>{entry.rowNum}</td>
           <td style={{ ...cs, fontSize: '10pt', fontWeight: 700, color: rowColor, width: '12%' }}>{c.customer_code}</td>
-          <td style={{ ...cs, color: rowColor, fontWeight: 700, fontSize: '10pt', padding: '2px 2px', lineHeight: 1.08, wordBreak: 'normal', overflowWrap: 'break-word', width: '43%' }}>{(c.customer_name || '').toUpperCase()}</td>
+          <td style={{ ...cs, color: rowColor, fontWeight: 700, fontSize: '10pt', padding: '2px 2px', lineHeight: 1.08, wordBreak: 'normal', overflowWrap: 'break-word', width: '43%' }}>{formatCollectionClientName(c).toUpperCase()}</td>
           <td style={{ ...cs, textAlign: 'center', fontSize: '6pt', width: '9%', paddingLeft: 0, paddingRight: 0 }}>{fDate(c.date_maturity)}</td>
           <td style={{ ...cs, textAlign: 'center', fontSize: '6pt', color: rowColor, fontWeight: 600, width: '4%', paddingLeft: 0, paddingRight: 0 }}>{c.days_past_due}</td>
           <td style={{ ...cs, textAlign: 'right', fontSize: '7pt', width: '8%', paddingLeft: 0 }}>{c.amortization ? Number(c.amortization).toLocaleString() : '0'}</td>
@@ -3319,14 +3348,14 @@ export default function Reports() {
             {regularCollected > 0 && <span style={{ fontSize: '7.5pt', fontWeight: 600 }}>{peso(regularCollected)}</span>}
             {balanceNote > 0 && (
               <span style={collectionNoteStyle}>
-                <span style={{ fontSize: '9.5pt', fontWeight: 800 }}>{collectionAmountText(balanceNote)}</span>{' '}
-                <span style={{ fontSize: '6.5pt', fontWeight: 600 }}>bal.</span>
+                <span style={{ fontSize: '11pt', fontWeight: 800 }}>{collectionAmountText(balanceNote)}</span>{' '}
+                <span style={{ fontSize: '7pt', fontWeight: 600 }}>Bal.</span>
               </span>
             )}
             {penaltyNote > 0 && (
               <span style={collectionNoteStyle}>
-                <span style={{ fontSize: '9.5pt', fontWeight: 800 }}>{collectionAmountText(penaltyNote)}</span>{' '}
-                <span style={{ fontSize: '6.5pt', fontWeight: 600 }}>Pen.</span>
+                <span style={{ fontSize: '11pt', fontWeight: 800 }}>{collectionAmountText(penaltyNote)}</span>{' '}
+                <span style={{ fontSize: '7pt', fontWeight: 600 }}>Pen.</span>
               </span>
             )}
             {regularCollected <= 0 && balanceNote <= 0 && penaltyNote <= 0 && <div style={{ height: 12 }}></div>}
@@ -3432,8 +3461,8 @@ export default function Reports() {
                   ['Total Collection'],
                   ['PB/Ins/DST', pbInsDstTotal > 0 ? (
                     <span style={{ color: CL.pastdue, lineHeight: 1, display: 'inline-flex', alignItems: 'baseline', gap: 3 }}>
-                      <span style={{ fontSize: '6.5pt', fontWeight: 600 }}>PB:</span>
-                      <span style={{ fontSize: '10pt', fontWeight: 800 }}>{cashSummaryAmount(pbInsDstTotal)}</span>
+                      <span style={{ fontSize: '7pt', fontWeight: 600 }}>PB:</span>
+                      <span style={{ fontSize: '11pt', fontWeight: 800 }}>{cashSummaryAmount(pbInsDstTotal)}</span>
                     </span>
                   ) : null],
                   ['Total', null, true],
