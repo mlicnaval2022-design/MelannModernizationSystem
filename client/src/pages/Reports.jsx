@@ -455,6 +455,7 @@ const REPORT_TYPES = [
   { key: 'full-paid', label: '✅ Fully Paid Loans', desc: 'Fully paid loan accounts' },
   { key: 'loan-type', label: '📊 Loan Type Summary', desc: 'Summary by loan type and status' },
   { key: 'collection-sheet', label: '📋 Collection Sheet', desc: 'Per-collector active loan list' },
+  { key: 'daily-target', label: '🎯 Daily Target', desc: 'Daily target collection' },
   { key: 'disclosure-statement', label: 'Disclosure Statement', desc: 'Client disclosure for every reloan' },
   { key: 'monitoring-summary', label: '🚨 Monitoring Summary', desc: 'Alerts, escalations, PTPs, and resolutions' },
 ]
@@ -500,69 +501,8 @@ export default function Reports() {
   }
 
   const handleExportPdf = async () => {
-    if (!params.collector_id) {
-      alert('Please select a collector first.')
-      return
-    }
-
-    const sheetData = data || await run('collection-sheet', params)
-    if (!sheetData) return
-
-    setTimeout(() => {
-      const printable = document.getElementById('printable-area')
-      if (!printable) {
-        alert('Collection sheet is not ready yet. Please try again.')
-        return
-      }
-
-      const collectorName = sheetData?.collector?.name || 'collector'
-      const date = sheetData?.date || params.date || toDateInputValue(new Date())
-      const safeCollector = collectorName.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'collector'
-
-      const exportRoot = printable.cloneNode(true)
-      exportRoot.removeAttribute('id')
-      exportRoot.style.margin = '0'
-      exportRoot.style.padding = '0'
-      exportRoot.style.border = '0'
-      exportRoot.style.borderRadius = '0'
-      exportRoot.style.boxShadow = 'none'
-      exportRoot.style.width = '8.5in'
-      exportRoot.style.maxWidth = '8.5in'
-
-      exportRoot.querySelectorAll('.collection-sheet-page').forEach((page, index, pages) => {
-        page.style.width = '8.5in'
-        page.style.height = '13.98in'
-        page.style.minHeight = '13.98in'
-        page.style.margin = '0'
-        page.style.padding = '0.25in 0.15in 0.35in 0.15in'
-        page.style.boxSizing = 'border-box'
-        page.style.overflow = 'hidden'
-        page.style.pageBreakAfter = 'auto'
-        page.style.breakAfter = 'auto'
-      })
-
-      const exportHost = document.createElement('div')
-      exportHost.style.position = 'fixed'
-      exportHost.style.left = '-10000px'
-      exportHost.style.top = '0'
-      exportHost.style.width = '8.5in'
-      exportHost.style.background = '#fff'
-      exportHost.appendChild(exportRoot)
-      document.body.appendChild(exportHost)
-
-      html2pdf()
-        .set({
-          margin: 0,
-          filename: `Collection_Sheet_${safeCollector}_${date}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-          jsPDF: { unit: 'in', format: [8.5, 14], orientation: 'portrait' },
-          pagebreak: { mode: [] }
-        })
-        .from(exportRoot)
-        .save()
-        .finally(() => exportHost.remove())
-    }, 200)
+    alert("To generate a text-readable PDF for your parser, please select 'Save as PDF' as the destination in the print dialog that will now open.");
+    printCollectionSheet();
   }
 
   const handleExportDisclosurePdf = () => {
@@ -941,7 +881,7 @@ export default function Reports() {
       setParams(nextParams)
       run(key, nextParams)
     }
-    if (key === 'collection-sheet') { loadCollectors(); setParams(p => ({ ...p, date: toDateInputValue(new Date()) })) }
+    if (key === 'collection-sheet' || key === 'daily-target') { loadCollectors(); setParams(p => ({ ...p, date: toDateInputValue(new Date()) })) }
     if (key === 'disclosure-statement') { setParams(p => ({ ...p, disclosure_loan_id: '' })) }
     if (key === 'monitoring-summary') {
       const nextParams = { ...params, monitoring_tab: params.monitoring_tab || 'new' }
@@ -991,6 +931,9 @@ export default function Reports() {
           rows: Array.isArray(r.data) ? r.data : [],
         })
         return
+      }
+      if (reportKey === 'daily-target') {
+        endpoint = 'collection-sheet'
       }
       const r = await API.get(`/reports/${endpoint}`, { params: finalParams })
       setData(r.data)
@@ -1145,7 +1088,7 @@ export default function Reports() {
     if (active === 'maturity-check') return (
       <div className="form-group"><label className="form-label">Days Ahead</label><input type="number" className="form-control" style={{ width: 120 }} value={params.days_ahead} onChange={e => setParams(p => ({ ...p, days_ahead: e.target.value }))} /></div>
     )
-    if (active === 'collection-sheet') return (
+    if (active === 'collection-sheet' || active === 'daily-target') return (
       <>
         <div className="form-group"><label className="form-label">Collector *</label>
           <select className="form-control" value={params.collector_id} onChange={e => { const nextParams = { ...params, collector_id: e.target.value }; setParams(nextParams); if (e.target.value) run(active, nextParams); }} style={{ minWidth: 220 }}>
@@ -3214,6 +3157,54 @@ export default function Reports() {
                 <div className="empty-state">No data for chart</div>
               )}
             </div>
+          </div>
+        </div>
+      )
+    }
+    if (active === 'daily-target') {
+      if (!data) return null
+      const { loans = [] } = data
+      const groups = { active: [], recon: [], overdue: [], pastdue: [] }
+      const isReconLoan = c => c.is_reconstructed === 1 || c.is_reconstructed === true
+      const getClassification = c => {
+        if (c.status === 'pastdue') return 'pastdue'
+        if (c.days_past_due > 0) return 'overdue'
+        if (isReconLoan(c)) return 'recon'
+        return 'active'
+      }
+      loans.forEach(c => {
+        const cls = getClassification(c)
+        if (groups[cls]) groups[cls].push(c)
+      })
+
+      const targetAmount = [...groups.active, ...groups.overdue].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
+      const totalActiveClients = groups.active.length + groups.overdue.length
+
+      return (
+        <div style={{ background: '#fff', padding: 40, fontFamily: 'Arial, Helvetica, sans-serif', maxWidth: 600, margin: '0 auto', border: '1px solid #ddd', borderRadius: 8, marginTop: 20 }}>
+          <h2 style={{ color: CL.navy, marginBottom: 30, textAlign: 'center' }}>DAILY TARGET</h2>
+          <div style={{ display: 'flex', gap: 20, justifyContent: 'center' }}>
+            <div style={{ flex: 1, padding: 20, border: '1.5px solid ' + CL.navy, borderRadius: 8, textAlign: 'center', background: '#f8fafc' }}>
+              <div style={{ fontSize: '11pt', color: '#666', fontWeight: 600, marginBottom: 8 }}>Total Active Client</div>
+              <div style={{ fontSize: '24pt', fontWeight: 700, color: CL.navy }}>{totalActiveClients}</div>
+            </div>
+            <div style={{ flex: 1, padding: 20, border: '1.5px solid ' + CL.navy, borderRadius: 8, textAlign: 'center', background: '#fcf8f8' }}>
+              <div style={{ fontSize: '11pt', color: '#666', fontWeight: 600, marginBottom: 8 }}>Target Amount</div>
+              <div style={{ fontSize: '24pt', fontWeight: 700, color: '#d9534f' }}>{peso(targetAmount)}</div>
+            </div>
+          </div>
+          
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 30, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Active', count: groups.active.length, color: CL.active },
+              { label: 'Recon', count: groups.recon.length, color: CL.recon },
+              { label: 'Overdue', count: groups.overdue.length, color: CL.overdue },
+              { label: 'Past Due', count: groups.pastdue.length, color: CL.pastdue }
+            ].map(b => (
+              <div key={b.label} style={{ background: b.color, color: '#fff', padding: '6px 16px', borderRadius: 4, fontSize: '10pt', fontWeight: 600 }}>
+                {b.label}: {b.count}
+              </div>
+            ))}
           </div>
         </div>
       )
