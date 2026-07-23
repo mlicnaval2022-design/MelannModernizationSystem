@@ -133,23 +133,32 @@ router.post('/', authenticateToken, async (req, res) => {
 
 router.put('/:id/penalty-amount', authenticateToken, async (req, res) => {
   try {
-    let { amount_paid } = req.body;
+    let { amount_paid, date_paid } = req.body;
     amount_paid = Number(amount_paid);
     if (!Number.isFinite(amount_paid) || amount_paid < 0) return res.status(400).json({ error: 'Invalid penalty amount' });
+    if (date_paid) requireOperationDate(date_paid, 'Penalty date');
     
     const payment = await dbGet(`SELECT * FROM tblPayment WHERE id = ?`, [req.params.id]);
     if (!payment) return res.status(404).json({ error: 'Payment not found' });
     if (payment.status !== 'penalty') return res.status(400).json({ error: 'Only penalty payments can have their amount edited this way' });
 
-    const loan = await dbGet(`SELECT dcr_id FROM tblLoan WHERE id = ?`, [payment.loan_id]);
+    const loan = await dbGet(`SELECT dcr_id, branch_id FROM tblLoan WHERE id = ?`, [payment.loan_id]);
     if (payment.dcr_id || loan?.dcr_id) {
       return res.status(400).json({ error: 'Cannot edit a penalty that has already been closed in a Daily Cash Report.' });
     }
+    date_paid = date_paid || payment.date_paid;
+    const closedDcr = await dbGet(
+      `SELECT id FROM tblDailyCashReport WHERE report_date = ? AND (branch_id IS NULL OR branch_id = ?) LIMIT 1`,
+      [date_paid, loan?.branch_id || null]
+    );
+    if (closedDcr) {
+      return res.status(400).json({ error: 'Cannot post this penalty to a date that is already closed in a Daily Cash Report.' });
+    }
 
-    await dbRun(`UPDATE tblPayment SET amount_paid = ? WHERE id = ?`, [amount_paid, req.params.id]);
+    await dbRun(`UPDATE tblPayment SET amount_paid = ?, date_paid = ? WHERE id = ?`, [amount_paid, date_paid, req.params.id]);
     await dbRun(`UPDATE tblLoan SET penalty = ? WHERE id = ?`, [amount_paid, payment.loan_id]);
     
-    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'UPDATE', 'PAYMENT', req.params.id, `Updated penalty amount from ${payment.amount_paid} to ${amount_paid}`]);
+    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'UPDATE', 'PAYMENT', req.params.id, `Updated penalty from ${payment.amount_paid} on ${payment.date_paid} to ${amount_paid} on ${date_paid}`]);
     
     res.json({ message: 'Penalty payment updated' });
   } catch (err) { res.status(500).json({ error: err.message }); }

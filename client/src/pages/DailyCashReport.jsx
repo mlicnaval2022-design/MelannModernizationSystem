@@ -84,7 +84,8 @@ export default function DailyCashReport() {
 
   (data.releases || []).forEach(r => {
     const name = r.collector_name || 'Unassigned';
-    const releaseCollections = Number(r.previous_balance || 0) + Number(r.penalty || 0) + Number(r.passbook || 0);
+    const releasePenalty = Number(r.penalty_payment_count || 0) > 0 ? 0 : Number(r.penalty || 0);
+    const releaseCollections = Number(r.previous_balance || 0) + releasePenalty + Number(r.passbook || 0);
     if (releaseCollections > 0) {
       collByCollector[name] = (collByCollector[name] || 0) + releaseCollections;
     }
