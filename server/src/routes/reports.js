@@ -199,6 +199,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
             JOIN tblAmortizationSchedule s ON s.loan_id = l.id
             WHERE l.collector_id = co.id
               AND s.due_date = ?
+              AND (l.date_released IS NULL OR l.date_released <= ?)
               AND LOWER(COALESCE(s.status, '')) != 'reversed'
               AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'cancelled', 'rejected')
           ), 0) as target,
@@ -214,7 +215,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
         WHERE co.is_active = 1
         AND LOWER(co.first_name || ' ' || co.last_name) NOT LIKE '%pastdue%'
         ORDER BY collected DESC
-      `, [latestPaymentDate, latestPaymentDate]),
+      `, [latestPaymentDate, latestPaymentDate, latestPaymentDate]),
       recent_activities: await dbAll(`SELECT * FROM tblLogtime ORDER BY created_at DESC LIMIT 10`),
       pending_ci: await dbAll(`SELECT l.id, c.full_name, l.principal, l.created_at FROM tblLoan l JOIN tblCustomer c ON l.customer_id = c.id WHERE l.status = 'pending' ORDER BY l.created_at DESC LIMIT 5`),
       pending_ci_count: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='pending'`)).c,
