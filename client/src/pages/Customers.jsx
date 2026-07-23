@@ -2250,6 +2250,15 @@ export default function Customers() {
                 style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '15px' }}
               />
             </div>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', color: '#475569', fontSize: '14px', fontWeight: '600' }}>Penalty Date</label>
+              <input
+                type="date"
+                defaultValue={String(editingPenaltyPayment.date_paid || '').slice(0, 10)}
+                id="editPenaltyDateInput"
+                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '15px' }}
+              />
+            </div>
             
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
               <button 
@@ -2260,9 +2269,11 @@ export default function Customers() {
               <button 
                 onClick={async () => {
                   const amt = document.getElementById('editPenaltyAmountInput').value;
+                  const penaltyDate = document.getElementById('editPenaltyDateInput').value;
                   if (!amt || isNaN(amt) || Number(amt) < 0) return alert('Invalid amount');
+                  if (!penaltyDate) return alert('Please select a penalty date');
                   try {
-                    await API.put(`/payments/${editingPenaltyPayment.id}/penalty-amount`, { amount_paid: amt });
+                    await API.put(`/payments/${editingPenaltyPayment.id}/penalty-amount`, { amount_paid: amt, date_paid: penaltyDate });
                     setEditingPenaltyPayment(null);
                     openSoa(soaData.id);
                   } catch (e) {

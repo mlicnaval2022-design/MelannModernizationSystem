@@ -58,7 +58,7 @@ const isReleaseChargePayment = payment => {
 
 const getReleaseChargeBreakdown = releases => releases.reduce((acc, release) => {
   acc.balance += Number(release.previous_balance || 0);
-  acc.penalty += Number(release.penalty || 0);
+  acc.penalty += Number(release.penalty_payment_count || 0) > 0 ? 0 : Number(release.penalty || 0);
   acc.passbook += Number(release.passbook || 0);
   return acc;
 }, { balance: 0, penalty: 0, passbook: 0 });
@@ -108,7 +108,11 @@ router.get('/summary', authenticateToken, async (req, res) => {
       SELECT l.id, l.customer_id, l.loan_code, l.principal, l.net_proceeds, l.loan_type, l.date_released, l.created_at, l.dcr_id, l.service_fee, l.insurance, l.balance, l.previous_balance, l.penalty, l.passbook,
              c.customer_code, c.first_name, c.last_name, u.full_name as encoded_by,
              co.first_name || ' ' || co.last_name as collector_name,
-             COALESCE(l.penalty, 0) + COALESCE((SELECT SUM(amount) FROM tblTransaction WHERE category = CAST(l.customer_id AS TEXT) AND transaction_type = 'Penalty' AND transaction_date = l.date_released AND status = 'active'), 0) as today_penalty,
+             (SELECT COUNT(*) FROM tblPayment pp WHERE pp.loan_id = l.id AND pp.status = 'penalty') as penalty_payment_count,
+             CASE
+               WHEN (SELECT COUNT(*) FROM tblPayment pp WHERE pp.loan_id = l.id AND pp.status = 'penalty') > 0 THEN 0
+               ELSE COALESCE(l.penalty, 0)
+             END + COALESCE((SELECT SUM(amount) FROM tblTransaction WHERE category = CAST(l.customer_id AS TEXT) AND transaction_type = 'Penalty' AND transaction_date = l.date_released AND status = 'active'), 0) as today_penalty,
              COALESCE(l.passbook, 0) + COALESCE((SELECT SUM(amount) FROM tblTransaction WHERE category = CAST(l.customer_id AS TEXT) AND transaction_type = 'Passbook' AND transaction_date = l.date_released AND status = 'active'), 0) as today_passbook
       FROM tblLoan l
       JOIN tblCustomer c ON l.customer_id = c.id
@@ -149,7 +153,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
     const existingDcr = await dbGet(dcrQuery, dcrParams);
 
     // Compute totals
-    const regularCollections = collections.filter(payment => !isReleaseChargePayment(payment));
+    const regularCollections = collections.filter(payment => !isReleaseChargePayment(payment) || String(payment.status || '').toLowerCase() === 'penalty');
     const collection_breakdown = getCollectionBreakdown(regularCollections, passbooks, penalties, collectorsOver);
     const releaseChargeBreakdown = getReleaseChargeBreakdown(releases);
     collection_breakdown.balance += releaseChargeBreakdown.balance;
@@ -351,14 +355,16 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
     }
 
     const collections = await dbAll(`SELECT p.amount_paid, p.payment_type, p.status, p.remarks FROM tblPayment p JOIN tblCustomer c ON p.customer_id = c.id WHERE ${pCond}`, pParams);
-    const releases = await dbAll(`SELECT l.net_proceeds, l.principal, l.previous_balance, l.penalty, l.passbook FROM tblLoan l JOIN tblCustomer c ON l.customer_id = c.id WHERE ${lCond}`, lParams);
+    const releases = await dbAll(`SELECT l.net_proceeds, l.principal, l.previous_balance, l.penalty, l.passbook,
+      (SELECT COUNT(*) FROM tblPayment pp WHERE pp.loan_id = l.id AND pp.status = 'penalty') as penalty_payment_count
+      FROM tblLoan l JOIN tblCustomer c ON l.customer_id = c.id WHERE ${lCond}`, lParams);
     const transactions = await dbAll(`SELECT t.amount, t.transaction_type FROM tblTransaction t WHERE ${eCond.replace(/e\./g, 't.')}`, eParams);
     const bankTx = await dbAll(`SELECT * FROM tblCashOnBank WHERE ${cbCond}`, cbParams);
 
     const passbooks = transactions.filter(t => t.transaction_type === 'Passbook');
     const penalties = transactions.filter(t => t.transaction_type === 'Penalty');
     const collectorsOver = transactions.filter(t => t.transaction_type === 'Collectors Over');
-    const regularCollections = collections.filter(payment => !isReleaseChargePayment(payment));
+    const regularCollections = collections.filter(payment => !isReleaseChargePayment(payment) || String(payment.status || '').toLowerCase() === 'penalty');
     const collection_breakdown = getCollectionBreakdown(regularCollections, passbooks, penalties, collectorsOver);
     const releaseChargeBreakdown = getReleaseChargeBreakdown(releases);
     collection_breakdown.balance += releaseChargeBreakdown.balance;
