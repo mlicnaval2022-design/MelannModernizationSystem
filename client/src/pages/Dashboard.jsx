@@ -33,7 +33,7 @@ export default function Dashboard() {
     const yesterday = getYesterdayKey()
 
     Promise.all([
-      API.get('/reports/dashboard'),
+      API.get('/reports/dashboard', { params: { date: yesterday } }),
       API.get('/reports/daily-collection', { params: { date_from: yesterday, date_to: yesterday } })
     ])
       .then(([dashboardRes, yesterdayCollectionRes]) => {
@@ -226,15 +226,15 @@ export default function Dashboard() {
             <div className="card-v2" style={{ flex: 2 }}>
               <div className="card-v2-title">
                 👥 Collector Performance 
-                {data.cycle_start && <span style={{ fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: 8 }}>(Cycle: {new Date(data.cycle_start).toLocaleDateString('en-US', {month:'short', day:'numeric'})} - {new Date(data.cycle_end).toLocaleDateString('en-US', {month:'short', day:'numeric'})})</span>}
+                {data.yesterday_str && <span style={{ fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: 8 }}>(Yesterday: {new Date(data.yesterday_str + 'T00:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})})</span>}
               </div>
               <div style={{ maxHeight: '350px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px' }}>
                 <table className="data-table" style={{ fontSize: 12, margin: 0, border: 'none' }}>
                   <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                     <tr>
                       <th style={{ background: '#f8fafc', borderTop: 'none' }}>Collector</th>
-                      <th style={{ background: '#f8fafc', borderTop: 'none' }}>Target</th>
-                      <th style={{ background: '#f8fafc', borderTop: 'none' }}>Collected</th>
+                      <th style={{ background: '#f8fafc', borderTop: 'none' }}>Yesterday's Target</th>
+                      <th style={{ background: '#f8fafc', borderTop: 'none' }}>Yesterday's Collection</th>
                       <th style={{ background: '#f8fafc', textAlign: 'right', borderTop: 'none' }}>%</th>
                     </tr>
                   </thead>
@@ -276,11 +276,11 @@ export default function Dashboard() {
                 <div className="card-v2-title">🎯 Yesterday's Collection Status</div>
                 <div className="collection-blocks">
                   <div className="c-block" style={{ background: '#f0f9ff', borderColor: '#bae6fd' }}>
-                    <span style={{ color: '#0369a1' }}>Target Collection</span>
+                    <span style={{ color: '#0369a1' }}>Yesterday's Target Collection</span>
                     <h4 style={{ color: '#0284c7' }}>₱{fmt(data.collector_performance?.reduce((s,c)=>s+c.target,0))}</h4>
                   </div>
                   <div className="c-block" style={{ background: '#f0fdf4', borderColor: '#bbf7d0' }}>
-                    <span style={{ color: '#15803d' }}>Collected</span>
+                    <span style={{ color: '#15803d' }}>Yesterday's Collection</span>
                     <h4 style={{ color: '#16a34a' }}>₱{fmt(data.collections_yesterday)}</h4>
                   </div>
                 </div>

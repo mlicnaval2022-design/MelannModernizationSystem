@@ -40,6 +40,7 @@ export default function Payments() {
   const [reverseClientCode, setReverseClientCode] = useState('')
   const [reverseCustomer, setReverseCustomer] = useState(null)
   const [reversePayments, setReversePayments] = useState([])
+  const [reverseLatestLoan, setReverseLatestLoan] = useState(null)
   const [selectedPaymentIds, setSelectedPaymentIds] = useState([])
   const [reverseLoading, setReverseLoading] = useState(false)
   const [reverseMessage, setReverseMessage] = useState(null)
@@ -213,6 +214,7 @@ export default function Payments() {
     e.preventDefault()
     setReverseCustomer(null)
     setReversePayments([])
+    setReverseLatestLoan(null)
     setSelectedPaymentIds([])
     setReverseMessage(null)
 
@@ -225,9 +227,10 @@ export default function Payments() {
     try {
       const { data } = await API.get(`/reversals/client/${reverseClientCode.trim()}/payments`)
       setReverseCustomer(data.customer)
+      setReverseLatestLoan(data.latest_loan || null)
       setReversePayments(data.payments || [])
       if (!data.payments || data.payments.length === 0) {
-        setReverseMessage({ type: 'danger', message: 'No payment records found for this client.' })
+        setReverseMessage({ type: 'danger', message: 'No payment records found for this client latest loan.' })
       }
     } catch (err) {
       setReverseMessage({ type: 'danger', message: err.response?.data?.error || 'Error finding payments.' })
@@ -240,6 +243,7 @@ export default function Payments() {
     setReverseClientCode('')
     setReverseCustomer(null)
     setReversePayments([])
+    setReverseLatestLoan(null)
     setSelectedPaymentIds([])
     setReverseMessage(null)
   }
@@ -763,20 +767,59 @@ export default function Payments() {
               <button type="submit" className="reverse-search-btn" disabled={reverseLoading} style={{ marginTop: '16px' }}>
                 {reverseLoading ? 'Searching...' : '⌕ Search Payments'}
               </button>
+              {reverseCustomer && (
+                <div style={{ marginTop: '14px', padding: '12px', border: '1px solid #dbeafe', background: '#eff6ff', borderRadius: '10px', display: 'grid', gap: '8px' }}>
+                  <div>
+                    <span style={{ display: 'block', fontSize: '10px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Client Name</span>
+                    <strong style={{ color: '#0f172a', fontSize: '14px' }}>{reverseCustomer.full_name || '-'}</strong>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div>
+                      <span style={{ display: 'block', fontSize: '10px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Loan Cycle</span>
+                      <strong style={{ color: '#1d4ed8', fontSize: '14px' }}>Cycle {reverseLatestLoan?.loan_cycle || '-'}</strong>
+                    </div>
+                    <div>
+                      <span style={{ display: 'block', fontSize: '10px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Loan No.</span>
+                      <strong style={{ color: '#1d4ed8', fontSize: '14px' }}>{reverseLatestLoan?.loan_code || '-'}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
             </form>
 
             <div className="reverse-details-card" style={{ gridColumn: 'span 1' }}>
-              <div className="reverse-section-title">
+              <div className="reverse-section-title" style={{ alignItems: 'flex-start', gap: '16px' }}>
                 <h3><span>▤</span> Payment Transaction History</h3>
                 {reverseCustomer && (
                   <span className="reverse-status posted" style={{ background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1' }}>
                     {reverseCustomer.full_name} ({reverseCustomer.customer_code})
                   </span>
                 )}
+                {reverseCustomer && reverseLatestLoan && (
+                  <span className="reverse-status posted" style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
+                    Latest loan only: {reverseLatestLoan.loan_code} - {reverseLatestLoan.loan_type || 'Loan'} - {reverseLatestLoan.date_released || '-'}
+                  </span>
+                )}
+                {reverseCustomer && (
+                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '10px 12px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <div>
+                      <span style={{ display: 'block', fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Selected</span>
+                      <strong style={{ fontSize: '16px', color: '#0f172a' }}>{selectedPaymentIds.length}</strong>
+                    </div>
+                    <div>
+                      <span style={{ display: 'block', fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Amount</span>
+                      <strong style={{ fontSize: '16px', color: '#ef4444' }}>{formatCurrency(totalSelectedAmount)}</strong>
+                    </div>
+                    <button className="reverse-clear-btn" onClick={clearReverseSearch} style={{ border: '1px solid #e2e8f0', background: '#fff', padding: '9px 14px', fontSize: '13px', borderRadius: '8px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}>Clear</button>
+                    <button className="reverse-preview-btn" onClick={handlePreviewReversal} disabled={selectedPaymentIds.length === 0} style={{ background: selectedPaymentIds.length > 0 ? '#1d4ed8' : '#cbd5e1', color: '#fff', border: 'none', padding: '9px 16px', fontSize: '13px', borderRadius: '8px', fontWeight: 800, cursor: selectedPaymentIds.length > 0 ? 'pointer' : 'not-allowed', transition: 'all 0.2s', boxShadow: selectedPaymentIds.length > 0 ? '0 4px 6px -1px rgba(29, 78, 216, 0.3)' : 'none' }}>
+                      Preview Reversal
+                    </button>
+                  </div>
+                )}
               </div>
 
               {reverseCustomer ? (
-                <div style={{ overflowX: 'auto', padding: '0 20px 20px 20px' }}>
+                <div style={{ overflow: 'auto', padding: '0 20px 20px 20px', maxHeight: '460px' }}>
                   <table className="data-table" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', fontSize: '13px' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
@@ -789,7 +832,6 @@ export default function Payments() {
                           />
                         </th>
                         <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>Code</th>
-                        <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>OR Number</th>
                         <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>Date Paid</th>
                         <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>Amount Paid</th>
                         <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>Collector</th>
@@ -802,7 +844,7 @@ export default function Payments() {
                     </thead>
                     <tbody>
                       {reversePayments.length === 0 ? (
-                        <tr><td colSpan="11" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No payments found for this client.</td></tr>
+                        <tr><td colSpan="10" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No payments found for this client.</td></tr>
                       ) : reversePayments.map(p => {
                         const isReversed = p.status === 'reversed';
                         const isPenalty = p.status === 'penalty';
@@ -818,7 +860,6 @@ export default function Payments() {
                               />
                             </td>
                             <td style={{ padding: '12px', fontWeight: 700, fontFamily: 'monospace', color: '#3b82f6' }}>{p.payment_code}</td>
-                            <td style={{ padding: '12px', fontFamily: 'monospace', color: '#0f172a' }}>{p.or_number || 'N/A'}</td>
                             <td style={{ padding: '12px', color: '#334155' }}>{p.date_paid}</td>
                             <td style={{ padding: '12px', fontWeight: 800, color: isReversed ? '#64748b' : '#16a34a' }}>{formatCurrency(p.amount_paid)}</td>
                             <td style={{ padding: '12px', color: '#334155' }}>{p.collector_name || 'N/A'}</td>
@@ -851,7 +892,7 @@ export default function Payments() {
             </div>
           </div>
 
-          {reverseCustomer && (
+          {false && reverseCustomer && (
             <div style={{ position: 'sticky', bottom: 0, background: '#fff', padding: '16px 30px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 -10px 15px -3px rgba(0,0,0,0.05)', borderRadius: '0 0 16px 16px', zIndex: 10 }}>
               <div style={{ display: 'flex', gap: '40px', alignItems: 'center' }}>
                 <div>

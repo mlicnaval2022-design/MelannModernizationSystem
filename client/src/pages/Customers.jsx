@@ -1735,7 +1735,7 @@ export default function Customers() {
       {/* Payment Ledger Modal - Redesigned to match reference exactly */}
       {selectedLoanForPayments && (
         <div className="modal-overlay" style={{ zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15, 23, 42, 0.6)', padding: '20px' }} onClick={() => { setSelectedLoanForPayments(null); setPenaltyLoan(null); }}>
-          <div className="modal-content" style={{ width: '100%', maxWidth: '1000px', backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
+          <div className="modal-content payment-history-refresh" style={{ width: '100%', maxWidth: '1480px', backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
             
             {/* Header */}
             <div style={{ padding: '24px 32px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -1771,7 +1771,7 @@ export default function Customers() {
             </div>
             
             {/* Body */}
-            <div style={{ padding: '32px', overflowY: 'auto', backgroundColor: '#fdfdfd' }}>
+            <div className="payment-history-refresh-body" style={{ padding: '32px', overflowY: 'auto', backgroundColor: '#fdfdfd' }}>
               
               {(() => {
                 const principal = Number(selectedLoanForPayments.principal) || 0;
@@ -1803,9 +1803,9 @@ export default function Customers() {
                 }
 
                 return (
-                  <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', marginBottom: '32px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px 32px', backgroundColor: '#ffffff' }}>
-                    {/* Row 1 */}
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                  <div className="ph-loan-info-panel">
+                    <div className="ph-loan-info-grid">
+                    <div className="ph-info-card compact">
                       <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontSize: '18px', flexShrink: 0 }}>
                         <i className="bi bi-file-earmark-text"></i>
                       </div>
@@ -1815,7 +1815,7 @@ export default function Customers() {
                       </div>
                     </div>
                     
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                    <div className="ph-info-card compact">
                       <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontSize: '18px', flexShrink: 0 }}>
                         <i className="bi bi-person"></i>
                       </div>
@@ -1825,7 +1825,27 @@ export default function Customers() {
                       </div>
                     </div>
                     
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                    <div className="ph-info-card compact">
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontSize: '18px', flexShrink: 0 }}>
+                        <i className="bi bi-calendar3"></i>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>LOAN DATE</div>
+                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{formatDateLong(selectedLoanForPayments.date_released)}</div>
+                      </div>
+                    </div>
+
+                    <div className="ph-info-card compact">
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontSize: '18px', flexShrink: 0 }}>
+                        <i className="bi bi-calendar-event"></i>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>MATURITY DATE</div>
+                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{formatDateLong(selectedLoanForPayments.date_maturity)}</div>
+                      </div>
+                    </div>
+
+                    <div className="ph-info-card wide">
                       <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#faf5ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a855f7', fontSize: '18px', flexShrink: 0 }}>
                         <i className="bi bi-person-badge"></i>
                       </div>
@@ -1834,40 +1854,8 @@ export default function Customers() {
                         <div style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{soaData?.full_name?.toUpperCase() || '-'}</div>
                       </div>
                     </div>
-                    
-                    {/* Row 2 */}
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontSize: '18px', flexShrink: 0 }}>
-                        <i className="bi bi-calendar3"></i>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>LOAN DATE</div>
-                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{selectedLoanForPayments.date_released || '-'}</div>
-                      </div>
-                    </div>
-                    
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', fontSize: '18px', flexShrink: 0 }}>
-                        <i className="bi bi-calendar-event"></i>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>DUE DATE</div>
-                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#ef4444' }}>{selectedLoanForPayments.date_maturity || '-'}</div>
-                      </div>
-                    </div>
-                    
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f97316', fontSize: '18px', flexShrink: 0 }}>
-                        <i className="bi bi-clock"></i>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>TERM / PERIOD</div>
-                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{selectedLoanForPayments.loan_period || 0} Days</div>
-                      </div>
-                    </div>
-                    
-                    {/* Row 3 */}
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+
+                    <div className="ph-info-card wide">
                       <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#22c55e', fontSize: '18px', flexShrink: 0 }}>
                         <i className="bi bi-cash-stack"></i>
                       </div>
@@ -1877,7 +1865,7 @@ export default function Customers() {
                       </div>
                     </div>
                     
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                    <div className="ph-info-card wide">
                       <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#faf5ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a855f7', fontSize: '18px', flexShrink: 0 }}>
                         <i className="bi bi-piggy-bank"></i>
                       </div>
@@ -1887,7 +1875,17 @@ export default function Customers() {
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                    <div className="ph-info-card wide">
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#faf5ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a855f7', fontSize: '18px', flexShrink: 0 }}>
+                        <i className="bi bi-wallet2"></i>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>TOTAL LOAN</div>
+                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{formatPhp(totalLoan)}</div>
+                      </div>
+                    </div>
+
+                    <div className="ph-info-card xl">
                       <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontSize: '18px', flexShrink: 0 }}>
                         <i className="bi bi-arrow-repeat"></i>
                       </div>
@@ -1897,18 +1895,17 @@ export default function Customers() {
                       </div>
                     </div>
 
-                    {/* Row 4 */}
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#faf5ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a855f7', fontSize: '18px', flexShrink: 0 }}>
-                        <i className="bi bi-wallet2"></i>
+                    <div className="ph-info-card xl">
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '18px', flexShrink: 0 }}>
+                        <i className="bi bi-info-circle"></i>
                       </div>
                       <div>
-                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>TOTAL LOAN</div>
-                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{formatPhp(totalLoan)}</div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>STATUS</div>
+                        <span className={`badge badge-${getLoanStatusClass(selectedLoanForPayments)}`}>{getLoanStatusLabel(selectedLoanForPayments)}</span>
                       </div>
                     </div>
-                    
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+
+                    <div className="ph-info-card xl">
                       <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#22c55e', fontSize: '18px', flexShrink: 0 }}>
                         <i className="bi bi-wallet"></i>
                       </div>
@@ -1917,41 +1914,6 @@ export default function Customers() {
                         <div style={{ fontSize: '16px', fontWeight: '700', color: '#22c55e' }}>{formatPhp(remainingBalance)}</div>
                       </div>
                     </div>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '18px', flexShrink: 0 }}>
-                        <i className="bi bi-info-circle"></i>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>STATUS</div>
-                        {(() => {
-                          const statusText = (getLoanStatusLabel ? getLoanStatusLabel(selectedLoanForPayments) : selectedLoanForPayments.status || 'UNKNOWN').toUpperCase();
-                          
-                          let bg = '#f1f5f9';
-                          let color = '#64748b';
-                          
-                          if (statusText === 'RELOAN') { bg = '#dcfce7'; color = '#16a34a'; } // Green
-                          else if (statusText === 'OVERDUE') { bg = '#ffedd5'; color = '#ea580c'; } // Orange
-                          else if (statusText === 'RECON') { bg = '#dbeafe'; color = '#2563eb'; } // Blue
-                          else if (statusText === 'PASTDUE' || statusText === 'PAST DUE') { bg = '#fee2e2'; color = '#ef4444'; } // Red
-                          else if (statusText === 'FULLY PAID' || statusText === 'FULLPAID') { bg = '#f3e8ff'; color = '#9333ea'; } // Violet
-                          else if (statusText === 'NEW') { bg = '#e0e7ff'; color = '#4f46e5'; } // Indigo
-
-                          return (
-                            <span style={{ 
-                              display: 'inline-block',
-                              padding: '4px 12px',
-                              borderRadius: '20px',
-                              backgroundColor: bg,
-                              color: color,
-                              fontSize: '12px',
-                              fontWeight: '700',
-                              letterSpacing: '0.5px'
-                            }}>
-                              {statusText}
-                            </span>
-                          );
-                        })()}
-                      </div>
                     </div>
                   </div>
                 );

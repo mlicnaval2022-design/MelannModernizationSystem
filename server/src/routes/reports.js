@@ -144,7 +144,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
     
     // Find the most recent date before today that has active collections
     const latestPaymentDateRes = await dbGet(`SELECT MAX(date_paid) as max_date FROM tblPayment WHERE status IN ('active', 'penalty') AND date_paid < ? AND ${sqlNotSunday('date_paid')}`, [today]);
-    const latestPaymentDate = latestPaymentDateRes?.max_date || getPreviousOperationDate(today);
+    const latestPaymentDate = req.query.date || latestPaymentDateRes?.max_date || getPreviousOperationDate(today);
 
     const epoch = new Date('2026-01-01T00:00:00Z');
     const diffDays = Math.floor((now - epoch) / (1000 * 60 * 60 * 24));
@@ -193,13 +193,28 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
         SELECT 
           co.id, 
           co.first_name || ' ' || co.last_name as name,
-          1000000 as target,
-          COALESCE((SELECT SUM(amount_paid) FROM tblPayment WHERE collector_id = co.id AND date_paid BETWEEN ? AND ? AND status IN ('active', 'penalty') AND ${sqlNotSunday('date_paid')}), 0) as collected
+          COALESCE((
+            SELECT SUM(s.amount_due)
+            FROM tblLoan l
+            JOIN tblAmortizationSchedule s ON s.loan_id = l.id
+            WHERE l.collector_id = co.id
+              AND s.due_date = ?
+              AND LOWER(COALESCE(s.status, '')) != 'reversed'
+              AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'cancelled', 'rejected')
+          ), 0) as target,
+          COALESCE((
+            SELECT SUM(amount_paid)
+            FROM tblPayment
+            WHERE collector_id = co.id
+              AND date_paid = ?
+              AND status IN ('active', 'penalty')
+              AND ${sqlNotSunday('date_paid')}
+          ), 0) as collected
         FROM tblCollector co
         WHERE co.is_active = 1
         AND LOWER(co.first_name || ' ' || co.last_name) NOT LIKE '%pastdue%'
         ORDER BY collected DESC
-      `, [cycleStartStr, cycleEndStr]),
+      `, [latestPaymentDate, latestPaymentDate]),
       recent_activities: await dbAll(`SELECT * FROM tblLogtime ORDER BY created_at DESC LIMIT 10`),
       pending_ci: await dbAll(`SELECT l.id, c.full_name, l.principal, l.created_at FROM tblLoan l JOIN tblCustomer c ON l.customer_id = c.id WHERE l.status = 'pending' ORDER BY l.created_at DESC LIMIT 5`),
       pending_ci_count: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='pending'`)).c,
