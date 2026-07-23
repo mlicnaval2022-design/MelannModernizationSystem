@@ -222,7 +222,7 @@ router.post('/', authenticateToken, async (req, res) => {
 router.put('/:id/edit', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   try {
     const loan_id = req.params.id;
-    const { principal, interest_rate, loan_period, date_released } = req.body;
+    const { principal, interest_rate, loan_period, date_released, loan_type } = req.body;
     
     if (!principal || !loan_period || !date_released) {
       return res.status(400).json({ error: 'Principal, loan period, and date released are required' });
@@ -244,6 +244,7 @@ router.put('/:id/edit', authenticateToken, requireRole('admin', 'manager'), asyn
     const period = parseInt(loan_period) || 45;
     const interestRate = parseFloat(interest_rate) || 0;
     const principalAmount = parseFloat(principal);
+    const loanType = String(loan_type || loan.loan_type || 'New').trim() || 'New';
     
     const interestAmount = principalAmount * (interestRate / 100);
     const totalAmortization = principalAmount + interestAmount;
@@ -258,11 +259,11 @@ router.put('/:id/edit', authenticateToken, requireRole('admin', 'manager'), asyn
 
     await dbRun(`
       UPDATE tblLoan 
-      SET principal = ?, interest_rate = ?, interest_amount = ?, loan_period = ?, 
+      SET loan_type = ?, principal = ?, interest_rate = ?, interest_amount = ?, loan_period = ?, 
           date_released = ?, date_maturity = ?, amortization = ?, total_amortization = ?,
           net_proceeds = ?, balance = ?, updated_at = datetime('now')
       WHERE id = ?
-    `, [principalAmount, interestRate, interestAmount, period, date_released, dateMaturity, amortization, totalAmortization, principalAmount, totalAmortization, loan_id]);
+    `, [loanType, principalAmount, interestRate, interestAmount, period, date_released, dateMaturity, amortization, totalAmortization, principalAmount, totalAmortization, loan_id]);
 
     await dbRun(`DELETE FROM tblAmortizationSchedule WHERE loan_id = ?`, [loan_id]);
 
@@ -272,7 +273,7 @@ router.put('/:id/edit', authenticateToken, requireRole('admin', 'manager'), asyn
         [s.loan_id, s.period_number, s.due_date, s.amount_due, s.status]);
     }
 
-    const details = `Edited loan ${loan.loan_code}. Old: P${loan.principal}/${loan.loan_period}days/${loan.date_released}. New: P${principalAmount}/${period}days/${date_released}.`;
+    const details = `Edited loan ${loan.loan_code}. Old: ${loan.loan_type || 'New'}/P${loan.principal}/${loan.loan_period}days/${loan.date_released}. New: ${loanType}/P${principalAmount}/${period}days/${date_released}.`;
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, 
       [req.user.id, req.user.username, 'EDIT', 'LOAN', loan_id, details]);
 

@@ -2362,6 +2362,16 @@ export default function Customers() {
             <h3 style={{ margin: '0 0 20px 0', color: '#0f172a', fontSize: '20px', fontWeight: 700 }}>Edit Loan</h3>
             <form onSubmit={handleEditLoanSubmit}>
               <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Loan Type</label>
+                <select className="form-control" value={editLoanModal.loan_type || 'New'} onChange={e => setEditLoanModal({...editLoanModal, loan_type: e.target.value})} required>
+                  <option value="New">New</option>
+                  <option value="Reloan">Reloan</option>
+                  <option value="Recon">Recon</option>
+                  <option value="Reconstruct">Reconstruct</option>
+                  <option value="Re-CI">Re-CI</option>
+                </select>
+              </div>
+              <div className="form-group" style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Principal Amount</label>
                 <input type="number" step="0.01" className="form-control" value={editLoanModal.principal || ''} onChange={e => setEditLoanModal({...editLoanModal, principal: e.target.value})} required />
               </div>
