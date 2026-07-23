@@ -7,6 +7,10 @@ import autoTable from 'jspdf-autotable'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 const CL = { navy: '#0D1B3D', active: '#1F2933', recon: '#1565C0', overdue: '#EF6C00', pastdue: '#D71920', lightBg: '#F5F7FA' }
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })
+const compactChartLabel = value => {
+  const text = String(value || '')
+  return text.length > 18 ? `${text.slice(0, 17)}...` : text
+}
 const toDateInputValue = date => {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -1128,12 +1132,12 @@ export default function Reports() {
         ['GRAND TOTAL', collectorRows.reduce((sum, row) => sum + Number(row.payment_count || 0), 0), rawMoney(data.total || collectorRows.reduce((sum, row) => sum + Number(row.total_amount || 0), 0))],
         [],
         ['Details'],
-        ['Client Code', 'Date Paid', 'Client', 'OR Number', 'Loan Number', 'Amount Paid', 'Balance After', 'Collector'],
+        ['Client Code', 'Date Paid', 'Client', 'Payment Code', 'Loan Number', 'Amount Paid', 'Balance After', 'Collector'],
         ...payments.map(payment => [
           payment.customer_code,
           dateOnly(payment.date_paid),
           payment.customer_name,
-          payment.or_number,
+          payment.payment_code || payment.or_number,
           payment.loan_code,
           rawMoney(payment.amount_paid),
           rawMoney(payment.balance_after),
@@ -2110,7 +2114,7 @@ export default function Reports() {
                   {displayDate(reportFrom)} to {displayDate(reportTo)}
                 </div>
               </div>
-              <div className="fw-bold text-success">Grand Total: ₱ {fmt(total)}</div>
+              <div className="fw-bold text-success">Grand Total: {fmt(total)}</div>
             </div>
             {monthlySubTab === 'overall' && (
               <div className="monthly-overall-chart" style={{ marginBottom: 20, height: 350, background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '16px 16px 0 0' }}>
@@ -2194,11 +2198,11 @@ export default function Reports() {
                                 title={cell.payment_count > 0 ? 'View collection details' : ''}
                                 style={{ cursor: cell.payment_count > 0 ? 'pointer' : 'default' }}
                               >
-                                {cell.amount > 0 ? <span className="text-success fw-bold">₱ {fmt(cell.amount)}</span> : '-'}
+                                {cell.amount > 0 ? <span className="text-success fw-bold">{fmt(cell.amount)}</span> : '-'}
                               </td>
                             )
                           })}
-                          <td className="text-right text-success fw-bold">₱ {fmt(row.total_amount)}</td>
+                          <td className="text-right text-success fw-bold">{fmt(row.total_amount)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2207,9 +2211,9 @@ export default function Reports() {
                         <tr style={{ background: 'rgba(18,58,99,0.03)', borderTop: '2px solid var(--border)' }}>
                           <td className="fw-bold" style={{ color: 'var(--blue-dark)' }}>GRAND TOTAL</td>
                           {matrix.periods.map(period => (
-                            <td key={`total-${period.key}`} className="text-right text-success fw-bold">₱ {fmt(matrix.periodTotals[period.key].amount)}</td>
+                            <td key={`total-${period.key}`} className="text-right text-success fw-bold">{fmt(matrix.periodTotals[period.key].amount)}</td>
                           ))}
-                          <td className="text-right text-success fw-bold">₱ {fmt(total)}</td>
+                          <td className="text-right text-success fw-bold">{fmt(total)}</td>
                         </tr>
                       </tfoot>
                     )}
@@ -2233,11 +2237,11 @@ export default function Reports() {
                               title={cell.payment_count > 0 ? 'View collection details' : ''}
                               style={{ cursor: cell.payment_count > 0 ? 'pointer' : 'default' }}
                             >
-                              {cell.amount > 0 ? <span className="text-success fw-bold">₱ {fmt(cell.amount)}</span> : '-'}
+                              {cell.amount > 0 ? <span className="text-success fw-bold">{fmt(cell.amount)}</span> : '-'}
                             </td>
                           )
                         })}
-                        <td className="text-right text-success fw-bold">₱ {fmt(total)}</td>
+                        <td className="text-right text-success fw-bold">{fmt(total)}</td>
                       </tr>
                     )}
                   </tbody>
@@ -2250,7 +2254,7 @@ export default function Reports() {
               <div style={{ textAlign: 'center', marginBottom: 20 }}>
                 <h2 style={{ margin: 0, color: 'var(--blue-dark)' }}>{monthlyTitle}</h2>
                 <div style={{ fontSize: 14, color: '#64748b' }}>{displayDate(reportFrom)} to {displayDate(reportTo)}</div>
-                <div style={{ fontSize: 16, fontWeight: 'bold', color: '#16a34a', marginTop: 6 }}>Grand Total: ₱ {fmt(total)}</div>
+                <div style={{ fontSize: 16, fontWeight: 'bold', color: '#16a34a', marginTop: 6 }}>Grand Total: {fmt(total)}</div>
               </div>
               {matrix.rows.map(row => (
                 <div key={row.collector} style={{ marginBottom: 30, pageBreakInside: 'avoid' }}>
@@ -2258,14 +2262,14 @@ export default function Reports() {
                     <div style={{ fontSize: 18, fontWeight: 'bold', color: 'var(--blue-dark)' }}>{row.collector}</div>
                     <div style={{ fontSize: 14, fontWeight: 'bold' }}>
                       Payments: {row.payment_count} &nbsp;|&nbsp;
-                      Total: <span className="text-success">₱ {fmt(row.total_amount)}</span>
+                      Total: <span className="text-success">{fmt(row.total_amount)}</span>
                     </div>
                   </div>
                   {matrix.periods.filter(period => row.periods[period.key].payment_count > 0).map(period => {
                     const cell = row.periods[period.key]
                     return (
                       <div key={period.key} style={{ marginBottom: 16, paddingLeft: 12 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 6 }}>{period.label} ({period.rangeLabel}) — ₱ {fmt(cell.amount)}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 6 }}>{period.label} ({period.rangeLabel}) — {fmt(cell.amount)}</div>
                         <table className="data-table" style={{ width: '100%', fontSize: 11 }}>
                           <thead>
                             <tr><th>Client Code</th><th>Date Paid</th><th>Client</th><th>OR#</th><th>Loan#</th><th className="text-right">Amount</th></tr>
@@ -2278,7 +2282,7 @@ export default function Reports() {
                                 <td className="fw-600">{p.customer_name || '-'}</td>
                                 <td className="mono">{p.or_number || '-'}</td>
                                 <td className="mono">{p.loan_code || '-'}</td>
-                                <td className="text-right text-success fw-bold">₱ {fmt(p.amount_paid)}</td>
+                                <td className="text-right text-success fw-bold">{fmt(p.amount_paid)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -2374,7 +2378,7 @@ export default function Reports() {
             <div style={{ height: 400, background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 16 }}>
               {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
+                  <BarChart data={chartData} margin={{ top: 20, right: 10, left: 10, bottom: 72 }}>
                     <defs>
                       <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#3b82f6" stopOpacity={1}/>
@@ -2382,7 +2386,7 @@ export default function Reports() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 600 }} tickFormatter={compactChartLabel} angle={-40} textAnchor="end" height={76} interval={0} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `₱${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
                     <Tooltip 
                       cursor={{ fill: 'rgba(59, 130, 246, 0.08)' }} 
@@ -2416,7 +2420,7 @@ export default function Reports() {
                 </div>
                 <table className="data-table" style={{ width: '100%', fontSize: 12 }}>
                   <thead>
-                    <tr><th style={{ textAlign: 'left' }}>Client Code</th><th>Date Paid</th><th style={{ textAlign: 'left' }}>Client</th><th style={{ textAlign: 'left' }}>OR#</th><th style={{ textAlign: 'left' }}>Loan#</th><th className="text-right">Amount</th><th className="text-right">Bal. After</th></tr>
+                    <tr><th style={{ textAlign: 'left' }}>Client Code</th><th>Date Paid</th><th style={{ textAlign: 'left' }}>Client</th><th style={{ textAlign: 'left' }}>Payment Code</th><th style={{ textAlign: 'left' }}>Loan#</th><th className="text-right">Amount</th><th className="text-right">Bal. After</th></tr>
                   </thead>
                   <tbody>
                     {row.payments?.map(p => (
@@ -2424,7 +2428,7 @@ export default function Reports() {
                         <td className="mono">{p.customer_code || '-'}</td>
                         <td>{p.date_paid}</td>
                         <td className="fw-600">{p.customer_name || '-'}</td>
-                        <td className="mono">{p.or_number || '-'}</td>
+                        <td className="mono">{p.payment_code || p.or_number || '-'}</td>
                         <td className="mono">{p.loan_code || '-'}</td>
                         <td className="text-right text-success fw-bold">₱ {fmt(p.amount_paid)}</td>
                         <td className="text-right">₱ {fmt(p.balance_after)}</td>
@@ -4104,7 +4108,7 @@ export default function Reports() {
           <td className="mono">{p.customer_code || '-'}</td>
           <td>{p.date_paid}</td>
           <td className="fw-600">{p.customer_name || '-'}</td>
-          <td className="mono">{p.or_number || '-'}</td>
+          <td className="mono">{p.payment_code || p.or_number || '-'}</td>
           <td className="mono">{p.loan_code || '-'}</td>
           <td className="text-right text-success fw-bold">₱ {fmt(p.amount_paid)}</td>
           <td className="text-right">₱ {fmt(p.balance_after)}</td>
@@ -4350,7 +4354,7 @@ export default function Reports() {
                    ) : (
                     <>
                       <thead>
-                        <tr><th>Client Code</th><th>Date Paid</th><th>Client</th><th>OR#</th><th>Loan#</th><th className="text-right">Amount</th><th className="text-right">Bal. After</th></tr>
+                        <tr><th>Client Code</th><th>Date Paid</th><th>Client</th><th>Payment Code</th><th>Loan#</th><th className="text-right">Amount</th><th className="text-right">Bal. After</th></tr>
                       </thead>
                       <tbody>
                         {renderCollectionPaymentRows()}
