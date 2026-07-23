@@ -510,9 +510,19 @@ export default function Reports() {
     }
 
     let reportData = data
-    if (!reportData) {
-      reportData = await run('collection-sheet', params)
-      if (!reportData) return
+    if (!reportData || reportData.error) {
+      try {
+        setLoading(true)
+        const response = await API.get('/reports/collection-sheet', { params })
+        reportData = response.data
+        setData(reportData)
+      } catch (err) {
+        alert(err.response?.data?.error || err.message || 'Failed to generate collection sheet PDF.')
+        setLoading(false)
+        return
+      } finally {
+        setLoading(false)
+      }
     }
 
     const { loans = [], collector: apiCollector, signatures: sigs = {}, summary = {} } = reportData
@@ -775,9 +785,21 @@ export default function Reports() {
       }
     })
 
-    // Save the PDF
     const safeName = collectorDisplayName.replace(/[^a-zA-Z0-9]/g, '_')
-    doc.save(`Collection_Sheet_${safeName}_${collectionDate}.pdf`)
+    const filename = `Collection_Sheet_${safeName}_${collectionDate}.pdf`
+    try {
+      const blob = doc.output('blob')
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      alert(err.message || 'Failed to download collection sheet PDF.')
+    }
   }
 
   const handleExportDisclosurePdf = () => {
