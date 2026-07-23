@@ -757,7 +757,8 @@ router.post('/', authenticateToken, async (req, res) => {
     requireOperationDate(date_released, 'Release date');
     const principal = Number(proposed_principal) || 0;
     
-    const parsedLoanType = req.body.loan_type === 'Re-Loan' ? 'Re-Loan' : 'New';
+    const requestedLoanType = normalizeLoanType(req.body.loan_type) || normalizeLoanType(customer_classification);
+    const parsedLoanType = requestedLoanType === 'RELOAN' ? 'Re-Loan' : 'New';
     const loanStatus = parsedLoanType === 'Re-Loan' ? 'active' : 'pending';
     
     const interestRate = 15;

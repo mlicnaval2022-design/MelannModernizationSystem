@@ -56,6 +56,7 @@ export default function Customers() {
   const [loanDeleteSuccess, setLoanDeleteSuccess] = useState(null)
   const [loanDeleteError, setLoanDeleteError] = useState(null)
   const [editLoanModal, setEditLoanModal] = useState(null)
+  const [editLoanError, setEditLoanError] = useState(null)
   const suppressNextPrintRef = useRef(false)
 
   useEffect(() => {
@@ -256,7 +257,12 @@ export default function Customers() {
   const handleEditLoanSubmit = async (e) => {
     e.preventDefault();
     try {
-      await API.put(`/loans/${editLoanModal.id}/edit`, editLoanModal);
+      setEditLoanError(null);
+      const isLoanTypeOnlyEdit = !editLoanModal.__financialTouched;
+      const payload = isLoanTypeOnlyEdit
+        ? { loan_type: editLoanModal.loan_type, loan_type_only: true }
+        : editLoanModal;
+      await API.put(`/loans/${editLoanModal.id}/edit`, payload);
       const idToReload = editLoanModal.customer_id || soaData?.id;
       setEditLoanModal(null);
       if (idToReload) {
@@ -264,7 +270,7 @@ export default function Customers() {
       }
       load();
     } catch (err) {
-      alert(err.response?.data?.error || 'Error editing loan');
+      setEditLoanError(err.response?.data?.error || 'Error editing loan');
     }
   };
 
@@ -1039,12 +1045,11 @@ export default function Customers() {
       
       {soaModal && (
         <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setSoaModal(false)}>
-          <div className="soa-modal-v2">
+          <div className="soa-modal-v2 soa-modern-refresh">
             <div className="soa-header-v2">
               <div className="soa-header-left-v2">
-                <div className="soa-icon-box-v2">
-                  <FileText size={28} />
-                  SOA
+                <div className="soa-icon-box-v2 soa-logo-mark-refresh">
+                  <img src={logoImg} alt="Melann Lending logo" />
                 </div>
                 <div>
                   <h2 className="soa-title-v2">Statement of Account</h2>
@@ -1166,10 +1171,12 @@ export default function Customers() {
                           <div className="soa-divider-v2"></div>
                           
                           <div className="soa-chart-v2">
+                            <div className="soa-balance-icon-v2"><Wallet size={22} /></div>
                             <div className="soa-chart-label-v2">OUTSTANDING BALANCE</div>
                             <div className="donut-v2">
                               <div className="donut-inner-v2">
-                                <div className="donut-val-v2">{formatPhp(outstandingBal)}</div>
+                                <div className="donut-currency-v2">PHP</div>
+                                <div className="donut-val-v2">{Number(outstandingBal || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                                 <div className="donut-sub-v2">As of {new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})}</div>
                               </div>
                               <div className="donut-dot-v2"></div>
@@ -1304,7 +1311,7 @@ export default function Customers() {
                         {loans.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Cycle Count</th><th>Loan Code</th><th>Type</th><th>Date Released</th><th>Maturity</th><th>Period</th><th>Principal</th><th>Interest Rate</th><th>Interest Amount</th><th>Total Loan</th><th>Amortization</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead><tbody>{loans.map(l => (<tr key={l.id} onClick={() => setSelectedLoanForPayments(l)} style={{ cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><td><span className="badge badge-cycle">Cycle {loanCycleMap.get(l.id) || '-'}</span></td><td className="mono" style={{color: '#2563eb', fontWeight: '600'}} title="View payment history for this loan">{l.loan_code}</td><td>
   {l.loan_type || '-'}
   {String(l.status).toLowerCase() === 'reversed' && <span style={{ color: '#ef4444', marginLeft: '6px', fontWeight: 'bold', fontSize: '11px' }}>(REVERSED)</span>}
-</td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td><td><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><button className="action-btn" style={{ borderColor: '#bfdbfe', color: '#2563eb', background: '#eff6ff' }} onClick={(e) => { e.stopPropagation(); setEditLoanModal(l); }}><i className="bi bi-pencil"></i> Edit</button><button className="action-btn" onClick={(e) => { e.stopPropagation(); setPrintModeLoan(l); }}><i className="bi bi-printer"></i> Print</button><button className="action-btn" style={{ borderColor: '#fecaca', color: '#dc2626', background: '#fff5f5' }} onClick={(e) => { e.stopPropagation(); setLoanDeleteTarget(l); }}><i className="bi bi-trash"></i> Delete</button></div></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
+</td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td><td><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><button className="action-btn" style={{ borderColor: '#bfdbfe', color: '#2563eb', background: '#eff6ff' }} onClick={(e) => { e.stopPropagation(); setEditLoanError(null); setEditLoanModal({ ...l, __original: { ...l } }); }}><i className="bi bi-pencil"></i> Edit</button><button className="action-btn" onClick={(e) => { e.stopPropagation(); setPrintModeLoan(l); }}><i className="bi bi-printer"></i> Print</button><button className="action-btn" style={{ borderColor: '#fecaca', color: '#dc2626', background: '#fff5f5' }} onClick={(e) => { e.stopPropagation(); setLoanDeleteTarget(l); }}><i className="bi bi-trash"></i> Delete</button></div></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
                       </div>
                     )}
 
@@ -2360,25 +2367,44 @@ export default function Customers() {
         <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999 }}>
           <div className="modal-content" style={{ background: '#fff', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)' }}>
             <h3 style={{ margin: '0 0 20px 0', color: '#0f172a', fontSize: '20px', fontWeight: 700 }}>Edit Loan</h3>
+            {editLoanError && (
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', borderRadius: 10, padding: '12px 14px', marginBottom: 16, fontSize: 13, lineHeight: 1.4 }}>
+                <i className="bi bi-exclamation-circle" style={{ fontSize: 16, marginTop: 1 }}></i>
+                <div>
+                  <div style={{ fontWeight: 800, marginBottom: 2 }}>Unable to save changes</div>
+                  <div>{editLoanError}</div>
+                </div>
+              </div>
+            )}
             <form onSubmit={handleEditLoanSubmit}>
               <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Loan Type</label>
+                <select className="form-control" value={editLoanModal.loan_type || 'New'} onChange={e => { setEditLoanError(null); setEditLoanModal({...editLoanModal, loan_type: e.target.value, __loanTypeTouched: true}); }} required>
+                  <option value="New">New</option>
+                  <option value="Reloan">Reloan</option>
+                  <option value="Recon">Recon</option>
+                  <option value="Reconstruct">Reconstruct</option>
+                  <option value="Re-CI">Re-CI</option>
+                </select>
+              </div>
+              <div className="form-group" style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Principal Amount</label>
-                <input type="number" step="0.01" className="form-control" value={editLoanModal.principal || ''} onChange={e => setEditLoanModal({...editLoanModal, principal: e.target.value})} required />
+                <input type="number" step="0.01" className="form-control" value={editLoanModal.principal || ''} onChange={e => setEditLoanModal({...editLoanModal, principal: e.target.value, __financialTouched: true})} required />
               </div>
               <div className="form-group" style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Interest Rate (%)</label>
-                <input type="number" step="0.01" className="form-control" value={editLoanModal.interest_rate || 0} onChange={e => setEditLoanModal({...editLoanModal, interest_rate: e.target.value})} required />
+                <input type="number" step="0.01" className="form-control" value={editLoanModal.interest_rate || 0} onChange={e => setEditLoanModal({...editLoanModal, interest_rate: e.target.value, __financialTouched: true})} required />
               </div>
               <div className="form-group" style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Loan Period (Days)</label>
-                <input type="number" className="form-control" value={editLoanModal.loan_period || ''} onChange={e => setEditLoanModal({...editLoanModal, loan_period: e.target.value})} required />
+                <input type="number" className="form-control" value={editLoanModal.loan_period || ''} onChange={e => setEditLoanModal({...editLoanModal, loan_period: e.target.value, __financialTouched: true})} required />
               </div>
               <div className="form-group" style={{ marginBottom: '24px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Date Released</label>
-                <input type="date" className="form-control" value={editLoanModal.date_released || ''} onChange={e => setEditLoanModal({...editLoanModal, date_released: e.target.value})} required />
+                <input type="date" className="form-control" value={editLoanModal.date_released || ''} onChange={e => setEditLoanModal({...editLoanModal, date_released: e.target.value, __financialTouched: true})} required />
               </div>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                <button type="button" onClick={() => setEditLoanModal(null)} className="btn btn-light" style={{ border: '1px solid #cbd5e1' }}>Cancel</button>
+                <button type="button" onClick={() => { setEditLoanError(null); setEditLoanModal(null); }} className="btn btn-light" style={{ border: '1px solid #cbd5e1' }}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Save Changes</button>
               </div>
             </form>

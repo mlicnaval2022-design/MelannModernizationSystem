@@ -11,13 +11,45 @@ const STEPS = [
 ];
 
 export default function CustomerWizard({ initialData, onClose, onSaved, collectors, branches }) {
+  const businessTypeOptions = [
+    'SARI-SARI STORE',
+    'EATERY / CARENDERIA',
+    'MARKET VENDOR',
+    'FOOD CART / KIOSK / STREET VENDOR',
+    'BAKERY / BAKE SHOP',
+    'ONLINE SELLER',
+    'RETAIL / WHOLESALE STORE',
+    'HARDWARE / CONSTRUCTION SUPPLIES',
+    'PHARMACY / DRUG STORE',
+    'WATER REFILLING STATION',
+    'LAUNDRY SHOP',
+    'BARBER SHOP / BEAUTY SALON',
+    'TAILORING / DRESSMAKING',
+    'MOTORCYCLE / AUTO REPAIR SHOP',
+    'CARWASH',
+    'TRICYCLE DRIVER / OPERATOR',
+    'HABAL-HABAL / MOTORCYCLE TAXI',
+    'JEEPNEY DRIVER / OPERATOR',
+    'TRANSPORTATION / HAULING',
+    'FARMING / AGRICULTURE',
+    'LIVESTOCK / POULTRY RAISING',
+    'FISHING / AQUACULTURE',
+    'REAL ESTATE / RENTALS / BOARDING HOUSE',
+    'INTERNET CAFE / PISONET',
+    'PAWNSHOP / REMITTANCE / MONEY CHANGER',
+    'JUNKSHOP',
+    'CONTRACTOR / CONSTRUCTION',
+    'PROFESSIONAL SERVICES / FREELANCER',
+    'SALARY / EMPLOYED',
+    'PENSIONER'
+  ];
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(initialData || {
     customer_classification: 'New Client', risk_category: 'Medium Risk', cic_verification: 'Verified',
     first_name: '', last_name: '', middle_name: '', gender: 'Male', birth_date: '', civil_status: 'Single', nationality: 'Filipino',
     address: '', sitio: '', purok: '', brgy: '', city: '', province: '', zip_code: '', home_status: 'Owned', length_of_stay: '', previous_address: '',
     contact: '', secondary_contact: '', email: '', confirm_email: '', fb_account: '', messenger_account: '', preferred_contact_method: 'Call / SMS', preferred_contact_time_from: '', preferred_contact_time_to: '', contact_notes: '',
-    business_type: 'Sari-Sari Store', occupation: 'Retail', business_name: '', business_address: '', business_years: '', business_months: '', income_per_month: '', business_employees: '', business_ownership: 'Sole Proprietorship', business_permit: 'Yes', permit_date_issued: '', permit_place_issued: '', permit_no: '',
+    business_type: 'SARI-SARI STORE', business_type_other: '', occupation: 'Retail', business_name: '', business_address: '', business_years: '', business_months: '', income_per_month: '', business_employees: '', business_ownership: 'Sole Proprietorship', business_permit: 'Yes', permit_date_issued: '', permit_place_issued: '', permit_no: '',
     id_type: 'Philippine Identification (PhilID)', id_number: '', id_issue_date: '', id_expiry_date: '', id_issued_by: 'PSA', id_place_of_issue: '', tin_number: '', sss_number: '', id_notes: '',
     proposed_principal: '', loan_purpose: '', branch_id: '', collector_id: '', loan_type: 'New Loan',
     photo_id_front: null, photo_id_back: null, photo_business_proof: null, photo_client: null
@@ -76,6 +108,11 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
 
   const handleUpper = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value.toUpperCase() }));
   const handleLower = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value.toLowerCase() }));
+  const loanTypeForClassification = (classification) => {
+    if (classification === 'Re-Loan') return 'Re-Loan';
+    if (classification === 'Returning Client') return 'Re-Loan';
+    return 'New';
+  };
 
   const getImageUrl = (path) => {
     if (!path) return '';
@@ -125,10 +162,18 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
     try {
       setSaving(true);
       setError('');
+      const payload = {
+        ...form,
+        business_type: form.business_type === 'OTHERS' ? form.business_type_other : form.business_type,
+        messenger_account: '',
+        business_name: '',
+        occupation: '',
+        preferred_contact_method: form.preferred_contact_method === 'Messenger' ? 'Any' : form.preferred_contact_method
+      };
       if (initialData?.id) {
-        await API.put(`/customers/${initialData.id}`, form);
+        await API.put(`/customers/${initialData.id}`, payload);
       } else {
-        await API.post('/customers', form);
+        await API.post('/customers', payload);
       }
       setShowSuccess(true);
     } catch (err) {
@@ -191,7 +236,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
           <label className="section-label">Customer Classification *</label>
           <div className="radio-cards">
             {['New Client', 'Re-Loan', 'Returning Client'].map(type => (
-              <div key={type} className={`radio-card ${form.customer_classification === type ? 'active' : ''}`} onClick={() => setForm({...form, customer_classification: type})}>
+              <div key={type} className={`radio-card ${form.customer_classification === type ? 'active' : ''}`} onClick={() => setForm({...form, customer_classification: type, loan_type: loanTypeForClassification(type)})}>
                 <input type="radio" checked={form.customer_classification === type} readOnly />
                 <div className="radio-content">
                   <strong>{type}</strong>
@@ -317,14 +362,11 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
             <div className="form-group"><label>Email Address</label><input type="email" className="form-control" value={form.email} onChange={handleLower('email')} /></div>
             <div className="form-group"><label>Confirm Email Address</label><input type="email" className="form-control" value={form.confirm_email} onChange={handleLower('confirm_email')} /></div>
           </div>
-          <div className="form-grid">
-            <div className="form-group"><label>Facebook Account</label><input className="form-control" value={form.fb_account} onChange={handleUpper('fb_account')} /></div>
-            <div className="form-group"><label>Messenger (Optional)</label><input className="form-control" value={form.messenger_account} onChange={handleUpper('messenger_account')} /></div>
-          </div>
+          <div className="form-group"><label>Facebook Account</label><input className="form-control" value={form.fb_account} onChange={handleUpper('fb_account')} /></div>
 
           <label className="section-label">Preferred Contact Method *</label>
-          <div className="radio-cards" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-            {['Call / SMS', 'Email', 'Messenger', 'Any'].map(m => (
+          <div className="radio-cards" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            {['Call / SMS', 'Email', 'Any'].map(m => (
               <div key={m} className={`radio-card ${form.preferred_contact_method === m ? 'active' : ''}`} onClick={() => setForm({...form, preferred_contact_method: m})} style={{padding: '10px 15px'}}>
                 <input type="radio" checked={form.preferred_contact_method === m} readOnly />
                 <strong style={{marginLeft: 8}}>{m}</strong>
@@ -361,53 +403,18 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
           <div className="form-grid">
             <div className="form-group">
               <label>Business Type</label>
-              <select className="form-control" value={form.business_type} onChange={e => setForm({...form, business_type: e.target.value})}>
-                <option value="SARI-SARI STORE">SARI-SARI STORE</option>
-                <option value="EATERY / CARENDERIA">EATERY / CARENDERIA</option>
-                <option value="MARKET VENDOR">MARKET VENDOR</option>
-                <option value="FOOD CART / KIOSK / STREET VENDOR">FOOD CART / KIOSK / STREET VENDOR</option>
-                <option value="BAKERY / BAKE SHOP">BAKERY / BAKE SHOP</option>
-                <option value="ONLINE SELLER">ONLINE SELLER</option>
-                <option value="RETAIL / WHOLESALE STORE">RETAIL / WHOLESALE STORE</option>
-                <option value="HARDWARE / CONSTRUCTION SUPPLIES">HARDWARE / CONSTRUCTION SUPPLIES</option>
-                <option value="PHARMACY / DRUG STORE">PHARMACY / DRUG STORE</option>
-                <option value="WATER REFILLING STATION">WATER REFILLING STATION</option>
-                <option value="LAUNDRY SHOP">LAUNDRY SHOP</option>
-                <option value="BARBER SHOP / BEAUTY SALON">BARBER SHOP / BEAUTY SALON</option>
-                <option value="TAILORING / DRESSMAKING">TAILORING / DRESSMAKING</option>
-                <option value="MOTORCYCLE / AUTO REPAIR SHOP">MOTORCYCLE / AUTO REPAIR SHOP</option>
-                <option value="CARWASH">CARWASH</option>
-                <option value="TRICYCLE DRIVER / OPERATOR">TRICYCLE DRIVER / OPERATOR</option>
-                <option value="HABAL-HABAL / MOTORCYCLE TAXI">HABAL-HABAL / MOTORCYCLE TAXI</option>
-                <option value="JEEPNEY DRIVER / OPERATOR">JEEPNEY DRIVER / OPERATOR</option>
-                <option value="TRANSPORTATION / HAULING">TRANSPORTATION / HAULING</option>
-                <option value="FARMING / AGRICULTURE">FARMING / AGRICULTURE</option>
-                <option value="LIVESTOCK / POULTRY RAISING">LIVESTOCK / POULTRY RAISING</option>
-                <option value="FISHING / AQUACULTURE">FISHING / AQUACULTURE</option>
-                <option value="REAL ESTATE / RENTALS / BOARDING HOUSE">REAL ESTATE / RENTALS / BOARDING HOUSE</option>
-                <option value="INTERNET CAFE / PISONET">INTERNET CAFE / PISONET</option>
-                <option value="PAWNSHOP / REMITTANCE / MONEY CHANGER">PAWNSHOP / REMITTANCE / MONEY CHANGER</option>
-                <option value="JUNKSHOP">JUNKSHOP</option>
-                <option value="CONTRACTOR / CONSTRUCTION">CONTRACTOR / CONSTRUCTION</option>
-                <option value="PROFESSIONAL SERVICES / FREELANCER">PROFESSIONAL SERVICES / FREELANCER</option>
-                <option value="SALARY / EMPLOYED">SALARY / EMPLOYED</option>
-                <option value="PENSIONER">PENSIONER</option>
+              <select className="form-control" value={businessTypeOptions.includes(form.business_type) ? form.business_type : 'OTHERS'} onChange={e => setForm({...form, business_type: e.target.value, business_type_other: e.target.value === 'OTHERS' ? form.business_type_other : ''})}>
+                {businessTypeOptions.map(type => <option key={type} value={type}>{type}</option>)}
                 <option value="OTHERS">OTHERS</option>
               </select>
             </div>
-            <div className="form-group">
-              <label>Nature of Business</label>
-              <select className="form-control" value={form.occupation} onChange={e => setForm({...form, occupation: e.target.value})}>
-                <option value="RETAIL">RETAIL</option>
-                <option value="FOOD & BEVERAGE">FOOD & BEVERAGE</option>
-                <option value="SERVICES">SERVICES</option>
-                <option value="TRANSPORTATION">TRANSPORTATION</option>
-                <option value="WHOLESALE">WHOLESALE</option>
-                <option value="OTHERS">OTHERS</option>
-              </select>
-            </div>
+            {(form.business_type === 'OTHERS' || !businessTypeOptions.includes(form.business_type)) && (
+              <div className="form-group">
+                <label>Other Business Type</label>
+                <input className="form-control" value={form.business_type === 'OTHERS' ? form.business_type_other : form.business_type} onChange={e => setForm({...form, business_type: 'OTHERS', business_type_other: e.target.value.toUpperCase()})} />
+              </div>
+            )}
           </div>
-          <div className="form-group"><label>Business Name</label><input className="form-control" value={form.business_name} onChange={handleUpper('business_name')} /></div>
           <div className="form-group"><label>Complete Business Address</label><input className="form-control" value={form.business_address} onChange={handleUpper('business_address')} /></div>
           
           <div className="form-grid">

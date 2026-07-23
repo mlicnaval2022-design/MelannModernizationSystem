@@ -105,6 +105,7 @@ export default function GovernmentCompliance() {
   const [rows, setRows] = useState([]);
   const [viewMode] = useState('clients');
   const [clientRows, setClientRows] = useState([]);
+  const [clientFilters, setClientFilters] = useState({ search: '', loanType: '', status: '' });
   const [summary, setSummary] = useState({ cards: {}, notifications: [] });
   const [total, setTotal] = useState(0);
   const [filters, setFilters] = useState(emptyFilters);
@@ -153,6 +154,24 @@ export default function GovernmentCompliance() {
   useEffect(() => { if (viewMode === 'company') loadRows(); else loadClientRows(); }, [active, filters.page, filters.sort, filters.dir, viewMode]);
 
   const pageCount = Math.max(Math.ceil(total / filters.limit), 1);
+  const money = value => Number(value || 0).toLocaleString('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 });
+  const clientLoanTypes = useMemo(() => [...new Set(clientRows.map(row => row.loan_type).filter(Boolean))].sort(), [clientRows]);
+  const clientStatuses = useMemo(() => [...new Set(clientRows.map(row => row.status).filter(Boolean))].sort(), [clientRows]);
+  const filteredClientRows = useMemo(() => {
+    const search = clientFilters.search.trim().toLowerCase();
+    return clientRows.filter(row => {
+      const matchesSearch = !search || [row.customer_code, row.customer_name, row.collector_name, row.branch_name].some(value => String(value || '').toLowerCase().includes(search));
+      const matchesType = !clientFilters.loanType || row.loan_type === clientFilters.loanType;
+      const matchesStatus = !clientFilters.status || row.status === clientFilters.status;
+      return matchesSearch && matchesType && matchesStatus;
+    });
+  }, [clientRows, clientFilters]);
+  const clientTotals = useMemo(() => filteredClientRows.reduce((totals, row) => ({
+    count: totals.count + 1,
+    principal: totals.principal + Number(row.principal_loan ?? row.loan_amount ?? 0),
+    interest: totals.interest + Number(row.interest_amount || 0),
+    totalLoan: totals.totalLoan + Number(row.total_loan ?? row.loan_amount ?? 0)
+  }), { count: 0, principal: 0, interest: 0, totalLoan: 0 }), [filteredClientRows]);
   const kpis = useMemo(() => [
     ['Total CIC Compliance', summary.cards?.cic || 0, 'blue'],
     ['Total SEC Compliance', summary.cards?.sec || 0, 'green'],
@@ -305,13 +324,44 @@ export default function GovernmentCompliance() {
         </>
         ) : (
           <div className="table-wrapper gc-table-wrap" style={{ marginTop: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 16 }}>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Search</label>
+                  <input className="form-control" placeholder="Client, collector, branch" value={clientFilters.search} onChange={e => setClientFilters(f => ({ ...f, search: e.target.value }))} style={{ minWidth: 220 }} />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Loan Type</label>
+                  <select className="form-control" value={clientFilters.loanType} onChange={e => setClientFilters(f => ({ ...f, loanType: e.target.value }))}>
+                    <option value="">All Types</option>
+                    {clientLoanTypes.map(type => <option key={type}>{type}</option>)}
+                  </select>
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Status</label>
+                  <select className="form-control" value={clientFilters.status} onChange={e => setClientFilters(f => ({ ...f, status: e.target.value }))}>
+                    <option value="">All Status</option>
+                    {clientStatuses.map(status => <option key={status}>{status}</option>)}
+                  </select>
+                </div>
+                <button className="btn btn-secondary" onClick={() => setClientFilters({ search: '', loanType: '', status: '' })}>Clear</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))', gap: 10, minWidth: 520 }}>
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Records</div><div style={{ fontWeight: 800 }}>{clientTotals.count}</div></div>
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Principal</div><div style={{ fontWeight: 800 }}>{money(clientTotals.principal)}</div></div>
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Interest</div><div style={{ fontWeight: 800 }}>{money(clientTotals.interest)}</div></div>
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#166534', fontWeight: 700 }}>Total Loan</div><div style={{ fontWeight: 800, color: '#166534' }}>{money(clientTotals.totalLoan)}</div></div>
+              </div>
+            </div>
             <table className="data-table">
               <thead>
                 <tr>
                   <th>Date Sent</th>
                   <th>Client Code</th>
                   <th>Client Name</th>
-                  <th>Loan Amount</th>
+                  <th>Principal Loan</th>
+                  <th>Interest</th>
+                  <th>Total Loan</th>
                   <th>Type</th>
                   <th>Release Date</th>
                   <th>Collector</th>
@@ -320,14 +370,16 @@ export default function GovernmentCompliance() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? <tr className="loading-row"><td colSpan={9}>Loading client reports...</td></tr>
-                  : clientRows.length === 0 ? <tr><td colSpan={9} className="empty-state">No clients sent to {active} yet.</td></tr>
-                  : clientRows.map(row => (
+                {loading ? <tr className="loading-row"><td colSpan={11}>Loading client reports...</td></tr>
+                  : filteredClientRows.length === 0 ? <tr><td colSpan={11} className="empty-state">No clients sent to {active} yet.</td></tr>
+                  : filteredClientRows.map(row => (
                     <tr key={row.id}>
                       <td style={{ color: '#64748b' }}>{new Date(row.created_at).toLocaleString()}</td>
                       <td style={{ fontWeight: 'bold', color: '#1d4ed8' }}>{row.customer_code}</td>
                       <td style={{ fontWeight: 'bold' }}>{row.customer_name}</td>
-                      <td>₱{Number(row.loan_amount).toLocaleString()}</td>
+                      <td>{money(row.principal_loan ?? row.loan_amount)}</td>
+                      <td>{money(row.interest_amount)}</td>
+                      <td style={{ fontWeight: 800, color: '#166534' }}>{money(row.total_loan ?? row.loan_amount)}</td>
                       <td><span style={{ padding: '2px 8px', background: '#f1f5f9', borderRadius: '4px', fontSize: '12px' }}>{row.loan_type}</span></td>
                       <td>{row.release_date}</td>
                       <td>{row.collector_name || 'N/A'}</td>
