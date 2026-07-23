@@ -16,17 +16,32 @@ async function getSettings() {
   return s;
 }
 
+const ACTIVE_MONITORING_CUSTOMER_STATUSES = new Set(['active', 'recon']);
+
+function isReconLoan(loan) {
+  return String(loan.loan_type || '').toLowerCase().includes('recon');
+}
+
+function isPastMaturity(loan, todayStr) {
+  if (!loan.date_maturity) return false;
+  const maturityDate = dayjs(loan.date_maturity);
+  return maturityDate.isValid() && maturityDate.isBefore(dayjs(todayStr), 'day');
+}
+
+function isEligibleForNoPaymentMonitoring(loan, todayStr = dayjs().format('YYYY-MM-DD')) {
+  const customerStatus = String(loan.customer_status || '').toLowerCase();
+  const loanStatus = String(loan.status || '').toLowerCase();
+
+  return ACTIVE_MONITORING_CUSTOMER_STATUSES.has(customerStatus)
+    && loanStatus === 'active'
+    && Number(loan.balance || 0) > 0
+    && (isReconLoan(loan) || !isPastMaturity(loan, todayStr));
+}
+
 // Evaluate a single loan
 async function evaluateLoan(loan, holidays, settings, todayStr = dayjs().format('YYYY-MM-DD')) {
-  const customerStatus = String(loan.customer_status || '').toLowerCase();
-  if (!['active', 'recon'].includes(customerStatus)) {
-    await resolveAlert(loan.id, 'Resolved by Customer Status Change');
-    return;
-  }
-
-  // If not active, or balance <= 0, resolve any active alert
-  if (loan.status !== 'active' || loan.balance <= 0) {
-    await resolveAlert(loan.id, 'Resolved by Status Change or Full Payment');
+  if (!isEligibleForNoPaymentMonitoring(loan, todayStr)) {
+    await resolveAlert(loan.id, 'Resolved by Monitoring Eligibility Change');
     return;
   }
 
@@ -133,17 +148,45 @@ async function runDailyMonitoring() {
   console.log('🔄 Running 3-Day No-Payment Daily Evaluation...');
   const holidays = await getHolidays();
   const settings = await getSettings();
+  const todayStr = dayjs().format('YYYY-MM-DD');
+
+  const ineligibleActiveAlerts = await dbAll(`
+    SELECT m.loan_id
+    FROM tblMonitoringAlert m
+    JOIN tblLoan l ON m.loan_id = l.id
+    JOIN tblCustomer c ON m.customer_id = c.id
+    WHERE m.status = 'Active'
+      AND NOT (
+        LOWER(c.status) IN ('active', 'recon')
+        AND LOWER(l.status) = 'active'
+        AND COALESCE(l.balance, 0) > 0
+        AND (
+          LOWER(COALESCE(l.loan_type, '')) LIKE '%recon%'
+          OR l.date_maturity IS NULL
+          OR date(l.date_maturity) >= date(?)
+        )
+      )
+  `, [todayStr]);
+
+  for (const alert of ineligibleActiveAlerts) {
+    await resolveAlert(alert.loan_id, 'Resolved by Monitoring Eligibility Change');
+  }
   
   const activeLoans = await dbAll(`
     SELECT l.*, c.status as customer_status
     FROM tblLoan l
     JOIN tblCustomer c ON l.customer_id = c.id
-    WHERE l.status = 'active'
-      AND l.balance > 0
+    WHERE LOWER(l.status) = 'active'
+      AND COALESCE(l.balance, 0) > 0
       AND LOWER(c.status) IN ('active', 'recon')
-  `);
+      AND (
+        LOWER(COALESCE(l.loan_type, '')) LIKE '%recon%'
+        OR l.date_maturity IS NULL
+        OR date(l.date_maturity) >= date(?)
+      )
+  `, [todayStr]);
   for (const loan of activeLoans) {
-    await evaluateLoan(loan, holidays, settings);
+    await evaluateLoan(loan, holidays, settings, todayStr);
   }
   console.log('✅ Daily Evaluation Complete.');
 }

@@ -12,6 +12,17 @@ const toLocalDateString = (date = new Date()) => {
   return localDate.toISOString().split('T')[0];
 };
 
+const buildMonitoringEligibilityCondition = () => `
+  LOWER(c.status) IN ('active', 'recon')
+  AND LOWER(l.status) = 'active'
+  AND COALESCE(l.balance, 0) > 0
+  AND (
+    LOWER(COALESCE(l.loan_type, '')) LIKE '%recon%'
+    OR l.date_maturity IS NULL
+    OR date(l.date_maturity) >= date(?)
+  )
+`;
+
 const buildClientAddress = (loan) => [
   loan.customer_address_line || loan.address,
   loan.customer_sitio,
@@ -231,9 +242,32 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       rejected_reloan_count: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='rejected' AND loan_type='Re-Loan'`)).c,
       approved_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='approved' AND DATE(updated_at)=?`, [today])).c,
       rejected_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='rejected' AND DATE(updated_at)=?`, [today])).c,
-      monitoring_alerts_active: (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert m JOIN tblCustomer c ON m.customer_id = c.id JOIN tblLoan l ON m.loan_id = l.id WHERE m.status='Active' AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`)).c,
-      monitoring_alerts_escalated: (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert m JOIN tblCustomer c ON m.customer_id = c.id JOIN tblLoan l ON m.loan_id = l.id WHERE m.status='Active' AND m.alert_level='Day 4+' AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`)).c,
-      monitoring_alerts_resolved_today: (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert m JOIN tblCustomer c ON m.customer_id = c.id JOIN tblLoan l ON m.loan_id = l.id WHERE m.status='Resolved' AND DATE(m.resolved_at)=? AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`, [today])).c,
+      monitoring_alerts_active: (await dbGet(`
+        SELECT COUNT(*) as c
+        FROM tblMonitoringAlert m
+        JOIN tblCustomer c ON m.customer_id = c.id
+        JOIN tblLoan l ON m.loan_id = l.id
+        WHERE m.status = 'Active'
+          AND ${buildMonitoringEligibilityCondition()}
+      `, [today])).c,
+      monitoring_alerts_escalated: (await dbGet(`
+        SELECT COUNT(*) as c
+        FROM tblMonitoringAlert m
+        JOIN tblCustomer c ON m.customer_id = c.id
+        JOIN tblLoan l ON m.loan_id = l.id
+        WHERE m.status = 'Active'
+          AND m.alert_level = 'Day 4+'
+          AND ${buildMonitoringEligibilityCondition()}
+      `, [today])).c,
+      monitoring_alerts_resolved_today: (await dbGet(`
+        SELECT COUNT(*) as c
+        FROM tblMonitoringAlert m
+        JOIN tblCustomer c ON m.customer_id = c.id
+        JOIN tblLoan l ON m.loan_id = l.id
+        WHERE m.status = 'Resolved'
+          AND DATE(m.resolved_at) = ?
+          AND ${buildMonitoringEligibilityCondition()}
+      `, [today, today])).c,
       account_status_distribution: await dbAll(`SELECT status, COUNT(*) as count FROM tblLoan GROUP BY status`),
       aging_report: await dbGet(`
         SELECT 
@@ -266,7 +300,7 @@ router.get('/daily-collection', authenticateToken, async (req, res) => {
       FROM tblPayment p
       LEFT JOIN tblLoan l ON p.loan_id = l.id
       LEFT JOIN tblCustomer c ON p.customer_id = c.id
-      LEFT JOIN tblCollector co ON p.collector_id = co.id
+      JOIN tblCollector co ON p.collector_id = co.id AND co.is_active = 1
       WHERE p.date_paid BETWEEN ? AND ?
         AND p.status IN ('active', 'penalty')
         AND ${sqlNotSunday('p.date_paid')}

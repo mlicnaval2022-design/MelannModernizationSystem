@@ -2,6 +2,24 @@ import { useState, useEffect } from 'react';
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
+import {
+  AlertTriangle,
+  Bell,
+  Check,
+  CheckCircle2,
+  Clock3,
+  Eye,
+  Flame,
+  Handshake,
+  History,
+  Loader2,
+  Phone,
+  RefreshCw,
+  Settings,
+  UserRound,
+  X
+} from 'lucide-react';
+import './NoPaymentMonitoring.css';
 
 function fmtDate(d) {
   if (!d) return '-';
@@ -33,11 +51,9 @@ export default function NoPaymentMonitoring() {
     API.get('/collectors').then(r => setCollectors(r.data)).catch(console.error);
   }, []);
 
-  // Filters
   const [collectorId, setCollectorId] = useState(user.role === 'collector' ? user.id : '');
   const [branchId, setBranchId] = useState(user.branch_id || '');
 
-  // Modals
   const [followUpModal, setFollowUpModal] = useState({ show: false, alert: null });
   const [ptpModal, setPtpModal] = useState({ show: false, alert: null });
   const [timelineModal, setTimelineModal] = useState({ show: false, alert: null, history: [] });
@@ -47,7 +63,7 @@ export default function NoPaymentMonitoring() {
   const fetchAlerts = async () => {
     setLoading(true);
     try {
-      const res = await API.get(`/monitoring/alerts`, { params: { tab: activeTab, branch_id: branchId, collector_id: collectorId } });
+      const res = await API.get('/monitoring/alerts', { params: { tab: activeTab, branch_id: branchId, collector_id: collectorId } });
       setData(res.data);
     } catch (err) {
       setError(err.response?.data?.error || err.message);
@@ -62,12 +78,12 @@ export default function NoPaymentMonitoring() {
   }, [activeTab, branchId, collectorId]);
 
   const tabs = [
-    { id: 'new', label: 'New (Day 3)', icon: '🆕' },
-    { id: 'monitoring', label: 'Under Monitoring', icon: '👀' },
-    { id: 'ptp', label: 'Promise to Pay', icon: '🤝' },
-    { id: 'escalated', label: 'Escalated', icon: '🔥' },
-    { id: 'resolved', label: 'Resolved', icon: '✅' },
-    { id: 'history', label: 'History', icon: '🕰️' }
+    { id: 'new', label: 'New (Day 3)', Icon: Bell, tone: 'blue' },
+    { id: 'monitoring', label: 'Under Monitoring', Icon: Eye, tone: 'indigo' },
+    { id: 'ptp', label: 'Promise to Pay', Icon: Handshake, tone: 'emerald' },
+    { id: 'escalated', label: 'Escalated', Icon: Flame, tone: 'red' },
+    { id: 'resolved', label: 'Resolved', Icon: CheckCircle2, tone: 'green' },
+    { id: 'history', label: 'History', Icon: History, tone: 'slate' }
   ];
 
   const handleAction = async (action, payload) => {
@@ -76,7 +92,7 @@ export default function NoPaymentMonitoring() {
       else if (action === 'ptp') await API.post('/monitoring/ptp', payload);
       else if (action === 'resolve') await API.post('/monitoring/resolve', payload);
       else if (action === 'escalate') await API.post('/monitoring/escalate', payload);
-      
+
       fetchAlerts();
       return true;
     } catch (err) {
@@ -85,63 +101,74 @@ export default function NoPaymentMonitoring() {
     }
   };
 
-  const openTimeline = async (alert) => {
+  const openTimeline = async (alertItem) => {
     try {
-      const res = await API.get(`/monitoring/timeline/${alert.id}`);
-      setTimelineModal({ show: true, alert, history: res.data });
+      const res = await API.get(`/monitoring/timeline/${alertItem.id}`);
+      setTimelineModal({ show: true, alert: alertItem, history: res.data });
     } catch (err) {
       alert('Could not load timeline');
     }
   };
 
+  const canFilter = user.role === 'admin' || user.role === 'manager' || user.role === 'teller' || user.role === 'accounting';
+
   return (
-    <div className="card" style={{ padding: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h2>🚨 3-Day No-Payment Monitoring</h2>
-        <div style={{ display: 'flex', gap: 10 }}>
+    <div className="card npm-monitoring">
+      <div className="npm-hero">
+        <div className="npm-title-block">
+          <div className="npm-title-icon">
+            <AlertTriangle size={24} />
+          </div>
+          <div>
+            <h2>3-Day No-Payment Monitoring</h2>
+            <p>{data.length} record{data.length === 1 ? '' : 's'} in current view</p>
+          </div>
+        </div>
+        <div className="npm-toolbar">
           {user.role === 'admin' && (
-            <button className="btn btn-danger" disabled={scanning} onClick={async () => {
+            <button className="npm-button npm-button-danger" disabled={scanning} onClick={async () => {
               setScanning(true);
               try {
                 const res = await API.post('/monitoring/run-daily');
-                alert(`✅ Scan complete! Active alerts: ${res.data.active_alerts}`);
+                alert(`Scan complete! Active alerts: ${res.data.active_alerts}`);
                 fetchAlerts();
               } catch (err) {
                 alert(`Error: ${err.response?.data?.error || err.message}`);
               } finally {
                 setScanning(false);
               }
-            }}>{scanning ? '⏳ Scanning...' : '🔄 Run Scan'}</button>
+            }}>
+              {scanning ? <Loader2 size={16} className="npm-spin" /> : <RefreshCw size={16} />}
+              {scanning ? 'Scanning...' : 'Run Scan'}
+            </button>
           )}
           {user.role === 'admin' && (
-            <button className="btn btn-secondary" onClick={() => navigate('/monitoring-settings')}>⚙️ Settings</button>
+            <button className="npm-button npm-button-secondary" onClick={() => navigate('/monitoring-settings')}>
+              <Settings size={16} />
+              Settings
+            </button>
           )}
         </div>
       </div>
 
-      <div className="tabs" style={{ display: 'flex', gap: 10, borderBottom: '2px solid #e2e8f0', marginBottom: 20 }}>
-        {tabs.map(t => (
-          <div 
-            key={t.id} 
-            style={{ 
-              padding: '10px 20px', 
-              cursor: 'pointer', 
-              fontWeight: activeTab === t.id ? 'bold' : 'normal',
-              color: activeTab === t.id ? '#2563eb' : '#64748b',
-              borderBottom: activeTab === t.id ? '3px solid #2563eb' : '3px solid transparent',
-              transition: 'all 0.2s'
-            }}
-            onClick={() => setActiveTab(t.id)}
+      <div className="npm-tabs">
+        {tabs.map(({ id, label, Icon, tone }) => (
+          <button
+            type="button"
+            key={id}
+            className={`npm-tab npm-tab-${tone} ${activeTab === id ? 'active' : ''}`}
+            onClick={() => setActiveTab(id)}
           >
-            {t.icon} {t.label}
-          </div>
+            <Icon size={16} />
+            <span>{label}</span>
+          </button>
         ))}
       </div>
 
-      <div style={{ display: 'flex', gap: 15, marginBottom: 20, background: '#f8fafc', padding: 15, borderRadius: 8 }}>
-        {(user.role === 'admin' || user.role === 'manager' || user.role === 'teller' || user.role === 'accounting') && (
-          <div className="form-group" style={{ margin: 0, width: 200 }}>
-            <label style={{ fontSize: 11, fontWeight: 'bold' }}>Branch</label>
+      {canFilter && (
+        <div className="npm-filters">
+          <div className="form-group npm-filter-field">
+            <label>Branch</label>
             <select className="form-control" value={branchId} onChange={e => setBranchId(e.target.value)}>
               <option value="">All Branches</option>
               {branches.map(b => (
@@ -149,10 +176,8 @@ export default function NoPaymentMonitoring() {
               ))}
             </select>
           </div>
-        )}
-        {(user.role === 'admin' || user.role === 'manager' || user.role === 'teller' || user.role === 'accounting') && (
-          <div className="form-group" style={{ margin: 0, width: 200 }}>
-            <label style={{ fontSize: 11, fontWeight: 'bold' }}>Collector</label>
+          <div className="form-group npm-filter-field">
+            <label>Collector</label>
             <select className="form-control" value={collectorId} onChange={e => setCollectorId(e.target.value)}>
               <option value="">All Collectors</option>
               {collectors.map(c => (
@@ -160,18 +185,18 @@ export default function NoPaymentMonitoring() {
               ))}
             </select>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {loading ? (
-        <div>Loading...</div>
+        <div className="npm-state"><Loader2 size={22} className="npm-spin" /> Loading monitoring records...</div>
       ) : error ? (
-        <div style={{ color: 'red' }}>{error}</div>
+        <div className="npm-error">{error}</div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table className="data-table" style={{ fontSize: 13, minWidth: 1500 }}>
+        <div className="npm-table-wrap">
+          <table className="data-table npm-table">
             <thead>
-              <tr style={{ background: '#f1f5f9' }}>
+              <tr>
                 <th>Client</th>
                 <th>Loan Info</th>
                 <th>Collector</th>
@@ -187,55 +212,68 @@ export default function NoPaymentMonitoring() {
             </thead>
             <tbody>
               {data.length === 0 ? (
-                <tr><td colSpan="11" style={{ textAlign: 'center' }}>No alerts found for this tab.</td></tr>
+                <tr>
+                  <td colSpan="11">
+                    <div className="npm-empty">
+                      <CheckCircle2 size={28} />
+                      <strong>No alerts found</strong>
+                      <span>There are no records for this tab and filter.</span>
+                    </div>
+                  </td>
+                </tr>
               ) : data.map(item => (
-                <tr key={item.id} style={{ background: item.repeat_risk === 'High Risk' ? '#fef2f2' : 'transparent' }}>
+                <tr key={item.id} className={item.repeat_risk === 'High Risk' ? 'npm-row-high-risk' : ''}>
                   <td>
-                    <strong>{item.customer_name}</strong><br/>
-                    <span style={{ fontSize: 11, color: '#64748b' }}>{item.customer_code} | {item.contact}</span>
+                    <div className="npm-client">
+                      <div className="npm-avatar"><UserRound size={15} /></div>
+                      <div>
+                        <strong>{item.customer_name}</strong>
+                        <span>{item.customer_code} | {item.contact}</span>
+                      </div>
+                    </div>
                   </td>
                   <td>
-                    <strong style={{ color: '#0f172a' }}>{item.loan_code}</strong><br/>
-                    <span style={{ fontSize: 11, color: '#64748b' }}>Bal: ₱{fmtAmt(item.balance)} | Amort: ₱{fmtAmt(item.amortization)}</span>
+                    <div className="npm-loan-code">{item.loan_code}</div>
+                    <div className="npm-loan-meta">Bal: PHP {fmtAmt(item.balance)} | Amort: PHP {fmtAmt(item.amortization)}</div>
                   </td>
                   <td>{item.collector_name}</td>
                   <td>
-                    <span className={`badge ${item.alert_level === 'Day 4+' ? 'badge-danger' : 'badge-warning'}`}>
+                    <span className={`npm-alert-badge ${item.alert_level === 'Day 4+' ? 'danger' : 'warning'}`}>
                       {item.alert_level}
                     </span>
                   </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <strong style={{ color: '#ef4444', fontSize: 16 }}>{item.consecutive_days}</strong>
+                  <td>
+                    <strong className="npm-days">{item.consecutive_days}</strong>
                   </td>
                   <td>{fmtDate(item.first_missed_date)}</td>
                   <td>
-                    <span style={{ 
-                      color: item.repeat_risk === 'High Risk' ? '#ef4444' : item.repeat_risk === 'Moderate Risk' ? '#f59e0b' : '#10b981',
-                      fontWeight: 'bold', fontSize: 12
-                    }}>
+                    <span className={`npm-risk ${item.repeat_risk === 'High Risk' ? 'high' : item.repeat_risk === 'Moderate Risk' ? 'moderate' : 'low'}`}>
                       {item.repeat_risk} (Seq: {item.sequence_number})
                     </span>
                   </td>
                   {activeTab === 'ptp' && <td><strong>{fmtDate(item.ptp_date)}</strong></td>}
-                  {activeTab === 'ptp' && <td><strong style={{ color: '#10b981' }}>₱{fmtAmt(item.ptp_amount)}</strong></td>}
+                  {activeTab === 'ptp' && <td><strong className="npm-money">PHP {fmtAmt(item.ptp_amount)}</strong></td>}
                   <td>
                     {item.last_follow_up_date ? (
-                      <>
-                        <div style={{ fontSize: 12 }}>{fmtDate(item.last_follow_up_date)}</div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>{item.last_follow_up_result}</div>
-                      </>
-                    ) : <span style={{ color: '#94a3b8' }}>None</span>}
+                      <div className="npm-followup">
+                        <Clock3 size={14} />
+                        <div>
+                          <div>{fmtDate(item.last_follow_up_date)}</div>
+                          <span>{item.last_follow_up_result}</span>
+                        </div>
+                      </div>
+                    ) : <span className="npm-muted">None</span>}
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: 5 }}>
-                      <button className="btn btn-sm btn-secondary" onClick={() => openTimeline(item)}>⏱️ Timeline</button>
+                    <div className="npm-actions">
+                      <button className="npm-action npm-action-light" onClick={() => openTimeline(item)}><Clock3 size={14} /> Timeline</button>
                       {activeTab !== 'resolved' && (
                         <>
-                          <button className="btn btn-sm btn-primary" onClick={() => setFollowUpModal({ show: true, alert: item })}>📞 Log</button>
-                          <button className="btn btn-sm" style={{ background: '#10b981', color: 'white' }} onClick={() => setPtpModal({ show: true, alert: item })}>🤝 PTP</button>
-                          <button className="btn btn-sm" style={{ background: '#f59e0b', color: 'white' }} onClick={() => setResolveModal({ show: true, alert: item })}>✅ Resolve</button>
+                          <button className="npm-action npm-action-dark" onClick={() => setFollowUpModal({ show: true, alert: item })}><Phone size={14} /> Log</button>
+                          <button className="npm-action npm-action-ptp" onClick={() => setPtpModal({ show: true, alert: item })}><Handshake size={14} /> PTP</button>
+                          <button className="npm-action npm-action-resolve" onClick={() => setResolveModal({ show: true, alert: item })}><Check size={14} /> Resolve</button>
                           {item.alert_level !== 'Day 4+' && (
-                            <button className="btn btn-sm btn-danger" onClick={() => setEscalateModal({ show: true, alert: item })}>🔥 Escalate</button>
+                            <button className="npm-action npm-action-escalate" onClick={() => setEscalateModal({ show: true, alert: item })}><Flame size={14} /> Escalate</button>
                           )}
                         </>
                       )}
@@ -248,7 +286,6 @@ export default function NoPaymentMonitoring() {
         </div>
       )}
 
-      {/* Follow Up Modal */}
       {followUpModal.show && (
         <Modal title="Log Follow-up" onClose={() => setFollowUpModal({ show: false, alert: null })}>
           <form onSubmit={async (e) => {
@@ -301,7 +338,6 @@ export default function NoPaymentMonitoring() {
         </Modal>
       )}
 
-      {/* PTP Modal */}
       {ptpModal.show && (
         <Modal title="Log Promise to Pay" onClose={() => setPtpModal({ show: false, alert: null })}>
           <form onSubmit={async (e) => {
@@ -323,7 +359,7 @@ export default function NoPaymentMonitoring() {
               <input type="date" name="date" className="form-control" required />
             </div>
             <div className="form-group">
-              <label className="form-label">Promised Amount (₱)</label>
+              <label className="form-label">Promised Amount (PHP)</label>
               <input type="number" step="0.01" name="amount" className="form-control" required defaultValue={ptpModal.alert?.amortization} />
             </div>
             <div className="form-group">
@@ -354,7 +390,6 @@ export default function NoPaymentMonitoring() {
         </Modal>
       )}
 
-      {/* Resolve Modal */}
       {resolveModal.show && (
         <Modal title="Resolve Alert" onClose={() => setResolveModal({ show: false, alert: null })}>
           <form onSubmit={async (e) => {
@@ -374,13 +409,12 @@ export default function NoPaymentMonitoring() {
                 <option value="Other">Other</option>
               </select>
             </div>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Note: Alerts are automatically resolved when a valid payment is posted.</p>
+            <p className="npm-modal-note">Note: Alerts are automatically resolved when a valid payment is posted.</p>
             <button className="btn btn-primary" style={{ background: '#10b981' }} type="submit">Confirm Resolution</button>
           </form>
         </Modal>
       )}
 
-      {/* Escalate Modal */}
       {escalateModal.show && (
         <Modal title="Escalate Alert" onClose={() => setEscalateModal({ show: false, alert: null })}>
           <form onSubmit={async (e) => {
@@ -401,26 +435,25 @@ export default function NoPaymentMonitoring() {
         </Modal>
       )}
 
-      {/* Timeline Modal */}
       {timelineModal.show && (
         <Modal title={`Timeline: ${timelineModal.alert?.customer_name}`} onClose={() => setTimelineModal({ show: false, alert: null, history: [] })}>
-          <div style={{ maxHeight: 400, overflowY: 'auto', padding: 10 }}>
+          <div className="npm-timeline">
             {timelineModal.history.length === 0 ? <p>No history found.</p> : timelineModal.history.map((h, i) => (
-              <div key={i} style={{ display: 'flex', gap: 15, marginBottom: 15, borderLeft: '2px solid #e2e8f0', paddingLeft: 15, position: 'relative' }}>
-                <div style={{ position: 'absolute', left: -7, top: 0, width: 12, height: 12, borderRadius: '50%', background: h._type === 'ptp' ? '#10b981' : '#3b82f6' }}></div>
+              <div key={i} className="npm-timeline-item">
+                <div className={`npm-timeline-dot ${h._type === 'ptp' ? 'ptp' : 'followup'}`}></div>
                 <div>
-                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 'bold' }}>{fmtDate(h.created_at)}</div>
+                  <div className="npm-timeline-date">{fmtDate(h.created_at)}</div>
                   {h._type === 'ptp' ? (
-                    <div style={{ background: '#f0fdf4', padding: 10, borderRadius: 8, marginTop: 5, border: '1px solid #bbf7d0' }}>
-                      <strong style={{ color: '#15803d' }}>Promise To Pay Logged</strong><br/>
-                      <span style={{ fontSize: 12 }}>Date: {fmtDate(h.promise_date)} | Amount: ₱{fmtAmt(h.promised_amount)}</span><br/>
-                      <span style={{ fontSize: 12, color: '#64748b' }}>Reason: {h.reason}</span>
+                    <div className="npm-timeline-card ptp">
+                      <strong>Promise To Pay Logged</strong>
+                      <span>Date: {fmtDate(h.promise_date)} | Amount: PHP {fmtAmt(h.promised_amount)}</span>
+                      <span>Reason: {h.reason}</span>
                     </div>
                   ) : (
-                    <div style={{ background: '#f8fafc', padding: 10, borderRadius: 8, marginTop: 5, border: '1px solid #e2e8f0' }}>
-                      <strong style={{ color: '#0f172a' }}>Follow-up: {h.follow_up_method}</strong><br/>
-                      <span style={{ fontSize: 12, color: '#1e293b' }}>Result: {h.contact_result}</span><br/>
-                      <span style={{ fontSize: 12, color: '#64748b' }}>Remarks: {h.remarks}</span>
+                    <div className="npm-timeline-card">
+                      <strong>Follow-up: {h.follow_up_method}</strong>
+                      <span>Result: {h.contact_result}</span>
+                      <span>Remarks: {h.remarks}</span>
                     </div>
                   )}
                 </div>
@@ -429,18 +462,17 @@ export default function NoPaymentMonitoring() {
           </div>
         </Modal>
       )}
-
     </div>
   );
 }
 
 function Modal({ title, onClose, children }) {
   return (
-    <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div className="modal-content" style={{ background: 'white', padding: 25, borderRadius: 12, width: 500, maxWidth: '90%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ margin: 0 }}>{title}</h3>
-          <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: 20, cursor: 'pointer' }}>✖</button>
+    <div className="npm-modal-overlay">
+      <div className="npm-modal-content">
+        <div className="npm-modal-header">
+          <h3>{title}</h3>
+          <button onClick={onClose} aria-label="Close modal"><X size={20} /></button>
         </div>
         {children}
       </div>

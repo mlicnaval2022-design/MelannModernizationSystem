@@ -2,14 +2,28 @@ const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { logAudit, createNotification, runDailyMonitoring } = require('../services/noPaymentMonitoring');
+const dayjs = require('dayjs');
 const router = express.Router();
+
+function buildMonitoringEligibilityCondition() {
+  return `
+    LOWER(c.status) IN ('active', 'recon')
+    AND LOWER(l.status) = 'active'
+    AND COALESCE(l.balance, 0) > 0
+    AND (
+      LOWER(COALESCE(l.loan_type, '')) LIKE '%recon%'
+      OR l.date_maturity IS NULL
+      OR date(l.date_maturity) >= date(?)
+    )
+  `;
+}
 
 router.get('/alerts', authenticateToken, async (req, res) => {
   try {
     const { tab, branch_id, collector_id } = req.query;
     
-    let baseCond = `LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`;
-    const params = [];
+    let baseCond = buildMonitoringEligibilityCondition();
+    const params = [dayjs().format('YYYY-MM-DD')];
 
     // Role-based access
     if (req.user.role === 'collector') {
@@ -57,7 +71,7 @@ router.get('/alerts', authenticateToken, async (req, res) => {
     const q = `
       SELECT m.*, 
              c.customer_code, c.full_name as customer_name, c.address, c.contact, c.status as customer_status,
-             l.loan_code, l.loan_type, l.date_released, l.amortization, l.balance,
+             l.loan_code, l.loan_type, l.date_released, l.date_maturity, l.amortization, l.balance,
              co.first_name || ' ' || co.last_name as collector_name,
              b.branch_name,
              (SELECT ptp.promise_date FROM tblPromiseToPay ptp WHERE ptp.alert_id = m.id AND ptp.status IN ('Pending', 'Due Today') ORDER BY ptp.id DESC LIMIT 1) as ptp_date,
@@ -194,7 +208,14 @@ router.get('/timeline/:alert_id', authenticateToken, async (req, res) => {
 router.post('/run-daily', authenticateToken, requireRole('admin'), async (req, res) => {
   try {
     await runDailyMonitoring();
-    const active = await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert m JOIN tblCustomer c ON m.customer_id = c.id WHERE m.status='Active' AND LOWER(c.status) IN ('active', 'recon')`);
+    const active = await dbGet(`
+      SELECT COUNT(*) as c
+      FROM tblMonitoringAlert m
+      JOIN tblCustomer c ON m.customer_id = c.id
+      JOIN tblLoan l ON m.loan_id = l.id
+      WHERE m.status = 'Active'
+        AND ${buildMonitoringEligibilityCondition()}
+    `, [dayjs().format('YYYY-MM-DD')]);
     res.json({ message: 'Daily monitoring completed', active_alerts: active.c });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -495,7 +495,6 @@ const REPORT_TYPES = [
   { key: 'monthly-releases', label: '🚀 Releases Report', desc: 'Daily and monthly releases' },
   { key: 'past-due', label: '⚠️ Loans Maturity Checker', desc: 'Loans by maturity date range' },
   { key: 'payments-reversed', label: '↩️ Payments Reversed', desc: 'Reversed payments by date range' },
-  { key: 'maturity-check', label: '📆 Maturity Checker', desc: 'Loans maturing soon' },
   { key: 'full-paid', label: '✅ Fully Paid Loans', desc: 'Fully paid loan accounts' },
   { key: 'loan-type', label: '📊 Loan Type Summary', desc: 'Summary by loan type and status' },
   { key: 'collection-sheet', label: '📋 Collection Sheet', desc: 'Per-collector active loan list' },
@@ -522,6 +521,7 @@ export default function Reports() {
   const [fieldReleaseLoading, setFieldReleaseLoading] = useState(false)
   const [fieldReleaseSaving, setFieldReleaseSaving] = useState(false)
   const [printMode, setPrintMode] = useState('detailed')
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
 
   const openFieldReleaseModal = async () => {
     const reportDate = params.date || toDateInputValue(new Date())
@@ -1226,12 +1226,12 @@ export default function Reports() {
     if (active === 'payments-reversed') {
       const payments = data.payments || []
       const rows = [
-        ['Collector', 'Customer Code', 'Customer Name', 'OR Number', 'Loan Number', 'Date Paid', 'Amount Paid', 'Reversed At', 'Reversed By', 'Reason'],
+        ['Collector', 'Customer Code', 'Customer Name', 'Payment Code', 'Loan Number', 'Date Paid', 'Amount Paid', 'Reversed At', 'Reversed By', 'Reason'],
         ...payments.map(payment => [
           payment.collector_name || 'Unassigned',
           payment.customer_code,
           payment.customer_name,
-          payment.or_number,
+          payment.payment_code || payment.or_number,
           payment.loan_code,
           dateOnly(payment.date_paid),
           rawMoney(payment.amount_paid),
@@ -1337,6 +1337,7 @@ export default function Reports() {
 
   const handleSelect = (key) => {
     setActive(key); setData(null); setSelectedCollector(null)
+    setExportMenuOpen(false)
     if (key === 'collection-report') {
       const defaultDate = yesterday()
       const nextParams = { ...params, date_from: defaultDate, date_to: defaultDate }
@@ -1569,9 +1570,6 @@ export default function Reports() {
         </>
       )
     )
-    if (active === 'maturity-check') return (
-      <div className="form-group"><label className="form-label">Days Ahead</label><input type="number" className="form-control" style={{ width: 120 }} value={params.days_ahead} onChange={e => setParams(p => ({ ...p, days_ahead: e.target.value }))} /></div>
-    )
     if (active === 'collection-sheet' || active === 'daily-target') return (
       <>
         <div className="form-group"><label className="form-label">Collector *</label>
@@ -1583,7 +1581,7 @@ export default function Reports() {
         <div className="form-group"><label className="form-label">Collection Date</label>
           <input type="date" className="form-control" value={params.date || toDateInputValue(new Date())} onChange={e => { const nextParams = { ...params, date: e.target.value }; setParams(nextParams); if (params.collector_id) run(active, nextParams); }} />
         </div>
-        {(active === 'daily-target' || active === 'collection-sheet') && (
+        {active === 'daily-target' && (
           <>
             <div className="form-group"><label className="form-label">Manual Target Amt.</label>
               <input type="number" className="form-control" placeholder="Auto" value={params.manual_target || ''} onChange={e => { const nextParams = { ...params, manual_target: e.target.value }; setParams(nextParams); if (params.collector_id) run(active, nextParams); }} style={{ width: 160 }} />
@@ -2698,9 +2696,9 @@ export default function Reports() {
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `â‚±${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
-                      <Tooltip
-                        cursor={{ fill: 'rgba(245, 158, 11, 0.08)' }}
-                        contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }}
+                      <Tooltip 
+                        cursor={{ fill: 'rgba(245, 158, 11, 0.08)' }} 
+                        contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }} 
                         formatter={(val) => [`â‚± ${fmt(val)}`, 'Total Released']}
                         labelStyle={{ color: '#0f172a', fontWeight: 700, marginBottom: 6, fontSize: 13 }}
                       />
@@ -3060,6 +3058,73 @@ export default function Reports() {
       return (
         <>
           <style>{`
+            .maturity-report-grid {
+              display: grid;
+              grid-template-columns: minmax(560px, 0.98fr) minmax(460px, 0.9fr);
+              gap: 16px;
+              align-items: start;
+              max-width: 100%;
+              overflow-x: hidden;
+            }
+            .maturity-summary-wrap,
+            .maturity-chart-panel {
+              min-width: 0;
+              overflow-x: hidden;
+            }
+            .maturity-chart-box {
+              height: 390px;
+              min-width: 0;
+              overflow: hidden;
+              background: var(--bg-card, #fff);
+              border: 1px solid var(--border-color);
+              border-radius: 8px;
+              padding: 12px 8px 6px 4px;
+            }
+            .maturity-chart-box > div,
+            .maturity-chart-box svg {
+              max-width: 100%;
+            }
+            .maturity-summary-table {
+              width: 100%;
+              table-layout: fixed;
+              border-collapse: collapse;
+            }
+            .maturity-summary-table th,
+            .maturity-summary-table td {
+              padding: 10px 8px;
+              font-size: 13px;
+              line-height: 1.28;
+              text-align: center !important;
+              vertical-align: middle;
+            }
+            .maturity-summary-table th {
+              font-size: 10.5px;
+              letter-spacing: 0;
+              white-space: normal;
+              overflow-wrap: anywhere;
+            }
+            .maturity-summary-table .money-cell,
+            .maturity-summary-table .collector-cell {
+              white-space: normal;
+              word-break: normal;
+              overflow-wrap: anywhere;
+            }
+            .maturity-summary-table .money-cell {
+              font-size: 12.5px;
+            }
+            .maturity-summary-table th:first-child,
+            .maturity-summary-table td:first-child {
+              text-align: left !important;
+              padding-left: 12px;
+            }
+            @media (max-width: 1280px) {
+              .maturity-report-grid {
+                grid-template-columns: 1fr;
+              }
+              .maturity-chart-box {
+                height: 330px;
+              }
+            }
             @media print {
               ${printMode === 'detailed' ? `
               .reports-screen-only { display: none !important; }
@@ -3072,7 +3137,7 @@ export default function Reports() {
               `}
             }
           `}</style>
-          <div id={(!selectedCollector && printMode === 'summary') ? "printable-area" : undefined} className="reports-screen-only" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          <div id={(!selectedCollector && printMode === 'summary') ? "printable-area" : undefined} className="reports-screen-only maturity-report-grid">
             <div className="maturity-summary-wrap">
             <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
               <div>
@@ -3083,12 +3148,12 @@ export default function Reports() {
             </div>
             <table className="data-table maturity-summary-table">
               <colgroup>
-                <col style={{ width: '20%' }} />
+                <col style={{ width: '18%' }} />
                 <col style={{ width: '10%' }} />
-                <col style={{ width: '15%' }} />
+                <col style={{ width: '14%' }} />
                 <col style={{ width: '16%' }} />
-                <col style={{ width: '19%' }} />
                 <col style={{ width: '20%' }} />
+                <col style={{ width: '22%' }} />
               </colgroup>
               <thead>
                 <tr>
@@ -3126,11 +3191,11 @@ export default function Reports() {
               )}
             </table>
           </div>
-          <div>
+          <div className="maturity-chart-panel">
             <div style={{ marginBottom: 12 }} className="fw-bold">Total Loan Amount per Collector</div>
-            <div style={{ height: 400, background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 16 }}>
+            <div className="maturity-chart-box">
               {chartData.length > 0 ? (
-                printMode === 'summary' ? (
+                false ? (
                   <div style={{ width: 1000, height: 400, margin: '0 auto' }}>
                     <BarChart width={1000} height={400} data={chartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
                       <defs>
@@ -3147,7 +3212,7 @@ export default function Reports() {
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
+                    <BarChart data={chartData} margin={{ top: 20, right: 4, left: 0, bottom: 64 }}>
                       <defs>
                         <linearGradient id="barGradientMaturity" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="#f59e0b" stopOpacity={1}/>
@@ -3155,7 +3220,7 @@ export default function Reports() {
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 500 }} tickFormatter={compactChartLabel} angle={-35} textAnchor="end" height={70} interval={0} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `₱${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
                       <Tooltip 
                         cursor={{ fill: 'rgba(245, 158, 11, 0.08)' }} 
@@ -3163,7 +3228,7 @@ export default function Reports() {
                         formatter={(val) => [`₱ ${fmt(val)}`, 'Total Loan Amount']} 
                         labelStyle={{ color: '#0f172a', fontWeight: 700, marginBottom: 6, fontSize: 13 }} 
                       />
-                      <Bar dataKey="amount" fill="url(#barGradientMaturity)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={1000} />
+                      <Bar dataKey="amount" fill="url(#barGradientMaturity)" radius={[6, 6, 0, 0]} barSize={40} animationDuration={1000} />
                     </BarChart>
                   </ResponsiveContainer>
                 )
@@ -3352,14 +3417,14 @@ export default function Reports() {
                 </div>
                 <table className="data-table" style={{ width: '100%', fontSize: 12 }}>
                   <thead>
-                    <tr><th style={{ textAlign: 'left' }}>Client Code</th><th style={{ textAlign: 'left' }}>Client</th><th style={{ textAlign: 'left' }}>OR#</th><th style={{ textAlign: 'left' }}>Loan#</th><th>Date Paid</th><th className="text-right">Amount</th><th style={{ textAlign: 'left' }}>Reason</th><th style={{ textAlign: 'left' }}>Reversed By</th></tr>
+                    <tr><th style={{ textAlign: 'left' }}>Client Code</th><th style={{ textAlign: 'left' }}>Client</th><th style={{ textAlign: 'left' }}>Payment Code</th><th style={{ textAlign: 'left' }}>Loan#</th><th>Date Paid</th><th className="text-right">Amount</th><th style={{ textAlign: 'left' }}>Reason</th><th style={{ textAlign: 'left' }}>Reversed By</th></tr>
                   </thead>
                   <tbody>
                     {row.payments?.map(p => (
                       <tr key={p.id}>
                         <td className="mono">{p.customer_code || '-'}</td>
                         <td className="fw-600">{p.customer_name || '-'}</td>
-                        <td className="mono">{p.or_number || '-'}</td>
+                        <td className="mono">{p.payment_code || p.or_number || '-'}</td>
                         <td className="mono">{p.loan_code || '-'}</td>
                         <td>{p.date_paid}</td>
                         <td className="text-right fw-bold" style={{ color: '#dc2626' }}>₱ {fmt(p.amount_paid)}</td>
@@ -3374,11 +3439,6 @@ export default function Reports() {
           </div>
         </>
       )
-    }
-    if (active === 'maturity-check') {
-      const { loans = [] } = data
-      return <table className="data-table"><thead><tr><th>Loan#</th><th>Customer</th><th>Contact</th><th className="text-right">Balance</th><th>Maturity</th><th>Days Left</th><th>Collector</th></tr></thead>
-        <tbody>{loans.length === 0 ? <tr><td colSpan={7} className="empty-state">No loans maturing soon</td></tr> : loans.map(l => <tr key={l.id}><td className="mono">{l.loan_code}</td><td className="fw-600">{l.customer_name}</td><td>{l.contact || '—'}</td><td className="text-right">₱ {fmt(l.balance)}</td><td>{l.date_maturity}</td><td className={`fw-bold ${l.days_to_maturity <= 7 ? 'text-danger' : 'text-warning'}`}>{l.days_to_maturity} days</td><td>{l.collector_name || '—'}</td></tr>)}</tbody></table>
     }
     if (active === 'full-paid') {
       const loans = Array.isArray(data) ? data : (data.loans || [])
@@ -4152,20 +4212,31 @@ export default function Reports() {
               <button id="btn-run-report" className="btn btn-primary" onClick={() => run(active, params, active === 'monthly-releases' ? releaseSubTab : collectionSubTab)} disabled={loading || (active === 'disclosure-statement' && !params.disclosure_search.trim() && !params.disclosure_loan_id)}>{loading ? '⏳ Running...' : '▶ Run Report'}</button>
               {(data || active === 'collection-sheet') && (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button className="btn btn-secondary" onClick={handleExportExcel} disabled={loading || data?.error}>Export Excel</button>
                   {active === 'collection-sheet' ? (
                     <>
+                      <div style={{ position: 'relative' }}>
+                        <button className="btn btn-secondary" onClick={() => setExportMenuOpen(open => !open)} disabled={loading || data?.error}>Export ▾</button>
+                        {exportMenuOpen && (
+                          <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 20, minWidth: 130, background: '#fff', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 12px 24px rgba(15, 23, 42, 0.12)', padding: 4 }}>
+                            <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start', border: 0 }} onClick={() => { setExportMenuOpen(false); handleExportExcel() }}>Excel</button>
+                            <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start', border: 0 }} onClick={() => { setExportMenuOpen(false); handleExportPdf() }}>PDF</button>
+                          </div>
+                        )}
+                      </div>
                       <button className="btn btn-secondary" onClick={openFieldReleaseModal} disabled={loading}>Field Release</button>
                       <button className="btn btn-secondary" onClick={printCollectionSheet} disabled={loading}>🖨️ Print</button>
-                      <button className="btn btn-secondary" onClick={handleExportPdf} disabled={loading}>📄 Export PDF</button>
                     </>
                   ) : ['collection-report', 'monthly-releases', 'past-due', 'payments-reversed', 'full-paid'].includes(active) ? (
                     <>
+                      <button className="btn btn-secondary" onClick={handleExportExcel} disabled={loading || data?.error}>Export Excel</button>
                       <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>🖨️ Print Summary</button>
                       <button className="btn btn-secondary" onClick={() => handlePrint('detailed')}>🖨️ Print Detailed</button>
                     </>
                   ) : (
-                    <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>{active === 'disclosure-statement' ? 'Print Disclosure' : '🖨️ Print'}</button>
+                    <>
+                      <button className="btn btn-secondary" onClick={handleExportExcel} disabled={loading || data?.error}>Export Excel</button>
+                      <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>{active === 'disclosure-statement' ? 'Print Disclosure' : '🖨️ Print'}</button>
+                    </>
                   )}
                   {active === 'disclosure-statement' && (
                     <button className="btn btn-secondary" onClick={handleExportDisclosurePdf}>Export PDF</button>
@@ -4191,6 +4262,10 @@ export default function Reports() {
                 <div className="empty-state">Loading field release amounts...</div>
               ) : (
                 <>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, marginBottom: 12, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'rgba(37, 99, 235, 0.06)' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>Total Field Release</span>
+                    <span style={{ fontSize: 18, fontWeight: 800, color: '#0D1B3D' }}>₱ {fmt(fieldReleaseRows.reduce((sum, row) => sum + Number(row.amount || 0), 0))}</span>
+                  </div>
                   <div style={{ maxHeight: '55vh', overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
                     <table className="data-table" style={{ minWidth: 0, width: '100%' }}>
                       <thead>
@@ -4314,14 +4389,14 @@ export default function Reports() {
                    ) : active === 'payments-reversed' ? (
                     <>
                       <thead>
-                        <tr><th>Client Code</th><th>Client</th><th>OR#</th><th>Loan#</th><th>Date Paid</th><th className="text-right">Amount</th><th>Reason</th><th>Reversed By</th></tr>
+                        <tr><th>Client Code</th><th>Client</th><th>Payment Code</th><th>Loan#</th><th>Date Paid</th><th className="text-right">Amount</th><th>Reason</th><th>Reversed By</th></tr>
                       </thead>
                       <tbody>
                         {selectedCollector.payments?.length === 0 ? <tr><td colSpan={8} className="empty-state">No reversed payment details</td></tr> : selectedCollector.payments?.map(p => (
                           <tr key={p.id}>
                             <td className="mono">{p.customer_code || '-'}</td>
                             <td className="fw-600">{p.customer_name || '-'}</td>
-                            <td className="mono">{p.or_number || '-'}</td>
+                            <td className="mono">{p.payment_code || p.or_number || '-'}</td>
                             <td className="mono">{p.loan_code || '-'}</td>
                             <td>{p.date_paid}</td>
                             <td className="text-right fw-bold" style={{ color: '#dc2626' }}>₱ {fmt(p.amount_paid)}</td>

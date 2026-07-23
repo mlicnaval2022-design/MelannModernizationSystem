@@ -162,8 +162,9 @@ export default function Dashboard() {
       <div className="metrics-top-row" style={{ marginBottom: 20 }}>
         <div className="metric-card-v2" onClick={() => navigate('/monitoring?tab=monitoring')} style={{ cursor: 'pointer', borderTop: '4px solid #ef4444' }}>
           <div className="header">
-            <span style={{ fontWeight: 'bold', color: '#b91c1c' }}>Active Alerts</span>
+            <span style={{ fontWeight: 'bold', color: '#b91c1c' }}>All Active Alerts</span>
             <h3 style={{ color: '#dc2626' }}>{data.monitoring_alerts_active || 0} <span style={{fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)'}}>Clients</span></h3>
+            <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Unresolved eligible records</span>
           </div>
           <div className="metric-icon-circle" style={{ background: '#fef2f2', color: '#ef4444', fontSize: 24 }}>🚨</div>
         </div>
