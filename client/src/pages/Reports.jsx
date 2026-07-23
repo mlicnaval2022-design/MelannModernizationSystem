@@ -298,7 +298,15 @@ const REPORT_PRINT_CLARITY_CSS = `
   }
 `
 const classifyCollectionAccount = account => {
-  const dpd = Math.max(0, parseInt(account?.days_past_due ?? account?.days_overdue, 10) || 0)
+  const reportedDpd = parseInt(account?.days_past_due ?? account?.days_overdue, 10)
+  let dpd = Math.max(0, Number.isFinite(reportedDpd) ? reportedDpd : 0)
+  if (!dpd && account?.date_maturity && (account?.date_paid || account?.payment_date)) {
+    const paidDate = new Date(`${account.date_paid || account.payment_date}T00:00:00`)
+    const maturityDate = new Date(`${account.date_maturity}T00:00:00`)
+    if (!Number.isNaN(paidDate.getTime()) && !Number.isNaN(maturityDate.getTime()) && paidDate > maturityDate) {
+      dpd = Math.floor((paidDate - maturityDate) / (1000 * 60 * 60 * 24))
+    }
+  }
   if (dpd >= 45) return 'pastdue'
   if (dpd >= 1) return 'overdue'
   if ((account?.loan_type || '').toLowerCase().includes('recon')) return 'recon'
@@ -627,6 +635,7 @@ export default function Reports() {
 
     // Currency formatter using standard ASCII 'P' to avoid \u20B1 (₱) encoding corruption in WinAnsi pdf fonts
     const pesoFmtPdf = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-P${f}` : `P${f}` }
+    const cashSummaryAmountPdf = amount => Number(amount || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })
     const fDatePdf = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }) : '-'
 
     // Color definitions (RGB arrays for jsPDF)
@@ -680,8 +689,8 @@ export default function Reports() {
 
           let collectedText = ''
           if (regularCollected > 0) collectedText += pesoFmtPdf(regularCollected)
-          if (balanceNote > 0) collectedText += (collectedText ? '\n' : '') + `${Number(balanceNote).toLocaleString('en-PH', { maximumFractionDigits: 2 })} bal.`
-          if (penaltyNote > 0) collectedText += (collectedText ? '\n' : '') + `${Number(penaltyNote).toLocaleString('en-PH', { maximumFractionDigits: 2 })} Pen.`
+          if (balanceNote > 0) collectedText += (collectedText ? '\n' : '') + `Bal. ${Number(balanceNote).toLocaleString('en-PH', { maximumFractionDigits: 2 })}`
+          if (penaltyNote > 0) collectedText += (collectedText ? '\n' : '') + `Pen. ${Number(penaltyNote).toLocaleString('en-PH', { maximumFractionDigits: 2 })}`
 
           tableBody.push([
             { content: String(totalRowCounter++), styles: { halign: 'center', fontSize: 7 } },
@@ -810,7 +819,7 @@ export default function Reports() {
         const cashX = 6.10
         const cashY = 0.35
         const cashW = 2.0
-        const cashH = 2.45
+        const cashH = 2.65
 
         docInst.setDrawColor(...CL_PDF.navy)
         docInst.setLineWidth(0.01)
@@ -825,12 +834,13 @@ export default function Reports() {
 
         const cashRows = [
           { label: 'Total Collection:', val: totalCollection > 0 ? pesoFmtPdf(totalCollection) : '__________________' },
-          { label: 'PB/Ins/DST:', val: pbInsDstTotal > 0 ? pesoFmtPdf(pbInsDstTotal) : '__________________' },
+          { label: 'PB/Ins/DST:', val: pbInsDstTotal > 0 ? `PB ${cashSummaryAmountPdf(pbInsDstTotal)}` : '__________________' },
           { label: 'Total:', val: (totalCollection + pbInsDstTotal) > 0 ? pesoFmtPdf(totalCollection + pbInsDstTotal) : '__________________' },
           { label: 'Field Release:', val: fieldReleaseTotal > 0 ? pesoFmtPdf(fieldReleaseTotal) : '__________________' },
           { label: 'Total Expense:', val: totalExpense > 0 ? pesoFmtPdf(totalExpense) : '__________________' },
           { label: 'Grand Total:', val: '__________________' },
-          { label: 'Over / Short:', val: '__________________' }
+          { label: 'Over / Short:', val: '__________________' },
+          { label: 'PD Collection:', val: '__________________' }
         ]
 
         let cRowY = cashY + 0.38
@@ -876,7 +886,8 @@ export default function Reports() {
     }
 
     callAutoTable(doc, {
-      margin: { top: 3.0, bottom: 1.3, left: marginL, right: marginR },
+      startY: 3.12,
+      margin: { top: 3.12, bottom: 1.3, left: marginL, right: marginR },
       head: [['#', 'Code', 'Client Name', 'Due', 'DPD', 'Daily', 'Collected']],
       body: tableBody,
       headStyles: {
@@ -942,7 +953,9 @@ export default function Reports() {
         doc.setFontSize(7)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(51, 51, 51)
-        doc.text(`Collection Date: ${displayCollDate}`, marginL, 13.85)
+        doc.setFontSize(12)
+        doc.text(displayCollDate, marginL, 13.85)
+        doc.setFontSize(7)
         doc.text(`Page ${pageNum} of ${pageCount}`, pageW - marginR, 13.85, { align: 'right' })
       }
     })
@@ -3763,7 +3776,12 @@ export default function Reports() {
         if (!entry) return 0
         if (entry.type === 'header') return 1
         if (entry.type === 'empty') return 1
-        return formatCollectionClientName(entry.client || {}).length > 24 ? 1.35 : 1
+        const client = entry.client || {}
+        const noteUnits = [
+          Number(client.reloan_balance_note || 0),
+          Number(client.reloan_penalty_note || client.penalty_collected_today || 0)
+        ].filter(amount => amount > 0).length * 0.65
+        return (formatCollectionClientName(client).length > 24 ? 1.35 : 1) + noteUnits
       }
       const splitByUnits = (entries, maxUnits) => {
         const cols = []
@@ -3783,8 +3801,8 @@ export default function Reports() {
         return cols
       }
       const printablePageHeightIn = 13.4
-      const reservedHeaderHeightIn = 2.75
-      const reservedFooterHeightIn = 0.9
+      const reservedHeaderHeightIn = 3.05
+      const reservedFooterHeightIn = 1.05
       const columnHeaderHeightIn = 0.25
       const averageEntryHeightIn = 0.265
       const autoColumnUnits = (printablePageHeightIn - reservedHeaderHeightIn - reservedFooterHeightIn - columnHeaderHeightIn) / averageEntryHeightIn
@@ -3796,6 +3814,8 @@ export default function Reports() {
 
       const cs = { borderBottom: '1.2px solid #000', verticalAlign: 'middle', padding: '2px 1px' }
       const collectionNoteStyle = { display: 'block', color: CL.pastdue, lineHeight: 1.05 }
+      const collectionNoteLabelStyle = { fontSize: '8.5pt', fontWeight: 600 }
+      const collectionNoteAmountStyle = { fontSize: '14pt', fontWeight: 800 }
       const collectionAmountText = amount => Number(amount || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })
       const entryCells = (entry) => {
         if (!entry) return <td colSpan={7} style={{ border: 'none', padding: 0 }}></td>
@@ -3825,14 +3845,14 @@ export default function Reports() {
             {regularCollected > 0 && <span style={{ fontSize: '7.5pt', fontWeight: 600 }}>{peso(regularCollected)}</span>}
             {balanceNote > 0 && (
               <span style={collectionNoteStyle}>
-                <span style={{ fontSize: '11pt', fontWeight: 800 }}>{collectionAmountText(balanceNote)}</span>{' '}
-                <span style={{ fontSize: '7pt', fontWeight: 600 }}>Bal.</span>
+                <span style={collectionNoteLabelStyle}>Bal.</span>{' '}
+                <span style={collectionNoteAmountStyle}>{collectionAmountText(balanceNote)}</span>
               </span>
             )}
             {penaltyNote > 0 && (
               <span style={collectionNoteStyle}>
-                <span style={{ fontSize: '11pt', fontWeight: 800 }}>{collectionAmountText(penaltyNote)}</span>{' '}
-                <span style={{ fontSize: '7pt', fontWeight: 600 }}>Pen.</span>
+                <span style={collectionNoteLabelStyle}>Pen.</span>{' '}
+                <span style={collectionNoteAmountStyle}>{collectionAmountText(penaltyNote)}</span>
               </span>
             )}
             {regularCollected <= 0 && balanceNote <= 0 && penaltyNote <= 0 && <div style={{ height: 12 }}></div>}
@@ -3939,8 +3959,8 @@ export default function Reports() {
                   ['Total Collection', totalCollectionSummary > 0 ? <span style={cashSummaryNoteStyle}>{cashSummaryAmount(totalCollectionSummary)}</span> : null],
                   ['PB/Ins/DST', pbInsDstTotal > 0 ? (
                     <span style={{ color: CL.pastdue, lineHeight: 1, display: 'inline-flex', alignItems: 'baseline', gap: 3 }}>
-                      <span style={{ fontSize: '7pt', fontWeight: 600 }}>PB:</span>
-                      <span style={{ fontSize: '11pt', fontWeight: 800 }}>{cashSummaryAmount(pbInsDstTotal)}</span>
+                      <span style={{ fontSize: '8.5pt', fontWeight: 600 }}>PB</span>
+                      <span style={{ fontSize: '14pt', fontWeight: 800 }}>{cashSummaryAmount(pbInsDstTotal)}</span>
                     </span>
                   ) : null],
                   ['Total', cashSummaryTotal > 0 ? <span style={cashSummaryNoteStyle}>{cashSummaryAmount(cashSummaryTotal)}</span> : null, true],
@@ -3950,6 +3970,7 @@ export default function Reports() {
                 ].map(([label, value, isRed]) => blankCashLine(label, value, isRed))}
                 <div style={{ borderTop: '1.5px solid '+CL.navy, margin: '6px -8px -6px -8px', padding: '6px 8px 6px' }}>
                    {blankCashLine('Over / Short')}
+                   {blankCashLine('PD Collection')}
                 </div>
               </>
             ), 235) : <div style={{ width: 235 }}></div>}
@@ -3973,7 +3994,7 @@ export default function Reports() {
             ))}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid '+CL.navy, paddingTop: 4, fontSize: '7.5pt', color: '#333', fontWeight: 600 }}>
-            <span>Collection Date: {displayCollDate}</span>
+            <span style={{ fontSize: '12pt' }}>{displayCollDate}</span>
             <span>Page {currentPage} of {totalPages}</span>
           </div>
         </div>
@@ -4026,7 +4047,7 @@ export default function Reports() {
               .collection-sheet-page-footer {
                 flex: 0 0 auto !important;
                 margin-top: auto !important;
-                min-height: 0.72in !important;
+                min-height: 0.82in !important;
               }
               tr { page-break-inside: avoid; }
               thead { display: table-header-group; }

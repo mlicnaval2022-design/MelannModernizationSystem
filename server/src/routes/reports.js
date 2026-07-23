@@ -232,7 +232,24 @@ router.get('/daily-collection', authenticateToken, async (req, res) => {
   try {
     const from = req.query.date_from || new Date().toISOString().split('T')[0];
     const to = req.query.date_to || from;
-    const payments = await dbAll(`SELECT p.*, l.loan_code, l.loan_type, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id LEFT JOIN tblCollector co ON p.collector_id = co.id WHERE p.date_paid BETWEEN ? AND ? AND p.status IN ('active', 'penalty') AND ${sqlNotSunday('p.date_paid')} ORDER BY p.date_paid, co.last_name`, [from, to]);
+    const payments = await dbAll(`
+      SELECT p.*,
+             l.loan_code,
+             l.loan_type,
+             l.date_maturity,
+             CAST(MAX(0, ROUND(JULIANDAY(p.date_paid) - JULIANDAY(l.date_maturity))) AS INTEGER) as days_past_due,
+             c.full_name as customer_name,
+             c.customer_code,
+             co.first_name || ' ' || co.last_name as collector_name
+      FROM tblPayment p
+      LEFT JOIN tblLoan l ON p.loan_id = l.id
+      LEFT JOIN tblCustomer c ON p.customer_id = c.id
+      LEFT JOIN tblCollector co ON p.collector_id = co.id
+      WHERE p.date_paid BETWEEN ? AND ?
+        AND p.status IN ('active', 'penalty')
+        AND ${sqlNotSunday('p.date_paid')}
+      ORDER BY p.date_paid, co.last_name
+    `, [from, to]);
     res.json({ payments, total: payments.reduce((s, p) => s + p.amount_paid, 0), date_from: from, date_to: to });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
