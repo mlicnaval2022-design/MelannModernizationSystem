@@ -35,9 +35,12 @@ function computeMaturityDate(dateReleased, loanPeriod) {
  * Count working days (excluding Sundays) within a given number of calendar days
  */
 function getWorkingDays(calendarDays) {
-  // For every 7 calendar days there are 6 working days (excluding Sundays)
-  const fullWeeks = Math.floor(calendarDays / 7);
-  const remainder = calendarDays % 7;
+  const days = parseInt(calendarDays) || 45;
+  if (days === 30) return 26;
+  if (days === 45) return 39;
+  if (days === 60) return 52;
+  const fullWeeks = Math.floor(days / 7);
+  const remainder = days % 7;
   return (fullWeeks * 6) + Math.min(remainder, 6);
 }
 

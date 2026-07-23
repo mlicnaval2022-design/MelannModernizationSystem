@@ -31,10 +31,15 @@ const addCalendarDays = (dateValue, days) => {
 };
 
 const getPayableDays = (startDate, totalDays) => {
-  if (!startDate || totalDays <= 0) return totalDays;
+  const days = Number(totalDays || 0);
+  if (days === 30) return 26;
+  if (days === 45) return 39;
+  if (days === 60) return 52;
+
+  if (!startDate || days <= 0) return days;
   let payableDays = 0;
   const start = new Date(`${startDate}T00:00:00`);
-  for (let i = 1; i <= totalDays; i++) {
+  for (let i = 1; i <= days; i++) {
     const current = new Date(start);
     current.setDate(start.getDate() + i);
     if (current.getDay() !== 0) {

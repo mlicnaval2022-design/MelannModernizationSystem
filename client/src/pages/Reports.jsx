@@ -505,7 +505,48 @@ export default function Reports() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [selectedCollector, setSelectedCollector] = useState(null)
+  const [fieldReleaseOpen, setFieldReleaseOpen] = useState(false)
+  const [fieldReleaseRows, setFieldReleaseRows] = useState([])
+  const [fieldReleaseLoading, setFieldReleaseLoading] = useState(false)
+  const [fieldReleaseSaving, setFieldReleaseSaving] = useState(false)
   const [printMode, setPrintMode] = useState('detailed')
+
+  const openFieldReleaseModal = async () => {
+    const reportDate = params.date || toDateInputValue(new Date())
+    setFieldReleaseOpen(true)
+    setFieldReleaseLoading(true)
+    try {
+      const res = await API.get('/reports/collection-sheet/field-releases', { params: { date: reportDate } })
+      setFieldReleaseRows(Array.isArray(res.data?.releases) ? res.data.releases : [])
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to load field release data')
+    } finally {
+      setFieldReleaseLoading(false)
+    }
+  }
+
+  const updateFieldReleaseAmount = (collectorId, val) => {
+    setFieldReleaseRows(prev => prev.map(r => r.collector_id === collectorId ? { ...r, amount: val } : r))
+  }
+
+  const saveFieldReleases = async () => {
+    const reportDate = params.date || toDateInputValue(new Date())
+    setFieldReleaseSaving(true)
+    try {
+      await API.post('/reports/collection-sheet/field-releases', {
+        date: reportDate,
+        releases: fieldReleaseRows.map(r => ({ collector_id: r.collector_id, amount: Number(r.amount || 0) }))
+      })
+      setFieldReleaseOpen(false)
+      if (active === 'collection-sheet' && params.collector_id) {
+        run('collection-sheet', params)
+      }
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to save field release data')
+    } finally {
+      setFieldReleaseSaving(false)
+    }
+  }
 
   const handlePrint = (mode) => {
     setPrintMode(mode)
@@ -3906,6 +3947,7 @@ export default function Reports() {
                   <button className="btn btn-secondary" onClick={handleExportExcel} disabled={loading || data?.error}>Export Excel</button>
                   {active === 'collection-sheet' ? (
                     <>
+                      <button className="btn btn-secondary" onClick={openFieldReleaseModal} disabled={loading}>Field Release</button>
                       <button className="btn btn-secondary" onClick={printCollectionSheet} disabled={loading}>🖨️ Print</button>
                       <button className="btn btn-secondary" onClick={handleExportPdf} disabled={loading}>📄 Export PDF</button>
                     </>
@@ -3929,6 +3971,60 @@ export default function Reports() {
           </div>
         </div>
       </div>
+      {fieldReleaseOpen && (
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && !fieldReleaseSaving && setFieldReleaseOpen(false)}>
+          <div className="modal" style={{ maxWidth: 720 }}>
+            <div className="modal-header">
+              <span className="modal-title">Field Release - {displayDate(params.date || toDateInputValue(new Date()))}</span>
+              <button className="modal-close" onClick={() => setFieldReleaseOpen(false)} disabled={fieldReleaseSaving}>x</button>
+            </div>
+            <div className="modal-body">
+              {fieldReleaseLoading ? (
+                <div className="empty-state">Loading field release amounts...</div>
+              ) : (
+                <>
+                  <div style={{ maxHeight: '55vh', overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+                    <table className="data-table" style={{ minWidth: 0, width: '100%' }}>
+                      <thead>
+                        <tr>
+                          <th>Collector</th>
+                          <th className="text-right">Field Release Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {fieldReleaseRows.length === 0 ? (
+                          <tr><td colSpan={2} className="empty-state">No active collectors found</td></tr>
+                        ) : fieldReleaseRows.map(row => (
+                          <tr key={row.collector_id}>
+                            <td className="fw-600">{row.last_name}, {row.first_name}</td>
+                            <td className="text-right">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                className="form-control"
+                                value={row.amount}
+                                onChange={e => updateFieldReleaseAmount(row.collector_id, e.target.value)}
+                                style={{ width: 180, marginLeft: 'auto', textAlign: 'right' }}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+                    <button className="btn btn-secondary" onClick={() => setFieldReleaseOpen(false)} disabled={fieldReleaseSaving}>Cancel</button>
+                    <button className="btn btn-primary" onClick={saveFieldReleases} disabled={fieldReleaseSaving || fieldReleaseLoading}>
+                      {fieldReleaseSaving ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {selectedCollector && (
         <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setSelectedCollector(null)}>
           <div className="modal modal-print-area" id="printable-area" style={{ maxWidth: active === 'full-paid' ? 1180 : 980 }}>
