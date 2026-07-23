@@ -31,8 +31,62 @@ router.get('/client/:customer_code/payments', authenticateToken, async (req, res
   try {
     const { customer_code } = req.params;
     
-    const customer = await dbGet('SELECT id, full_name, customer_code FROM tblCustomer WHERE customer_code = ? OR id = ?', [customer_code, customer_code]);
+    let customer = await dbGet('SELECT id, full_name, customer_code FROM tblCustomer WHERE customer_code = ?', [customer_code]);
+    if (!customer) {
+      customer = await dbGet('SELECT id, full_name, customer_code FROM tblCustomer WHERE id = ?', [customer_code]);
+    }
     if (!customer) return res.status(404).json({ error: 'Client Code not found.' });
+
+    let latestLoan = await dbGet(`
+      SELECT l.id, l.loan_code, l.loan_type, l.date_released, l.status,
+        (
+          SELECT COUNT(*)
+          FROM tblLoan lx
+          WHERE lx.customer_id = l.customer_id
+            AND LOWER(COALESCE(lx.status, '')) NOT IN ('reversed', 'cancelled', 'rejected')
+            AND (
+              COALESCE(lx.date_released, lx.created_at) < COALESCE(l.date_released, l.created_at)
+              OR (
+                COALESCE(lx.date_released, lx.created_at) = COALESCE(l.date_released, l.created_at)
+                AND lx.id <= l.id
+              )
+            )
+        ) as loan_cycle
+      FROM tblLoan l
+      WHERE l.customer_id = ?
+        AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'cancelled', 'rejected')
+      ORDER BY COALESCE(l.date_released, l.created_at) DESC, l.id DESC
+      LIMIT 1
+    `, [customer.id]);
+
+    if (!latestLoan) {
+      latestLoan = await dbGet(`
+        SELECT l.id, l.loan_code, l.loan_type, l.date_released, l.status,
+          (
+            SELECT COUNT(*)
+            FROM tblLoan lx
+            WHERE lx.customer_id = l.customer_id
+              AND LOWER(COALESCE(lx.status, '')) NOT IN ('reversed', 'cancelled', 'rejected')
+              AND (
+                COALESCE(lx.date_released, lx.created_at) < COALESCE(l.date_released, l.created_at)
+                OR (
+                  COALESCE(lx.date_released, lx.created_at) = COALESCE(l.date_released, l.created_at)
+                  AND lx.id <= l.id
+                )
+              )
+          ) as loan_cycle
+        FROM tblLoan l
+        JOIN tblPayment p ON p.loan_id = l.id
+        WHERE l.customer_id = ?
+        GROUP BY l.id
+        ORDER BY COALESCE(l.date_released, l.created_at, MAX(p.date_paid)) DESC, l.id DESC
+        LIMIT 1
+      `, [customer.id]);
+    }
+
+    if (!latestLoan) {
+      return res.json({ customer, latest_loan: null, payments: [] });
+    }
 
     const q = `
       SELECT p.*, l.loan_code, l.principal, l.balance as current_loan_balance, c.full_name as customer_name, c.customer_code, 
@@ -43,12 +97,12 @@ router.get('/client/:customer_code/payments', authenticateToken, async (req, res
       JOIN tblLoan l ON p.loan_id = l.id
       LEFT JOIN tblCollector co ON p.collector_id = co.id
       LEFT JOIN tblUser u ON p.encoded_by = u.id
-      WHERE c.id = ?
+      WHERE c.id = ? AND p.loan_id = ?
       ORDER BY p.date_paid DESC, p.id DESC
     `;
-    const payments = await dbAll(q, [customer.id]);
+    const payments = await dbAll(q, [customer.id, latestLoan.id]);
 
-    res.json({ customer, payments });
+    res.json({ customer, latest_loan: latestLoan, payments });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
