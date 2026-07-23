@@ -231,6 +231,24 @@ router.put('/:id/edit', authenticateToken, requireRole('admin', 'manager'), asyn
 
     const loan = await dbGet('SELECT * FROM tblLoan WHERE id = ?', [loan_id]);
     if (!loan) return res.status(404).json({ error: 'Loan not found' });
+
+    const period = parseInt(loan_period) || 45;
+    const interestRate = parseFloat(interest_rate) || 0;
+    const principalAmount = parseFloat(principal);
+    const loanType = String(loan_type || loan.loan_type || 'New').trim() || 'New';
+    const isLoanTypeOnlyEdit =
+      loanType !== String(loan.loan_type || 'New') &&
+      principalAmount === Number(loan.principal || 0) &&
+      interestRate === Number(loan.interest_rate || 0) &&
+      period === Number(loan.loan_period || 0) &&
+      String(date_released || '') === String(loan.date_released || '');
+
+    if (isLoanTypeOnlyEdit) {
+      await dbRun(`UPDATE tblLoan SET loan_type = ?, updated_at = datetime('now') WHERE id = ?`, [loanType, loan_id]);
+      await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
+        [req.user.id, req.user.username, 'EDIT', 'LOAN', loan_id, `Edited loan type ${loan.loan_code}. Old: ${loan.loan_type || 'New'}. New: ${loanType}.`]);
+      return res.json({ message: 'Loan type updated successfully', loan_id });
+    }
     
     const paymentsCount = await dbGet(`SELECT COUNT(*) as c FROM tblPayment WHERE loan_id = ? AND status != 'reversed'`, [loan_id]);
     if (paymentsCount.c > 0) {
@@ -241,11 +259,6 @@ router.put('/:id/edit', authenticateToken, requireRole('admin', 'manager'), asyn
       return res.status(400).json({ error: 'Cannot edit a loan that has already been closed in a Daily Cash Report.' });
     }
 
-    const period = parseInt(loan_period) || 45;
-    const interestRate = parseFloat(interest_rate) || 0;
-    const principalAmount = parseFloat(principal);
-    const loanType = String(loan_type || loan.loan_type || 'New').trim() || 'New';
-    
     const interestAmount = principalAmount * (interestRate / 100);
     const totalAmortization = principalAmount + interestAmount;
     
