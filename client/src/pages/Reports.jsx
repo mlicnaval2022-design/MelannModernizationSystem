@@ -606,6 +606,8 @@ export default function Reports() {
       : Number(summary.fieldRelease ?? summary.field_release ?? 0)
     const totalExpense = Number(summary.totalExpense ?? summary.total_expense ?? 0)
 
+    const isReconLoan = (loan) => (loan.loan_type || '').toLowerCase().includes('recon')
+
     // Classify loans into groups
     const groups = { active: [], recon: [], overdue: [], pastdue: [] }
     const seen = new Set()
@@ -615,15 +617,16 @@ export default function Reports() {
       l.days_past_due = Math.max(0, parseInt(l.days_past_due) || 0)
       groups[classifyCollectionAccount(l)].push(l)
     })
-    Object.values(groups).forEach(arr => arr.sort((a, b) => (a.customer_name || '').localeCompare(b.customer_name || '')))
+    Object.values(groups).forEach(arr => arr.sort((a, b) => formatCollectionClientName(a).localeCompare(formatCollectionClientName(b))))
 
     const baseClientsCount = groups.active.length + groups.recon.length + groups.overdue.length + groups.pastdue.length
     const totalClientsCount = params.manual_clients ? Number(params.manual_clients) : baseClientsCount
     const baseTarget = [...groups.active, ...groups.overdue.filter(c => !isReconLoan(c))].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
     const targetAmount = params.manual_target ? Number(params.manual_target) : baseTarget
     const totalCollection = Number(summary.totalCollection ?? summary.total_collection ?? summary.total_collected ?? loans.reduce((sum, loan) => sum + Number(loan.collected_today || 0), 0))
-    const grandTotal = Number(summary.grandTotal ?? summary.grand_total ?? (totalCollection + pbInsDstTotal - fieldReleaseTotal - totalExpense))
-    const pesoFmt = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-P${f}` : `P${f}` }
+
+    // Currency formatter using standard ASCII 'P' to avoid \u20B1 (₱) encoding corruption in WinAnsi pdf fonts
+    const pesoFmtPdf = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-P${f}` : `P${f}` }
     const fDatePdf = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }) : '-'
 
     // Color definitions (RGB arrays for jsPDF)
@@ -637,119 +640,28 @@ export default function Reports() {
       white: [255, 255, 255]
     }
 
-    // Create PDF - Legal size (8.5 x 14 inches)
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'in', format: [8.5, 14] })
-    const pageW = 8.5
-    const marginL = 0.4
-    const marginR = 0.4
-    const contentW = pageW - marginL - marginR
-    let curY = 0.4
-
-    // --- HEADER ---
-    doc.setFontSize(16)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...CL_PDF.navy)
-    doc.text('MELANN LENDING INVESTOR CORPORATION', pageW / 2, curY, { align: 'center' })
-    curY += 0.25
-
-    doc.setFontSize(12)
-    doc.text('FIELD COLLECTION SHEET', pageW / 2, curY, { align: 'center' })
-    curY += 0.25
-
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(51, 51, 51)
-    doc.text(`${collectorDisplayName}  |  ${displayCollDate}`, pageW / 2, curY, { align: 'center' })
-    curY += 0.3
-
-    // --- STATUS BADGES ---
-    const badges = [
-      { label: `Overall Total Client: ${totalClientsCount}`, color: CL_PDF.navy },
-      { label: `Active: ${groups.active.length}`, color: CL_PDF.active },
-      { label: `Recon: ${groups.recon.length}`, color: CL_PDF.recon },
-      { label: `Overdue: ${groups.overdue.length}`, color: CL_PDF.overdue },
-      { label: `Past Due: ${groups.pastdue.length}`, color: CL_PDF.pastdue }
-    ]
-    const badgeW = 1.35
-    const totalBadgeW = badges.length * badgeW + (badges.length - 1) * 0.08
-    let badgeX = (pageW - totalBadgeW) / 2
-    badges.forEach(b => {
-      doc.setFillColor(...b.color)
-      doc.roundedRect(badgeX, curY - 0.1, badgeW, 0.2, 0.04, 0.04, 'F')
-      doc.setFontSize(7)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(...CL_PDF.white)
-      doc.text(b.label, badgeX + badgeW / 2, curY + 0.02, { align: 'center' })
-      badgeX += badgeW + 0.08
-    })
-    curY += 0.3
-
-    // --- DAILY TARGET BOX ---
-    const targetBoxW = 2.2
-    const targetBoxX = (pageW - targetBoxW) / 2
-    doc.setDrawColor(...CL_PDF.navy)
-    doc.setLineWidth(0.015)
-    doc.roundedRect(targetBoxX, curY - 0.05, targetBoxW, 0.45, 0.05, 0.05, 'S')
-    doc.setFontSize(8)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...CL_PDF.navy)
-    doc.text('DAILY TARGET', pageW / 2, curY + 0.08, { align: 'center' })
-    doc.setFontSize(12)
-    doc.setTextColor(215, 25, 32)
-    doc.text(pesoFmt(targetAmount), pageW / 2, curY + 0.3, { align: 'center' })
-    curY += 0.6
-
-    // --- Parser-readable daily cash summary ---
-    const summaryRows = [
-      ['Total Collection', pesoFmt(totalCollection)],
-      ['PB/Ins/DST', pesoFmt(pbInsDstTotal)],
-      ['Total', pesoFmt(totalCollection + pbInsDstTotal)],
-      ['Field Release', pesoFmt(fieldReleaseTotal)],
-      ['Total Expense', pesoFmt(totalExpense)],
-      ['Grand Total', pesoFmt(grandTotal)]
-    ]
-    doc.setDrawColor(...CL_PDF.navy)
-    doc.setLineWidth(0.01)
-    doc.roundedRect(marginL, curY - 0.05, contentW, 0.52, 0.04, 0.04, 'S')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(7)
-    doc.setTextColor(...CL_PDF.navy)
-    doc.text('DAILY CASH SUMMARY', pageW / 2, curY + 0.06, { align: 'center' })
-    const summaryColW = contentW / summaryRows.length
-    summaryRows.forEach(([label, value], index) => {
-      const x = marginL + (summaryColW * index) + (summaryColW / 2)
-      if (index > 0) doc.line(marginL + summaryColW * index, curY + 0.11, marginL + summaryColW * index, curY + 0.42)
-      doc.setFontSize(6)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(80, 80, 80)
-      doc.text(label, x, curY + 0.22, { align: 'center' })
-      doc.setFontSize(7)
-      doc.setTextColor(label === 'Field Release' || label === 'Grand Total' ? 215 : 0, label === 'Field Release' || label === 'Grand Total' ? 25 : 0, label === 'Field Release' || label === 'Grand Total' ? 32 : 0)
-      doc.text(value, x, curY + 0.36, { align: 'center' })
-    })
-    curY += 0.68
-
-    // --- Build table sections ---
+    // Build table sections & body
     const sections = [
-      { title: '1. ACTIVE CLIENTS', clients: groups.active, color: CL_PDF.active },
-      { title: '2. RECONSTRUCTED ACCOUNTS', clients: groups.recon, color: CL_PDF.recon },
-      { title: '3. OVERDUE CLIENTS', clients: groups.overdue, color: CL_PDF.overdue },
-      { title: '4. PAST DUE CLIENTS', clients: groups.pastdue, color: CL_PDF.pastdue }
+      { num: 1, title: 'ACTIVE CLIENTS', clients: groups.active, color: CL_PDF.active },
+      { num: 2, title: 'RECONSTRUCTED ACCOUNTS', clients: groups.recon, color: CL_PDF.recon },
+      { num: 3, title: 'OVERDUE CLIENTS', clients: groups.overdue, color: CL_PDF.overdue },
+      { num: 4, title: 'PAST DUE CLIENTS', clients: groups.pastdue, color: CL_PDF.pastdue }
     ]
 
     const tableBody = []
+    let totalRowCounter = 1
+
     sections.forEach(section => {
-      // Section header row
       tableBody.push([{
-        content: `${section.title} - ${section.clients.length} ${section.clients.length === 1 ? 'Client' : 'Clients'}`,
+        content: `${section.num}. ${section.title} - ${section.clients.length} ${section.clients.length === 1 ? 'Client' : 'Clients'}`,
         colSpan: 7,
         styles: {
           fillColor: section.color,
           textColor: CL_PDF.white,
           fontStyle: 'bold',
-          fontSize: 8,
+          fontSize: 7.5,
           halign: 'left',
-          cellPadding: { top: 0.04, bottom: 0.04, left: 0.06, right: 0.06 }
+          cellPadding: { top: 0.03, bottom: 0.03, left: 0.05, right: 0.05 }
         }
       }])
 
@@ -759,34 +671,212 @@ export default function Reports() {
           colSpan: 7,
           styles: { fontStyle: 'italic', textColor: [153, 153, 153], fontSize: 7, halign: 'center' }
         }])
+      } else {
+        section.clients.forEach((c) => {
+          const rowColor = section.color === CL_PDF.pastdue ? CL_PDF.pastdue : ((c.loan_type || '').toLowerCase().includes('recon') ? CL_PDF.recon : section.color)
+          const penaltyNote = Number(c.reloan_penalty_note || c.penalty_collected_today || 0)
+          const balanceNote = Number(c.reloan_balance_note || 0)
+          const regularCollected = Math.max(0, Number(c.collected_today || 0) - Number(c.penalty_collected_today || 0))
+
+          let collectedText = ''
+          if (regularCollected > 0) collectedText += pesoFmtPdf(regularCollected)
+          if (balanceNote > 0) collectedText += (collectedText ? '\n' : '') + `${Number(balanceNote).toLocaleString('en-PH', { maximumFractionDigits: 2 })} bal.`
+          if (penaltyNote > 0) collectedText += (collectedText ? '\n' : '') + `${Number(penaltyNote).toLocaleString('en-PH', { maximumFractionDigits: 2 })} Pen.`
+
+          tableBody.push([
+            { content: String(totalRowCounter++), styles: { halign: 'center', fontSize: 7 } },
+            { content: c.customer_code || '-', styles: { textColor: rowColor, fontStyle: 'bold', fontSize: 7, halign: 'center' } },
+            { content: formatCollectionClientName(c).toUpperCase(), styles: { textColor: rowColor, fontStyle: 'bold', fontSize: 7 } },
+            { content: fDatePdf(c.date_maturity), styles: { halign: 'center', fontSize: 6.5 } },
+            { content: String(c.days_past_due || 0), styles: { halign: 'center', textColor: rowColor, fontStyle: 'bold', fontSize: 6.5 } },
+            { content: c.amortization ? Number(c.amortization).toLocaleString('en-PH') : '0', styles: { halign: 'right', fontSize: 7 } },
+            { content: collectedText, styles: { halign: 'right', fontSize: 7, textColor: regularCollected > 0 ? [0, 0, 0] : [215, 25, 32] } }
+          ])
+        })
       }
-
-      section.clients.forEach((c, i) => {
-        const rowColor = section.color === CL_PDF.pastdue ? CL_PDF.pastdue : ((c.loan_type || '').toLowerCase().includes('recon') ? CL_PDF.recon : section.color)
-        const penaltyNote = Number(c.reloan_penalty_note || c.penalty_collected_today || 0)
-        const balanceNote = Number(c.reloan_balance_note || 0)
-        const regularCollected = Math.max(0, Number(c.collected_today || 0) - Number(c.penalty_collected_today || 0))
-        let collectedText = ''
-        if (regularCollected > 0) collectedText += pesoFmt(regularCollected)
-        if (balanceNote > 0) collectedText += (collectedText ? '\n' : '') + `${Number(balanceNote).toLocaleString('en-PH', { maximumFractionDigits: 2 })} bal.`
-        if (penaltyNote > 0) collectedText += (collectedText ? '\n' : '') + `${Number(penaltyNote).toLocaleString('en-PH', { maximumFractionDigits: 2 })} Pen.`
-
-        tableBody.push([
-          { content: String(i + 1), styles: { halign: 'center', fontSize: 7 } },
-          { content: c.customer_code || '-', styles: { textColor: rowColor, fontStyle: 'bold', fontSize: 8 } },
-          { content: (c.customer_name || '').toUpperCase(), styles: { textColor: rowColor, fontStyle: 'bold', fontSize: 8 } },
-          { content: fDatePdf(c.date_maturity), styles: { halign: 'center', fontSize: 6 } },
-          { content: String(c.days_past_due || 0), styles: { halign: 'center', textColor: rowColor, fontStyle: 'bold', fontSize: 6 } },
-          { content: c.amortization ? Number(c.amortization).toLocaleString() : '0', styles: { halign: 'right', fontSize: 7 } },
-          { content: collectedText, styles: { halign: 'right', fontSize: 7, textColor: regularCollected > 0 ? [0, 0, 0] : [215, 25, 32] } }
-        ])
-      })
     })
 
-    // --- Render table ---
-    autoTable(doc, {
-      startY: curY,
-      margin: { left: marginL, right: marginR },
+    // Create PDF - Legal size (8.5 x 14 inches)
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'in', format: [8.5, 14] })
+    const pageW = 8.5
+    const marginL = 0.4
+    const marginR = 0.4
+    const contentW = pageW - marginL - marginR
+
+    const callAutoTable = (docInstance, options) => {
+      if (typeof autoTable === 'function') {
+        autoTable(docInstance, options)
+      } else if (docInstance.autoTable) {
+        docInstance.autoTable(options)
+      } else if (autoTable && typeof autoTable.default === 'function') {
+        autoTable.default(docInstance, options)
+      }
+    }
+
+    const drawPageHeader = (docInst, pageNum) => {
+      if (pageNum === 1) {
+        // --- 1. Denomination Box (Top-Left) ---
+        const denomX = marginL
+        const denomY = 0.35
+        const denomW = 2.0
+        const denomH = 2.45
+
+        docInst.setDrawColor(...CL_PDF.navy)
+        docInst.setLineWidth(0.01)
+        docInst.rect(denomX, denomY, denomW, denomH)
+
+        docInst.setFillColor(...CL_PDF.navy)
+        docInst.rect(denomX, denomY, denomW, 0.22, 'F')
+        docInst.setFontSize(7.5)
+        docInst.setFont('helvetica', 'bold')
+        docInst.setTextColor(255, 255, 255)
+        docInst.text('DENOMINATION', denomX + denomW / 2, denomY + 0.15, { align: 'center' })
+
+        const denoms = ['1000', '500', '200', '100', '50', '20', '10', '5', '1']
+        let dRowY = denomY + 0.38
+        docInst.setFontSize(6.5)
+        docInst.setFont('helvetica', 'normal')
+        docInst.setTextColor(40, 40, 40)
+        denoms.forEach(d => {
+          docInst.text(`${d.padStart(4, ' ')}  x  ______ = ______`, denomX + 0.15, dRowY)
+          dRowY += 0.18
+        })
+        docInst.setDrawColor(180, 180, 180)
+        docInst.setLineWidth(0.005)
+        docInst.line(denomX + 0.1, dRowY - 0.04, denomX + denomW - 0.1, dRowY - 0.04)
+        docInst.setFont('helvetica', 'bold')
+        docInst.setFontSize(6.5)
+        docInst.text('OVERALL TOTAL: ______', denomX + 0.15, dRowY + 0.10)
+
+        // --- 2. Center Header ---
+        let curY = 0.35
+        docInst.setFontSize(13)
+        docInst.setFont('helvetica', 'bold')
+        docInst.setTextColor(...CL_PDF.navy)
+        docInst.text('MELANN LENDING INVESTOR CORPORATION', pageW / 2, curY + 0.18, { align: 'center' })
+
+        docInst.setFontSize(10.5)
+        docInst.text('FIELD COLLECTION SHEET', pageW / 2, curY + 0.40, { align: 'center' })
+
+        docInst.setFontSize(9)
+        docInst.setFont('helvetica', 'bold')
+        docInst.setTextColor(51, 51, 51)
+        docInst.text(`${collectorDisplayName}  |  ${displayCollDate}`, pageW / 2, curY + 0.62, { align: 'center' })
+
+        // Badges - dynamic width measurement to prevent overlap
+        const badges = [
+          { label: `Overall Total Client: ${totalClientsCount}`, color: CL_PDF.navy },
+          { label: `Active: ${groups.active.length}`, color: CL_PDF.active },
+          { label: `Recon: ${groups.recon.length}`, color: CL_PDF.recon },
+          { label: `Overdue: ${groups.overdue.length}`, color: CL_PDF.overdue },
+          { label: `Past Due: ${groups.pastdue.length}`, color: CL_PDF.pastdue }
+        ]
+
+        docInst.setFontSize(6)
+        docInst.setFont('helvetica', 'bold')
+        const badgeGap = 0.05
+        const measuredBadges = badges.map(b => ({
+          ...b,
+          width: Math.max(0.65, docInst.getTextWidth(b.label) + 0.10)
+        }))
+        const totalBadgeW = measuredBadges.reduce((s, b) => s + b.width, 0) + (measuredBadges.length - 1) * badgeGap
+        let badgeX = (pageW - totalBadgeW) / 2
+        const badgeY = curY + 0.90
+
+        measuredBadges.forEach(b => {
+          docInst.setFillColor(...b.color)
+          docInst.roundedRect(badgeX, badgeY - 0.09, b.width, 0.18, 0.03, 0.03, 'F')
+          docInst.setTextColor(...CL_PDF.white)
+          docInst.text(b.label, badgeX + b.width / 2, badgeY + 0.03, { align: 'center' })
+          badgeX += b.width + badgeGap
+        })
+
+        // Daily Target Box
+        const targetBoxW = 2.2
+        const targetBoxX = (pageW - targetBoxW) / 2
+        const targetBoxY = curY + 1.25
+        docInst.setDrawColor(...CL_PDF.navy)
+        docInst.setLineWidth(0.012)
+        docInst.roundedRect(targetBoxX, targetBoxY, targetBoxW, 0.50, 0.04, 0.04, 'S')
+        docInst.setFontSize(7.5)
+        docInst.setFont('helvetica', 'bold')
+        docInst.setTextColor(...CL_PDF.navy)
+        docInst.text('DAILY TARGET', pageW / 2, targetBoxY + 0.16, { align: 'center' })
+        docInst.setFontSize(12)
+        docInst.setTextColor(215, 25, 32)
+        docInst.text(pesoFmtPdf(targetAmount), pageW / 2, targetBoxY + 0.38, { align: 'center' })
+
+        // --- 3. Daily Cash Summary Box (Top-Right) ---
+        const cashX = 6.10
+        const cashY = 0.35
+        const cashW = 2.0
+        const cashH = 2.45
+
+        docInst.setDrawColor(...CL_PDF.navy)
+        docInst.setLineWidth(0.01)
+        docInst.rect(cashX, cashY, cashW, cashH)
+
+        docInst.setFillColor(...CL_PDF.navy)
+        docInst.rect(cashX, cashY, cashW, 0.22, 'F')
+        docInst.setFontSize(7.5)
+        docInst.setFont('helvetica', 'bold')
+        docInst.setTextColor(255, 255, 255)
+        docInst.text('DAILY CASH SUMMARY', cashX + cashW / 2, cashY + 0.15, { align: 'center' })
+
+        const cashRows = [
+          { label: 'Total Collection:', val: totalCollection > 0 ? pesoFmtPdf(totalCollection) : '__________________' },
+          { label: 'PB/Ins/DST:', val: pbInsDstTotal > 0 ? pesoFmtPdf(pbInsDstTotal) : '__________________' },
+          { label: 'Total:', val: (totalCollection + pbInsDstTotal) > 0 ? pesoFmtPdf(totalCollection + pbInsDstTotal) : '__________________' },
+          { label: 'Field Release:', val: fieldReleaseTotal > 0 ? pesoFmtPdf(fieldReleaseTotal) : '__________________' },
+          { label: 'Total Expense:', val: totalExpense > 0 ? pesoFmtPdf(totalExpense) : '__________________' },
+          { label: 'Grand Total:', val: '__________________' },
+          { label: 'Over / Short:', val: '__________________' }
+        ]
+
+        let cRowY = cashY + 0.38
+        cashRows.forEach(r => {
+          if (r.label === 'Field Release:') {
+            docInst.setFont('helvetica', 'bold')
+            docInst.setFontSize(6.5)
+            docInst.setTextColor(40, 40, 40)
+            docInst.text(r.label, cashX + 0.10, cRowY)
+
+            docInst.setFont('helvetica', 'bold')
+            docInst.setFontSize(14)
+            docInst.setTextColor(...CL_PDF.navy)
+            docInst.text(r.val, cashX + cashW - 0.10, cRowY, { align: 'right' })
+          } else if (r.label === 'Grand Total:') {
+            docInst.setFont('helvetica', 'bold')
+            docInst.setFontSize(6.5)
+            docInst.setTextColor(215, 25, 32)
+            docInst.text(r.label, cashX + 0.10, cRowY)
+            docInst.text(r.val, cashX + cashW - 0.10, cRowY, { align: 'right' })
+          } else {
+            docInst.setFont('helvetica', r.label === 'Total:' ? 'bold' : 'normal')
+            docInst.setFontSize(6.5)
+            docInst.setTextColor(40, 40, 40)
+            docInst.text(r.label, cashX + 0.10, cRowY)
+            docInst.text(r.val, cashX + cashW - 0.10, cRowY, { align: 'right' })
+          }
+          cRowY += 0.24
+        })
+      } else {
+        // Page 2+ Header
+        docInst.setFontSize(10)
+        docInst.setFont('helvetica', 'bold')
+        docInst.setTextColor(...CL_PDF.navy)
+        docInst.text('MELANN LENDING INVESTOR CORPORATION - FIELD COLLECTION SHEET', pageW / 2, 0.40, { align: 'center' })
+        docInst.setFontSize(8)
+        docInst.setTextColor(80, 80, 80)
+        docInst.text(`${collectorDisplayName} | Date: ${displayCollDate}`, pageW / 2, 0.58, { align: 'center' })
+        docInst.setDrawColor(...CL_PDF.navy)
+        docInst.setLineWidth(0.01)
+        docInst.line(marginL, 0.65, pageW - marginR, 0.65)
+      }
+    }
+
+    callAutoTable(doc, {
+      margin: { top: 3.0, bottom: 1.3, left: marginL, right: marginR },
       head: [['#', 'Code', 'Client Name', 'Due', 'DPD', 'Daily', 'Collected']],
       body: tableBody,
       headStyles: {
@@ -815,9 +905,11 @@ export default function Reports() {
         6: { cellWidth: 0.9, halign: 'right' }
       },
       didDrawPage: (hookData) => {
-        // Footer on each page
         const pageCount = doc.internal.getNumberOfPages()
         const pageNum = doc.internal.getCurrentPageInfo().pageNumber
+        drawPageHeader(doc, pageNum)
+
+        // Footer on each page
         doc.setDrawColor(...CL_PDF.navy)
         doc.setLineWidth(0.02)
         doc.line(marginL, 13.3, pageW - marginR, 13.3)
@@ -3602,7 +3694,18 @@ export default function Reports() {
       )
     }
     if (active === 'collection-sheet') {
-      const { loans = [], collector: apiCollector, signatures = {}, summary = {} } = data
+      if (!data) return null
+      if (data.error) {
+        return (
+          <div className="empty-state">
+            <div className="empty-icon">📊</div>
+            <p>{data.error}</p>
+          </div>
+        )
+      }
+      const rawLoans = Array.isArray(data.loans) ? data.loans : []
+      const { collector: apiCollector, signatures = {}, summary = {} } = data
+      const loans = rawLoans
       const collName = collectors.find(c => c.id == params.collector_id)
       const collectorDisplayName = apiCollector?.name || (collName ? `${collName.last_name}, ${collName.first_name}`.toUpperCase() : 'UNASSIGNED')
       const collectionDate = params.date || toDateInputValue(new Date())
@@ -3622,10 +3725,12 @@ export default function Reports() {
       const groups = { active: [], recon: [], overdue: [], pastdue: [] }
       const seen = new Set()
       loans.forEach(l => {
-        if (seen.has(l.id)) return
+        if (!l || seen.has(l.id)) return
         seen.add(l.id)
         l.days_past_due = Math.max(0, parseInt(l.days_past_due) || 0)
-        groups[classifyCollectionAccount(l)].push(l)
+        const cat = classifyCollectionAccount(l)
+        if (groups[cat]) groups[cat].push(l)
+        else groups.active.push(l)
       })
       Object.values(groups).forEach(arr => arr.sort((a, b) => formatCollectionClientName(a).localeCompare(formatCollectionClientName(b))))
 
@@ -3753,6 +3858,7 @@ export default function Reports() {
       )
       const cashSummaryAmount = amount => Number(amount || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })
       const cashSummaryNoteStyle = { color: CL.pastdue, fontWeight: 800, fontSize: '8.5pt', lineHeight: 1 }
+      const fieldReleaseNoteStyle = { color: CL.navy, fontWeight: 800, fontSize: '14pt', lineHeight: 1 }
       const blankCashLine = (label, value = null, isRed = false) => (
         <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
           <span style={{ color: isRed ? CL.pastdue : '#555', fontWeight: isRed ? 700 : 400, flex: '0 0 90px', fontSize: '8.5pt' }}>{label}:</span>
@@ -3838,9 +3944,9 @@ export default function Reports() {
                     </span>
                   ) : null],
                   ['Total', cashSummaryTotal > 0 ? <span style={cashSummaryNoteStyle}>{cashSummaryAmount(cashSummaryTotal)}</span> : null, true],
-                  ['Field Release', fieldReleaseTotal > 0 ? <span style={cashSummaryNoteStyle}>{cashSummaryAmount(fieldReleaseTotal)}</span> : null],
+                  ['Field Release', fieldReleaseTotal > 0 ? <span style={fieldReleaseNoteStyle}>{cashSummaryAmount(fieldReleaseTotal)}</span> : null],
                   ['Total Expense', totalExpense > 0 ? <span style={cashSummaryNoteStyle}>{cashSummaryAmount(totalExpense)}</span> : null],
-                  ['Grand Total', <span style={cashSummaryNoteStyle}>{cashSummaryAmount(grandTotal)}</span>, true]
+                  ['Grand Total', null, true]
                 ].map(([label, value, isRed]) => blankCashLine(label, value, isRed))}
                 <div style={{ borderTop: '1.5px solid '+CL.navy, margin: '6px -8px -6px -8px', padding: '6px 8px 6px' }}>
                    {blankCashLine('Over / Short')}

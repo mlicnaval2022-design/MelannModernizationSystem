@@ -490,9 +490,9 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
         totalCollection,
         pbInsDst: pbInsDstTotal,
         passbookTotal: pbInsDstTotal,
-        fieldRelease: 0,
+        fieldRelease: fieldReleaseTotal,
         totalExpense: 0,
-        grandTotal: totalCollection + pbInsDstTotal
+        grandTotal: totalCollection + pbInsDstTotal - fieldReleaseTotal
       },
       signatures: {
         checkedBy: 'MARILYN O. RELOBA',
