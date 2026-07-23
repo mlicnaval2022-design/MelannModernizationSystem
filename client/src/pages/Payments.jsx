@@ -156,12 +156,23 @@ export default function Payments() {
     } catch (err) {
       if (err.response?.status === 409 && err.response?.data?.is_duplicate) {
         setConfirmModal({
+          title: 'Duplicate Payment Detected',
           message: err.response.data.error,
           subMessage: 'Do you want to post it anyway?',
+          confirmText: 'Yes, Post Anyway',
           onConfirm: async () => {
             setConfirmModal(null)
             await handlePost(null, true)
           },
+          onCancel: () => setConfirmModal(null)
+        })
+      } else if (err.response?.data?.is_loan_timeline_conflict) {
+        setConfirmModal({
+          title: 'Payment Posting Blocked',
+          message: err.response.data.error,
+          subMessage: 'Review the client SOA or post only to the correct active loan period.',
+          confirmText: null,
+          tone: 'danger',
           onCancel: () => setConfirmModal(null)
         })
       } else {
@@ -1115,16 +1126,16 @@ export default function Payments() {
           }}>
             <div style={{
               width: 56, height: 56, borderRadius: '50%',
-              background: '#fffbeb',
-              color: '#f59e0b',
+              background: confirmModal.tone === 'danger' ? '#fef2f2' : '#fffbeb',
+              color: confirmModal.tone === 'danger' ? '#dc2626' : '#f59e0b',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: '28px', margin: '0 auto 18px auto',
-              border: '2px solid #fde68a'
+              border: `2px solid ${confirmModal.tone === 'danger' ? '#fecaca' : '#fde68a'}`
             }}>
               ⚠
             </div>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>
-              Duplicate Payment Detected
+              {confirmModal.title || 'Confirm Action'}
             </h3>
             <p style={{ color: '#64748b', fontSize: '14px', lineHeight: 1.6, margin: '0 0 6px 0' }}>
               {confirmModal.message}
@@ -1145,22 +1156,24 @@ export default function Payments() {
                 onMouseEnter={e => { e.target.style.background = '#f8fafc'; e.target.style.borderColor = '#cbd5e1' }}
                 onMouseLeave={e => { e.target.style.background = '#fff'; e.target.style.borderColor = '#e2e8f0' }}
               >
-                Cancel
+                {confirmModal.confirmText ? 'Cancel' : 'OK'}
               </button>
-              <button
-                onClick={confirmModal.onConfirm}
-                style={{
-                  padding: '10px 28px', borderRadius: '8px', border: 'none',
-                  background: '#f59e0b',
-                  color: '#fff', fontWeight: 600, fontSize: '14px',
-                  cursor: 'pointer', transition: 'all 0.15s',
-                  boxShadow: '0 2px 8px rgba(245,158,11,0.3)'
-                }}
-                onMouseEnter={e => { e.target.style.background = '#d97706' }}
-                onMouseLeave={e => { e.target.style.background = '#f59e0b' }}
-              >
-                Yes, Post Anyway
-              </button>
+              {confirmModal.confirmText && (
+                <button
+                  onClick={confirmModal.onConfirm}
+                  style={{
+                    padding: '10px 28px', borderRadius: '8px', border: 'none',
+                    background: '#f59e0b',
+                    color: '#fff', fontWeight: 600, fontSize: '14px',
+                    cursor: 'pointer', transition: 'all 0.15s',
+                    boxShadow: '0 2px 8px rgba(245,158,11,0.3)'
+                  }}
+                  onMouseEnter={e => { e.target.style.background = '#d97706' }}
+                  onMouseLeave={e => { e.target.style.background = '#f59e0b' }}
+                >
+                  {confirmModal.confirmText}
+                </button>
+              )}
             </div>
           </div>
         </div>

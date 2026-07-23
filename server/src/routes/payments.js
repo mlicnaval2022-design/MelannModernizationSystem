@@ -5,6 +5,12 @@ const { triggerLoanRecalculation } = require('../services/noPaymentMonitoring');
 const { requireOperationDate, sqlNotSunday } = require('../services/operationDays');
 const router = express.Router();
 const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
+const formatDate = value => {
+  if (!value) return '';
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
+  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+};
 
 router.get('/', authenticateToken, async (req, res) => {
   try {
@@ -39,6 +45,33 @@ router.post('/', authenticateToken, async (req, res) => {
     if (!or_number) or_number = 'N/A';
     const loan = await dbGet(`SELECT * FROM tblLoan WHERE id = ?`, [loan_id]);
     if (!loan) return res.status(404).json({ error: 'Loan not found' });
+    if (loan.date_released && String(date_paid).slice(0, 10) < String(loan.date_released).slice(0, 10)) {
+      return res.status(400).json({
+        error: `You cannot post payment to this loan because the loan was released on ${formatDate(loan.date_released)}. Please use a payment date on or after the release date.`,
+        is_loan_timeline_conflict: true,
+        release_date: loan.date_released
+      });
+    }
+    const newerLoan = await dbGet(`
+      SELECT id, loan_code, loan_type, date_released
+      FROM tblLoan
+      WHERE customer_id = ?
+        AND id != ?
+        AND COALESCE(date_released, '') > COALESCE(?, '')
+        AND LOWER(COALESCE(status, '')) NOT IN ('reversed', 'cancelled', 'rejected')
+      ORDER BY date_released ASC, id ASC
+      LIMIT 1
+    `, [loan.customer_id, loan_id, loan.date_released || '']);
+    if (newerLoan) {
+      const newerType = String(newerLoan.loan_type || 'new loan').trim() || 'new loan';
+      return res.status(400).json({
+        error: `You cannot post payment to this client because the client already has ${newerType} released on ${formatDate(newerLoan.date_released)}.`,
+        is_loan_timeline_conflict: true,
+        reloan_date: newerLoan.date_released,
+        newer_loan_code: newerLoan.loan_code,
+        newer_loan_type: newerLoan.loan_type
+      });
+    }
     const loanStatus = String(loan.status || '').toLowerCase();
     if (Number(loan.balance || 0) <= 0 || loanStatus === 'fullpaid') return res.status(400).json({ error: 'This account is already fully paid.', is_fully_paid: true });
     if (!['active', 'pastdue'].includes(loanStatus)) return res.status(400).json({ error: 'This account is inactive and cannot accept payments.', is_inactive: true });

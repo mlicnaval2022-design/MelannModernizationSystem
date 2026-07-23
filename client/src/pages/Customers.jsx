@@ -1045,12 +1045,11 @@ export default function Customers() {
       
       {soaModal && (
         <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setSoaModal(false)}>
-          <div className="soa-modal-v2">
+          <div className="soa-modal-v2 soa-modern-refresh">
             <div className="soa-header-v2">
               <div className="soa-header-left-v2">
-                <div className="soa-icon-box-v2">
-                  <FileText size={28} />
-                  SOA
+                <div className="soa-icon-box-v2 soa-logo-mark-refresh">
+                  <img src={logoImg} alt="Melann Lending logo" />
                 </div>
                 <div>
                   <h2 className="soa-title-v2">Statement of Account</h2>
@@ -1172,10 +1171,12 @@ export default function Customers() {
                           <div className="soa-divider-v2"></div>
                           
                           <div className="soa-chart-v2">
+                            <div className="soa-balance-icon-v2"><Wallet size={22} /></div>
                             <div className="soa-chart-label-v2">OUTSTANDING BALANCE</div>
                             <div className="donut-v2">
                               <div className="donut-inner-v2">
-                                <div className="donut-val-v2">{formatPhp(outstandingBal)}</div>
+                                <div className="donut-currency-v2">PHP</div>
+                                <div className="donut-val-v2">{Number(outstandingBal || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                                 <div className="donut-sub-v2">As of {new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})}</div>
                               </div>
                               <div className="donut-dot-v2"></div>

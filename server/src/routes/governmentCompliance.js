@@ -102,7 +102,14 @@ router.get('/summary', authenticateToken, async (req, res) => {
 router.get('/client-reports/:agency', authenticateToken, requireAgencyAccess, async (req, res) => {
   try {
     const rows = await dbAll(
-      `SELECT * FROM tblGovernmentComplianceClients WHERE agency = ? ORDER BY created_at DESC`,
+      `SELECT gcc.*,
+              COALESCE(l.principal, gcc.loan_amount, 0) as principal_loan,
+              COALESCE(l.interest_amount, 0) as interest_amount,
+              COALESCE(l.total_amortization, COALESCE(l.principal, gcc.loan_amount, 0) + COALESCE(l.interest_amount, 0), gcc.loan_amount, 0) as total_loan
+       FROM tblGovernmentComplianceClients gcc
+       LEFT JOIN tblLoan l ON l.id = gcc.loan_id
+       WHERE gcc.agency = ?
+       ORDER BY gcc.created_at DESC`,
       [req.agency]
     );
     res.json(rows);

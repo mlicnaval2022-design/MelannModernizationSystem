@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 // Force Vite HMR invalidation
 import { useAuth } from './context/AuthContext'
@@ -29,6 +30,17 @@ function PrivateRoute({ children }) {
 
 export default function App() {
   const { user } = useAuth()
+  useEffect(() => {
+    const stopNumberWheel = event => {
+      const target = event.target
+      if (target instanceof HTMLInputElement && target.type === 'number') {
+        target.blur()
+      }
+    }
+    document.addEventListener('wheel', stopNumberWheel, true)
+    return () => document.removeEventListener('wheel', stopNumberWheel, true)
+  }, [])
+
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
