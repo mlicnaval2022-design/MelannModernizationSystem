@@ -515,11 +515,14 @@ export default function Reports() {
       if (!reportData) return
     }
 
-    const { loans = [], collector: apiCollector, signatures: sigs = {} } = reportData
+    const { loans = [], collector: apiCollector, signatures: sigs = {}, summary = {} } = reportData
     const collName = collectors.find(c => c.id == params.collector_id)
     const collectorDisplayName = apiCollector?.name || (collName ? `${collName.last_name}, ${collName.first_name}`.toUpperCase() : 'UNASSIGNED')
     const collectionDate = params.date || toDateInputValue(new Date())
     const displayCollDate = new Date(collectionDate + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
+    const pbInsDstTotal = Number(summary.pbInsDst ?? summary.pb_ins_dst ?? summary.passbookTotal ?? summary.passbook_total ?? 0)
+    const fieldReleaseTotal = Number(summary.fieldRelease ?? summary.field_release ?? 0)
+    const totalExpense = Number(summary.totalExpense ?? summary.total_expense ?? 0)
 
     // Classify loans into groups
     const groups = { active: [], recon: [], overdue: [], pastdue: [] }
@@ -536,6 +539,8 @@ export default function Reports() {
     const totalClientsCount = params.manual_clients ? Number(params.manual_clients) : baseClientsCount
     const baseTarget = [...groups.active, ...groups.overdue].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
     const targetAmount = params.manual_target ? Number(params.manual_target) : baseTarget
+    const totalCollection = Number(summary.totalCollection ?? summary.total_collection ?? summary.total_collected ?? loans.reduce((sum, loan) => sum + Number(loan.collected_today || 0), 0))
+    const grandTotal = Number(summary.grandTotal ?? summary.grand_total ?? (totalCollection + pbInsDstTotal - fieldReleaseTotal - totalExpense))
     const pesoFmt = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-P${f}` : `P${f}` }
     const fDatePdf = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }) : '-'
 
@@ -611,6 +616,36 @@ export default function Reports() {
     doc.setTextColor(215, 25, 32)
     doc.text(pesoFmt(targetAmount), pageW / 2, curY + 0.3, { align: 'center' })
     curY += 0.6
+
+    // --- Parser-readable daily cash summary ---
+    const summaryRows = [
+      ['Total Collection', pesoFmt(totalCollection)],
+      ['PB/Ins/DST', pesoFmt(pbInsDstTotal)],
+      ['Total', pesoFmt(totalCollection + pbInsDstTotal)],
+      ['Field Release', pesoFmt(fieldReleaseTotal)],
+      ['Total Expense', pesoFmt(totalExpense)],
+      ['Grand Total', pesoFmt(grandTotal)]
+    ]
+    doc.setDrawColor(...CL_PDF.navy)
+    doc.setLineWidth(0.01)
+    doc.roundedRect(marginL, curY - 0.05, contentW, 0.52, 0.04, 0.04, 'S')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7)
+    doc.setTextColor(...CL_PDF.navy)
+    doc.text('DAILY CASH SUMMARY', pageW / 2, curY + 0.06, { align: 'center' })
+    const summaryColW = contentW / summaryRows.length
+    summaryRows.forEach(([label, value], index) => {
+      const x = marginL + (summaryColW * index) + (summaryColW / 2)
+      if (index > 0) doc.line(marginL + summaryColW * index, curY + 0.11, marginL + summaryColW * index, curY + 0.42)
+      doc.setFontSize(6)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(80, 80, 80)
+      doc.text(label, x, curY + 0.22, { align: 'center' })
+      doc.setFontSize(7)
+      doc.setTextColor(label === 'Field Release' || label === 'Grand Total' ? 215 : 0, label === 'Field Release' || label === 'Grand Total' ? 25 : 0, label === 'Field Release' || label === 'Grand Total' ? 32 : 0)
+      doc.text(value, x, curY + 0.36, { align: 'center' })
+    })
+    curY += 0.68
 
     // --- Build table sections ---
     const sections = [
@@ -3468,6 +3503,11 @@ export default function Reports() {
       const collectionDate = params.date || toDateInputValue(new Date())
       const displayCollDate = new Date(collectionDate + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
       const pbInsDstTotal = Number(summary.pbInsDst ?? summary.pb_ins_dst ?? summary.passbookTotal ?? summary.passbook_total ?? 0)
+      const fieldReleaseTotal = Number(summary.fieldRelease ?? summary.field_release ?? 0)
+      const totalExpense = Number(summary.totalExpense ?? summary.total_expense ?? 0)
+      const totalCollectionSummary = Number(summary.totalCollection ?? summary.total_collection ?? summary.total_collected ?? loans.reduce((sum, loan) => sum + Number(loan.collected_today || 0), 0))
+      const cashSummaryTotal = totalCollectionSummary + pbInsDstTotal
+      const grandTotal = Number(summary.grandTotal ?? summary.grand_total ?? (cashSummaryTotal - fieldReleaseTotal - totalExpense))
 
       const isReconLoan = (loan) => (loan.loan_type || '').toLowerCase().includes('recon')
 
@@ -3683,17 +3723,17 @@ export default function Reports() {
             {showSideBoxes ? headerBox('DAILY CASH SUMMARY', (
               <>
                 {[
-                  ['Total Collection'],
+                  ['Total Collection', totalCollectionSummary > 0 ? <span style={cashSummaryNoteStyle}>{cashSummaryAmount(totalCollectionSummary)}</span> : null],
                   ['PB/Ins/DST', pbInsDstTotal > 0 ? (
                     <span style={{ color: CL.pastdue, lineHeight: 1, display: 'inline-flex', alignItems: 'baseline', gap: 3 }}>
                       <span style={{ fontSize: '6.5pt', fontWeight: 600 }}>PB:</span>
                       <span style={{ fontSize: '10pt', fontWeight: 800 }}>{cashSummaryAmount(pbInsDstTotal)}</span>
                     </span>
                   ) : null],
-                  ['Total', null, true],
-                  ['Field Release'],
-                  ['Total Expense'],
-                  ['Grand Total', null, true]
+                  ['Total', cashSummaryTotal > 0 ? <span style={cashSummaryNoteStyle}>{cashSummaryAmount(cashSummaryTotal)}</span> : null, true],
+                  ['Field Release', fieldReleaseTotal > 0 ? <span style={cashSummaryNoteStyle}>{cashSummaryAmount(fieldReleaseTotal)}</span> : null],
+                  ['Total Expense', totalExpense > 0 ? <span style={cashSummaryNoteStyle}>{cashSummaryAmount(totalExpense)}</span> : null],
+                  ['Grand Total', <span style={cashSummaryNoteStyle}>{cashSummaryAmount(grandTotal)}</span>, true]
                 ].map(([label, value, isRed]) => blankCashLine(label, value, isRed))}
                 <div style={{ borderTop: '1.5px solid '+CL.navy, margin: '6px -8px -6px -8px', padding: '6px 8px 6px' }}>
                    {blankCashLine('Over / Short')}
