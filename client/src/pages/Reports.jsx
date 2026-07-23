@@ -3942,7 +3942,7 @@ export default function Reports() {
       )
       const cashSummaryAmount = amount => Number(amount || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })
       const cashSummaryNoteStyle = { color: CL.pastdue, fontWeight: 800, fontSize: '8.5pt', lineHeight: 1 }
-      const fieldReleaseNoteStyle = { color: CL.navy, fontWeight: 800, fontSize: '14pt', lineHeight: 1 }
+      const fieldReleaseNoteStyle = { color: '#D71920', fontWeight: 800, fontSize: '14pt', lineHeight: 1 }
       const blankCashLine = (label, value = null, isRed = false) => (
         <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
           <span style={{ color: isRed ? CL.pastdue : '#555', fontWeight: isRed ? 700 : 400, flex: '0 0 90px', fontSize: '8.5pt' }}>{label}:</span>
