@@ -1275,15 +1275,23 @@ export default function Reports() {
           tab_label: labels[finalParams.monitoring_tab || 'new'],
           rows: Array.isArray(r.data) ? r.data : [],
         })
-        return
+        return {
+          as_of: toDateInputValue(new Date()),
+          tab: finalParams.monitoring_tab || 'new',
+          tab_label: labels[finalParams.monitoring_tab || 'new'],
+          rows: Array.isArray(r.data) ? r.data : [],
+        }
       }
       if (reportKey === 'daily-target') {
         endpoint = 'collection-sheet'
       }
       const r = await API.get(`/reports/${endpoint}`, { params: finalParams })
       setData(r.data)
+      return r.data
     } catch (err) {
-      setData({ error: err.response?.data?.error || err.message || 'Failed to generate report.' })
+      const errorData = { error: err.response?.data?.error || err.message || 'Failed to generate report.' }
+      setData(errorData)
+      return null
     } finally { setLoading(false) }
   }
 
