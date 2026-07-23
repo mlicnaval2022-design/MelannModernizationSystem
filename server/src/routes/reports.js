@@ -478,17 +478,6 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
     `, [collector_id, targetDate]);
     const fieldReleaseTotal = Number(fieldRelease?.amount || 0);
 
-    const fieldRelease = await dbGet(`
-      SELECT COALESCE(SUM(net_proceeds), 0) as total
-      FROM tblLoan
-      WHERE collector_id = ?
-        AND date_released = ?
-        AND LOWER(COALESCE(status, '')) != 'reversed'
-        AND COALESCE(net_proceeds, 0) > 0
-        AND ${sqlNotSunday('date_released')}
-    `, [collector_id, targetDate]);
-    const fieldReleaseTotal = Number(fieldRelease?.total || 0);
-
     // Calculate summary totals
     const totalCollection = collectionLoans.reduce((s, l) => s + Number(l.collected_today || 0), 0);
 
@@ -501,9 +490,9 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
         totalCollection,
         pbInsDst: pbInsDstTotal,
         passbookTotal: pbInsDstTotal,
-        fieldRelease: fieldReleaseTotal,
+        fieldRelease: 0,
         totalExpense: 0,
-        grandTotal: totalCollection + pbInsDstTotal - fieldReleaseTotal
+        grandTotal: totalCollection + pbInsDstTotal
       },
       signatures: {
         checkedBy: 'MARILYN O. RELOBA',

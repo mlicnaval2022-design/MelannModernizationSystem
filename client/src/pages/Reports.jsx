@@ -591,7 +591,9 @@ export default function Reports() {
     const collectionDate = params.date || toDateInputValue(new Date())
     const displayCollDate = new Date(collectionDate + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
     const pbInsDstTotal = Number(summary.pbInsDst ?? summary.pb_ins_dst ?? summary.passbookTotal ?? summary.passbook_total ?? 0)
-    const fieldReleaseTotal = Number(summary.fieldRelease ?? summary.field_release ?? 0)
+    const fieldReleaseTotal = params.manual_field_release !== undefined && params.manual_field_release !== ''
+      ? Number(params.manual_field_release)
+      : Number(summary.fieldRelease ?? summary.field_release ?? 0)
     const totalExpense = Number(summary.totalExpense ?? summary.total_expense ?? 0)
 
     // Classify loans into groups
@@ -1449,6 +1451,9 @@ export default function Reports() {
             </div>
             <div className="form-group"><label className="form-label">Manual Active Clients</label>
               <input type="number" className="form-control" placeholder="Auto" value={params.manual_clients || ''} onChange={e => { const nextParams = { ...params, manual_clients: e.target.value }; setParams(nextParams); if (params.collector_id) run(active, nextParams); }} style={{ width: 160 }} />
+            </div>
+            <div className="form-group"><label className="form-label">Manual Field Release</label>
+              <input type="number" className="form-control" placeholder="0.00" value={params.manual_field_release || ''} onChange={e => { const nextParams = { ...params, manual_field_release: e.target.value }; setParams(nextParams); if (params.collector_id) run(active, nextParams); }} style={{ width: 160 }} />
             </div>
           </>
         )}
@@ -3573,7 +3578,9 @@ export default function Reports() {
       const collectionDate = params.date || toDateInputValue(new Date())
       const displayCollDate = new Date(collectionDate + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
       const pbInsDstTotal = Number(summary.pbInsDst ?? summary.pb_ins_dst ?? summary.passbookTotal ?? summary.passbook_total ?? 0)
-      const fieldReleaseTotal = Number(summary.fieldRelease ?? summary.field_release ?? 0)
+      const fieldReleaseTotal = params.manual_field_release !== undefined && params.manual_field_release !== ''
+        ? Number(params.manual_field_release)
+        : Number(summary.fieldRelease ?? summary.field_release ?? 0)
       const totalExpense = Number(summary.totalExpense ?? summary.total_expense ?? 0)
       const totalCollectionSummary = Number(summary.totalCollection ?? summary.total_collection ?? summary.total_collected ?? loans.reduce((sum, loan) => sum + Number(loan.collected_today || 0), 0))
       const cashSummaryTotal = totalCollectionSummary + pbInsDstTotal
