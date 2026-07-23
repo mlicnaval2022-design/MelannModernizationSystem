@@ -109,14 +109,20 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
           co.id, 
           co.first_name || ' ' || co.last_name as name,
           COALESCE((
-            SELECT SUM(s.amount_due)
-            FROM tblLoan l
-            JOIN tblAmortizationSchedule s ON s.loan_id = l.id
-            WHERE l.collector_id = co.id
-              AND s.due_date = ?
-              AND (l.date_released IS NULL OR l.date_released <= ?)
-              AND LOWER(COALESCE(s.status, '')) != 'reversed'
-              AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'cancelled', 'rejected')
+            SELECT SUM(target_loans.amortization)
+            FROM (
+              SELECT DISTINCT l.id, l.amortization
+              FROM tblLoan l
+              WHERE l.collector_id = co.id
+                AND (l.date_released IS NULL OR l.date_released <= ?)
+                AND LOWER(l.status) IN ('active', 'pastdue')
+                AND COALESCE(l.balance, 0) > 0
+                AND LOWER(COALESCE(l.loan_type, '')) NOT LIKE '%recon%'
+                AND (
+                  l.date_maturity IS NULL
+                  OR CAST(ROUND(JULIANDAY(?) - JULIANDAY(l.date_maturity)) AS INTEGER) < 45
+                )
+            ) target_loans
           ), 0) as target,
           COALESCE((
             SELECT SUM(amount_paid)
