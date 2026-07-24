@@ -165,7 +165,18 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
     const cycleStartStr = cycleStart.toISOString().split('T')[0];
     const cycleEndStr = cycleEnd.toISOString().split('T')[0];
 
+    const weekAgo = new Date(now);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekAgoStr = weekAgo.toISOString().split('T')[0];
+
     res.json({
+      weekly_collection_trend: await dbAll(`
+        SELECT date_paid as date, SUM(amount_paid) as total 
+        FROM tblPayment 
+        WHERE date_paid >= ? AND date_paid <= ? AND status IN ('active', 'penalty') 
+        GROUP BY date_paid 
+        ORDER BY date_paid
+      `, [weekAgoStr, today]),
       cycle_start: cycleStartStr,
       cycle_end: cycleEndStr,
       total_customers: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='active'`)).c,
