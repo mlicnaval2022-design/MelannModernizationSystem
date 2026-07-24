@@ -616,8 +616,6 @@ export default function Reports() {
     const fieldReleaseTotal = params.manual_field_release !== undefined && params.manual_field_release !== ''
       ? Number(params.manual_field_release)
       : Number(summary.fieldRelease ?? summary.field_release ?? 0)
-    const totalExpense = Number(summary.totalExpense ?? summary.total_expense ?? 0)
-
     const isReconLoan = (loan) => (loan.loan_type || '').toLowerCase().includes('recon')
 
     // Classify loans into groups
@@ -635,7 +633,6 @@ export default function Reports() {
     const totalClientsCount = params.manual_clients ? Number(params.manual_clients) : baseClientsCount
     const baseTarget = [...groups.active, ...groups.overdue.filter(c => !isReconLoan(c))].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
     const targetAmount = params.manual_target ? Number(params.manual_target) : baseTarget
-    const totalCollection = Number(summary.totalCollection ?? summary.total_collection ?? summary.total_collected ?? loans.reduce((sum, loan) => sum + Number(loan.collected_today || 0), 0))
 
     // Currency formatter using standard ASCII 'P' to avoid \u20B1 (₱) encoding corruption in WinAnsi pdf fonts
     const pesoFmtPdf = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-P${f}` : `P${f}` }
@@ -837,11 +834,11 @@ export default function Reports() {
         docInst.text('DAILY CASH SUMMARY', cashX + cashW / 2, cashY + 0.15, { align: 'center' })
 
         const cashRows = [
-          { label: 'Total Collection:', val: totalCollection > 0 ? pesoFmtPdf(totalCollection) : '__________________' },
+          { label: 'Total Collection:', val: '__________________' },
           { label: 'PB/Ins/DST:', val: pbInsDstTotal > 0 ? `PB ${cashSummaryAmountPdf(pbInsDstTotal)}` : '__________________' },
-          { label: 'Total:', val: (totalCollection + pbInsDstTotal) > 0 ? pesoFmtPdf(totalCollection + pbInsDstTotal) : '__________________' },
+          { label: 'Total:', val: '__________________' },
           { label: 'Field Release:', val: fieldReleaseTotal > 0 ? pesoFmtPdf(fieldReleaseTotal) : '__________________' },
-          { label: 'Total Expense:', val: totalExpense > 0 ? pesoFmtPdf(totalExpense) : '__________________' },
+          { label: 'Total Expense:', val: '__________________' },
           { label: 'Grand Total:', val: '__________________' },
           { label: 'Over / Short:', val: '__________________' },
           { label: 'PD Collection:', val: '__________________' }
@@ -849,7 +846,7 @@ export default function Reports() {
 
         let cRowY = cashY + 0.38
         cashRows.forEach(r => {
-          if (r.label === 'Field Release:') {
+          if (r.label === 'Field Release:' && r.val !== '__________________') {
             docInst.setFont('helvetica', 'bold')
             docInst.setFontSize(6.5)
             docInst.setTextColor(40, 40, 40)
@@ -3791,10 +3788,6 @@ export default function Reports() {
       const fieldReleaseTotal = params.manual_field_release !== undefined && params.manual_field_release !== ''
         ? Number(params.manual_field_release)
         : Number(summary.fieldRelease ?? summary.field_release ?? 0)
-      const totalExpense = Number(summary.totalExpense ?? summary.total_expense ?? 0)
-      const totalCollectionSummary = Number(summary.totalCollection ?? summary.total_collection ?? summary.total_collected ?? loans.reduce((sum, loan) => sum + Number(loan.collected_today || 0), 0))
-      const cashSummaryTotal = totalCollectionSummary + pbInsDstTotal
-      const grandTotal = Number(summary.grandTotal ?? summary.grand_total ?? (cashSummaryTotal - fieldReleaseTotal - totalExpense))
 
       const isReconLoan = (loan) => (loan.loan_type || '').toLowerCase().includes('recon')
 
@@ -4020,16 +4013,16 @@ export default function Reports() {
             {showSideBoxes ? headerBox('DAILY CASH SUMMARY', (
               <>
                 {[
-                  ['Total Collection', totalCollectionSummary > 0 ? <span style={cashSummaryNoteStyle}>{cashSummaryAmount(totalCollectionSummary)}</span> : null],
+                  ['Total Collection', null],
                   ['PB/Ins/DST', pbInsDstTotal > 0 ? (
                     <span style={{ color: CL.pastdue, lineHeight: 1, display: 'inline-flex', alignItems: 'baseline', gap: 3 }}>
                       <span style={{ fontSize: '8.5pt', fontWeight: 600 }}>PB</span>
                       <span style={{ fontSize: '14pt', fontWeight: 800 }}>{cashSummaryAmount(pbInsDstTotal)}</span>
                     </span>
                   ) : null],
-                  ['Total', cashSummaryTotal > 0 ? <span style={cashSummaryNoteStyle}>{cashSummaryAmount(cashSummaryTotal)}</span> : null, true],
+                  ['Total', null, true],
                   ['Field Release', fieldReleaseTotal > 0 ? <span style={fieldReleaseNoteStyle}>{cashSummaryAmount(fieldReleaseTotal)}</span> : null],
-                  ['Total Expense', totalExpense > 0 ? <span style={cashSummaryNoteStyle}>{cashSummaryAmount(totalExpense)}</span> : null],
+                  ['Total Expense', null],
                   ['Grand Total', null, true]
                 ].map(([label, value, isRed]) => blankCashLine(label, value, isRed))}
                 <div style={{ borderTop: '1.5px solid '+CL.navy, margin: '6px -8px -6px -8px', padding: '6px 8px 6px' }}>
