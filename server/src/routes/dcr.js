@@ -58,8 +58,8 @@ const isReleaseChargePayment = payment => {
 
 const getReleaseChargeBreakdown = releases => releases.reduce((acc, release) => {
   acc.balance += Number(release.previous_balance || 0);
-  acc.penalty += Number(release.penalty_payment_count || 0) > 0 ? 0 : Number(release.penalty || 0);
-  acc.passbook += Number(release.passbook || 0);
+  acc.penalty += Number(release.today_penalty ?? (Number(release.penalty_payment_count || 0) > 0 ? 0 : Number(release.penalty || 0)));
+  acc.passbook += Number(release.today_passbook ?? (release.passbook || 0));
   return acc;
 }, { balance: 0, penalty: 0, passbook: 0 });
 
