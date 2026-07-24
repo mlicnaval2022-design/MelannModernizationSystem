@@ -2,21 +2,47 @@ import { useEffect, useState } from 'react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { AreaChart, Area, ResponsiveContainer, Tooltip, YAxis } from 'recharts'
 import '../dashboard.css'
 
 function fmt(n) { return Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }
 
+const toDateKey = date => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const getYesterdayKey = () => {
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (yesterday.getDay() === 0) {
+    yesterday.setDate(yesterday.getDate() - 1)
+  }
+  return toDateKey(yesterday)
+}
+
 export default function Dashboard() {
-  const { user } = useAuth()
+  useAuth()
   const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
 
   const fetchDashboardData = () => {
-    API.get('/reports/dashboard')
-      .then(r => {
-        setData(r.data)
+    const yesterday = getYesterdayKey()
+
+    Promise.all([
+      API.get('/reports/dashboard', { params: { date: yesterday } }),
+      API.get('/reports/daily-collection', { params: { date_from: yesterday, date_to: yesterday } })
+    ])
+      .then(([dashboardRes, yesterdayCollectionRes]) => {
+        setData({
+          ...dashboardRes.data,
+          collections_yesterday: yesterdayCollectionRes.data?.total || 0,
+          yesterday_str: yesterday
+        })
         setLoading(false)
         setErrorMsg('')
       })
@@ -63,8 +89,8 @@ export default function Dashboard() {
 
         <div className="metric-card-v2">
           <div className="header">
-            <span>Collections Today</span>
-            <h3>₱ {fmt(data.collections_today)}</h3>
+            <span>Collection as of {data.yesterday_str}</span>
+            <h3>₱ {fmt(data.collections_yesterday)}</h3>
             <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Target: ₱100,000</span>
           </div>
           <div className="metric-icon-circle" style={{ background: '#3b82f6', color: 'white' }}>⬇️</div>
@@ -107,30 +133,112 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <h4 style={{ margin: '25px 0 10px 0', color: '#334155' }}>Loan Processing Queue</h4>
+      <div style={{ background: '#f8fafc', padding: '12px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: 25, display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 'bold', color: '#334155', fontSize: 14 }}>Fully Paid & Evaluated:</span>
+        <div style={{ display: 'flex', gap: 20, fontSize: 14 }}>
+          <div style={{ cursor: 'pointer', color: '#047857', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => navigate('/loans')}>
+            <div style={{ background: '#dcfce7', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold' }}>{data.fully_paid_today || 0}</div> 
+            <span>Fully Paid</span>
+          </div>
+          <div style={{ cursor: 'pointer', color: '#1d4ed8', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => navigate('/loans')}>
+            <div style={{ background: '#dbeafe', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold' }}>{data.eligible_for_reloan || 0}</div> 
+            <span>Eligible for Reloan</span>
+          </div>
+          <div style={{ cursor: 'pointer', color: '#6d28d9', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => navigate('/customers')}>
+            <div style={{ background: '#ede9fe', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold' }}>{data.recon_count || 0}</div> 
+            <span>Recon</span>
+          </div>
+          <div style={{ cursor: 'pointer', color: '#b45309', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => navigate('/customers')}>
+            <div style={{ background: '#fef3c7', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold' }}>{data.relax_count || 0}</div> 
+            <span>Relax</span>
+          </div>
+          <div style={{ cursor: 'pointer', color: '#b91c1c', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => navigate('/customers')}>
+            <div style={{ background: '#fee2e2', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold' }}>{data.hold_count || 0}</div> 
+            <span>Hold</span>
+          </div>
+        </div>
+      </div>
+
+      <h4 style={{ margin: '0 0 10px 0', color: '#334155' }}>3-Day No-Payment Alerts</h4>
       <div className="metrics-top-row" style={{ marginBottom: 20 }}>
-        <div className="metric-card-v2" onClick={() => navigate('/credit-scoring')} style={{ cursor: 'pointer', borderTop: '4px solid #f59e0b' }}>
+        <div className="metric-card-v2 compact-card" onClick={() => navigate('/monitoring?tab=monitoring')} style={{ cursor: 'pointer', borderTop: '4px solid #ef4444' }}>
+          <div className="header">
+            <span style={{ fontWeight: 'bold', color: '#b91c1c' }}>All Active Alerts</span>
+            <h3 style={{ color: '#dc2626' }}>{data.monitoring_alerts_active || 0} <span style={{fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)'}}>Clients</span></h3>
+            <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Unresolved eligible records</span>
+          </div>
+          <div className="metric-icon-circle" style={{ background: '#fef2f2', color: '#ef4444', fontSize: 24 }}>🚨</div>
+        </div>
+        <div className="metric-card-v2 compact-card" onClick={() => navigate('/monitoring?tab=escalated')} style={{ cursor: 'pointer', borderTop: '4px solid #991b1b' }}>
+          <div className="header">
+            <span style={{ fontWeight: 'bold', color: '#7f1d1d' }}>Escalated (Day 4+)</span>
+            <h3 style={{ color: '#991b1b' }}>{data.monitoring_alerts_escalated || 0}</h3>
+          </div>
+          <div className="metric-icon-circle" style={{ background: '#fee2e2', color: '#b91c1c', fontSize: 24 }}>🔥</div>
+        </div>
+        <div className="metric-card-v2 compact-card" onClick={() => navigate('/monitoring?tab=resolved')} style={{ cursor: 'pointer', borderTop: '4px solid #10b981' }}>
+          <div className="header">
+            <span style={{ fontWeight: 'bold', color: '#047857' }}>Resolved Today</span>
+            <h3 style={{ color: '#059669' }}>{data.monitoring_alerts_resolved_today || 0}</h3>
+          </div>
+          <div className="metric-icon-circle" style={{ background: '#ecfdf5', color: '#10b981', fontSize: 24 }}>✅</div>
+        </div>
+
+        {/* Daily Collection Trend Chart in 4th Slot */}
+        <div className="metric-card-v2 compact-card" style={{ borderTop: '4px solid #8b5cf6', paddingBottom: 10 }}>
+          <div className="header" style={{ marginBottom: 4 }}>
+            <span style={{ fontWeight: 'bold', color: '#6d28d9' }}>7-Day Collection Trend</span>
+          </div>
+          <div style={{ height: 65, width: '100%', marginTop: 'auto' }}>
+            {data.weekly_collection_trend && data.weekly_collection_trend.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={data.weekly_collection_trend} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Tooltip 
+                    formatter={(value) => [`₱${fmt(value)}`, 'Total']} 
+                    labelFormatter={(label) => new Date(label).toLocaleDateString('en-US', {month: 'short', day: 'numeric'})}
+                    contentStyle={{ fontSize: '11px', padding: '4px 8px', borderRadius: '4px' }}
+                  />
+                  <YAxis domain={['dataMin', 'dataMax']} hide />
+                  <Area type="monotone" dataKey="total" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorTotal)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>No data</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <h4 style={{ margin: '0 0 10px 0', color: '#334155' }}>Loan Processing Queue</h4>
+      <div className="metrics-top-row" style={{ marginBottom: 20 }}>
+        <div className="metric-card-v2 compact-card" onClick={() => navigate('/credit-scoring')} style={{ cursor: 'pointer', borderTop: '4px solid #f59e0b' }}>
           <div className="header">
             <span style={{ fontWeight: 'bold', color: '#b45309' }}>For CI</span>
             <h3 style={{ color: '#d97706' }}>{data.pending_ci_count || 0} <span style={{fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)'}}>Applications</span></h3>
           </div>
           <div className="metric-icon-circle" style={{ background: '#fffbeb', color: '#f59e0b', fontSize: 24 }}>📋</div>
         </div>
-        <div className="metric-card-v2" onClick={() => navigate('/credit-scoring')} style={{ cursor: 'pointer', borderTop: '4px solid #3b82f6' }}>
+        <div className="metric-card-v2 compact-card" onClick={() => navigate('/credit-scoring')} style={{ cursor: 'pointer', borderTop: '4px solid #3b82f6' }}>
           <div className="header">
             <span style={{ fontWeight: 'bold', color: '#1d4ed8' }}>For Approval</span>
             <h3 style={{ color: '#2563eb' }}>{data.for_approval_count || 0} <span style={{fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)'}}>Applications</span></h3>
           </div>
           <div className="metric-icon-circle" style={{ background: '#eff6ff', color: '#3b82f6', fontSize: 24 }}>✅</div>
         </div>
-        <div className="metric-card-v2" style={{ borderTop: '4px solid #10b981' }}>
+        <div className="metric-card-v2 compact-card" style={{ borderTop: '4px solid #10b981' }}>
           <div className="header">
             <span style={{ fontWeight: 'bold', color: '#047857' }}>Approved Today</span>
             <h3 style={{ color: '#059669' }}>{data.approved_today || 0}</h3>
           </div>
           <div className="metric-icon-circle" style={{ background: '#ecfdf5', color: '#10b981', fontSize: 24 }}>🎉</div>
         </div>
-        <div className="metric-card-v2" style={{ borderTop: '4px solid #ef4444' }}>
+        <div className="metric-card-v2 compact-card" style={{ borderTop: '4px solid #ef4444' }}>
           <div className="header">
             <span style={{ fontWeight: 'bold', color: '#b91c1c' }}>Rejected Today</span>
             <h3 style={{ color: '#dc2626' }}>{data.rejected_today || 0}</h3>
@@ -138,6 +246,8 @@ export default function Dashboard() {
           <div className="metric-icon-circle" style={{ background: '#fef2f2', color: '#ef4444', fontSize: 24 }}>❌</div>
         </div>
       </div>
+
+
 
       <div className="dashboard-main-grid">
         {/* LEFT COLUMN */}
@@ -148,42 +258,44 @@ export default function Dashboard() {
             <div className="card-v2" style={{ flex: 2 }}>
               <div className="card-v2-title">
                 👥 Collector Performance 
-                {data.cycle_start && <span style={{ fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: 8 }}>(Cycle: {new Date(data.cycle_start).toLocaleDateString('en-US', {month:'short', day:'numeric'})} - {new Date(data.cycle_end).toLocaleDateString('en-US', {month:'short', day:'numeric'})})</span>}
+                {data.yesterday_str && <span style={{ fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: 8 }}>(Yesterday: {new Date(data.yesterday_str + 'T00:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})})</span>}
               </div>
-              <table className="data-table" style={{ fontSize: 12 }}>
-                <thead>
-                  <tr>
-                    <th style={{ background: 'transparent' }}>Collector</th>
-                    <th style={{ background: 'transparent' }}>Target</th>
-                    <th style={{ background: 'transparent' }}>Collected</th>
-                    <th style={{ background: 'transparent', textAlign: 'right' }}>%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.collector_performance && data.collector_performance.length > 0 ? data.collector_performance.map(c => {
-                    const pct = c.target > 0 ? Math.round((c.collected / c.target) * 100) : 0;
-                    let color = '#ef4444';
-                    if (pct >= 100) color = '#10b981';
-                    else if (pct >= 80) color = '#f59e0b';
-                    
-                    return (
-                      <tr key={c.id}>
-                        <td className="fw-bold">{c.name}</td>
-                        <td>₱{fmt(c.target)}</td>
-                        <td>₱{fmt(c.collected)}</td>
-                        <td style={{ textAlign: 'right' }}>
-                          <span style={{ fontWeight: 600 }}>{pct}%</span>
-                          <div className="progress-container">
-                            <div className="progress-fill" style={{ width: `${Math.min(pct, 100)}%`, background: color }}></div>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  }) : (
-                    <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '10px 0' }}>No active collectors</td></tr>
-                  )}
-                </tbody>
-              </table>
+              <div style={{ maxHeight: '350px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                <table className="data-table" style={{ fontSize: 12, margin: 0, border: 'none' }}>
+                  <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+                    <tr>
+                      <th style={{ background: '#f8fafc', borderTop: 'none' }}>Collector</th>
+                      <th style={{ background: '#f8fafc', borderTop: 'none' }}>Yesterday's Target</th>
+                      <th style={{ background: '#f8fafc', borderTop: 'none' }}>Yesterday's Collection</th>
+                      <th style={{ background: '#f8fafc', textAlign: 'right', borderTop: 'none' }}>%</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.collector_performance && data.collector_performance.length > 0 ? data.collector_performance.map(c => {
+                      const pct = c.target > 0 ? Math.round((c.collected / c.target) * 100) : 0;
+                      let color = '#ef4444';
+                      if (pct >= 100) color = '#10b981';
+                      else if (pct >= 80) color = '#f59e0b';
+                      
+                      return (
+                        <tr key={c.id}>
+                          <td className="fw-bold">{c.name}</td>
+                          <td>₱{fmt(c.target)}</td>
+                          <td>₱{fmt(c.collected)}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <span style={{ fontWeight: 600 }}>{pct}%</span>
+                            <div className="progress-container">
+                              <div className="progress-fill" style={{ width: `${Math.min(pct, 100)}%`, background: color }}></div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }) : (
+                      <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '10px 0' }}>No active collectors</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
               <div style={{ display: 'flex', gap: 12, marginTop: 15, fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }}></div> 100%+</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }}></div> 80%-99%</span>
@@ -193,27 +305,27 @@ export default function Dashboard() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20, flex: 1 }}>
               <div className="card-v2">
-                <div className="card-v2-title">🎯 Today's Collection Status</div>
+                <div className="card-v2-title">🎯 Yesterday's Collection Status</div>
                 <div className="collection-blocks">
                   <div className="c-block" style={{ background: '#f0f9ff', borderColor: '#bae6fd' }}>
-                    <span style={{ color: '#0369a1' }}>Target Collection</span>
+                    <span style={{ color: '#0369a1' }}>Yesterday's Target Collection</span>
                     <h4 style={{ color: '#0284c7' }}>₱{fmt(data.collector_performance?.reduce((s,c)=>s+c.target,0))}</h4>
                   </div>
                   <div className="c-block" style={{ background: '#f0fdf4', borderColor: '#bbf7d0' }}>
-                    <span style={{ color: '#15803d' }}>Collected</span>
-                    <h4 style={{ color: '#16a34a' }}>₱{fmt(data.collections_today)}</h4>
+                    <span style={{ color: '#15803d' }}>Yesterday's Collection</span>
+                    <h4 style={{ color: '#16a34a' }}>₱{fmt(data.collections_yesterday)}</h4>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 25 }}>
                   <div className="progress-container" style={{ height: 12, margin: 0, flex: 1 }}>
                     {(() => {
                        const t = data.collector_performance?.reduce((s,c)=>s+c.target,0) || 0;
-                       const pct = t > 0 ? Math.round((data.collections_today/t)*100) : 0;
+                       const pct = t > 0 ? Math.round((data.collections_yesterday/t)*100) : 0;
                        return <div className="progress-fill" style={{ width: `${pct}%`, background: '#10b981' }}></div>
                     })()}
                   </div>
                   <span style={{ fontWeight: 800, fontSize: 18 }}>
-                    {data.collector_performance?.reduce((s,c)=>s+c.target,0) > 0 ? Math.round((data.collections_today/data.collector_performance?.reduce((s,c)=>s+c.target,0))*100) : 0}%
+                    {data.collector_performance?.reduce((s,c)=>s+c.target,0) > 0 ? Math.round((data.collections_yesterday/data.collector_performance?.reduce((s,c)=>s+c.target,0))*100) : 0}%
                   </span>
                 </div>
               </div>

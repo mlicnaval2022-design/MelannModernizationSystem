@@ -1,2 +1,18 @@
 node_modules/
 .env
+
+# Local database files and backups
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.bak
+server/melann.db*
+melann.db*
+server/src/db/*.sqlite*
+uploads/
+
+# System and agent logs
+.omx/

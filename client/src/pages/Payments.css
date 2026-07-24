@@ -468,3 +468,453 @@ input[type=number]::-webkit-outer-spin-button {
 input[type=number] {
   -moz-appearance: textfield;
 }
+
+.payment-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #dbe3ef;
+}
+
+.payment-tab {
+  border: 0;
+  background: transparent;
+  color: #475569;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+}
+
+.payment-tab.active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+}
+
+.reverse-payment-shell {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+
+.reverse-payment-header,
+.reverse-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+}
+
+.reverse-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.reverse-title-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  background: #eff6ff;
+  color: #2563eb;
+  border-radius: 6px;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.reverse-title-wrap h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 24px;
+}
+
+.reverse-title-wrap p {
+  margin: 4px 0 0;
+  color: #475569;
+  font-size: 13px;
+}
+
+.reverse-tip {
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 360px;
+  background: #f8fbff;
+}
+
+.reverse-tip-icon,
+.reverse-help-box span {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid #2563eb;
+  color: #2563eb;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 13px;
+  flex: 0 0 auto;
+}
+
+.reverse-tip strong,
+.reverse-tip span {
+  display: block;
+  font-size: 12px;
+}
+
+.reverse-tip strong { color: #2563eb; }
+.reverse-tip span { color: #334155; margin-top: 2px; }
+
+.reverse-alert {
+  margin: 0 24px 16px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.reverse-alert.success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.reverse-alert.danger {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.reverse-main-grid {
+  display: grid;
+  grid-template-columns: 380px minmax(0, 1fr);
+  gap: 20px;
+  padding: 0 24px 16px;
+}
+
+.reverse-search-card,
+.reverse-details-card,
+.reverse-impact-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.reverse-search-card {
+  padding: 20px;
+  align-self: start;
+}
+
+.reverse-search-card h3,
+.reverse-section-title h3,
+.reverse-impact-card h3 {
+  margin: 0 0 20px;
+  color: #2563eb;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.reverse-search-card label {
+  display: block;
+  margin: 16px 0 8px;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.reverse-search-card b { color: #ef4444; }
+
+.reverse-field {
+  height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+}
+
+.reverse-field span { color: #64748b; font-weight: 800; }
+.reverse-field em { color: #16a34a; font-style: normal; margin-left: auto; font-weight: 900; }
+
+.reverse-field input {
+  border: 0;
+  outline: 0;
+  flex: 1;
+  font-size: 14px;
+  color: #0f172a;
+  min-width: 0;
+}
+
+.reverse-search-card small {
+  display: block;
+  margin-top: 7px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.reverse-search-btn,
+.reverse-danger-btn {
+  border: 0;
+  background: #2563eb;
+  color: #fff;
+  border-radius: 5px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.reverse-search-btn {
+  width: 100%;
+  margin-top: 20px;
+  padding: 13px 14px;
+}
+
+.reverse-help-box {
+  margin-top: 18px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  gap: 12px;
+  background: #f8fbff;
+}
+
+.reverse-help-box strong { color: #2563eb; font-size: 12px; }
+.reverse-help-box p { margin: 4px 0 0; color: #334155; font-size: 12px; line-height: 1.45; }
+
+.reverse-details-card { padding: 20px; }
+
+.reverse-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 20px;
+}
+
+.reverse-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.reverse-status.posted { background: #dcfce7; color: #16a34a; }
+.reverse-status.reversed { background: #fee2e2; color: #dc2626; }
+.reverse-status i { width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
+
+.reverse-person-row {
+  display: grid;
+  grid-template-columns: 78px 250px 1fr;
+  gap: 20px;
+  align-items: center;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 20px;
+}
+
+.reverse-avatar {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: #eef2ff;
+  color: #2563eb;
+  display: grid;
+  place-items: center;
+  font-size: 36px;
+}
+
+.reverse-person strong {
+  display: block;
+  color: #0f172a;
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.reverse-person span,
+.reverse-meta-grid span,
+.reverse-stat-grid span,
+.reverse-impact-row span {
+  display: block;
+  color: #475569;
+  font-size: 12px;
+}
+
+.reverse-person span { margin-top: 6px; }
+
+.reverse-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 22px 36px;
+}
+
+.reverse-meta-grid strong {
+  color: #0f172a;
+  font-size: 13px;
+  margin-top: 6px;
+  display: block;
+}
+
+.reverse-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.reverse-stat-grid div,
+.reverse-impact-row div {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  padding: 16px 12px;
+  text-align: center;
+}
+
+.reverse-stat-grid strong {
+  display: block;
+  color: #0f172a;
+  font-size: 18px;
+  margin-top: 16px;
+}
+
+.reverse-stat-grid small {
+  display: block;
+  color: #475569;
+  margin-top: 6px;
+}
+
+.reverse-stat-grid .green,
+.reverse-impact-row .green { color: #16a34a; }
+.reverse-impact-row .blue { color: #2563eb; }
+.reverse-impact-row .red { color: #ef4444; }
+
+.reverse-status-note {
+  margin-top: 18px;
+  border: 1px solid #bfdbfe;
+  background: #f8fbff;
+  border-radius: 6px;
+  padding: 16px 20px;
+}
+
+.reverse-status-note strong,
+.reverse-status-note span { display: block; font-size: 13px; }
+.reverse-status-note strong { color: #0f172a; }
+.reverse-status-note span { margin-top: 8px; color: #334155; }
+
+.reverse-empty-state {
+  min-height: 300px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  color: #64748b;
+  text-align: center;
+}
+
+.reverse-empty-state span { font-size: 36px; color: #2563eb; }
+.reverse-empty-state strong { margin-top: 10px; color: #0f172a; }
+.reverse-empty-state p { margin: 6px 0 0; font-size: 13px; }
+
+.reverse-impact-card {
+  margin: 0 24px 16px;
+  padding: 20px;
+}
+
+.reverse-impact-row {
+  display: grid;
+  grid-template-columns: 1fr 48px 1fr 48px 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+.reverse-impact-row b {
+  text-align: center;
+  color: #334155;
+  font-size: 20px;
+}
+
+.reverse-impact-row strong {
+  display: block;
+  margin-top: 16px;
+  font-size: 21px;
+}
+
+.reverse-actions {
+  border-top: 1px solid #e2e8f0;
+}
+
+.reverse-actions > div {
+  display: flex;
+  gap: 12px;
+}
+
+.reverse-clear-btn,
+.reverse-preview-btn {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 12px 22px;
+  cursor: pointer;
+}
+
+.reverse-preview-btn {
+  color: #2563eb;
+}
+
+.reverse-danger-btn {
+  background: #e11d48;
+  padding: 12px 24px;
+}
+
+.reverse-search-btn:disabled,
+.reverse-preview-btn:disabled,
+.reverse-danger-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.reverse-audit {
+  background: #eff6ff;
+  border-top: 1px solid #dbeafe;
+  color: #2563eb;
+  text-align: center;
+  font-size: 12px;
+  padding: 14px;
+}
+
+@media (max-width: 1100px) {
+  .reverse-main-grid,
+  .reverse-person-row,
+  .reverse-stat-grid,
+  .reverse-impact-row {
+    grid-template-columns: 1fr;
+  }
+
+  .reverse-payment-header,
+  .reverse-actions {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .reverse-tip {
+    min-width: 0;
+  }
+}

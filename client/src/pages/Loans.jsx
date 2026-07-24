@@ -1,29 +1,137 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import FullyPaid from './FullyPaid'
+import ReloanModal from '../components/ReloanModal'
+import { FilePlus, RefreshCw, Wrench, FileText } from 'lucide-react'
+import './Loans.css'
 
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 
 export default function Loans() {
   const { hasRole } = useAuth()
+  const navigate = useNavigate()
   const [rows, setRows] = useState([])
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('active') // Default to active loans
+  const [status, setStatus] = useState('input')
   const [loading, setLoading] = useState(true)
+
+  // Filters
+  const [filterCollector, setFilterCollector] = useState('')
+  const [filterType, setFilterType] = useState('')
   
   const [detailModal, setDetailModal] = useState(false)
   const [detailLoan, setDetailLoan] = useState(null)
   const [detailTab, setDetailTab] = useState('payments')
 
-  // Release Modal State
-  const [releaseModal, setReleaseModal] = useState(false)
-  const [approvedLoans, setApprovedLoans] = useState([])
-  const [releaseForm, setReleaseForm] = useState({ id: '', date_released: new Date().toISOString().split('T')[0] })
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [reloanCustomer, setReloanCustomer] = useState(null)
+  const [loanActionType, setLoanActionType] = useState('')
+  const [reloanModalOpen, setReloanModalOpen] = useState(false)
+  const [confirmModal, setConfirmModal] = useState(null)
+  const [editModal, setEditModal] = useState(null)
+  const [noteModal, setNoteModal] = useState(null)
 
-  const load = () => { setLoading(true); API.get('/loans', { params: { search, status } }).then(r => setRows(r.data)).finally(() => setLoading(false)) }
+  const triggerRecon = (r) => {
+    setReloanCustomer({
+      id: r.customer_id,
+      source_loan_id: r.id,
+      customer_code: r.customer_code,
+      client_name: r.customer_name,
+      collector_name: r.collector_name
+    });
+    setLoanActionType('RECON');
+    setReloanModalOpen(true);
+  }
+
+  const triggerAddLoan = (r) => {
+    setReloanCustomer({
+      id: r.customer_id,
+      customer_code: r.customer_code,
+      client_name: r.customer_name,
+      collector_name: r.collector_name
+    });
+    setLoanActionType('RELOAN');
+    setReloanModalOpen(true);
+  }
+
+
+  const handleEditNote = (loan) => {
+    setNoteModal({
+      customerId: loan.customer_id,
+      customerName: loan.customer_name,
+      status: loan.customer_status,
+      note: loan.status_note || '',
+      saving: false,
+      error: ''
+    });
+  }
+
+  const handleNoteSubmit = async (e) => {
+    e.preventDefault();
+    if (!noteModal) return;
+    try {
+      setNoteModal(m => ({ ...m, saving: true, error: '' }));
+      await API.put(`/customers/${noteModal.customerId}/status-note`, {
+        note: noteModal.note,
+        status: noteModal.status
+      });
+      setNoteModal(null);
+      load();
+    } catch (err) {
+      setNoteModal(m => ({
+        ...m,
+        saving: false,
+        error: err.response?.data?.error || err.message || 'Failed to update note.'
+      }));
+    }
+  }
+
+  const handleEditLoanSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await API.put(`/loans/${editModal.id}/edit`, editModal);
+      setEditModal(null);
+      load();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error editing loan');
+    }
+  };
+
+  const load = () => { 
+    if (status === 'input') {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true); 
+    API.get('/loans', { params: { search, status } })
+       .then(r => setRows(r.data))
+       .finally(() => setLoading(false)) 
+  }
   useEffect(() => { load() }, [search, status])
+
+  const openInputLoan = (type = 'RELOAN', selectedCustomer = null) => {
+    setLoanActionType(type);
+    setReloanCustomer(selectedCustomer);
+    setReloanModalOpen(true);
+  };
+
+  const viewSoa = (customerId, codeOrName = '') => {
+    const params = new URLSearchParams();
+    if (codeOrName) params.set('search', codeOrName);
+    if (customerId) params.set('openSoa', customerId);
+    navigate(`/customers${params.toString() ? `?${params.toString()}` : ''}`);
+  };
+
+  const filteredRows = rows.filter(r => {
+    if (filterCollector && (r.collector_name || 'Unassigned') !== filterCollector) return false;
+    if (filterType && r.loan_type !== filterType) return false;
+    return true;
+  }).sort((a, b) => (a.customer_name || '').localeCompare(b.customer_name || ''));
+
+  const uniqueCollectors = [...new Set(rows.map(r => r.collector_name || 'Unassigned'))].sort();
+  const uniqueTypes = [...new Set(rows.map(r => r.loan_type))].sort();
 
   const getImageUrl = (path) => {
     if (!path) return '';
@@ -32,33 +140,40 @@ export default function Loans() {
     return `${baseUrl}${path}`;
   };
 
-  const openReleaseModal = async () => {
-    setError('')
-    setReleaseForm({ id: '', date_released: new Date().toISOString().split('T')[0] })
-    setReleaseModal(true)
-    try {
-      const res = await API.get('/loans', { params: { status: 'approved' } })
-      setApprovedLoans(res.data)
-    } catch (e) { console.error(e) }
+  const handleReverse = (id) => {
+    setConfirmModal({
+      message: 'Reverse this loan and all its payments?',
+      subMessage: 'This action cannot be undone and will mark the loan and all associated payments as reversed.',
+      onConfirm: async () => {
+        setConfirmModal(null)
+        try { 
+          await API.post(`/reversals/loan/${id}`); 
+          load();
+        } catch (err) { 
+          alert(err.response?.data?.error || 'Error reversing loan');
+        }
+      },
+      onCancel: () => setConfirmModal(null)
+    })
   }
 
-  const handleRelease = async (e) => {
-    e.preventDefault()
-    if (!releaseForm.id) return setError('Please select an approved application')
-    setError('')
-    setSaving(true)
+  const handleApproveReloan = async (id) => {
+    if (!confirm('Are you sure you want to approve this Reloan Application?')) return;
     try {
-      await API.post(`/loans/${releaseForm.id}/release`, { date_released: releaseForm.date_released })
-      setReleaseModal(false)
-      load()
-    } catch (err) { setError(err.response?.data?.error || 'Error releasing loan') }
-    finally { setSaving(false) }
+      await API.post(`/loans/${id}/approve-reloan`);
+      alert('Reloan approved successfully!');
+      load();
+    } catch (err) { alert(err.response?.data?.error || 'Error approving reloan') }
   }
 
-  const handleReverse = async (id) => {
-    if (!confirm('Reverse this loan and all its payments?')) return
-    try { await API.post(`/reversals/loan/${id}`); load() }
-    catch (err) { alert(err.response?.data?.error || 'Error reversing loan') }
+  const handleRejectReloan = async (id) => {
+    const remarks = prompt('Please enter the reason for rejection:');
+    if (!remarks) return;
+    try {
+      await API.post(`/loans/${id}/reject-reloan`, { remarks });
+      alert('Reloan rejected successfully!');
+      load();
+    } catch (err) { alert(err.response?.data?.error || 'Error rejecting reloan') }
   }
 
   const viewDetail = (id) => {
@@ -70,55 +185,154 @@ export default function Loans() {
   const schColor = (s) => ({ paid: 'badge-active', unpaid: 'badge-inactive', overdue: 'badge-pastdue' }[s] || 'badge-inactive')
 
   return (
-    <div>
+    <div className="loans-modern">
       <div className="page-toolbar">
         <div className="search-input-wrap">
           <span className="search-icon">🔍</span>
           <input id="loan-search" className="form-control" placeholder="Search name, code, loan#..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <select id="loan-status-filter" className="form-control" style={{ width: 150 }} value={status} onChange={e => setStatus(e.target.value)}>
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="pastdue">Past Due</option>
-          <option value="fullpaid">Full Paid</option>
-          <option value="reversed">Reversed</option>
-          <option value="approved">Approved (Not Released)</option>
-        </select>
-        <button id="btn-release-loan" className="btn btn-primary" onClick={openReleaseModal}>🚀 Release Approved Loan</button>
       </div>
 
-      <div className="card">
-        <div className="table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr><th>Loan #</th><th>Customer</th><th>Type</th><th>Principal</th><th>Balance</th><th>Released</th><th>Maturity</th><th>Collector</th><th>Status</th><th>Actions</th></tr>
-            </thead>
+      <div className="custom-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '15px', overflowX: 'auto', paddingBottom: '5px' }}>
+        {[
+          { value: 'input', label: 'Input Loans' },
+          { value: '', label: 'All Status' },
+          { value: 'relax', label: 'Relax' },
+          { value: 'hold', label: 'Hold' },
+          { value: 'active', label: 'Active' },
+          { value: 'pastdue', label: 'Past Due' },
+          { value: 'fullpaid', label: 'Fully Paid' },
+          { value: 'reloan_pending', label: 'Pending Reloans' },
+          { value: 'approved', label: 'Approved (Not Released)' },
+
+        ].map(tab => (
+          <div 
+            key={tab.value}
+            className={status === tab.value ? 'active' : ''}
+            onClick={() => setStatus(tab.value)}
+            style={{ 
+              padding: '6px 14px', 
+              cursor: 'pointer', 
+              fontWeight: '600', 
+              fontSize: '13px',
+              borderRadius: '20px',
+              background: status === tab.value ? '#3b82f6' : '#f1f5f9',
+              color: status === tab.value ? 'white' : '#475569',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.2s ease'
+            }}>
+            {tab.label}
+          </div>
+        ))}
+      </div>
+
+      {status === 'input' ? (
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16, marginBottom: 16 }}>
+            <section className="card loans-entry-card" style={{ padding: 20 }}>
+              <h4 style={{ margin: '0 0 12px', color: '#1e293b' }}>Loan Entry Actions</h4>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button className="btn btn-dark" onClick={() => openInputLoan('NEW')}>
+                  <FilePlus size={24} style={{ position: 'absolute', top: '26px', left: '50%', transform: 'translateX(-50%)', zIndex: 1, strokeWidth: 2 }} />
+                  NEW
+                </button>
+                <button className="btn btn-dark" onClick={() => openInputLoan('RELOAN')}>
+                  <RefreshCw size={24} style={{ position: 'absolute', top: '26px', left: '50%', transform: 'translateX(-50%)', zIndex: 1, strokeWidth: 2 }} />
+                  RELOAN
+                </button>
+                <button className="btn btn-dark" onClick={() => openInputLoan('RECON')}>
+                  <Wrench size={24} style={{ position: 'absolute', top: '26px', left: '50%', transform: 'translateX(-50%)', zIndex: 1, strokeWidth: 2 }} />
+                  RECON
+                </button>
+                <button className="btn btn-light" style={{ border: '1px solid #cbd5e1' }} onClick={() => navigate(`/customers${search ? `?search=${encodeURIComponent(search)}` : ''}`)}>
+                  <FileText size={24} style={{ position: 'absolute', top: '26px', left: '50%', transform: 'translateX(-50%)', zIndex: 1, strokeWidth: 2 }} />
+                  View SOA
+                </button>
+              </div>
+            </section>
+
+            <section className="card loans-overview-card" style={{ padding: 20 }}>
+              <h4 style={{ margin: '0 0 12px', color: '#1e293b' }}>Loan Input Overview</h4>
+              <div className="loans-overview-list">
+                {[
+                  ['NEW', 'Use for first-time loans.'],
+                  ['RELOAN', 'Use for clients with existing loan history.'],
+                  ['RECON', 'Use to reconstruct or adjust loan records.'],
+                  ['View SOA', 'View detailed loan history and balances.']
+                ].map(([label, text]) => (
+                  <div className={`loans-overview-row ${label.toLowerCase().replace(/\s+/g, '-')}`} key={label}>
+                    <span>{label}</span>
+                    <p>{text}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <section className="card" style={{ padding: 20 }}>
+            <h4 style={{ margin: '0 0 12px', color: '#1e293b' }}>Recent Loan-Entry Activity</h4>
+            <p style={{ margin: 0, color: '#64748b' }}>Recently processed transactions appear in the status tabs. Use SOA for previous loans, payments, penalties, adjustments, and running balances.</p>
+          </section>
+        </div>
+      ) : status === 'fullpaid' ? (
+        <FullyPaid search={search} />
+      ) : (
+        <>
+          <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', alignItems: 'center' }}>
+            <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#64748b' }}>Filters:</span>
+            <select className="form-control" style={{ width: '200px', padding: '6px 12px' }} value={filterCollector} onChange={e => setFilterCollector(e.target.value)}>
+              <option value="">All Collectors</option>
+              {uniqueCollectors.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select className="form-control" style={{ width: '200px', padding: '6px 12px' }} value={filterType} onChange={e => setFilterType(e.target.value)}>
+              <option value="">All Loan Types</option>
+              {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            {(filterCollector || filterType) && (
+              <button className="btn btn-secondary btn-sm" onClick={() => { setFilterCollector(''); setFilterType(''); }}>Clear</button>
+            )}
+          </div>
+
+          <div className="card">
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr><th>Loan #</th><th>Customer</th><th>Type</th><th>Principal</th><th>Balance</th><th>Released</th><th>Maturity</th><th>Collector</th><th>Status</th></tr>
+              </thead>
             <tbody>
-              {loading ? <tr className="loading-row"><td colSpan={10}>⏳ Loading...</td></tr>
-                : rows.length === 0 ? <tr><td colSpan={10} className="empty-state">No loans found</td></tr>
-                : rows.map(r => (
+              {loading ? <tr className="loading-row"><td colSpan={9}>⏳ Loading...</td></tr>
+                : filteredRows.length === 0 ? <tr><td colSpan={9} className="empty-state">No loans found</td></tr>
+                : filteredRows.map(r => (
                   <tr key={r.id}>
                     <td><span className="mono">{r.loan_code}</span></td>
-                    <td className="fw-600">{r.customer_name}</td>
+                    <td>
+                      <div className="fw-600">{r.customer_name}</div>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', fontFamily: 'monospace' }}>{r.customer_code}</div>
+                    </td>
                     <td><span className="tag">{r.loan_type}</span></td>
                     <td className="text-right">₱ {fmt(r.principal)}</td>
                     <td className="text-right fw-bold">
-                      {r.status === 'fullpaid' ? <span className="text-success">PAID</span> : <span>₱ {fmt(r.balance)}</span>}
+                      {r.status === 'fullpaid' || Number(r.balance || 0) <= 0 ? <span className="text-success">PAID</span> : <span>₱ {fmt(r.balance)}</span>}
                     </td>
                     <td>{r.date_released}</td>
                     <td>{r.date_maturity}</td>
                     <td>{r.collector_name || '—'}</td>
                     <td>
-                      {r.status === 'approved' ? <span className="badge badge-warning">Approved (Not Released)</span> :
-                       <span className={`badge badge-${r.status}`}>{r.status}</span>}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button className="btn btn-secondary btn-sm" onClick={() => viewDetail(r.id)}>View</button>
-                        {hasRole('admin', 'manager') && r.status === 'active' &&
-                          <button className="btn btn-danger btn-sm" onClick={() => handleReverse(r.id)}>Reverse</button>
-                        }
-                      </div>
+                      {(() => {
+                        const isContext = ['relax', 'hold'].includes(r.customer_status?.toLowerCase());
+                        const badgeText = isContext ? r.customer_status.toUpperCase() : (r.status === 'approved' ? 'Approved (Not Released)' : r.status);
+                        const badgeClass = isContext ? r.customer_status.toLowerCase() : r.status;
+                        return (
+                          <>
+                            <span className={`badge badge-${badgeClass}`}>{badgeText}</span>
+                            {isContext && r.status_note && (
+                              <div style={{ marginTop: '6px', fontSize: '11px', color: '#64748b', maxWidth: '150px', whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.2' }}>
+                                <i>Note: {r.status_note}</i>
+                              </div>
+                            )}
+                          </>
+                        )
+                      })()}
                     </td>
                   </tr>
                 ))}
@@ -127,48 +341,9 @@ export default function Loans() {
         </div>
       </div>
 
-      {/* ===================== Release Loan Modal ===================== */}
-      {releaseModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setReleaseModal(false)}>
-          <div className="modal" style={{ maxWidth: 500 }}>
-            <div className="modal-header">
-              <span className="modal-title">🚀 Release Approved Loan</span>
-              <button className="modal-close" onClick={() => setReleaseModal(false)}>✕</button>
-            </div>
-            <div className="modal-body">
-              {error && <div className="login-error" style={{ marginBottom: 14 }}>⚠️ {error}</div>}
-              
-              <form onSubmit={handleRelease}>
-                <div className="form-group mb-3">
-                  <label className="form-label">Select Approved Application *</label>
-                  <select className="form-control" value={releaseForm.id} onChange={e => setReleaseForm(f => ({ ...f, id: e.target.value }))} required>
-                    <option value="">Select...</option>
-                    {approvedLoans.map(c => (
-                      <option key={c.id} value={c.id}>{c.loan_code} — {c.customer_name} (₱ {fmt(c.principal)})</option>
-                    ))}
-                  </select>
-                  {approvedLoans.length === 0 && <small className="text-danger mt-1 d-block">No approved applications pending release.</small>}
-                </div>
-                
-                <div className="form-group mb-3">
-                  <label className="form-label">Official Release Date *</label>
-                  <input type="date" className="form-control" value={releaseForm.date_released} onChange={e => setReleaseForm(f => ({ ...f, date_released: e.target.value }))} required />
-                  <small className="text-muted mt-1 d-block">The 45-day maturity schedule will be generated starting from this date.</small>
-                </div>
-
-                <div className="form-actions mt-4">
-                  <button type="button" className="btn btn-secondary" onClick={() => setReleaseModal(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={saving || approvedLoans.length === 0}>{saving ? 'Releasing...' : '🚀 Release & Generate Schedule'}</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ===================== Loan Detail Modal ===================== */}
       {detailModal && detailLoan && (
-        <div className="modal-overlay" style={{ background: 'rgba(0,0,0,0.4)', padding: 20 }} onClick={e => e.target === e.currentTarget && setDetailModal(false)}>
+        <div className="modal-overlay" style={{ background: 'rgba(0,0,0,0.4)', padding: 20 }} onMouseDown={e => e.target === e.currentTarget && setDetailModal(false)}>
           <div className="modal" style={{ maxWidth: 950, borderRadius: 16, padding: '30px', background: '#fff', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)' }}>
             
             {/* Header */}
@@ -284,6 +459,7 @@ export default function Loans() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <thead style={{ background: '#f8fafc' }}>
                     <tr>
+                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>PAYMENT CODE</th>
                       <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>DATE</th>
                       <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>AMOUNT</th>
                       <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>RUNNING BALANCE</th>
@@ -292,9 +468,10 @@ export default function Loans() {
                   </thead>
                   <tbody>
                     {(detailLoan.payments || []).length === 0
-                      ? <tr><td colSpan={4} style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>No payments yet</td></tr>
-                      : detailLoan.payments.map((p, i) => (
+                      ? <tr><td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>No payments yet</td></tr>
+                      : detailLoan.payments.map(p => (
                         <tr key={p.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '16px 20px', color: '#3b82f6', fontWeight: 700, fontFamily: 'monospace' }}>{p.or_number || p.payment_code || '---'}</td>
                           <td style={{ padding: '16px 20px', color: '#334155' }}>{p.date_paid}</td>
                           <td style={{ padding: '16px 20px', color: '#0f172a', fontWeight: 800 }}>₱ {fmt(p.amount_paid)}</td>
                           <td style={{ padding: '16px 20px', color: '#475569' }}>₱ {fmt(p.balance_after)}</td>
@@ -304,10 +481,10 @@ export default function Loans() {
                               borderRadius: 12, 
                               fontSize: 12, 
                               fontWeight: 700, 
-                              background: p.status === 'active' ? '#dcfce7' : '#fee2e2', 
-                              color: p.status === 'active' ? '#16a34a' : '#ef4444' 
+                              background: p.status === 'active' ? '#dcfce7' : p.status === 'penalty' ? '#fef3c7' : '#fee2e2',
+                              color: p.status === 'active' ? '#16a34a' : p.status === 'penalty' ? '#b45309' : '#ef4444'
                             }}>
-                              {p.status === 'active' ? 'Good' : 'Reversed'}
+                              {p.status === 'active' ? 'Good' : p.status === 'penalty' ? 'Penalty' : 'Reversed'}
                             </span>
                           </td>
                         </tr>
@@ -316,8 +493,8 @@ export default function Loans() {
                   {(detailLoan.payments || []).length > 0 && (
                     <tfoot style={{ background: '#f8fafc', borderTop: '1px solid #f1f5f9' }}>
                       <tr>
-                        <td colSpan={2} style={{ padding: '20px', color: '#1d4ed8', fontSize: 14, fontWeight: 800 }}>TOTAL PAID</td>
-                        <td style={{ padding: '20px', color: '#1d4ed8', fontSize: 15, fontWeight: 800 }}>₱ {fmt(detailLoan.payments.reduce((s, p) => s + p.amount_paid, 0))}</td>
+                        <td colSpan={2} style={{ padding: '20px', color: '#1d4ed8', fontSize: 14, fontWeight: 800, textAlign: 'right' }}>TOTAL PAID</td>
+                        <td style={{ padding: '20px', color: '#1d4ed8', fontSize: 15, fontWeight: 800 }}>₱ {fmt(detailLoan.payments.filter(p => p.status === 'active').reduce((s, p) => s + p.amount_paid, 0))}</td>
                         <td colSpan={2}></td>
                       </tr>
                     </tfoot>
@@ -355,6 +532,151 @@ export default function Loans() {
                 </table>
               )}
             </div>
+          </div>
+        </div>
+      )}
+      </>
+    )}
+      {/* ===================== Reloan / Recon Modal ===================== */}
+      <ReloanModal
+        isOpen={reloanModalOpen}
+        onClose={() => setReloanModalOpen(false)}
+        customerId={reloanCustomer?.id}
+        customer={reloanCustomer}
+        loanType={loanActionType}
+        onViewSoa={(customerId) => viewSoa(customerId, reloanCustomer?.customer_code || reloanCustomer?.client_name || search)}
+        onReloanSubmitted={() => {
+          setReloanModalOpen(false);
+          load();
+        }}
+      />
+      {/* Custom Confirm Modal */}
+      {confirmModal && (
+        <div className="modal-overlay" style={{ zIndex: 10000 }} onMouseDown={e => e.target === e.currentTarget && confirmModal.onCancel && confirmModal.onCancel()}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '16px',
+            padding: '36px 32px 28px',
+            maxWidth: '460px',
+            width: '90%',
+            textAlign: 'center',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)',
+            animation: 'paymentConfirmIn 0.2s ease-out'
+          }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: '50%',
+              background: '#fffbeb',
+              color: '#f59e0b',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '28px', margin: '0 auto 18px auto',
+              border: '2px solid #fde68a'
+            }}>
+              ⚠
+            </div>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>
+              Confirm Reversal
+            </h3>
+            <p style={{ color: '#64748b', fontSize: '14px', lineHeight: 1.6, margin: '0 0 6px 0' }}>
+              {confirmModal.message}
+            </p>
+            {confirmModal.subMessage && (
+              <p style={{ color: '#475569', fontSize: '14px', fontWeight: 600, margin: '0 0 28px 0' }}>
+                {confirmModal.subMessage}
+              </p>
+            )}
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                onClick={confirmModal.onCancel}
+                style={{
+                  padding: '10px 28px', borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: '#fff', color: '#64748b', fontWeight: 600, fontSize: '14px',
+                  cursor: 'pointer', transition: 'all 0.15s'
+                }}
+                onMouseEnter={e => { e.target.style.background = '#f8fafc'; e.target.style.borderColor = '#cbd5e1' }}
+                onMouseLeave={e => { e.target.style.background = '#fff'; e.target.style.borderColor = '#e2e8f0' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmModal.onConfirm}
+                style={{
+                  padding: '10px 28px', borderRadius: '8px', border: 'none',
+                  background: '#f59e0b',
+                  color: '#fff', fontWeight: 600, fontSize: '14px',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                  boxShadow: '0 2px 8px rgba(245,158,11,0.3)'
+                }}
+                onMouseEnter={e => { e.target.style.background = '#d97706' }}
+                onMouseLeave={e => { e.target.style.background = '#f59e0b' }}
+              >
+                Confirm Reverse
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {noteModal && (
+        <div className="note-modal-overlay" onMouseDown={e => e.target === e.currentTarget && !noteModal.saving && setNoteModal(null)}>
+          <div className="note-modal">
+            <div className="note-modal-header">
+              <div>
+                <span className="note-modal-eyebrow">Manager Note</span>
+                <h3>Edit note</h3>
+                <p>{noteModal.customerName}</p>
+              </div>
+              <button type="button" className="note-modal-close" onClick={() => setNoteModal(null)} disabled={noteModal.saving} aria-label="Close note editor">
+                ×
+              </button>
+            </div>
+            <form onSubmit={handleNoteSubmit}>
+              <label className="note-modal-label" htmlFor="loan-status-note">Note / reason</label>
+              <textarea
+                id="loan-status-note"
+                className="note-modal-textarea"
+                rows="5"
+                value={noteModal.note}
+                onChange={e => setNoteModal(m => ({ ...m, note: e.target.value }))}
+                autoFocus
+              />
+              {noteModal.error && <div className="note-modal-error">{noteModal.error}</div>}
+              <div className="note-modal-actions">
+                <button type="button" className="btn btn-light" onClick={() => setNoteModal(null)} disabled={noteModal.saving}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={noteModal.saving}>
+                  {noteModal.saving ? 'Saving...' : 'Save Note'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editModal && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div className="modal-content" style={{ background: '#fff', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)' }}>
+            <h3 style={{ margin: '0 0 20px 0', color: '#0f172a', fontSize: '20px', fontWeight: 700 }}>Edit Loan</h3>
+            <form onSubmit={handleEditLoanSubmit}>
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Principal Amount</label>
+                <input type="number" step="0.01" className="form-control" value={editModal.principal || ''} onChange={e => setEditModal({...editModal, principal: e.target.value})} required />
+              </div>
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Interest Rate (%)</label>
+                <input type="number" step="0.01" className="form-control" value={editModal.interest_rate || 0} onChange={e => setEditModal({...editModal, interest_rate: e.target.value})} required />
+              </div>
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Loan Period (Days)</label>
+                <input type="number" className="form-control" value={editModal.loan_period || ''} onChange={e => setEditModal({...editModal, loan_period: e.target.value})} required />
+              </div>
+              <div className="form-group" style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Date Released</label>
+                <input type="date" className="form-control" value={editModal.date_released || ''} onChange={e => setEditModal({...editModal, date_released: e.target.value})} required />
+              </div>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setEditModal(null)} className="btn btn-light" style={{ border: '1px solid #cbd5e1' }}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save Changes</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

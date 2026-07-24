@@ -1,0 +1,609 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/ucv6dv",
+    "id": "ucv6dv",
+    "slide": 8,
+    "layoutId": "b93da528-8b86-4207-b4aa-86ced00687c0",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "ca209377-5cd1-46a1-a9f6-1a1e3ecae1b5",
+    "masterLayoutName": "Master",
+    "backgroundColor": "#FFFFFF",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "+mn-lt"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "b93da528-8b86-4207-b4aa-86ced00687c0",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "ca209377-5cd1-46a1-a9f6-1a1e3ecae1b5",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "ca209377-5cd1-46a1-a9f6-1a1e3ecae1b5",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/sfihw7ep",
+      "id": "1",
+      "bbox": [
+        72,
+        42,
+        420,
+        28
+      ],
+      "geometry": "rect",
+      "text": "REPORT MODULE DOCUMENTATION",
+      "textPreview": "REPORT MODULE DOCUMENTATION",
+      "resolvedFontSize": 13,
+      "resolvedTextStyle": {
+        "fontSize": 13,
+        "typeface": "+mn-lt",
+        "color": "#475569",
+        "bold": true,
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "REPORT MODULE DOCUMENTATION"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "REPORT MODULE DOCUMENTATION",
+          "resolvedTextStyle": {
+            "fontSize": 13,
+            "color": "#475569",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "REPORT MODULE DOCUMENTATION",
+              "fontSize": 13,
+              "color": "#475569",
+              "bold": true,
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/re90n2x4",
+      "id": "2",
+      "bbox": [
+        72,
+        76,
+        980,
+        86
+      ],
+      "geometry": "rect",
+      "text": "Advantages and limitations should be managed as one control surface",
+      "textPreview": "Advantages and limitations should be managed as one control surface",
+      "resolvedFontSize": 36,
+      "resolvedTextStyle": {
+        "fontSize": 36,
+        "typeface": "+mn-lt",
+        "color": "#0F172A",
+        "bold": true,
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Advantages and limitations should be managed as one control"
+          },
+          {
+            "index": 2,
+            "text": "surface"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Advantages and limitations should be managed as one control surface",
+          "resolvedTextStyle": {
+            "fontSize": 36,
+            "color": "#0F172A",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Advantages and limitations should be managed as one control surface",
+              "fontSize": 36,
+              "color": "#0F172A",
+              "bold": true,
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/qd0zuxwz",
+      "id": "3",
+      "bbox": [
+        72,
+        168,
+        1136,
+        2
+      ],
+      "geometry": "rect",
+      "fillColor": "#CBD5E1",
+      "lineColor": "#CBD5E1",
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/1kbitcfm",
+      "id": "4",
+      "bbox": [
+        92,
+        213,
+        20,
+        20
+      ],
+      "geometry": "ellipse",
+      "fillColor": "#1E3A8A",
+      "lineColor": "#1E3A8A",
+      "lineWidth": 0
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/0j2h07e1",
+      "id": "5",
+      "bbox": [
+        130,
+        205,
+        980,
+        48
+      ],
+      "geometry": "rect",
+      "text": "Advantages: centralized access, collector grouping, print-friendly output, DCR reconciliation, and monitoring visibility.",
+      "textPreview": "Advantages: centralized access, collector grouping, print-friendly output, DCR reconciliation, and monitoring visibility.",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "fontSize": 24,
+        "typeface": "+mn-lt",
+        "color": "#0F172A",
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Advantages: centralized access, collector grouping, print-friendly output, DCR reconciliation, and"
+          },
+          {
+            "index": 2,
+            "text": "monitoring visibility."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Advantages: centralized access, collector grouping, print-friendly output, DCR reconciliation, and monitoring visibility.",
+          "resolvedTextStyle": {
+            "fontSize": 24,
+            "color": "#0F172A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Advantages: centralized access, collector grouping, print-friendly output, DCR reconciliation, and monitoring visibility.",
+              "fontSize": 24,
+              "color": "#0F172A",
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/fit0rmxg",
+      "id": "6",
+      "bbox": [
+        92,
+        289,
+        20,
+        20
+      ],
+      "geometry": "ellipse",
+      "fillColor": "#1E3A8A",
+      "lineColor": "#1E3A8A",
+      "lineWidth": 0
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ehkzyhwv",
+      "id": "7",
+      "bbox": [
+        130,
+        281,
+        980,
+        48
+      ],
+      "geometry": "rect",
+      "text": "Limitations: report inventory mismatch across README, backend routes, and visible UI.",
+      "textPreview": "Limitations: report inventory mismatch across README, backend routes, and visible UI.",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "fontSize": 24,
+        "typeface": "+mn-lt",
+        "color": "#0F172A",
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Limitations: report inventory mismatch across README, backend routes, and visible UI."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Limitations: report inventory mismatch across README, backend routes, and visible UI.",
+          "resolvedTextStyle": {
+            "fontSize": 24,
+            "color": "#0F172A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Limitations: report inventory mismatch across README, backend routes, and visible UI.",
+              "fontSize": 24,
+              "color": "#0F172A",
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ho7ihsf2",
+      "id": "8",
+      "bbox": [
+        92,
+        365,
+        20,
+        20
+      ],
+      "geometry": "ellipse",
+      "fillColor": "#1E3A8A",
+      "lineColor": "#1E3A8A",
+      "lineWidth": 0
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/wnyhoneh",
+      "id": "9",
+      "bbox": [
+        130,
+        357,
+        980,
+        48
+      ],
+      "geometry": "rect",
+      "text": "DCR gaps: branch filtering, bank formulas, server-side close totals, DCR numbering, and exact legacy parity.",
+      "textPreview": "DCR gaps: branch filtering, bank formulas, server-side close totals, DCR numbering, and exact legacy parity.",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "fontSize": 24,
+        "typeface": "+mn-lt",
+        "color": "#0F172A",
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "DCR gaps: branch filtering, bank formulas, server-side close totals, DCR numbering, and exact"
+          },
+          {
+            "index": 2,
+            "text": "legacy parity."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "DCR gaps: branch filtering, bank formulas, server-side close totals, DCR numbering, and exact legacy parity.",
+          "resolvedTextStyle": {
+            "fontSize": 24,
+            "color": "#0F172A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "DCR gaps: branch filtering, bank formulas, server-side close totals, DCR numbering, and exact legacy parity.",
+              "fontSize": 24,
+              "color": "#0F172A",
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/i1o7mpsf",
+      "id": "10",
+      "bbox": [
+        92,
+        441,
+        20,
+        20
+      ],
+      "geometry": "ellipse",
+      "fillColor": "#1E3A8A",
+      "lineColor": "#1E3A8A",
+      "lineWidth": 0
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/32x8fu90",
+      "id": "11",
+      "bbox": [
+        130,
+        433,
+        980,
+        48
+      ],
+      "geometry": "rect",
+      "text": "Export risk: browser print works, but critical reports may need controlled server-generated PDF/export paths.",
+      "textPreview": "Export risk: browser print works, but critical reports may need controlled server-generated PDF/export paths.",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "fontSize": 24,
+        "typeface": "+mn-lt",
+        "color": "#0F172A",
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Export risk: browser print works, but critical reports may need controlled server-generated"
+          },
+          {
+            "index": 2,
+            "text": "PDF/export paths."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Export risk: browser print works, but critical reports may need controlled server-generated PDF/export paths.",
+          "resolvedTextStyle": {
+            "fontSize": 24,
+            "color": "#0F172A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Export risk: browser print works, but critical reports may need controlled server-generated PDF/export paths.",
+              "fontSize": 24,
+              "color": "#0F172A",
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 12,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/436pozal",
+      "id": "12",
+      "bbox": [
+        92,
+        517,
+        20,
+        20
+      ],
+      "geometry": "ellipse",
+      "fillColor": "#1E3A8A",
+      "lineColor": "#1E3A8A",
+      "lineWidth": 0
+    },
+    {
+      "order": 13,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/54fqh4rq",
+      "id": "13",
+      "bbox": [
+        130,
+        509,
+        980,
+        48
+      ],
+      "geometry": "rect",
+      "text": "Data risk: statuses, dates, branch, collector, and reversal reasons must be encoded consistently.",
+      "textPreview": "Data risk: statuses, dates, branch, collector, and reversal reasons must be encoded consistently.",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "fontSize": 24,
+        "typeface": "+mn-lt",
+        "color": "#0F172A",
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Data risk: statuses, dates, branch, collector, and reversal reasons must be encoded consistently."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Data risk: statuses, dates, branch, collector, and reversal reasons must be encoded consistently.",
+          "resolvedTextStyle": {
+            "fontSize": 24,
+            "color": "#0F172A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Data risk: statuses, dates, branch, collector, and reversal reasons must be encoded consistently.",
+              "fontSize": 24,
+              "color": "#0F172A",
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}

@@ -3,7 +3,7 @@ import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
-const EMPTY = { customer_id: '', collector_id: '', branch_id: '', loan_type: 'New', principal: '', interest_rate: '15', loan_period: '45', date_released: new Date().toISOString().split('T')[0], or_number: '', remarks: '' }
+const EMPTY = { customer_id: '', collector_id: '', branch_id: '', loan_type: 'New', principal: '', interest_rate: '15', loan_period: '45', date_released: new Date().toISOString().split('T')[0], previous_balance: '', or_number: '', remarks: '' }
 
 export default function CreditScoring() {
   const { hasRole } = useAuth()
@@ -107,6 +107,16 @@ export default function CreditScoring() {
     finally { setSaving(false) }
   }
 
+  const handleDeleteApp = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this application?')) return;
+    try {
+      await API.delete(`/loans/${id}`);
+      load();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error deleting application');
+    }
+  };
+
   const getCreditAssessment = () => {
     if (!ciLoan) return { score: 0, level: '🔴 Very High Risk', recommendation: 'DECLINE', redFlags: 0, disposableIncome: 0, color: 'var(--accent-danger)' };
     
@@ -155,9 +165,9 @@ export default function CreditScoring() {
     else if (ciForm.endorsement === 'reduce') score += 7;
     else if (ciForm.endorsement === 'defer') score += 3;
 
-    let level = '';
-    let recommendation = '';
-    let color = '';
+    let level;
+    let recommendation;
+    let color;
 
     if (score >= 90) { level = '🟢 Excellent Borrower'; recommendation = 'APPROVE'; color = 'var(--accent-success)'; }
     else if (score >= 80) { level = '🟢 Low Risk'; recommendation = 'APPROVE'; color = 'var(--accent-success)'; }
@@ -183,8 +193,15 @@ export default function CreditScoring() {
     } catch (e) { console.error(e); }
   }
 
-  const handleCISave = async (endorsement) => {
-    if (!confirm(`Are you sure you want to ${endorsement.toUpperCase()} this application?`)) return;
+  const [confirmModal, setConfirmModal] = useState({ show: false, action: null });
+
+  const handleCISave = (endorsement) => {
+    setConfirmModal({ show: true, action: endorsement });
+  }
+
+  const confirmSaveCI = async () => {
+    const endorsement = confirmModal.action;
+    setConfirmModal({ show: false, action: null });
     try {
       await API.post(`/loans/${ciLoan.id}/ci`, { ...ciForm, endorsement });
       setCiModal(false);
@@ -194,6 +211,41 @@ export default function CreditScoring() {
 
   return (
     <div>
+      {/* Confirmation Modal */}
+      {confirmModal.show && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 400, padding: 30, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', animation: 'slideUp 0.3s ease-out' }}>
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#fffbeb', color: '#f59e0b', fontSize: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 15px' }}>
+                ⚠️
+              </div>
+              <h3 style={{ margin: 0, color: '#0f172a', fontSize: 20, fontWeight: 700 }}>Confirm Action</h3>
+              <p style={{ color: '#64748b', marginTop: 10, fontSize: 15 }}>
+                Are you sure you want to <strong>{confirmModal.action?.toUpperCase().replace('_', ' ')}</strong> this application?
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button 
+                onClick={() => setConfirmModal({ show: false, action: null })} 
+                style={{ flex: 1, padding: '12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                onMouseOver={e => e.target.style.background = '#e2e8f0'}
+                onMouseOut={e => e.target.style.background = '#f1f5f9'}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmSaveCI} 
+                style={{ flex: 1, padding: '12px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.3)' }}
+                onMouseOver={e => e.target.style.background = '#2563eb'}
+                onMouseOut={e => e.target.style.background = '#3b82f6'}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
@@ -306,6 +358,14 @@ export default function CreditScoring() {
                       ) : (
                         <button style={{ padding: '6px 12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }} onClick={() => openCI(r)}>View CI</button>
                       )}
+                      {(hasRole('admin') || hasRole('manager')) && (
+                        <button 
+                          style={{ padding: '6px 12px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }} 
+                          onClick={() => handleDeleteApp(r.id)}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -337,7 +397,7 @@ export default function CreditScoring() {
 
       {/* ===================== New Application Modal ===================== */}
       {appModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setAppModal(false)}>
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setAppModal(false)}>
           <div className="modal" style={{ maxWidth: 600 }}>
             <div className="modal-header">
               <span className="modal-title">📋 New CI Application</span>
@@ -382,6 +442,12 @@ export default function CreditScoring() {
                     <label className="form-label">Proposed Date *</label>
                     <input type="date" className="form-control" value={form.date_released} onChange={e => setForm(f => ({ ...f, date_released: e.target.value }))} required />
                   </div>
+                  {(form.loan_type === 'Reloan' || form.loan_type === 'Recon') && (
+                    <div className="form-group">
+                      <label className="form-label">Previous Balance</label>
+                      <input type="number" className="form-control" placeholder="0.00" value={form.previous_balance} onChange={e => setForm(f => ({ ...f, previous_balance: e.target.value }))} />
+                    </div>
+                  )}
                   <div className="form-group">
                     <label className="form-label">Assigned Collector</label>
                     <select className="form-control" value={form.collector_id} onChange={e => setForm(f => ({ ...f, collector_id: e.target.value }))}>
@@ -407,7 +473,7 @@ export default function CreditScoring() {
 
       {/* ===================== CI Modal ===================== */}
       {ciModal && ciLoan && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setCiModal(false)}>
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setCiModal(false)}>
           <div className="modal" style={{ maxWidth: 900 }}>
             <div className="modal-header">
               <span className="modal-title">CREDIT INVESTIGATION - {ciLoan.customer_name}</span>
@@ -602,7 +668,7 @@ export default function CreditScoring() {
 
       {/* ===================== Manager Review Modal ===================== */}
       {managerModal && ciLoan && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setManagerModal(false)}>
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setManagerModal(false)}>
           <div className="modal" style={{ maxWidth: 900 }}>
             <div className="modal-header">
               <span className="modal-title">MANAGER REVIEW - {ciLoan.customer_name}</span>
@@ -653,8 +719,8 @@ export default function CreditScoring() {
                   )}
                   {managerForm.decision && (
                     <div className="form-group mb-3">
-                      <label className="form-label fw-bold">Manager Remarks {managerForm.decision !== 'approve' && '*'}</label>
-                      <textarea className="form-control" rows="3" value={managerForm.remarks} onChange={e => setManagerForm(f => ({ ...f, remarks: e.target.value }))} required={managerForm.decision !== 'approve'}></textarea>
+                      <label className="form-label fw-bold">Manager Remarks</label>
+                      <textarea className="form-control" rows="3" value={managerForm.remarks} onChange={e => setManagerForm(f => ({ ...f, remarks: e.target.value }))}></textarea>
                     </div>
                   )}
 

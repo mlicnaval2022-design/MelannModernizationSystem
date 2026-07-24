@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react'
 import API from '../services/api'
-import { useAuth } from '../context/AuthContext'
 
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 const today = () => new Date().toISOString().split('T')[0]
 
 export default function CashPosition() {
-  const { hasRole } = useAuth()
   const [tab, setTab] = useState('hand')
   const [handRows, setHandRows] = useState([])
   const [bankRows, setBankRows] = useState([])
@@ -16,8 +14,10 @@ export default function CashPosition() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const [handForm, setHandForm] = useState({ branch_id: '', entry_date: today(), opening_balance: '', total_collections: '', total_releases: '', total_expenses: '' })
-  const [bankForm, setBankForm] = useState({ branch_id: '', bank_name: '', account_number: '', entry_date: today(), amount: '', transaction_type: 'Deposit', reference_no: '' })
+  const initialHand = { id: '', branch_id: '', entry_date: today(), opening_balance: '', total_collections: '', total_releases: '', total_expenses: '' }
+  const initialBank = { id: '', branch_id: '', bank_name: '', account_number: '', entry_date: today(), amount: '', transaction_type: 'Deposit', reference_no: '' }
+  const [handForm, setHandForm] = useState(initialHand)
+  const [bankForm, setBankForm] = useState(initialBank)
 
   const load = () => {
     setLoading(true)
@@ -33,10 +33,12 @@ export default function CashPosition() {
   const handleHandSave = async (e) => {
     e.preventDefault(); setError(''); setSaving(true)
     try {
-      await API.post('/cash/hand', handForm)
-      setModal(false)
-      setHandForm({ branch_id: '', entry_date: today(), opening_balance: '', total_collections: '', total_releases: '', total_expenses: '' })
-      load()
+      if (handForm.id) {
+        await API.put(`/cash/hand/${handForm.id}`, handForm)
+      } else {
+        await API.post('/cash/hand', handForm)
+      }
+      setModal(false); setHandForm(initialHand); load()
     } catch (err) { setError(err.response?.data?.error || 'Error saving') }
     finally { setSaving(false) }
   }
@@ -44,12 +46,33 @@ export default function CashPosition() {
   const handleBankSave = async (e) => {
     e.preventDefault(); setError(''); setSaving(true)
     try {
-      await API.post('/cash/bank', bankForm)
-      setModal(false)
-      setBankForm({ branch_id: '', bank_name: '', account_number: '', entry_date: today(), amount: '', transaction_type: 'Deposit', reference_no: '' })
-      load()
+      if (bankForm.id) {
+        await API.put(`/cash/bank/${bankForm.id}`, bankForm)
+      } else {
+        await API.post('/cash/bank', bankForm)
+      }
+      setModal(false); setBankForm(initialBank); load()
     } catch (err) { setError(err.response?.data?.error || 'Error saving') }
     finally { setSaving(false) }
+  }
+
+  const handleDelete = async (id, type) => {
+    if (!window.confirm('Are you sure you want to delete this entry?')) return
+    try {
+      await API.delete(`/cash/${type}/${id}`)
+      load()
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error deleting')
+    }
+  }
+
+  const handleEdit = (row, type) => {
+    if (type === 'hand') {
+      setHandForm({ ...row, branch_id: row.branch_id || '' })
+    } else {
+      setBankForm({ ...row, branch_id: row.branch_id || '' })
+    }
+    setModal(true)
   }
 
   const totalHand = handRows.reduce((s, r) => s + (r.closing_balance || 0), 0)
@@ -86,7 +109,7 @@ export default function CashPosition() {
           id="btn-new-cash"
           className="btn btn-primary"
           style={{ marginLeft: 'auto' }}
-          onClick={() => { setError(''); setModal(true) }}
+          onClick={() => { setError(''); setHandForm(initialHand); setBankForm(initialBank); setModal(true) }}
         >
           + New Entry
         </button>
@@ -100,12 +123,12 @@ export default function CashPosition() {
               <thead>
                 <tr>
                   <th>Date</th><th>Branch</th><th>Opening</th><th>Collections</th>
-                  <th>Releases</th><th>Expenses</th><th>Closing Balance</th>
+                  <th>Releases</th><th>Expenses</th><th>Closing Balance</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? <tr className="loading-row"><td colSpan={7}>⏳ Loading...</td></tr>
-                  : handRows.length === 0 ? <tr><td colSpan={7} className="empty-state">No cash-on-hand entries yet</td></tr>
+                  : handRows.length === 0 ? <tr><td colSpan={8} className="empty-state">No cash-on-hand entries yet</td></tr>
                   : handRows.map(r => (
                     <tr key={r.id}>
                       <td>{r.entry_date}</td>
@@ -115,6 +138,10 @@ export default function CashPosition() {
                       <td className="text-right text-danger">₱ {fmt(r.total_releases)}</td>
                       <td className="text-right text-warning">₱ {fmt(r.total_expenses)}</td>
                       <td className="text-right fw-bold text-accent">₱ {fmt(r.closing_balance)}</td>
+                      <td>
+                        <button className="btn btn-secondary btn-sm" style={{ marginRight: 4, padding: '2px 8px', fontSize: 12 }} onClick={() => handleEdit(r, 'hand')}>Edit</button>
+                        <button className="btn btn-danger btn-sm" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => handleDelete(r.id, 'hand')}>Delete</button>
+                      </td>
                     </tr>
                   ))}
               </tbody>
@@ -128,11 +155,11 @@ export default function CashPosition() {
           <div className="table-wrapper">
             <table className="data-table">
               <thead>
-                <tr><th>Date</th><th>Bank</th><th>Account #</th><th>Branch</th><th>Type</th><th>Reference</th><th>Amount</th></tr>
+                <tr><th>Date</th><th>Bank</th><th>Account #</th><th>Branch</th><th>Type</th><th>Reference</th><th>Amount</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 {loading ? <tr className="loading-row"><td colSpan={7}>⏳ Loading...</td></tr>
-                  : bankRows.length === 0 ? <tr><td colSpan={7} className="empty-state">No bank entries yet</td></tr>
+                  : bankRows.length === 0 ? <tr><td colSpan={8} className="empty-state">No bank entries yet</td></tr>
                   : bankRows.map(r => (
                     <tr key={r.id}>
                       <td>{r.entry_date}</td>
@@ -144,6 +171,10 @@ export default function CashPosition() {
                       <td className={`text-right fw-bold ${r.transaction_type === 'Withdrawal' ? 'text-danger' : 'text-success'}`}>
                         {r.transaction_type === 'Withdrawal' ? '−' : '+'} ₱ {fmt(r.amount)}
                       </td>
+                      <td>
+                        <button className="btn btn-secondary btn-sm" style={{ marginRight: 4, padding: '2px 8px', fontSize: 12 }} onClick={() => handleEdit(r, 'bank')}>Edit</button>
+                        <button className="btn btn-danger btn-sm" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => handleDelete(r.id, 'bank')}>Delete</button>
+                      </td>
                     </tr>
                   ))}
               </tbody>
@@ -154,10 +185,10 @@ export default function CashPosition() {
 
       {/* New Entry Modal */}
       {modal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setModal(false)}>
           <div className="modal">
             <div className="modal-header">
-              <span className="modal-title">{tab === 'hand' ? '🏧 New Cash on Hand Entry' : '🏦 New Bank Transaction'}</span>
+              <span className="modal-title">{tab === 'hand' ? (handForm.id ? '🏧 Edit Cash on Hand Entry' : '🏧 New Cash on Hand Entry') : (bankForm.id ? '🏦 Edit Bank Transaction' : '🏦 New Bank Transaction')}</span>
               <button className="modal-close" onClick={() => setModal(false)}>✕</button>
             </div>
             <div className="modal-body">

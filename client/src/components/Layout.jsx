@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import API from '../services/api'
@@ -7,19 +7,22 @@ import logoImg from '../assets/logo.png'
 const NAV = [
   { path: '/', label: 'Dashboard', icon: '📊', section: 'Main' },
   { path: '/customers', label: 'Customers', icon: '👥', section: 'Operations' },
-  { path: '/due-clients', label: 'Due Clients', icon: '⏰', section: 'Operations' },
   { path: '/credit-scoring', label: 'Credit Scoring', icon: '📋', section: 'Operations' },
   { path: '/loans', label: 'Loans', icon: '💰', section: 'Operations' },
-  { path: '/payments', label: 'Payments', icon: '💳', section: 'Operations' },
+  { path: '/promissory-disclosure', label: 'For Print', icon: 'FP', section: 'Operations' },
+  { path: '/payments', label: 'Encode Payments', icon: '💳', section: 'Operations' },
+  { path: '/monitoring', label: '3-Day Monitoring', icon: '🚨', section: 'Operations' },
   { path: '/collectors', label: 'Collectors', icon: '🚶', section: 'Operations' },
   { path: '/deposits', label: 'Deposits', icon: '🏦', section: 'Finance' },
-  { path: '/expenses', label: 'Expenses', icon: '📋', section: 'Finance' },
+  { path: '/transactions', label: 'Transactions', icon: '🧾', section: 'Finance' },
   { path: '/dcr', label: 'Daily Cash Report', icon: '📝', section: 'Finance' },
   { path: '/cash', label: 'Cash Position', icon: '🏧', section: 'Finance' },
   { path: '/reports', label: 'Reports', icon: '📈', section: 'Reports' },
+  { path: '/government-compliance', label: 'Government Compliance', icon: 'GC', section: 'Reports', roles: ['admin', 'compliance', 'compliance_officer', 'accounting', 'corporate_secretary', 'management', 'manager', 'it'] },
   { path: '/branches', label: 'Branches', icon: '🏢', section: 'Admin', roles: ['admin', 'manager'] },
   { path: '/users', label: 'User Management', icon: '🔐', section: 'Admin', roles: ['admin'] },
   { path: '/audit', label: 'Audit Trail', icon: '🔍', section: 'Admin', roles: ['admin', 'manager'] },
+  { path: '/monitoring-settings', label: 'Monitoring Settings', icon: '⚙️', section: 'Admin', roles: ['admin'] },
 ]
 
 export default function Layout() {
@@ -31,12 +34,47 @@ export default function Layout() {
   const [pwSaving, setPwSaving] = useState(false)
   const [pwError, setPwError] = useState('')
   const [pwSuccess, setPwSuccess] = useState('')
+  const [logoFailed, setLogoFailed] = useState(false)
   const [showNotif, setShowNotif] = useState(false)
   const [notifications, setNotifications] = useState([
     { id: 1, title: 'System Update', message: 'Your weekly collection report is ready to download.', time: '10 mins ago', color: '#3b82f6' },
     { id: 2, title: 'Past Due Alert', message: '3 accounts have moved to past due status today.', time: '1 hour ago', color: '#ef4444' },
     { id: 3, title: 'New Approval', message: 'Loan LN-000008 has been approved by the manager.', time: '2 hours ago', color: '#10b981' }
   ])
+
+  useEffect(() => {
+    API.get('/government-compliance/summary')
+      .then(r => {
+        const complianceNotes = (r.data.notifications || []).map((n, idx) => ({
+          id: `gc-${idx}-${n.id}`,
+          title: n.title,
+          message: n.message,
+          time: 'Compliance',
+          color: n.severity === 'danger' ? '#ef4444' : n.severity === 'warning' ? '#f59e0b' : '#3b82f6'
+        }))
+        if (complianceNotes.length) setNotifications(prev => {
+          const ids = new Set(prev.map(p => p.id))
+          return [...complianceNotes.filter(n => !ids.has(n.id)), ...prev]
+        })
+      })
+      .catch(() => {})
+
+    API.get('/monitoring/notifications')
+      .then(r => {
+        const monNotes = (r.data || []).map(n => ({
+          id: `mon-${n.id}`,
+          title: n.title,
+          message: n.message,
+          time: 'Monitoring',
+          color: '#ef4444' // red for alerts
+        }))
+        if (monNotes.length) setNotifications(prev => {
+          const ids = new Set(prev.map(p => p.id))
+          return [...monNotes.filter(n => !ids.has(n.id)), ...prev]
+        })
+      })
+      .catch(() => {})
+  }, [])
 
   const today = new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
   const visibleNav = NAV.filter(n => !n.roles || hasRole(...n.roles))
@@ -62,7 +100,13 @@ export default function Layout() {
     <div className="app-layout">
       <aside className="sidebar">
         <div className="sidebar-brand" style={{ display: 'flex', justifyContent: 'center', padding: '15px 20px', borderBottom: '1px solid #1e293b' }}>
-          <img src={logoImg} alt="Melann Lending" style={{ maxWidth: '80%', height: 'auto' }} />
+          {logoFailed ? (
+            <div style={{ color: '#fff', fontWeight: 800, textAlign: 'center', lineHeight: 1.2 }}>
+              Melann Lending
+            </div>
+          ) : (
+            <img src={logoImg} alt="Melann Lending" onError={() => setLogoFailed(true)} style={{ maxWidth: '80%', height: 'auto' }} />
+          )}
         </div>
         <nav className="sidebar-nav">
           {sections.map(section => (
@@ -199,7 +243,7 @@ export default function Layout() {
 
       {/* Change Password Modal */}
       {changePwModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setChangePwModal(false)}>
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setChangePwModal(false)}>
           <div className="modal" style={{ maxWidth: 420 }}>
             <div className="modal-header">
               <span className="modal-title">🔑 Change Password</span>

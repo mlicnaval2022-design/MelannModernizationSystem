@@ -10,9 +10,10 @@ async function runPastDueUpdate() {
     const today = new Date().toISOString().split('T')[0];
 
     // Mark overdue active loans as pastdue
+    // EXCLUDE legacy imported loans since their maturity dates are very old
     const r1 = await dbRun(
       `UPDATE tblLoan SET status='pastdue', updated_at=datetime('now')
-       WHERE status='active' AND date_maturity < ?`,
+       WHERE status='active' AND date_maturity < ? AND remarks NOT LIKE 'Imported%'`,
       [today]
     );
     if (r1.changes > 0) {

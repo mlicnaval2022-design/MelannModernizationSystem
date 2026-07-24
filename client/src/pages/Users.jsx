@@ -14,9 +14,6 @@ export default function Users() {
   const [form, setForm] = useState({ username: '', password: '', full_name: '', role: 'teller', branch_id: '', is_active: 1 })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-
-  if (!hasRole('admin')) return <div className="empty-state"><div className="empty-icon">🔐</div><p>Access restricted to administrators only.</p></div>
-
   const load = () => { setLoading(true); API.get('/users').then(r => setRows(r.data)).finally(() => setLoading(false)) }
   useEffect(() => { load(); API.get('/branches').then(r => setBranches(r.data)) }, [])
 
@@ -32,6 +29,8 @@ export default function Users() {
     } catch (err) { setError(err.response?.data?.error || 'Error saving') }
     finally { setSaving(false) }
   }
+
+  if (!hasRole('admin')) return <div className="empty-state"><div className="empty-icon">🔐</div><p>Access restricted to administrators only.</p></div>
 
   return (
     <div>
@@ -58,7 +57,7 @@ export default function Users() {
         </div>
       </div>
       {modal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setModal(false)}>
           <div className="modal">
             <div className="modal-header"><span className="modal-title">{editing ? 'Edit User' : 'New User'}</span><button className="modal-close" onClick={() => setModal(false)}>✕</button></div>
             <div className="modal-body">

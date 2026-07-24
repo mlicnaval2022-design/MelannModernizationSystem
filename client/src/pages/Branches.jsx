@@ -11,11 +11,6 @@ export default function Branches() {
   const [form, setForm] = useState({ branch_code: '', branch_name: '', address: '', contact: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-
-  if (!hasRole('admin', 'manager')) return (
-    <div className="empty-state"><div className="empty-icon">🔐</div><p>Access restricted to Admins and Managers.</p></div>
-  )
-
   const load = () => {
     setLoading(true)
     API.get('/branches').then(r => setRows(r.data)).finally(() => setLoading(false))
@@ -34,6 +29,10 @@ export default function Branches() {
     } catch (err) { setError(err.response?.data?.error || 'Error saving') }
     finally { setSaving(false) }
   }
+
+  if (!hasRole('admin', 'manager')) return (
+    <div className="empty-state"><div className="empty-icon">🔐</div><p>Access restricted to Admins and Managers.</p></div>
+  )
 
   return (
     <div>
@@ -65,7 +64,7 @@ export default function Branches() {
       </div>
 
       {modal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setModal(false)}>
           <div className="modal">
             <div className="modal-header">
               <span className="modal-title">{editing ? 'Edit Branch' : 'New Branch'}</span>
