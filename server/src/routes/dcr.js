@@ -58,7 +58,7 @@ const isReleaseChargePayment = payment => {
 
 const getReleaseChargeBreakdown = releases => releases.reduce((acc, release) => {
   acc.balance += Number(release.previous_balance || 0);
-  acc.penalty += Number(release.today_penalty ?? (Number(release.penalty_payment_count || 0) > 0 ? 0 : Number(release.penalty || 0)));
+  acc.penalty += Number(release.penalty_payment_count || 0) > 0 ? 0 : Number(release.penalty || 0);
   acc.passbook += Number(release.today_passbook ?? (release.passbook || 0));
   return acc;
 }, { balance: 0, penalty: 0, passbook: 0 });
@@ -109,10 +109,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
              c.customer_code, c.first_name, c.last_name, u.full_name as encoded_by,
              co.first_name || ' ' || co.last_name as collector_name,
              (SELECT COUNT(*) FROM tblPayment pp WHERE pp.loan_id = l.id AND pp.status = 'penalty') as penalty_payment_count,
-             CASE
-               WHEN (SELECT COUNT(*) FROM tblPayment pp WHERE pp.loan_id = l.id AND pp.status = 'penalty') > 0 THEN 0
-               ELSE COALESCE(l.penalty, 0)
-             END + COALESCE((SELECT SUM(amount) FROM tblTransaction WHERE category = CAST(l.customer_id AS TEXT) AND transaction_type = 'Penalty' AND transaction_date = l.date_released AND status = 'active'), 0) as today_penalty,
+             COALESCE(l.penalty, 0) + COALESCE((SELECT SUM(amount) FROM tblTransaction WHERE category = CAST(l.customer_id AS TEXT) AND transaction_type = 'Penalty' AND transaction_date = l.date_released AND status = 'active'), 0) as today_penalty,
              COALESCE(l.passbook, 0) + COALESCE((SELECT SUM(amount) FROM tblTransaction WHERE category = CAST(l.customer_id AS TEXT) AND transaction_type = 'Passbook' AND transaction_date = l.date_released AND status = 'active'), 0) as today_passbook
       FROM tblLoan l
       JOIN tblCustomer c ON l.customer_id = c.id
