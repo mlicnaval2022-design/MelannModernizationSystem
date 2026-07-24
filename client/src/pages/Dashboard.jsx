@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { AreaChart, Area, ResponsiveContainer, Tooltip, YAxis } from 'recharts'
 import '../dashboard.css'
 
 function fmt(n) { return Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }
@@ -160,53 +161,83 @@ export default function Dashboard() {
 
       <h4 style={{ margin: '0 0 10px 0', color: '#334155' }}>3-Day No-Payment Alerts</h4>
       <div className="metrics-top-row" style={{ marginBottom: 20 }}>
-        <div className="metric-card-v2" onClick={() => navigate('/monitoring?tab=monitoring')} style={{ cursor: 'pointer', borderTop: '4px solid #ef4444' }}>
+        <div className="metric-card-v2 compact-card" onClick={() => navigate('/monitoring?tab=monitoring')} style={{ cursor: 'pointer', borderTop: '4px solid #ef4444' }}>
           <div className="header">
             <span style={{ fontWeight: 'bold', color: '#b91c1c' }}>Active Alerts</span>
             <h3 style={{ color: '#dc2626' }}>{data.monitoring_alerts_active || 0} <span style={{fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)'}}>Clients</span></h3>
           </div>
           <div className="metric-icon-circle" style={{ background: '#fef2f2', color: '#ef4444', fontSize: 24 }}>🚨</div>
         </div>
-        <div className="metric-card-v2" onClick={() => navigate('/monitoring?tab=escalated')} style={{ cursor: 'pointer', borderTop: '4px solid #991b1b' }}>
+        <div className="metric-card-v2 compact-card" onClick={() => navigate('/monitoring?tab=escalated')} style={{ cursor: 'pointer', borderTop: '4px solid #991b1b' }}>
           <div className="header">
             <span style={{ fontWeight: 'bold', color: '#7f1d1d' }}>Escalated (Day 4+)</span>
             <h3 style={{ color: '#991b1b' }}>{data.monitoring_alerts_escalated || 0}</h3>
           </div>
           <div className="metric-icon-circle" style={{ background: '#fee2e2', color: '#b91c1c', fontSize: 24 }}>🔥</div>
         </div>
-        <div className="metric-card-v2" onClick={() => navigate('/monitoring?tab=resolved')} style={{ cursor: 'pointer', borderTop: '4px solid #10b981' }}>
+        <div className="metric-card-v2 compact-card" onClick={() => navigate('/monitoring?tab=resolved')} style={{ cursor: 'pointer', borderTop: '4px solid #10b981' }}>
           <div className="header">
             <span style={{ fontWeight: 'bold', color: '#047857' }}>Resolved Today</span>
             <h3 style={{ color: '#059669' }}>{data.monitoring_alerts_resolved_today || 0}</h3>
           </div>
           <div className="metric-icon-circle" style={{ background: '#ecfdf5', color: '#10b981', fontSize: 24 }}>✅</div>
         </div>
+
+        {/* Daily Collection Trend Chart in 4th Slot */}
+        <div className="metric-card-v2 compact-card" style={{ borderTop: '4px solid #8b5cf6', paddingBottom: 10 }}>
+          <div className="header" style={{ marginBottom: 4 }}>
+            <span style={{ fontWeight: 'bold', color: '#6d28d9' }}>7-Day Collection Trend</span>
+          </div>
+          <div style={{ height: 65, width: '100%', marginTop: 'auto' }}>
+            {data.weekly_collection_trend && data.weekly_collection_trend.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={data.weekly_collection_trend} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Tooltip 
+                    formatter={(value) => [`₱${fmt(value)}`, 'Total']} 
+                    labelFormatter={(label) => new Date(label).toLocaleDateString('en-US', {month: 'short', day: 'numeric'})}
+                    contentStyle={{ fontSize: '11px', padding: '4px 8px', borderRadius: '4px' }}
+                  />
+                  <YAxis domain={['dataMin', 'dataMax']} hide />
+                  <Area type="monotone" dataKey="total" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorTotal)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>No data</div>
+            )}
+          </div>
+        </div>
       </div>
 
       <h4 style={{ margin: '0 0 10px 0', color: '#334155' }}>Loan Processing Queue</h4>
       <div className="metrics-top-row" style={{ marginBottom: 20 }}>
-        <div className="metric-card-v2" onClick={() => navigate('/credit-scoring')} style={{ cursor: 'pointer', borderTop: '4px solid #f59e0b' }}>
+        <div className="metric-card-v2 compact-card" onClick={() => navigate('/credit-scoring')} style={{ cursor: 'pointer', borderTop: '4px solid #f59e0b' }}>
           <div className="header">
             <span style={{ fontWeight: 'bold', color: '#b45309' }}>For CI</span>
             <h3 style={{ color: '#d97706' }}>{data.pending_ci_count || 0} <span style={{fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)'}}>Applications</span></h3>
           </div>
           <div className="metric-icon-circle" style={{ background: '#fffbeb', color: '#f59e0b', fontSize: 24 }}>📋</div>
         </div>
-        <div className="metric-card-v2" onClick={() => navigate('/credit-scoring')} style={{ cursor: 'pointer', borderTop: '4px solid #3b82f6' }}>
+        <div className="metric-card-v2 compact-card" onClick={() => navigate('/credit-scoring')} style={{ cursor: 'pointer', borderTop: '4px solid #3b82f6' }}>
           <div className="header">
             <span style={{ fontWeight: 'bold', color: '#1d4ed8' }}>For Approval</span>
             <h3 style={{ color: '#2563eb' }}>{data.for_approval_count || 0} <span style={{fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)'}}>Applications</span></h3>
           </div>
           <div className="metric-icon-circle" style={{ background: '#eff6ff', color: '#3b82f6', fontSize: 24 }}>✅</div>
         </div>
-        <div className="metric-card-v2" style={{ borderTop: '4px solid #10b981' }}>
+        <div className="metric-card-v2 compact-card" style={{ borderTop: '4px solid #10b981' }}>
           <div className="header">
             <span style={{ fontWeight: 'bold', color: '#047857' }}>Approved Today</span>
             <h3 style={{ color: '#059669' }}>{data.approved_today || 0}</h3>
           </div>
           <div className="metric-icon-circle" style={{ background: '#ecfdf5', color: '#10b981', fontSize: 24 }}>🎉</div>
         </div>
-        <div className="metric-card-v2" style={{ borderTop: '4px solid #ef4444' }}>
+        <div className="metric-card-v2 compact-card" style={{ borderTop: '4px solid #ef4444' }}>
           <div className="header">
             <span style={{ fontWeight: 'bold', color: '#b91c1c' }}>Rejected Today</span>
             <h3 style={{ color: '#dc2626' }}>{data.rejected_today || 0}</h3>

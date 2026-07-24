@@ -142,6 +142,20 @@
   margin: 0;
 }
 
+.metric-card-v2.compact-card {
+  padding: 12px 16px;
+}
+.metric-card-v2.compact-card .header h3 {
+  font-size: 20px;
+}
+.metric-card-v2.compact-card .metric-icon-circle {
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  top: 12px;
+  right: 12px;
+}
+
 .metric-icon-circle {
   width: 48px;
   height: 48px;
