@@ -1,5 +1,17 @@
 node_modules/
+client/node_modules/
+server/node_modules/
+
+# Build and Dist
+build/
+dist/
+client/build/
+client/dist/
+
+# Environment Variables
 .env
+.env.*
+*.local
 
 # Database Files and Backups
 *.db
@@ -9,9 +21,9 @@ node_modules/
 server/melann.db*
 melann.db*
 
-# System at Agent Logs
+# System and Agent Logs
 .omx/
-server/melann.db-wal
-server/melann.db-wal
-server/melann.db-wal
-server/melann.db-wal
+.gemini/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
