@@ -22,6 +22,7 @@ import GovernmentCompliance from './pages/GovernmentCompliance'
 import NoPaymentMonitoring from './pages/NoPaymentMonitoring'
 import MonitoringSettings from './pages/MonitoringSettings'
 import PromissoryDisclosure from './pages/PromissoryDisclosure'
+import CollectorPerformance from './pages/CollectorPerformance'
 
 function PrivateRoute({ children }) {
   const { user } = useAuth()
@@ -57,6 +58,7 @@ export default function App() {
         <Route path="dcr" element={<DailyCashReport />} />
         <Route path="cash" element={<CashPosition />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="collector-performance" element={<CollectorPerformance />} />
         <Route path="government-compliance" element={<GovernmentCompliance />} />
         <Route path="branches" element={<Branches />} />
         <Route path="users" element={<Users />} />

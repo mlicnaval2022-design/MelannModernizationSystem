@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import API from '../services/api'
 import logoImg from '../assets/logo.png'
 import html2pdf from 'html2pdf.js'
@@ -491,16 +491,16 @@ const getMonthlyReleaseMatrix = (loans, params) => {
 }
 
 const REPORT_TYPES = [
-  { key: 'collection-report', label: '📅 Collection Report', desc: 'Daily and monthly collections' },
-  { key: 'monthly-releases', label: '🚀 Releases Report', desc: 'Daily and monthly releases' },
-  { key: 'past-due', label: '⚠️ Loans Maturity Checker', desc: 'Loans by maturity date range' },
-  { key: 'payments-reversed', label: '↩️ Payments Reversed', desc: 'Reversed payments by date range' },
-  { key: 'full-paid', label: '✅ Fully Paid Loans', desc: 'Fully paid loan accounts' },
-  { key: 'loan-type', label: '📊 Loan Type Summary', desc: 'Summary by loan type and status' },
-  { key: 'collection-sheet', label: '📋 Collection Sheet', desc: 'Per-collector active loan list' },
-  { key: 'daily-target', label: '🎯 Daily Target', desc: 'Daily target collection' },
+  { key: 'collection-report', label: 'ðŸ“… Collection Report', desc: 'Daily and monthly collections' },
+  { key: 'monthly-releases', label: 'ðŸš€ Releases Report', desc: 'Daily and monthly releases' },
+  { key: 'past-due', label: 'âš ï¸ Loans Maturity Checker', desc: 'Loans by maturity date range' },
+  { key: 'payments-reversed', label: 'â†©ï¸ Payments Reversed', desc: 'Reversed payments by date range' },
+  { key: 'full-paid', label: 'âœ… Fully Paid Loans', desc: 'Fully paid loan accounts' },
+  { key: 'loan-type', label: 'ðŸ“Š Loan Type Summary', desc: 'Summary by loan type and status' },
+  { key: 'collection-sheet', label: 'ðŸ“‹ Collection Sheet', desc: 'Per-collector active loan list' },
+  { key: 'daily-target', label: 'ðŸŽ¯ Daily Target', desc: 'Daily target collection' },
   { key: 'disclosure-statement', label: 'Disclosure Statement', desc: 'Client disclosure for every reloan' },
-  { key: 'monitoring-summary', label: '🚨 Monitoring Summary', desc: 'Alerts, escalations, PTPs, and resolutions' },
+  { key: 'monitoring-summary', label: 'ðŸš¨ Monitoring Summary', desc: 'Alerts, escalations, PTPs, and resolutions' },
 ]
 
 export default function Reports() {
@@ -634,7 +634,7 @@ export default function Reports() {
     const baseTarget = [...groups.active, ...groups.overdue.filter(c => !isReconLoan(c))].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
     const targetAmount = params.manual_target ? Number(params.manual_target) : baseTarget
 
-    // Currency formatter using standard ASCII 'P' to avoid \u20B1 (₱) encoding corruption in WinAnsi pdf fonts
+    // Currency formatter using standard ASCII 'P' to avoid \u20B1 (â‚±) encoding corruption in WinAnsi pdf fonts
     const pesoFmtPdf = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-P${f}` : `P${f}` }
     const cashSummaryAmountPdf = amount => Number(amount || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })
     const fDatePdf = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }) : '-'
@@ -1634,8 +1634,8 @@ export default function Reports() {
   }
 
   const renderResult = () => {
-    if (loading) return <div className="empty-state"><p>⏳ Generating report...</p></div>
-    if (!data) return <div className="empty-state"><div className="empty-icon">📊</div><p>Set your parameters and click Run Report</p></div>
+    if (loading) return <div className="empty-state"><p>â³ Generating report...</p></div>
+    if (!data) return <div className="empty-state"><div className="empty-icon">ðŸ“Š</div><p>Set your parameters and click Run Report</p></div>
 
     if (active === 'disclosure-statement') {
       const loan = data.loan || {}
@@ -2125,7 +2125,7 @@ export default function Reports() {
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `₱${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `â‚±${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
                         <Bar dataKey="amount" fill="url(#barGradientMonthly)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={0} />
                       </BarChart>
                     </div>
@@ -2140,11 +2140,11 @@ export default function Reports() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `₱${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `â‚±${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
                       <Tooltip 
                         cursor={{ fill: 'rgba(59, 130, 246, 0.08)' }} 
                         contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }} 
-                        formatter={(val) => [`₱ ${fmt(val)}`, 'Total Collected']} 
+                        formatter={(val) => [`â‚± ${fmt(val)}`, 'Total Collected']} 
                         labelStyle={{ color: '#0f172a', fontWeight: 700, marginBottom: 6, fontSize: 13 }} 
                       />
                       <Bar dataKey="amount" fill="url(#barGradientMonthly)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={1000} />
@@ -2264,7 +2264,7 @@ export default function Reports() {
                     const cell = row.periods[period.key]
                     return (
                       <div key={period.key} style={{ marginBottom: 16, paddingLeft: 12 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 6 }}>{period.label} ({period.rangeLabel}) — {fmt(cell.amount)}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 6 }}>{period.label} ({period.rangeLabel}) â€” {fmt(cell.amount)}</div>
                         <table className="data-table" style={{ width: '100%', fontSize: 11 }}>
                           <thead>
                             <tr><th>Client Code</th><th>Date Paid</th><th>Client</th><th>OR#</th><th>Loan#</th><th className="text-right">Amount</th></tr>
@@ -2353,16 +2353,16 @@ export default function Reports() {
           <div id={(!selectedCollector && printMode === 'summary') ? "printable-area" : undefined} className="reports-screen-only" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             <div style={{ overflowX: 'auto' }}>
               <div style={{ marginBottom: 6, color: 'var(--blue-dark)', fontWeight: 700 }}>{transactionLabel}</div>
-              <div style={{ marginBottom: 12 }} className="fw-bold text-success">Total Collections: ₱ {fmt(total)}</div>
+              <div style={{ marginBottom: 12 }} className="fw-bold text-success">Total Collections: â‚± {fmt(total)}</div>
               <table className="data-table">
                 <thead><tr><th>Collector</th><th className="text-right">No. of Payments</th><th className="text-right">Total Collection</th></tr></thead>
-                <tbody>{collectorRows.length === 0 ? <tr><td colSpan={3} className="empty-state">No records</td></tr> : collectorRows.map(row => <tr key={row.collector} onClick={() => setSelectedCollector(row)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedCollector(row) }} tabIndex={0} title="View collection details" style={{ cursor: 'pointer' }}><td className="fw-600">{row.collector}</td><td className="text-right">{row.payment_count}</td><td className="text-right text-success fw-bold">₱ {fmt(row.total_amount)}</td></tr>)}</tbody>
+                <tbody>{collectorRows.length === 0 ? <tr><td colSpan={3} className="empty-state">No records</td></tr> : collectorRows.map(row => <tr key={row.collector} onClick={() => setSelectedCollector(row)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedCollector(row) }} tabIndex={0} title="View collection details" style={{ cursor: 'pointer' }}><td className="fw-600">{row.collector}</td><td className="text-right">{row.payment_count}</td><td className="text-right text-success fw-bold">â‚± {fmt(row.total_amount)}</td></tr>)}</tbody>
               {collectorRows.length > 0 && (
                 <tfoot>
                   <tr style={{ background: 'rgba(18,58,99,0.03)', borderTop: '2px solid var(--border)' }}>
                     <td className="fw-bold" style={{ color: 'var(--blue-dark)' }}>GRAND TOTAL</td>
                     <td className="text-right fw-bold">{collectorRows.reduce((sum, r) => sum + r.payment_count, 0)}</td>
-                    <td className="text-right text-success fw-bold" style={{ fontSize: '14px' }}>₱ {fmt(total)}</td>
+                    <td className="text-right text-success fw-bold" style={{ fontSize: '14px' }}>â‚± {fmt(total)}</td>
                   </tr>
                 </tfoot>
               )}
@@ -2382,11 +2382,11 @@ export default function Reports() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 600 }} tickFormatter={compactChartLabel} angle={-40} textAnchor="end" height={76} interval={0} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `₱${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `â‚±${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
                     <Tooltip 
                       cursor={{ fill: 'rgba(59, 130, 246, 0.08)' }} 
                       contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }} 
-                      formatter={(val) => [`₱ ${fmt(val)}`, 'Total Collected']} 
+                      formatter={(val) => [`â‚± ${fmt(val)}`, 'Total Collected']} 
                       labelStyle={{ color: '#0f172a', fontWeight: 700, marginBottom: 6, fontSize: 13 }} 
                     />
                     <Bar dataKey="amount" fill="url(#barGradient)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={1000} />
@@ -2410,7 +2410,7 @@ export default function Reports() {
                   <div style={{ fontSize: 18, fontWeight: 'bold', color: 'var(--blue-dark)' }}>{row.collector}</div>
                   <div style={{ fontSize: 14, fontWeight: 'bold' }}>
                     Payments: {row.payment_count} &nbsp;|&nbsp; 
-                    Total: <span className="text-success">₱ {fmt(row.total_amount)}</span>
+                    Total: <span className="text-success">â‚± {fmt(row.total_amount)}</span>
                   </div>
                 </div>
                 <table className="data-table" style={{ width: '100%', fontSize: 12 }}>
@@ -2425,8 +2425,8 @@ export default function Reports() {
                         <td className="fw-600">{p.customer_name || '-'}</td>
                         <td className="mono">{p.payment_code || p.or_number || '-'}</td>
                         <td className="mono">{p.loan_code || '-'}</td>
-                        <td className="text-right text-success fw-bold">₱ {fmt(p.amount_paid)}</td>
-                        <td className="text-right">₱ {fmt(p.balance_after)}</td>
+                        <td className="text-right text-success fw-bold">â‚± {fmt(p.amount_paid)}</td>
+                        <td className="text-right">â‚± {fmt(p.balance_after)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2444,7 +2444,7 @@ export default function Reports() {
                   </div>
                   <div style={{ padding: 16, background: 'rgba(14,165,114,0.1)', borderRadius: 8, border: '1px solid rgba(14,165,114,0.2)' }}>
                     <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: 600 }}>Grand Total Collection</div>
-                    <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--accent-success)' }}>₱ {fmt(total)}</div>
+                    <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--accent-success)' }}>â‚± {fmt(total)}</div>
                   </div>
                 </div>
               </div>
@@ -2485,7 +2485,7 @@ export default function Reports() {
               <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>Total Clients: <b>{rows.length}</b></div>
             </div>
             <div className="monitoring-actions" style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>🖨️ Print</button>
+              <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>ðŸ–¨ï¸ Print</button>
             </div>
           </div>
 
@@ -2507,8 +2507,8 @@ export default function Reports() {
                     <tr key={row.id}>
                       <td className="mono">{row.customer_code || '-'}</td>
                       <td className="fw-600">{row.customer_name || '-'}</td>
-                      <td className="text-right fw-bold">₱ {fmt(row.balance || 0)}</td>
-                      <td>{row.last_payment_date ? `${shortDate(row.last_payment_date)} - ₱ ${fmt(row.last_payment_amount || 0)}` : '-'}</td>
+                      <td className="text-right fw-bold">â‚± {fmt(row.balance || 0)}</td>
+                      <td>{row.last_payment_date ? `${shortDate(row.last_payment_date)} - â‚± ${fmt(row.last_payment_amount || 0)}` : '-'}</td>
                       <td>{row.contact || '-'}</td>
                       <td className="monitoring-remarks"></td>
                     </tr>
@@ -2677,7 +2677,7 @@ export default function Reports() {
                   {displayDate(reportFrom)} to {displayDate(reportTo)}
                 </div>
               </div>
-              <div className="fw-bold text-success">Grand Total: ₱ {fmt(total_principal)}</div>
+              <div className="fw-bold text-success">Grand Total: â‚± {fmt(total_principal)}</div>
             </div>
             {releaseMonthlySubTab === 'overall' && (
               <div className="release-overall-chart" style={{ marginBottom: 20, height: 350, background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '16px 16px 0 0' }}>
@@ -2692,11 +2692,11 @@ export default function Reports() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `â‚±${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `Ã¢â€šÂ±${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
                       <Tooltip 
                         cursor={{ fill: 'rgba(245, 158, 11, 0.08)' }} 
                         contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }} 
-                        formatter={(val) => [`â‚± ${fmt(val)}`, 'Total Released']}
+                        formatter={(val) => [`Ã¢â€šÂ± ${fmt(val)}`, 'Total Released']}
                         labelStyle={{ color: '#0f172a', fontWeight: 700, marginBottom: 6, fontSize: 13 }}
                       />
                       <Bar dataKey="amount" fill="url(#barGradientReleaseMonthly)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={1000} />
@@ -2734,9 +2734,9 @@ export default function Reports() {
                           <td className="fw-600">{row.collector}</td>
                           {matrix.periods.map(period => {
                             const cell = row.periods[period.key]
-                            return <td key={`${row.collector}-${period.key}`} className="text-right">{cell.amount > 0 ? <span className="text-success fw-bold">₱ {fmt(cell.amount)}</span> : '-'}</td>
+                            return <td key={`${row.collector}-${period.key}`} className="text-right">{cell.amount > 0 ? <span className="text-success fw-bold">â‚± {fmt(cell.amount)}</span> : '-'}</td>
                           })}
-                          <td className="text-right text-success fw-bold">₱ {fmt(row.total_amount)}</td>
+                          <td className="text-right text-success fw-bold">â‚± {fmt(row.total_amount)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2745,9 +2745,9 @@ export default function Reports() {
                         <tr style={{ background: 'rgba(18,58,99,0.03)', borderTop: '2px solid var(--border)' }}>
                           <td className="fw-bold" style={{ color: 'var(--blue-dark)' }}>GRAND TOTAL</td>
                           {matrix.periods.map(period => (
-                            <td key={`release-total-${period.key}`} className="text-right text-success fw-bold">₱ {fmt(matrix.periodTotals[period.key].amount)}</td>
+                            <td key={`release-total-${period.key}`} className="text-right text-success fw-bold">â‚± {fmt(matrix.periodTotals[period.key].amount)}</td>
                           ))}
-                          <td className="text-right text-success fw-bold">₱ {fmt(total_principal)}</td>
+                          <td className="text-right text-success fw-bold">â‚± {fmt(total_principal)}</td>
                         </tr>
                       </tfoot>
                     )}
@@ -2761,9 +2761,9 @@ export default function Reports() {
                         <td className="fw-600">Overall Total</td>
                         {matrix.periods.map(period => {
                           const cell = matrix.periodTotals[period.key]
-                          return <td key={`release-overall-${period.key}`} className="text-right">{cell.amount > 0 ? <span className="text-success fw-bold">₱ {fmt(cell.amount)}</span> : '-'}</td>
+                          return <td key={`release-overall-${period.key}`} className="text-right">{cell.amount > 0 ? <span className="text-success fw-bold">â‚± {fmt(cell.amount)}</span> : '-'}</td>
                         })}
-                        <td className="text-right text-success fw-bold">₱ {fmt(total_principal)}</td>
+                        <td className="text-right text-success fw-bold">â‚± {fmt(total_principal)}</td>
                       </tr>
                     )}
                   </tbody>
@@ -2776,7 +2776,7 @@ export default function Reports() {
               <div style={{ textAlign: 'center', marginBottom: 20 }}>
                 <h2 style={{ margin: 0, color: 'var(--blue-dark)' }}>{monthlyTitle}</h2>
                 <div style={{ fontSize: 14, color: '#64748b' }}>{displayDate(reportFrom)} to {displayDate(reportTo)}</div>
-                <div style={{ fontSize: 16, fontWeight: 'bold', color: '#16a34a', marginTop: 6 }}>Grand Total: ₱ {fmt(total_principal)}</div>
+                <div style={{ fontSize: 16, fontWeight: 'bold', color: '#16a34a', marginTop: 6 }}>Grand Total: â‚± {fmt(total_principal)}</div>
               </div>
               {matrix.rows.map(row => (
                 <div key={row.collector} style={{ marginBottom: 30, pageBreakInside: 'avoid' }}>
@@ -2784,14 +2784,14 @@ export default function Reports() {
                     <div style={{ fontSize: 18, fontWeight: 'bold', color: 'var(--blue-dark)' }}>{row.collector}</div>
                     <div style={{ fontSize: 14, fontWeight: 'bold' }}>
                       Releases: {row.loan_count} &nbsp;|&nbsp;
-                      Total: <span className="text-success">₱ {fmt(row.total_amount)}</span>
+                      Total: <span className="text-success">â‚± {fmt(row.total_amount)}</span>
                     </div>
                   </div>
                   {matrix.periods.filter(period => row.periods[period.key].loan_count > 0).map(period => {
                     const cell = row.periods[period.key]
                     return (
                       <div key={period.key} style={{ marginBottom: 16, paddingLeft: 12 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 6 }}>{period.label} ({period.rangeLabel}) — ₱ {fmt(cell.amount)}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 6 }}>{period.label} ({period.rangeLabel}) â€” â‚± {fmt(cell.amount)}</div>
                         <table className="data-table" style={{ width: '100%', fontSize: 11 }}>
                           <thead>
                             <tr><th>Client Code</th><th>Client</th><th>Loan#</th><th>Type</th><th className="text-right">Loan Amount</th><th className="text-right">Net Proceeds</th><th>Date Released</th></tr>
@@ -2803,8 +2803,8 @@ export default function Reports() {
                                 <td className="fw-600">{l.customer_name || '-'}</td>
                                 <td className="mono">{l.loan_code || '-'}</td>
                                 <td><span className="tag">{l.loan_type}</span></td>
-                                <td className="text-right fw-bold">₱ {fmt(l.principal)}</td>
-                                <td className="text-right">₱ {fmt(l.net_proceeds)}</td>
+                                <td className="text-right fw-bold">â‚± {fmt(l.principal)}</td>
+                                <td className="text-right">â‚± {fmt(l.net_proceeds)}</td>
                                 <td>{l.date_released}</td>
                               </tr>
                             ))}
@@ -2852,7 +2852,7 @@ export default function Reports() {
           <div id={(!selectedCollector && printMode === 'summary') ? "printable-area" : undefined} className="reports-screen-only" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
           <div style={{ overflowX: 'auto' }}>
             <div style={{ marginBottom: 6, color: 'var(--blue-dark)', fontWeight: 700 }}>{transactionLabel}</div>
-            <div style={{ marginBottom: 12 }} className="fw-bold text-accent">Total Released: ₱ {fmt(total_principal)}</div>
+            <div style={{ marginBottom: 12 }} className="fw-bold text-accent">Total Released: â‚± {fmt(total_principal)}</div>
             <table className="data-table">
               <thead>
                 <tr>
@@ -2870,7 +2870,7 @@ export default function Reports() {
                     <td className="text-right">
                       {row.new_amount > 0 ? (
                         <>
-                          <div className="fw-600">₱ {fmt(row.new_amount)}</div>
+                          <div className="fw-600">â‚± {fmt(row.new_amount)}</div>
                           <div style={{ fontSize: 11, color: '#64748b' }}>{row.new_count} {row.new_count > 1 ? 'Clients' : 'Client'}</div>
                         </>
                       ) : '-'}
@@ -2878,7 +2878,7 @@ export default function Reports() {
                     <td className="text-right">
                       {row.reloan_amount > 0 ? (
                         <>
-                          <div className="fw-600">₱ {fmt(row.reloan_amount)}</div>
+                          <div className="fw-600">â‚± {fmt(row.reloan_amount)}</div>
                           <div style={{ fontSize: 11, color: '#64748b' }}>{row.reloan_count} {row.reloan_count > 1 ? 'Clients' : 'Client'}</div>
                         </>
                       ) : '-'}
@@ -2886,7 +2886,7 @@ export default function Reports() {
                     <td className="text-right">
                       {row.recon_amount > 0 ? (
                         <>
-                          <div className="fw-600">₱ {fmt(row.recon_amount)}</div>
+                          <div className="fw-600">â‚± {fmt(row.recon_amount)}</div>
                           <div style={{ fontSize: 11, color: '#64748b' }}>{row.recon_count} {row.recon_count > 1 ? 'Clients' : 'Client'}</div>
                         </>
                       ) : '-'}
@@ -2894,7 +2894,7 @@ export default function Reports() {
                     <td className="text-right" style={{ background: 'var(--bg-soft, #f8fafc)' }}>
                       {row.total_principal > 0 ? (
                         <>
-                          <div className="fw-bold text-accent" style={{ fontSize: '13px' }}>₱ {fmt(row.total_principal)}</div>
+                          <div className="fw-bold text-accent" style={{ fontSize: '13px' }}>â‚± {fmt(row.total_principal)}</div>
                           <div style={{ fontSize: 11, color: '#64748b' }}>{row.loan_count} {row.loan_count > 1 ? 'Releases' : 'Release'}</div>
                         </>
                       ) : '-'}
@@ -2907,19 +2907,19 @@ export default function Reports() {
                   <tr style={{ background: 'rgba(18,58,99,0.03)', borderTop: '2px solid var(--border)' }}>
                     <td className="fw-bold" style={{ color: 'var(--blue-dark)', verticalAlign: 'middle' }}>GRAND TOTAL</td>
                     <td className="text-right">
-                      <div className="fw-bold">₱ {fmt(collectorRows.reduce((sum, r) => sum + r.new_amount, 0))}</div>
+                      <div className="fw-bold">â‚± {fmt(collectorRows.reduce((sum, r) => sum + r.new_amount, 0))}</div>
                       <div style={{ fontSize: 11, color: '#64748b' }}>{collectorRows.reduce((sum, r) => sum + r.new_count, 0)} Clients</div>
                     </td>
                     <td className="text-right">
-                      <div className="fw-bold">₱ {fmt(collectorRows.reduce((sum, r) => sum + r.reloan_amount, 0))}</div>
+                      <div className="fw-bold">â‚± {fmt(collectorRows.reduce((sum, r) => sum + r.reloan_amount, 0))}</div>
                       <div style={{ fontSize: 11, color: '#64748b' }}>{collectorRows.reduce((sum, r) => sum + r.reloan_count, 0)} Clients</div>
                     </td>
                     <td className="text-right">
-                      <div className="fw-bold">₱ {fmt(collectorRows.reduce((sum, r) => sum + r.recon_amount, 0))}</div>
+                      <div className="fw-bold">â‚± {fmt(collectorRows.reduce((sum, r) => sum + r.recon_amount, 0))}</div>
                       <div style={{ fontSize: 11, color: '#64748b' }}>{collectorRows.reduce((sum, r) => sum + r.recon_count, 0)} Clients</div>
                     </td>
                     <td className="text-right text-accent">
-                      <div className="fw-bold" style={{ fontSize: '14px' }}>₱ {fmt(total_principal)}</div>
+                      <div className="fw-bold" style={{ fontSize: '14px' }}>â‚± {fmt(total_principal)}</div>
                       <div style={{ fontSize: 11, color: '#64748b' }}>{collectorRows.reduce((sum, r) => sum + r.loan_count, 0)} Releases</div>
                     </td>
                   </tr>
@@ -2942,7 +2942,7 @@ export default function Reports() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `₱${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `â‚±${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
                       <Bar dataKey="amount" fill="url(#barGradientRelease)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={0} />
                     </BarChart>
                   </div>
@@ -2957,11 +2957,11 @@ export default function Reports() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `₱${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `â‚±${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
                       <Tooltip 
                         cursor={{ fill: 'rgba(139, 92, 246, 0.08)' }} 
                         contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }} 
-                        formatter={(val) => [`₱ ${fmt(val)}`, 'Total Released']} 
+                        formatter={(val) => [`â‚± ${fmt(val)}`, 'Total Released']} 
                         labelStyle={{ color: '#0f172a', fontWeight: 700, marginBottom: 6, fontSize: 13 }} 
                       />
                       <Bar dataKey="amount" fill="url(#barGradientRelease)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={1000} />
@@ -2986,7 +2986,7 @@ export default function Reports() {
                   <div style={{ fontSize: 18, fontWeight: 'bold', color: 'var(--blue-dark)' }}>{row.collector}</div>
                   <div style={{ fontSize: 14, fontWeight: 'bold' }}>
                     Releases: {row.loan_count} &nbsp;|&nbsp; 
-                    Total: <span className="text-accent">₱ {fmt(row.total_principal)}</span>
+                    Total: <span className="text-accent">â‚± {fmt(row.total_principal)}</span>
                   </div>
                 </div>
                 <table className="data-table" style={{ width: '100%', fontSize: 12 }}>
@@ -3000,8 +3000,8 @@ export default function Reports() {
                         <td className="fw-600">{l.customer_name || '-'}</td>
                         <td className="mono">{l.loan_code || '-'}</td>
                         <td><span className="tag">{l.loan_type}</span></td>
-                        <td className="text-right fw-bold">₱ {fmt(l.principal)}</td>
-                        <td className="text-right">₱ {fmt(l.net_proceeds)}</td>
+                        <td className="text-right fw-bold">â‚± {fmt(l.principal)}</td>
+                        <td className="text-right">â‚± {fmt(l.net_proceeds)}</td>
                         <td>{l.date_released}</td>
                       </tr>
                     ))}
@@ -3020,19 +3020,19 @@ export default function Reports() {
                   </div>
                   <div style={{ padding: 16, background: 'rgba(18,58,99,0.05)', borderRadius: 8, border: '1px solid rgba(18,58,99,0.1)' }}>
                     <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: 600 }}>New</div>
-                    <div style={{ fontSize: 16, fontWeight: 'bold' }}>₱ {fmt(collectorRows.reduce((sum, r) => sum + r.new_amount, 0))}</div>
+                    <div style={{ fontSize: 16, fontWeight: 'bold' }}>â‚± {fmt(collectorRows.reduce((sum, r) => sum + r.new_amount, 0))}</div>
                   </div>
                   <div style={{ padding: 16, background: 'rgba(18,58,99,0.05)', borderRadius: 8, border: '1px solid rgba(18,58,99,0.1)' }}>
                     <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: 600 }}>Reloan</div>
-                    <div style={{ fontSize: 16, fontWeight: 'bold' }}>₱ {fmt(collectorRows.reduce((sum, r) => sum + r.reloan_amount, 0))}</div>
+                    <div style={{ fontSize: 16, fontWeight: 'bold' }}>â‚± {fmt(collectorRows.reduce((sum, r) => sum + r.reloan_amount, 0))}</div>
                   </div>
                   <div style={{ padding: 16, background: 'rgba(18,58,99,0.05)', borderRadius: 8, border: '1px solid rgba(18,58,99,0.1)' }}>
                     <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: 600 }}>Recon</div>
-                    <div style={{ fontSize: 16, fontWeight: 'bold' }}>₱ {fmt(collectorRows.reduce((sum, r) => sum + r.recon_amount, 0))}</div>
+                    <div style={{ fontSize: 16, fontWeight: 'bold' }}>â‚± {fmt(collectorRows.reduce((sum, r) => sum + r.recon_amount, 0))}</div>
                   </div>
                   <div style={{ padding: 16, background: 'rgba(139,92,246,0.1)', borderRadius: 8, border: '1px solid rgba(139,92,246,0.2)' }}>
                     <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: 600 }}>Grand Total Released</div>
-                    <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--accent-2)' }}>₱ {fmt(total_principal)}</div>
+                    <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--accent-2)' }}>â‚± {fmt(total_principal)}</div>
                   </div>
                 </div>
               </div>
@@ -3141,7 +3141,7 @@ export default function Reports() {
                 <div style={{ color: 'var(--blue-dark)', fontWeight: 700 }}>Loans Maturity Checker</div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>Maturity Date: {displayDate(reportFrom)} to {displayDate(reportTo)}</div>
               </div>
-              <div className="fw-bold text-accent">Total Loan Amount: ₱ {fmt(totalLoanAmount)}</div>
+              <div className="fw-bold text-accent">Total Loan Amount: â‚± {fmt(totalLoanAmount)}</div>
             </div>
             <table className="data-table maturity-summary-table">
               <colgroup>
@@ -3167,10 +3167,10 @@ export default function Reports() {
                   <tr key={row.collector} onClick={() => setSelectedCollector(row)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedCollector(row) }} tabIndex={0} title="View collector clients" style={{ cursor: 'pointer' }}>
                     <td className="fw-600 collector-cell">{row.collector}</td>
                     <td className="text-right fw-bold">{row.client_count}</td>
-                    <td className="text-right money-cell">₱ {fmt(row.total_principal)}</td>
-                    <td className="text-right money-cell">₱ {fmt(row.total_interest)}</td>
-                    <td className="text-right fw-bold text-accent money-cell">₱ {fmt(row.total_loan_amount)}</td>
-                    <td className="text-right fw-bold money-cell">₱ {fmt(row.total_balance)}</td>
+                    <td className="text-right money-cell">â‚± {fmt(row.total_principal)}</td>
+                    <td className="text-right money-cell">â‚± {fmt(row.total_interest)}</td>
+                    <td className="text-right fw-bold text-accent money-cell">â‚± {fmt(row.total_loan_amount)}</td>
+                    <td className="text-right fw-bold money-cell">â‚± {fmt(row.total_balance)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -3179,10 +3179,10 @@ export default function Reports() {
                   <tr style={{ background: 'rgba(18,58,99,0.03)', borderTop: '2px solid var(--border)' }}>
                     <td className="fw-bold" style={{ color: 'var(--blue-dark)' }}>GRAND TOTAL</td>
                     <td className="text-right fw-bold">{totalClients}</td>
-                    <td className="text-right fw-bold money-cell">₱ {fmt(totalPrincipal)}</td>
-                    <td className="text-right fw-bold money-cell">₱ {fmt(totalInterest)}</td>
-                    <td className="text-right fw-bold text-accent money-cell">₱ {fmt(totalLoanAmount)}</td>
-                    <td className="text-right fw-bold money-cell">₱ {fmt(totalBalance)}</td>
+                    <td className="text-right fw-bold money-cell">â‚± {fmt(totalPrincipal)}</td>
+                    <td className="text-right fw-bold money-cell">â‚± {fmt(totalInterest)}</td>
+                    <td className="text-right fw-bold text-accent money-cell">â‚± {fmt(totalLoanAmount)}</td>
+                    <td className="text-right fw-bold money-cell">â‚± {fmt(totalBalance)}</td>
                   </tr>
                 </tfoot>
               )}
@@ -3203,7 +3203,7 @@ export default function Reports() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `₱${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `â‚±${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
                       <Bar dataKey="amount" fill="url(#barGradientMaturity)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={0} />
                     </BarChart>
                   </div>
@@ -3218,11 +3218,11 @@ export default function Reports() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 500 }} tickFormatter={compactChartLabel} angle={-35} textAnchor="end" height={70} interval={0} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `₱${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `â‚±${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
                       <Tooltip 
                         cursor={{ fill: 'rgba(245, 158, 11, 0.08)' }} 
                         contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }} 
-                        formatter={(val) => [`₱ ${fmt(val)}`, 'Total Loan Amount']} 
+                        formatter={(val) => [`â‚± ${fmt(val)}`, 'Total Loan Amount']} 
                         labelStyle={{ color: '#0f172a', fontWeight: 700, marginBottom: 6, fontSize: 13 }} 
                       />
                       <Bar dataKey="amount" fill="url(#barGradientMaturity)" radius={[6, 6, 0, 0]} barSize={40} animationDuration={1000} />
@@ -3247,7 +3247,7 @@ export default function Reports() {
                   <div style={{ fontSize: 18, fontWeight: 'bold', color: 'var(--blue-dark)' }}>{row.collector}</div>
                   <div style={{ fontSize: 14, fontWeight: 'bold' }}>
                     Clients: {row.client_count} &nbsp;|&nbsp; 
-                    Total Balance: <span className="text-accent">₱ {fmt(row.total_balance)}</span>
+                    Total Balance: <span className="text-accent">â‚± {fmt(row.total_balance)}</span>
                   </div>
                 </div>
                 <table className="data-table" style={{ width: '100%', fontSize: 12 }}>
@@ -3267,9 +3267,9 @@ export default function Reports() {
                       <tr key={l.id}>
                         <td className="fw-600">{l.customer_name || '-'}</td>
                         <td className="mono">{l.loan_code || '-'}</td>
-                        <td className="text-right">₱ {fmt(l.principal)}</td>
-                        <td className="text-right fw-bold text-accent">₱ {fmt(Number(l.principal || 0) + Number(l.interest_amount || 0))}</td>
-                        <td className="text-right fw-bold">₱ {fmt(l.balance)}</td>
+                        <td className="text-right">â‚± {fmt(l.principal)}</td>
+                        <td className="text-right fw-bold text-accent">â‚± {fmt(Number(l.principal || 0) + Number(l.interest_amount || 0))}</td>
+                        <td className="text-right fw-bold">â‚± {fmt(l.balance)}</td>
                         <td>{l.date_maturity || '-'}</td>
                         <td>{l.status === 'pastdue' && l.days_overdue > 0 ? `Pastdue (${l.days_overdue} days)` : l.status}</td>
                       </tr>
@@ -3289,15 +3289,15 @@ export default function Reports() {
                   </div>
                   <div style={{ padding: 16, background: 'rgba(18,58,99,0.05)', borderRadius: 8, border: '1px solid rgba(18,58,99,0.1)' }}>
                     <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: 600 }}>Total Principal</div>
-                    <div style={{ fontSize: 20, fontWeight: 'bold' }}>₱ {fmt(totalPrincipal)}</div>
+                    <div style={{ fontSize: 20, fontWeight: 'bold' }}>â‚± {fmt(totalPrincipal)}</div>
                   </div>
                   <div style={{ padding: 16, background: 'rgba(18,58,99,0.05)', borderRadius: 8, border: '1px solid rgba(18,58,99,0.1)' }}>
                     <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: 600 }}>Grand Total Balance</div>
-                    <div style={{ fontSize: 20, fontWeight: 'bold', color: 'var(--blue-dark)' }}>₱ {fmt(totalBalance)}</div>
+                    <div style={{ fontSize: 20, fontWeight: 'bold', color: 'var(--blue-dark)' }}>â‚± {fmt(totalBalance)}</div>
                   </div>
                   <div style={{ padding: 16, background: 'rgba(139,92,246,0.1)', borderRadius: 8, border: '1px solid rgba(139,92,246,0.2)' }}>
                     <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: 600 }}>Grand Total Loan Amount</div>
-                    <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--blue-mid)' }}>₱ {fmt(totalLoanAmount)}</div>
+                    <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--blue-mid)' }}>â‚± {fmt(totalLoanAmount)}</div>
                   </div>
                 </div>
               </div>
@@ -3308,9 +3308,9 @@ export default function Reports() {
     }
     if (active === 'payments-encoded') {
       const records = data.data || []
-      return <><div style={{ marginBottom: 12 }} className="fw-bold">{records.length} records {data.total != null ? `— Total: ₱ ${fmt(data.total)}` : ''}</div>
+      return <><div style={{ marginBottom: 12 }} className="fw-bold">{records.length} records {data.total != null ? `â€” Total: â‚± ${fmt(data.total)}` : ''}</div>
         <table className="data-table"><thead><tr><th>OR#</th><th>Customer</th><th>Loan#</th><th>Date</th><th className="text-right">Amount</th><th>By</th></tr></thead>
-        <tbody>{records.length === 0 ? <tr><td colSpan={6} className="empty-state">No records</td></tr> : records.map(p => <tr key={p.id}><td className="mono">{p.or_number}</td><td>{p.customer_name}</td><td className="mono">{p.loan_code}</td><td>{p.date_paid}</td><td className="text-right">₱ {fmt(p.amount_paid)}</td><td>{p.encoded_by_name || '—'}</td></tr>)}</tbody></table></>
+        <tbody>{records.length === 0 ? <tr><td colSpan={6} className="empty-state">No records</td></tr> : records.map(p => <tr key={p.id}><td className="mono">{p.or_number}</td><td>{p.customer_name}</td><td className="mono">{p.loan_code}</td><td>{p.date_paid}</td><td className="text-right">â‚± {fmt(p.amount_paid)}</td><td>{p.encoded_by_name || 'â€”'}</td></tr>)}</tbody></table></>
     }
     if (active === 'payments-reversed') {
       const { payments = [], total } = data
@@ -3352,16 +3352,16 @@ export default function Reports() {
           <div id={(!selectedCollector && printMode === 'summary') ? "printable-area" : undefined} className="reversed-screen-only" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             <div style={{ overflowX: 'auto' }}>
               <div style={{ marginBottom: 6, color: 'var(--blue-dark)', fontWeight: 700 }}>{transactionLabel}</div>
-              <div style={{ marginBottom: 12, color: '#dc2626', fontWeight: 700 }}>Total Reversed: ₱ {fmt(total)}</div>
+              <div style={{ marginBottom: 12, color: '#dc2626', fontWeight: 700 }}>Total Reversed: â‚± {fmt(total)}</div>
               <table className="data-table">
                 <thead><tr><th>Collector</th><th className="text-right">No. of Reversals</th><th className="text-right">Total Amount</th></tr></thead>
-                <tbody>{reversedCollectorRows.length === 0 ? <tr><td colSpan={3} className="empty-state">No reversed payments found</td></tr> : reversedCollectorRows.map(row => <tr key={row.collector} onClick={() => setSelectedCollector(row)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedCollector(row) }} tabIndex={0} title="View reversed payment details" style={{ cursor: 'pointer' }}><td className="fw-600">{row.collector}</td><td className="text-right">{row.payment_count}</td><td className="text-right fw-bold" style={{ color: '#dc2626' }}>₱ {fmt(row.total_amount)}</td></tr>)}</tbody>
+                <tbody>{reversedCollectorRows.length === 0 ? <tr><td colSpan={3} className="empty-state">No reversed payments found</td></tr> : reversedCollectorRows.map(row => <tr key={row.collector} onClick={() => setSelectedCollector(row)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedCollector(row) }} tabIndex={0} title="View reversed payment details" style={{ cursor: 'pointer' }}><td className="fw-600">{row.collector}</td><td className="text-right">{row.payment_count}</td><td className="text-right fw-bold" style={{ color: '#dc2626' }}>â‚± {fmt(row.total_amount)}</td></tr>)}</tbody>
                 {reversedCollectorRows.length > 0 && (
                   <tfoot>
                     <tr style={{ background: 'rgba(220,38,38,0.04)', borderTop: '2px solid var(--border)' }}>
                       <td className="fw-bold" style={{ color: 'var(--blue-dark)' }}>GRAND TOTAL</td>
                       <td className="text-right fw-bold">{reversedCollectorRows.reduce((sum, r) => sum + r.payment_count, 0)}</td>
-                      <td className="text-right fw-bold" style={{ color: '#dc2626', fontSize: '14px' }}>₱ {fmt(total)}</td>
+                      <td className="text-right fw-bold" style={{ color: '#dc2626', fontSize: '14px' }}>â‚± {fmt(total)}</td>
                     </tr>
                   </tfoot>
                 )}
@@ -3381,11 +3381,11 @@ export default function Reports() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `₱${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `â‚±${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
                       <Tooltip 
                         cursor={{ fill: 'rgba(220, 38, 38, 0.08)' }} 
                         contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }} 
-                        formatter={(val) => [`₱ ${fmt(val)}`, 'Total Reversed']} 
+                        formatter={(val) => [`â‚± ${fmt(val)}`, 'Total Reversed']} 
                         labelStyle={{ color: '#0f172a', fontWeight: 700, marginBottom: 6, fontSize: 13 }} 
                       />
                       <Bar dataKey="amount" fill="url(#barGradientReversed)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={1000} />
@@ -3401,7 +3401,7 @@ export default function Reports() {
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
               <h2 style={{ margin: 0, color: '#dc2626' }}>Payments Reversed Report</h2>
               <div style={{ fontSize: 14, color: '#64748b' }}>{transactionLabel}</div>
-              <div style={{ fontSize: 16, fontWeight: 'bold', color: '#dc2626', marginTop: 6 }}>Grand Total Reversed: ₱ {fmt(total)}</div>
+              <div style={{ fontSize: 16, fontWeight: 'bold', color: '#dc2626', marginTop: 6 }}>Grand Total Reversed: â‚± {fmt(total)}</div>
             </div>
             {reversedCollectorRows.length === 0 ? <div className="empty-state">No reversed payments found</div> : reversedCollectorRows.map(row => (
               <div key={row.collector} style={{ marginBottom: 30, pageBreakInside: 'avoid' }}>
@@ -3409,7 +3409,7 @@ export default function Reports() {
                   <div style={{ fontSize: 18, fontWeight: 'bold', color: 'var(--blue-dark)' }}>{row.collector}</div>
                   <div style={{ fontSize: 14, fontWeight: 'bold' }}>
                     Reversals: {row.payment_count} &nbsp;|&nbsp;
-                    Total: <span style={{ color: '#dc2626' }}>₱ {fmt(row.total_amount)}</span>
+                    Total: <span style={{ color: '#dc2626' }}>â‚± {fmt(row.total_amount)}</span>
                   </div>
                 </div>
                 <table className="data-table" style={{ width: '100%', fontSize: 12 }}>
@@ -3424,7 +3424,7 @@ export default function Reports() {
                         <td className="mono">{p.payment_code || p.or_number || '-'}</td>
                         <td className="mono">{p.loan_code || '-'}</td>
                         <td>{p.date_paid}</td>
-                        <td className="text-right fw-bold" style={{ color: '#dc2626' }}>₱ {fmt(p.amount_paid)}</td>
+                        <td className="text-right fw-bold" style={{ color: '#dc2626' }}>â‚± {fmt(p.amount_paid)}</td>
                         <td style={{ fontSize: 11 }}>{p.reversal_reason || '-'}</td>
                         <td style={{ fontSize: 11 }}>{p.reversed_by_name || '-'}</td>
                       </tr>
@@ -3513,7 +3513,7 @@ export default function Reports() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `₱${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `â‚±${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
                       <Tooltip 
                         cursor={{ fill: 'rgba(22, 163, 74, 0.08)' }} 
                         contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }} 
@@ -3601,7 +3601,7 @@ export default function Reports() {
         <div className="reports-screen-only" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
           <div style={{ overflowX: 'auto' }}>
             <div style={{ marginBottom: 6, color: 'var(--blue-dark)', fontWeight: 700 }}>{transactionLabel}</div>
-            <div style={{ marginBottom: 12 }} className="fw-bold text-success">Total Amount: ₱ {fmt(grandTotal)}</div>
+            <div style={{ marginBottom: 12 }} className="fw-bold text-success">Total Amount: â‚± {fmt(grandTotal)}</div>
             
             <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
               <table className="data-table">
@@ -3622,7 +3622,7 @@ export default function Reports() {
                       <td className="text-right">
                         {row.new_count > 0 ? (
                           <>
-                            <div className="fw-bold" style={{ color: 'var(--blue-dark)', fontSize: 14 }}>₱ {fmt(row.new_amount)}</div>
+                            <div className="fw-bold" style={{ color: 'var(--blue-dark)', fontSize: 14 }}>â‚± {fmt(row.new_amount)}</div>
                             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{row.new_count} Client{row.new_count > 1 ? 's' : ''}</div>
                           </>
                         ) : '-'}
@@ -3631,7 +3631,7 @@ export default function Reports() {
                       <td className="text-right">
                         {row.reloan_count > 0 ? (
                           <>
-                            <div className="fw-bold" style={{ color: 'var(--blue-dark)', fontSize: 14 }}>₱ {fmt(row.reloan_amount)}</div>
+                            <div className="fw-bold" style={{ color: 'var(--blue-dark)', fontSize: 14 }}>â‚± {fmt(row.reloan_amount)}</div>
                             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{row.reloan_count} Client{row.reloan_count > 1 ? 's' : ''}</div>
                           </>
                         ) : '-'}
@@ -3640,7 +3640,7 @@ export default function Reports() {
                       <td className="text-right">
                         {row.recon_count > 0 ? (
                           <>
-                            <div className="fw-bold" style={{ color: 'var(--blue-dark)', fontSize: 14 }}>₱ {fmt(row.recon_amount)}</div>
+                            <div className="fw-bold" style={{ color: 'var(--blue-dark)', fontSize: 14 }}>â‚± {fmt(row.recon_amount)}</div>
                             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{row.recon_count} Client{row.recon_count > 1 ? 's' : ''}</div>
                           </>
                         ) : '-'}
@@ -3649,7 +3649,7 @@ export default function Reports() {
                       <td className="text-right">
                         {row.loan_count > 0 ? (
                           <>
-                            <div className="fw-bold" style={{ color: 'var(--blue)', fontSize: 14 }}>₱ {fmt(row.total_principal)}</div>
+                            <div className="fw-bold" style={{ color: 'var(--blue)', fontSize: 14 }}>â‚± {fmt(row.total_principal)}</div>
                             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{row.loan_count} Release{row.loan_count > 1 ? 's' : ''}</div>
                           </>
                         ) : '-'}
@@ -3662,19 +3662,19 @@ export default function Reports() {
                     <tr style={{ background: 'rgba(18,58,99,0.03)', borderTop: '2px solid var(--border)' }}>
                       <td className="fw-bold" style={{ color: 'var(--blue-dark)' }}>GRAND TOTAL</td>
                       <td className="text-right">
-                        <div className="fw-bold" style={{ color: 'var(--blue-dark)', fontSize: 14 }}>₱ {fmt(grandTotalNew)}</div>
+                        <div className="fw-bold" style={{ color: 'var(--blue-dark)', fontSize: 14 }}>â‚± {fmt(grandTotalNew)}</div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{grandCountNew} Client{grandCountNew > 1 ? 's' : ''}</div>
                       </td>
                       <td className="text-right">
-                        <div className="fw-bold" style={{ color: 'var(--blue-dark)', fontSize: 14 }}>₱ {fmt(grandTotalReloan)}</div>
+                        <div className="fw-bold" style={{ color: 'var(--blue-dark)', fontSize: 14 }}>â‚± {fmt(grandTotalReloan)}</div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{grandCountReloan} Client{grandCountReloan > 1 ? 's' : ''}</div>
                       </td>
                       <td className="text-right">
-                        <div className="fw-bold" style={{ color: 'var(--blue-dark)', fontSize: 14 }}>₱ {fmt(grandTotalRecon)}</div>
+                        <div className="fw-bold" style={{ color: 'var(--blue-dark)', fontSize: 14 }}>â‚± {fmt(grandTotalRecon)}</div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{grandCountRecon} Client{grandCountRecon > 1 ? 's' : ''}</div>
                       </td>
                       <td className="text-right">
-                        <div className="fw-bold" style={{ color: 'var(--blue)', fontSize: 14 }}>₱ {fmt(grandTotal)}</div>
+                        <div className="fw-bold" style={{ color: 'var(--blue)', fontSize: 14 }}>â‚± {fmt(grandTotal)}</div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{grandCount} Release{grandCount > 1 ? 's' : ''}</div>
                       </td>
                     </tr>
@@ -3697,11 +3697,11 @@ export default function Reports() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `₱${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `â‚±${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
                     <Tooltip 
                       cursor={{ fill: 'rgba(59, 130, 246, 0.08)' }} 
                       contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }} 
-                      formatter={(val) => [`₱ ${fmt(val)}`, 'Total Released']} 
+                      formatter={(val) => [`â‚± ${fmt(val)}`, 'Total Released']} 
                       labelStyle={{ color: '#0f172a', fontWeight: 700, marginBottom: 6, fontSize: 13 }} 
                     />
                     <Bar dataKey="amount" fill="url(#barGradientType)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={1000} />
@@ -3736,7 +3736,7 @@ export default function Reports() {
 
       const targetAmount = params.manual_target ? Number(params.manual_target) : calculatedTarget
       const totalActiveClients = params.manual_clients ? Number(params.manual_clients) : calculatedClients
-      const peso = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-₱${f}` : `₱${f}` }
+      const peso = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-â‚±${f}` : `â‚±${f}` }
 
       return (
         <div style={{ background: '#fff', padding: 40, fontFamily: 'Arial, Helvetica, sans-serif', maxWidth: 600, margin: '0 auto', border: '1px solid #ddd', borderRadius: 8, marginTop: 20 }}>
@@ -3772,7 +3772,7 @@ export default function Reports() {
       if (data.error) {
         return (
           <div className="empty-state">
-            <div className="empty-icon">📊</div>
+            <div className="empty-icon">ðŸ“Š</div>
             <p>{data.error}</p>
           </div>
         )
@@ -3791,7 +3791,7 @@ export default function Reports() {
 
       const isReconLoan = (loan) => (loan.loan_type || '').toLowerCase().includes('recon')
 
-      /* ── Classify and deduplicate ── */
+      /* â”€â”€ Classify and deduplicate â”€â”€ */
       const groups = { active: [], recon: [], overdue: [], pastdue: [] }
       const seen = new Set()
       loans.forEach(l => {
@@ -3809,8 +3809,8 @@ export default function Reports() {
       const baseTarget = [...groups.active, ...groups.overdue.filter(c => !isReconLoan(c))].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
       const targetAmount = params.manual_target ? Number(params.manual_target) : baseTarget
 
-      /* ── Color constants ── */
-      const peso = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-₱${f}` : `₱${f}` }
+      /* â”€â”€ Color constants â”€â”€ */
+      const peso = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-â‚±${f}` : `â‚±${f}` }
       const fDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }) : '-'
 
       /* Build one ordered stream, then flow down column 1, column 2, next page. */
@@ -4163,8 +4163,8 @@ export default function Reports() {
           <td className="fw-600">{p.customer_name || '-'}</td>
           <td className="mono">{p.payment_code || p.or_number || '-'}</td>
           <td className="mono">{p.loan_code || '-'}</td>
-          <td className="text-right text-success fw-bold">₱ {fmt(p.amount_paid)}</td>
-          <td className="text-right">₱ {fmt(p.balance_after)}</td>
+          <td className="text-right text-success fw-bold">â‚± {fmt(p.amount_paid)}</td>
+          <td className="text-right">â‚± {fmt(p.balance_after)}</td>
         </tr>
       ))
       return empty ? [header, empty] : [header, ...rows]
@@ -4202,13 +4202,13 @@ export default function Reports() {
             {renderSubTabs()}
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               {renderParams()}
-              <button id="btn-run-report" className="btn btn-primary" onClick={() => run(active, params, active === 'monthly-releases' ? releaseSubTab : collectionSubTab)} disabled={loading || (active === 'disclosure-statement' && !params.disclosure_search.trim() && !params.disclosure_loan_id)}>{loading ? '⏳ Running...' : '▶ Run Report'}</button>
+              <button id="btn-run-report" className="btn btn-primary" onClick={() => run(active, params, active === 'monthly-releases' ? releaseSubTab : collectionSubTab)} disabled={loading || (active === 'disclosure-statement' && !params.disclosure_search.trim() && !params.disclosure_loan_id)}>{loading ? 'â³ Running...' : 'â–¶ Run Report'}</button>
               {(data || active === 'collection-sheet') && (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {active === 'collection-sheet' ? (
                     <>
                       <div style={{ position: 'relative' }}>
-                        <button className="btn btn-secondary" onClick={() => setExportMenuOpen(open => !open)} disabled={loading || data?.error}>Export ▾</button>
+                        <button className="btn btn-secondary" onClick={() => setExportMenuOpen(open => !open)} disabled={loading || data?.error}>Export â–¾</button>
                         {exportMenuOpen && (
                           <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 20, minWidth: 130, background: '#fff', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 12px 24px rgba(15, 23, 42, 0.12)', padding: 4 }}>
                             <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start', border: 0 }} onClick={() => { setExportMenuOpen(false); handleExportExcel() }}>Excel</button>
@@ -4217,18 +4217,18 @@ export default function Reports() {
                         )}
                       </div>
                       <button className="btn btn-secondary" onClick={openFieldReleaseModal} disabled={loading}>Field Release</button>
-                      <button className="btn btn-secondary" onClick={printCollectionSheet} disabled={loading}>🖨️ Print</button>
+                      <button className="btn btn-secondary" onClick={printCollectionSheet} disabled={loading}>ðŸ–¨ï¸ Print</button>
                     </>
                   ) : ['collection-report', 'monthly-releases', 'past-due', 'payments-reversed', 'full-paid'].includes(active) ? (
                     <>
                       <button className="btn btn-secondary" onClick={handleExportExcel} disabled={loading || data?.error}>Export Excel</button>
-                      <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>🖨️ Print Summary</button>
-                      <button className="btn btn-secondary" onClick={() => handlePrint('detailed')}>🖨️ Print Detailed</button>
+                      <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>ðŸ–¨ï¸ Print Summary</button>
+                      <button className="btn btn-secondary" onClick={() => handlePrint('detailed')}>ðŸ–¨ï¸ Print Detailed</button>
                     </>
                   ) : (
                     <>
                       <button className="btn btn-secondary" onClick={handleExportExcel} disabled={loading || data?.error}>Export Excel</button>
-                      <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>{active === 'disclosure-statement' ? 'Print Disclosure' : '🖨️ Print'}</button>
+                      <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>{active === 'disclosure-statement' ? 'Print Disclosure' : 'ðŸ–¨ï¸ Print'}</button>
                     </>
                   )}
                   {active === 'disclosure-statement' && (
@@ -4257,7 +4257,7 @@ export default function Reports() {
                 <>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, marginBottom: 12, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'rgba(37, 99, 235, 0.06)' }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>Total Field Release</span>
-                    <span style={{ fontSize: 18, fontWeight: 800, color: '#0D1B3D' }}>₱ {fmt(fieldReleaseRows.reduce((sum, row) => sum + Number(row.amount || 0), 0))}</span>
+                    <span style={{ fontSize: 18, fontWeight: 800, color: '#0D1B3D' }}>â‚± {fmt(fieldReleaseRows.reduce((sum, row) => sum + Number(row.amount || 0), 0))}</span>
                   </div>
                   <div style={{ maxHeight: '55vh', overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
                     <table className="data-table" style={{ minWidth: 0, width: '100%' }}>
@@ -4307,7 +4307,7 @@ export default function Reports() {
             <div className="modal-header">
               <span className="modal-title">{active === 'full-paid' ? 'Fully Paid Details' : active === 'payments-reversed' ? 'Reversed Payment Details' : (active === 'monthly-releases' || active === 'loan-type') ? 'Release Details' : active === 'past-due' ? 'Maturity Details' : 'Collection Details'} - {selectedCollector.collector}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <button className="btn btn-secondary" style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => window.print()}>🖨️ Print</button>
+                <button className="btn btn-secondary" style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => window.print()}>ðŸ–¨ï¸ Print</button>
                 <button className="modal-close" onClick={() => setSelectedCollector(null)}>x</button>
               </div>
             </div>
@@ -4323,7 +4323,7 @@ export default function Reports() {
                 </div>
                 <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-soft, #f8fafc)' }}>
                   <div className="nav-section-label" style={{ marginBottom: 4 }}>{active === 'payments-reversed' ? 'Total Reversed' : (active === 'monthly-releases' || active === 'loan-type') ? 'Total Released' : active === 'past-due' ? 'Total Balance' : active === 'full-paid' ? 'Total Principal' : 'Total Collection'}</div>
-                  <div className={`fw-bold ${active === 'payments-reversed' ? '' : 'text-success'}`} style={active === 'payments-reversed' ? { color: '#dc2626' } : {}}>₱ {fmt(active === 'past-due' ? selectedCollector.total_balance : (selectedCollector.total_amount || selectedCollector.total_principal))}</div>
+                  <div className={`fw-bold ${active === 'payments-reversed' ? '' : 'text-success'}`} style={active === 'payments-reversed' ? { color: '#dc2626' } : {}}>â‚± {fmt(active === 'past-due' ? selectedCollector.total_balance : (selectedCollector.total_amount || selectedCollector.total_principal))}</div>
                 </div>
                 {active === 'full-paid' && (
                   <>
@@ -4352,8 +4352,8 @@ export default function Reports() {
                             <td className="fw-600">{l.customer_name || '-'}</td>
                             <td className="mono">{l.loan_code || '-'}</td>
                             <td><span className="tag">{l.loan_type}</span></td>
-                            <td className="text-right fw-bold">₱ {fmt(l.principal)}</td>
-                            <td className="text-right">₱ {fmt(l.net_proceeds)}</td>
+                            <td className="text-right fw-bold">â‚± {fmt(l.principal)}</td>
+                            <td className="text-right">â‚± {fmt(l.net_proceeds)}</td>
                             <td>{l.date_released}</td>
                           </tr>
                         ))}
@@ -4370,9 +4370,9 @@ export default function Reports() {
                             <td className="mono">{l.customer_code || '-'}</td>
                             <td className="fw-600">{l.customer_name || '-'}</td>
                             <td className="mono">{l.loan_code || '-'}</td>
-                            <td className="text-right">₱ {fmt(l.principal)}</td>
-                            <td className="text-right fw-bold text-accent">₱ {fmt(Number(l.principal || 0) + Number(l.interest_amount || 0))}</td>
-                            <td className="text-right fw-bold">₱ {fmt(l.balance)}</td>
+                            <td className="text-right">â‚± {fmt(l.principal)}</td>
+                            <td className="text-right fw-bold text-accent">â‚± {fmt(Number(l.principal || 0) + Number(l.interest_amount || 0))}</td>
+                            <td className="text-right fw-bold">â‚± {fmt(l.balance)}</td>
                             <td>{l.date_maturity || '-'}</td>
                             <td><span className={`badge badge-${l.status}`}>{l.status === 'pastdue' && l.days_overdue > 0 ? `Pastdue (${l.days_overdue} days)` : l.status}</span></td>
                           </tr>
@@ -4392,7 +4392,7 @@ export default function Reports() {
                             <td className="mono">{p.payment_code || p.or_number || '-'}</td>
                             <td className="mono">{p.loan_code || '-'}</td>
                             <td>{p.date_paid}</td>
-                            <td className="text-right fw-bold" style={{ color: '#dc2626' }}>₱ {fmt(p.amount_paid)}</td>
+                            <td className="text-right fw-bold" style={{ color: '#dc2626' }}>â‚± {fmt(p.amount_paid)}</td>
                             <td style={{ fontSize: 11 }}>{p.reversal_reason || '-'}</td>
                             <td style={{ fontSize: 11 }}>{p.reversed_by_name || '-'}</td>
                           </tr>

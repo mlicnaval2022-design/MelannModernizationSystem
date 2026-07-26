@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
@@ -60,7 +60,7 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [])
 
-  if (loading) return <div className="empty-state"><p>⏳ Loading dashboard...</p></div>
+  if (loading) return <div className="empty-state"><p>â³ Loading dashboard...</p></div>
   if (errorMsg) return <div className="empty-state"><p>Could not load dashboard: {errorMsg}</p></div>
   if (!data) return <div className="empty-state"><p>Could not load dashboard data.</p></div>
 
@@ -72,12 +72,12 @@ export default function Dashboard() {
         <div className="metric-card-v2">
           <div className="header">
             <span>Total Portfolio</span>
-            <h3>₱ {fmt(data.total_portfolio)}</h3>
+            <h3>â‚± {fmt(data.total_portfolio)}</h3>
             <span style={{ color: 'var(--accent-success)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-              📈 +12% this month
+              ðŸ“ˆ +12% this month
             </span>
           </div>
-          <div className="metric-icon-circle" style={{ background: '#10b981', color: 'white' }}>💰</div>
+          <div className="metric-icon-circle" style={{ background: '#10b981', color: 'white' }}>ðŸ’°</div>
           {/* Mock Sparkline */}
           <div style={{ marginTop: 10 }}>
             <svg viewBox="0 0 100 30" width="100%" height="40" preserveAspectRatio="none">
@@ -90,10 +90,10 @@ export default function Dashboard() {
         <div className="metric-card-v2">
           <div className="header">
             <span>Collection as of {data.yesterday_str}</span>
-            <h3>₱ {fmt(data.collections_yesterday)}</h3>
-            <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Target: ₱100,000</span>
+            <h3>â‚± {fmt(data.collections_yesterday)}</h3>
+            <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Target: â‚±100,000</span>
           </div>
-          <div className="metric-icon-circle" style={{ background: '#3b82f6', color: 'white' }}>⬇️</div>
+          <div className="metric-icon-circle" style={{ background: '#3b82f6', color: 'white' }}>â¬‡ï¸</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 15 }}>
             <div className="progress-container" style={{ margin: 0, flex: 1 }}>
               <div className="progress-fill" style={{ width: '85%', background: '#3b82f6' }}></div>
@@ -105,10 +105,10 @@ export default function Dashboard() {
         <div className="metric-card-v2">
           <div className="header">
             <span>Releases Today</span>
-            <h3>₱ {fmt(data.releases_today)}</h3>
+            <h3>â‚± {fmt(data.releases_today)}</h3>
             <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{data.loans_released_today} Clients</span>
           </div>
-          <div className="metric-icon-circle" style={{ background: '#8b5cf6', color: 'white' }}>⬆️</div>
+          <div className="metric-icon-circle" style={{ background: '#8b5cf6', color: 'white' }}>â¬†ï¸</div>
           <div style={{ marginTop: 10 }}>
             <svg viewBox="0 0 100 30" width="100%" height="40" preserveAspectRatio="none">
               <path d="M0,20 L20,25 L40,15 L60,10 L80,20 L100,5 L100,30 L0,30 Z" fill="rgba(139,92,246,0.1)" />
@@ -121,9 +121,9 @@ export default function Dashboard() {
           <div className="header">
             <span>Past Due Loans</span>
             <h3 style={{ color: '#ef4444' }}>{data.total_pastdue} <span style={{fontSize: 14, color: 'var(--text-primary)'}}>Accounts</span></h3>
-            <span style={{ color: '#ef4444', fontSize: 13, fontWeight: 'bold' }}>₱ {fmt(data.total_pastdue_amount)}</span>
+            <span style={{ color: '#ef4444', fontSize: 13, fontWeight: 'bold' }}>â‚± {fmt(data.total_pastdue_amount)}</span>
           </div>
-          <div className="metric-icon-circle" style={{ background: '#ef4444', color: 'white' }}>⚠️</div>
+          <div className="metric-icon-circle" style={{ background: '#ef4444', color: 'white' }}>âš ï¸</div>
           <div style={{ marginTop: 10 }}>
             <svg viewBox="0 0 100 30" width="100%" height="40" preserveAspectRatio="none">
               <path d="M0,25 L20,25 L40,20 L60,15 L80,10 L100,5 L100,30 L0,30 Z" fill="rgba(239,68,68,0.1)" />
@@ -167,21 +167,21 @@ export default function Dashboard() {
             <h3 style={{ color: '#dc2626' }}>{data.monitoring_alerts_active || 0} <span style={{fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)'}}>Clients</span></h3>
             <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Unresolved eligible records</span>
           </div>
-          <div className="metric-icon-circle" style={{ background: '#fef2f2', color: '#ef4444', fontSize: 24 }}>🚨</div>
+          <div className="metric-icon-circle" style={{ background: '#fef2f2', color: '#ef4444', fontSize: 24 }}>ðŸš¨</div>
         </div>
         <div className="metric-card-v2 compact-card" onClick={() => navigate('/monitoring?tab=escalated')} style={{ cursor: 'pointer', borderTop: '4px solid #991b1b' }}>
           <div className="header">
             <span style={{ fontWeight: 'bold', color: '#7f1d1d' }}>Escalated (Day 4+)</span>
             <h3 style={{ color: '#991b1b' }}>{data.monitoring_alerts_escalated || 0}</h3>
           </div>
-          <div className="metric-icon-circle" style={{ background: '#fee2e2', color: '#b91c1c', fontSize: 24 }}>🔥</div>
+          <div className="metric-icon-circle" style={{ background: '#fee2e2', color: '#b91c1c', fontSize: 24 }}>ðŸ”¥</div>
         </div>
         <div className="metric-card-v2 compact-card" onClick={() => navigate('/monitoring?tab=resolved')} style={{ cursor: 'pointer', borderTop: '4px solid #10b981' }}>
           <div className="header">
             <span style={{ fontWeight: 'bold', color: '#047857' }}>Resolved Today</span>
             <h3 style={{ color: '#059669' }}>{data.monitoring_alerts_resolved_today || 0}</h3>
           </div>
-          <div className="metric-icon-circle" style={{ background: '#ecfdf5', color: '#10b981', fontSize: 24 }}>✅</div>
+          <div className="metric-icon-circle" style={{ background: '#ecfdf5', color: '#10b981', fontSize: 24 }}>âœ…</div>
         </div>
 
         {/* Daily Collection Trend Chart in 4th Slot */}
@@ -200,7 +200,7 @@ export default function Dashboard() {
                     </linearGradient>
                   </defs>
                   <Tooltip 
-                    formatter={(value) => [`₱${fmt(value)}`, 'Total']} 
+                    formatter={(value) => [`â‚±${fmt(value)}`, 'Total']} 
                     labelFormatter={(label) => new Date(label).toLocaleDateString('en-US', {month: 'short', day: 'numeric'})}
                     contentStyle={{ fontSize: '11px', padding: '4px 8px', borderRadius: '4px' }}
                   />
@@ -222,28 +222,28 @@ export default function Dashboard() {
             <span style={{ fontWeight: 'bold', color: '#b45309' }}>For CI</span>
             <h3 style={{ color: '#d97706' }}>{data.pending_ci_count || 0} <span style={{fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)'}}>Applications</span></h3>
           </div>
-          <div className="metric-icon-circle" style={{ background: '#fffbeb', color: '#f59e0b', fontSize: 24 }}>📋</div>
+          <div className="metric-icon-circle" style={{ background: '#fffbeb', color: '#f59e0b', fontSize: 24 }}>ðŸ“‹</div>
         </div>
         <div className="metric-card-v2 compact-card" onClick={() => navigate('/credit-scoring')} style={{ cursor: 'pointer', borderTop: '4px solid #3b82f6' }}>
           <div className="header">
             <span style={{ fontWeight: 'bold', color: '#1d4ed8' }}>For Approval</span>
             <h3 style={{ color: '#2563eb' }}>{data.for_approval_count || 0} <span style={{fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)'}}>Applications</span></h3>
           </div>
-          <div className="metric-icon-circle" style={{ background: '#eff6ff', color: '#3b82f6', fontSize: 24 }}>✅</div>
+          <div className="metric-icon-circle" style={{ background: '#eff6ff', color: '#3b82f6', fontSize: 24 }}>âœ…</div>
         </div>
         <div className="metric-card-v2 compact-card" style={{ borderTop: '4px solid #10b981' }}>
           <div className="header">
             <span style={{ fontWeight: 'bold', color: '#047857' }}>Approved Today</span>
             <h3 style={{ color: '#059669' }}>{data.approved_today || 0}</h3>
           </div>
-          <div className="metric-icon-circle" style={{ background: '#ecfdf5', color: '#10b981', fontSize: 24 }}>🎉</div>
+          <div className="metric-icon-circle" style={{ background: '#ecfdf5', color: '#10b981', fontSize: 24 }}>ðŸŽ‰</div>
         </div>
         <div className="metric-card-v2 compact-card" style={{ borderTop: '4px solid #ef4444' }}>
           <div className="header">
             <span style={{ fontWeight: 'bold', color: '#b91c1c' }}>Rejected Today</span>
             <h3 style={{ color: '#dc2626' }}>{data.rejected_today || 0}</h3>
           </div>
-          <div className="metric-icon-circle" style={{ background: '#fef2f2', color: '#ef4444', fontSize: 24 }}>❌</div>
+          <div className="metric-icon-circle" style={{ background: '#fef2f2', color: '#ef4444', fontSize: 24 }}>âŒ</div>
         </div>
       </div>
 
@@ -257,7 +257,7 @@ export default function Dashboard() {
           <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
             <div className="card-v2" style={{ flex: 2 }}>
               <div className="card-v2-title">
-                👥 Collector Performance 
+                ðŸ‘¥ Collector Performance 
                 {data.yesterday_str && <span style={{ fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: 8 }}>(Yesterday: {new Date(data.yesterday_str + 'T00:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})})</span>}
               </div>
               <div style={{ maxHeight: '350px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px' }}>
@@ -280,8 +280,8 @@ export default function Dashboard() {
                       return (
                         <tr key={c.id}>
                           <td className="fw-bold">{c.name}</td>
-                          <td>₱{fmt(c.target)}</td>
-                          <td>₱{fmt(c.collected)}</td>
+                          <td>â‚±{fmt(c.target)}</td>
+                          <td>â‚±{fmt(c.collected)}</td>
                           <td style={{ textAlign: 'right' }}>
                             <span style={{ fontWeight: 600 }}>{pct}%</span>
                             <div className="progress-container">
@@ -305,15 +305,15 @@ export default function Dashboard() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20, flex: 1 }}>
               <div className="card-v2">
-                <div className="card-v2-title">🎯 Yesterday's Collection Status</div>
+                <div className="card-v2-title">ðŸŽ¯ Yesterday's Collection Status</div>
                 <div className="collection-blocks">
                   <div className="c-block" style={{ background: '#f0f9ff', borderColor: '#bae6fd' }}>
                     <span style={{ color: '#0369a1' }}>Yesterday's Target Collection</span>
-                    <h4 style={{ color: '#0284c7' }}>₱{fmt(data.collector_performance?.reduce((s,c)=>s+c.target,0))}</h4>
+                    <h4 style={{ color: '#0284c7' }}>â‚±{fmt(data.collector_performance?.reduce((s,c)=>s+c.target,0))}</h4>
                   </div>
                   <div className="c-block" style={{ background: '#f0fdf4', borderColor: '#bbf7d0' }}>
                     <span style={{ color: '#15803d' }}>Yesterday's Collection</span>
-                    <h4 style={{ color: '#16a34a' }}>₱{fmt(data.collections_yesterday)}</h4>
+                    <h4 style={{ color: '#16a34a' }}>â‚±{fmt(data.collections_yesterday)}</h4>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 25 }}>
@@ -331,7 +331,7 @@ export default function Dashboard() {
               </div>
 
               <div className="card-v2">
-                <div className="card-v2-title">📋 Pending CI Applications</div>
+                <div className="card-v2-title">ðŸ“‹ Pending CI Applications</div>
                 {data.pending_ci && data.pending_ci.length > 0 ? (
                   <table className="data-table" style={{ fontSize: 12 }}>
                     <thead><tr><th>Client</th><th>Amount</th><th>Status</th></tr></thead>
@@ -339,7 +339,7 @@ export default function Dashboard() {
                       {data.pending_ci.map(p => (
                         <tr key={p.id}>
                           <td>{p.full_name}</td>
-                          <td className="fw-600">₱{fmt(p.principal)}</td>
+                          <td className="fw-600">â‚±{fmt(p.principal)}</td>
                           <td><span className="badge badge-warning">Pending</span></td>
                         </tr>
                       ))}
@@ -353,7 +353,7 @@ export default function Dashboard() {
           {/* Bottom Row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             <div className="card-v2">
-              <div className="card-v2-title">📊 Account Status Distribution</div>
+              <div className="card-v2-title">ðŸ“Š Account Status Distribution</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
                 {(() => {
                   const distribution = data.account_status_distribution || [];
@@ -369,28 +369,28 @@ export default function Dashboard() {
                     <>
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 5 }}>
-                          <span><span style={{color: '#10b981'}}>●</span> Active Loans ({activeCount})</span>
+                          <span><span style={{color: '#10b981'}}>â—</span> Active Loans ({activeCount})</span>
                           <strong>{Math.round((activeCount / total) * 100)}%</strong>
                         </div>
                         <div className="progress-container"><div className="progress-fill" style={{ width: `${Math.round((activeCount / total) * 100)}%`, background: '#10b981' }}></div></div>
                       </div>
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 5 }}>
-                          <span><span style={{color: '#ef4444'}}>●</span> Past Due ({pastDueCount})</span>
+                          <span><span style={{color: '#ef4444'}}>â—</span> Past Due ({pastDueCount})</span>
                           <strong>{Math.round((pastDueCount / total) * 100)}%</strong>
                         </div>
                         <div className="progress-container"><div className="progress-fill" style={{ width: `${Math.round((pastDueCount / total) * 100)}%`, background: '#ef4444' }}></div></div>
                       </div>
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 5 }}>
-                          <span><span style={{color: '#3b82f6'}}>●</span> Fully Paid ({fullpaidCount})</span>
+                          <span><span style={{color: '#3b82f6'}}>â—</span> Fully Paid ({fullpaidCount})</span>
                           <strong>{Math.round((fullpaidCount / total) * 100)}%</strong>
                         </div>
                         <div className="progress-container"><div className="progress-fill" style={{ width: `${Math.round((fullpaidCount / total) * 100)}%`, background: '#3b82f6' }}></div></div>
                       </div>
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 5 }}>
-                          <span><span style={{color: '#f59e0b'}}>●</span> Pending CI ({pendingCount})</span>
+                          <span><span style={{color: '#f59e0b'}}>â—</span> Pending CI ({pendingCount})</span>
                           <strong>{Math.round((pendingCount / total) * 100)}%</strong>
                         </div>
                         <div className="progress-container"><div className="progress-fill" style={{ width: `${Math.round((pendingCount / total) * 100)}%`, background: '#f59e0b' }}></div></div>
@@ -402,7 +402,7 @@ export default function Dashboard() {
             </div>
 
             <div className="card-v2">
-              <div className="card-v2-title">📅 Aging Report</div>
+              <div className="card-v2-title">ðŸ“… Aging Report</div>
               <table className="data-table" style={{ fontSize: 12 }}>
                 <thead>
                   <tr>
@@ -444,7 +444,7 @@ export default function Dashboard() {
           {/* Bottom Summary Bar */}
           <div className="card-v2" style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '15px 20px' }}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 20 }}>👥</div>
+              <div style={{ fontSize: 20 }}>ðŸ‘¥</div>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginTop: 4 }}>Top Collector Today</div>
               <div style={{ fontSize: 13, fontWeight: 700 }}>
                 {data.collector_performance && data.collector_performance.length > 0 ? data.collector_performance[0].name : 'N/A'}
@@ -455,29 +455,29 @@ export default function Dashboard() {
             </div>
             <div style={{ width: 1, height: 40, background: 'var(--border)' }}></div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 20, color: '#3b82f6' }}>🎯</div>
+              <div style={{ fontSize: 20, color: '#3b82f6' }}>ðŸŽ¯</div>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginTop: 4 }}>Today's Expected Collections</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#2563eb' }}>₱{fmt(data.expected_collections_today)}</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#2563eb' }}>â‚±{fmt(data.expected_collections_today)}</div>
             </div>
             <div style={{ width: 1, height: 40, background: 'var(--border)' }}></div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 20, color: '#f59e0b' }}>👥</div>
+              <div style={{ fontSize: 20, color: '#f59e0b' }}>ðŸ‘¥</div>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginTop: 4 }}>Active Clients</div>
               <div style={{ fontSize: 16, fontWeight: 800 }}>{data.total_customers}</div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#10b981' }}>⬆ +{data.new_customers_this_month} this month</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#10b981' }}>â¬† +{data.new_customers_this_month} this month</div>
             </div>
             <div style={{ width: 1, height: 40, background: 'var(--border)' }}></div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 20, color: '#8b5cf6' }}>📈</div>
+              <div style={{ fontSize: 20, color: '#8b5cf6' }}>ðŸ“ˆ</div>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginTop: 4 }}>Monthly Collection Trend</div>
               <div style={{ fontSize: 16, fontWeight: 800, color: data.collections_this_month >= data.collections_last_month ? '#10b981' : '#ef4444' }}>
                 {data.collections_last_month > 0 ? `${data.collections_this_month >= data.collections_last_month ? '+' : ''}${Math.round(((data.collections_this_month - data.collections_last_month) / data.collections_last_month) * 100)}%` : '+100%'}
               </div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>📈 vs last month</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>ðŸ“ˆ vs last month</div>
             </div>
             <div style={{ width: 1, height: 40, background: 'var(--border)' }}></div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 20, color: '#ef4444' }}>📄</div>
+              <div style={{ fontSize: 20, color: '#ef4444' }}>ðŸ“„</div>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginTop: 4 }}>Demand Letters Sent</div>
               <div style={{ fontSize: 16, fontWeight: 800 }}>{data.demand_letters_sent}</div>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>This Month</div>
@@ -491,7 +491,7 @@ export default function Dashboard() {
           
           <div className="card-v2" style={{ display: 'flex', flexDirection: 'column' }}>
             <div className="card-v2-title" style={{ justifyContent: 'space-between' }}>
-              <span>🕒 Recent Activities</span>
+              <span>ðŸ•’ Recent Activities</span>
               <span style={{ fontSize: 11, color: '#3b82f6', cursor: 'pointer', fontWeight: 600 }}>View All</span>
             </div>
             <div className="activity-feed">
@@ -518,23 +518,23 @@ export default function Dashboard() {
           </div>
 
           <div className="card-v2">
-            <div className="card-v2-title">⚡ Quick Actions</div>
+            <div className="card-v2-title">âš¡ Quick Actions</div>
             <button className="quick-action-btn" style={{ background: '#10b981' }} onClick={() => navigate('/customers')}>+ New Client</button>
             <button className="quick-action-btn" style={{ background: '#3b82f6' }} onClick={() => navigate('/loans')}>+ Release Loan</button>
             <button className="quick-action-btn" style={{ background: '#8b5cf6' }} onClick={() => navigate('/payments')}>+ Post Payment</button>
-            <button className="quick-action-btn" style={{ background: '#f59e0b' }} onClick={() => navigate('/collectors')}>🖨️ Print Collection Sheet</button>
-            <button className="quick-action-btn" style={{ background: '#ef4444' }} onClick={() => navigate('/reports')}>✉️ Generate Demand Letter</button>
+            <button className="quick-action-btn" style={{ background: '#f59e0b' }} onClick={() => navigate('/collectors')}>ðŸ–¨ï¸ Print Collection Sheet</button>
+            <button className="quick-action-btn" style={{ background: '#ef4444' }} onClick={() => navigate('/reports')}>âœ‰ï¸ Generate Demand Letter</button>
           </div>
 
           <div className="card-v2" style={{ flex: 1 }}>
             <div className="card-v2-title" style={{ justifyContent: 'space-between' }}>
-              <span>🔔 Notifications</span>
+              <span>ðŸ”” Notifications</span>
               <span style={{ fontSize: 11, color: '#3b82f6', cursor: 'pointer', fontWeight: 600 }}>View All</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {data.total_pastdue > 0 ? (
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#fef2f2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>⚠️</div>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#fef2f2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>âš ï¸</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                       <h5 style={{ margin: 0, fontSize: 12, color: '#ef4444' }}>{data.total_pastdue} Past Due Accounts</h5>
@@ -547,7 +547,7 @@ export default function Dashboard() {
 
               {data.pending_ci && data.pending_ci.length > 0 ? (
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#fffbeb', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>📋</div>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#fffbeb', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>ðŸ“‹</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                       <h5 style={{ margin: 0, fontSize: 12, color: '#d97706' }}>{data.pending_ci.length} Pending CI Applications</h5>
@@ -570,7 +570,7 @@ export default function Dashboard() {
       <div className="card" style={{ marginTop: '20px' }}>
         <div className="card-header">
           <div>
-            <div className="card-title">🚀 System Updates</div>
+            <div className="card-title">ðŸš€ System Updates</div>
             <div className="card-subtitle">Recent changes to the platform</div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Loan Calculator Service
  * Core business logic for amortization, maturity, and balance computations
  */

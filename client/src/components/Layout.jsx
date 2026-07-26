@@ -18,6 +18,7 @@ const NAV = [
   { path: '/dcr', label: 'Daily Cash Report', icon: '📝', section: 'Finance' },
   { path: '/cash', label: 'Cash Position', icon: '🏧', section: 'Finance' },
   { path: '/reports', label: 'Reports', icon: '📈', section: 'Reports' },
+  { path: '/collector-performance', label: 'Collector Performance', icon: 'CP', section: 'Reports' },
   { path: '/government-compliance', label: 'Government Compliance', icon: 'GC', section: 'Reports', roles: ['admin', 'compliance', 'compliance_officer', 'accounting', 'corporate_secretary', 'management', 'manager', 'it'] },
   { path: '/branches', label: 'Branches', icon: '🏢', section: 'Admin', roles: ['admin', 'manager'] },
   { path: '/users', label: 'User Management', icon: '🔐', section: 'Admin', roles: ['admin'] },
