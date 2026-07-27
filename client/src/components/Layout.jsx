@@ -36,6 +36,7 @@ const NAV = [
   { path: '/payments', label: 'Encode Payments', Icon: CreditCard, section: 'Operations', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.18)' },
   { path: '/monitoring', label: '3-Day Monitoring', Icon: Bell, section: 'Operations', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.16)' },
   { path: '/collectors', label: 'Collectors', Icon: Users, section: 'Operations', color: '#14b8a6', bg: 'rgba(20, 184, 166, 0.16)' },
+  { path: '/demand-letter', label: 'Demand Letter', Icon: FileText, section: 'Operations', color: '#f97316', bg: 'rgba(249, 115, 22, 0.18)' },
   { path: '/deposits', label: 'Deposits', Icon: Landmark, section: 'Finance', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.16)' },
   { path: '/transactions', label: 'Transactions', Icon: ReceiptText, section: 'Finance', color: '#0ea5e9', bg: 'rgba(14, 165, 233, 0.16)' },
   { path: '/dcr', label: 'Daily Cash Report', Icon: ClipboardList, section: 'Finance', color: '#eab308', bg: 'rgba(234, 179, 8, 0.18)' },
