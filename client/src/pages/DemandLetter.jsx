@@ -483,16 +483,11 @@ export default function DemandLetter() {
 
   const handlePrint = async () => {
     if (!type || !selectedCustomer || !selectedLoan) return
-    setSavingRecord(true)
     setError('')
     try {
-      await saveDemandRecord()
-      if (activeTab === 'monitoring') loadMonitoring(type)
       setTimeout(() => window.print(), 100)
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to save demand letter transaction')
-    } finally {
-      setSavingRecord(false)
+      setError(err.response?.data?.error || 'Failed to print demand letter')
     }
   }
 
@@ -543,6 +538,10 @@ export default function DemandLetter() {
       })
       setMonitoringRows(prev => prev.map(row => row.id === receivedModal.id ? res.data : row))
       setReceivedModal(null)
+      setSuccessModal({
+        title: 'Updated Successfully',
+        message: `${receivedModal.client_name} received details have been updated.`,
+      })
     } catch (err) {
       setReceivedModal(prev => ({
         ...prev,
