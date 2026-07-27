@@ -129,6 +129,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
       FROM tblCollector co
       WHERE co.is_active = 1
         AND LOWER(co.first_name || ' ' || co.last_name) NOT LIKE '%pastdue%'
+        AND LOWER(co.first_name || ' ' || co.last_name) NOT LIKE '%melann office%'
       ORDER BY co.last_name ASC, co.first_name ASC
     `);
 

@@ -61,7 +61,9 @@ export default function CollectorPerformance() {
     const payments = collectionRes.data?.payments || []
     const byCollector = new Map()
 
-    baseCollectors.forEach(collector => {
+    baseCollectors
+      .filter(collector => !String(collector.name || '').toLowerCase().includes('melann office'))
+      .forEach(collector => {
       byCollector.set(collector.name, {
         id: collector.id,
         name: collector.name,
@@ -74,6 +76,7 @@ export default function CollectorPerformance() {
 
     payments.forEach(payment => {
       const name = payment.collector_name || 'Unassigned'
+      if (String(name).toLowerCase().includes('melann office')) return
       const row = byCollector.get(name) || {
         id: `fallback-${name}`,
         name,
