@@ -5,6 +5,19 @@ import html2pdf from 'html2pdf.js'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import {
+  AlertTriangle,
+  BarChart3,
+  Bell,
+  CalendarDays,
+  CheckCircle2,
+  ClipboardList,
+  FileText,
+  Printer,
+  RefreshCcw,
+  Rocket,
+  Target,
+} from 'lucide-react'
 const CL = { navy: '#0D1B3D', active: '#1F2933', recon: '#1565C0', overdue: '#EF6C00', pastdue: '#D71920', lightBg: '#F5F7FA' }
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })
 const compactChartLabel = value => {
@@ -491,16 +504,16 @@ const getMonthlyReleaseMatrix = (loans, params) => {
 }
 
 const REPORT_TYPES = [
-  { key: 'collection-report', label: 'Collection Report', desc: 'Daily and monthly collections' },
-  { key: 'monthly-releases', label: 'Releases Report', desc: 'Daily and monthly releases' },
-  { key: 'past-due', label: 'Loans Maturity Checker', desc: 'Loans by maturity date range' },
-  { key: 'payments-reversed', label: 'Payments Reversed', desc: 'Reversed payments by date range' },
-  { key: 'full-paid', label: 'Fully Paid Loans', desc: 'Fully paid loan accounts' },
-  { key: 'loan-type', label: 'Loan Type Summary', desc: 'Summary by loan type and status' },
-  { key: 'collection-sheet', label: 'Collection Sheet', desc: 'Per-collector active loan list' },
-  { key: 'daily-target', label: 'Daily Target', desc: 'Daily target collection' },
-  { key: 'disclosure-statement', label: 'Disclosure Statement', desc: 'Client disclosure for every reloan' },
-  { key: 'monitoring-summary', label: 'Monitoring Summary', desc: 'Alerts, escalations, PTPs, and resolutions' },
+  { key: 'collection-report', label: 'Collection Report', desc: 'Daily and monthly collections', Icon: CalendarDays },
+  { key: 'monthly-releases', label: 'Releases Report', desc: 'Daily and monthly releases', Icon: Rocket },
+  { key: 'past-due', label: 'Loans Maturity Checker', desc: 'Loans by maturity date range', Icon: AlertTriangle },
+  { key: 'payments-reversed', label: 'Payments Reversed', desc: 'Reversed payments by date range', Icon: RefreshCcw },
+  { key: 'full-paid', label: 'Fully Paid Loans', desc: 'Fully paid loan accounts', Icon: CheckCircle2 },
+  { key: 'loan-type', label: 'Loan Type Summary', desc: 'Summary by loan type and status', Icon: BarChart3 },
+  { key: 'collection-sheet', label: 'Collection Sheet', desc: 'Per-collector active loan list', Icon: ClipboardList },
+  { key: 'daily-target', label: 'Daily Target', desc: 'Daily target collection', Icon: Target },
+  { key: 'disclosure-statement', label: 'Disclosure Statement', desc: 'Client disclosure for every reloan', Icon: FileText },
+  { key: 'monitoring-summary', label: 'Monitoring Summary', desc: 'Alerts, escalations, PTPs, and resolutions', Icon: Bell },
 ]
 
 export default function Reports() {
@@ -4187,14 +4200,17 @@ export default function Reports() {
       <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 16 }}>
         <div className="card" style={{ padding: '12px 8px', height: 'fit-content' }}>
           <div className="nav-section-label">Report Types</div>
-          {REPORT_TYPES.map(r => (
+          {REPORT_TYPES.map(r => {
+            const Icon = r.Icon
+            return (
             <div key={r.key} className={`report-nav-item${active === r.key ? ' active' : ''}`} onClick={() => handleSelect(r.key)}>
+              <Icon size={17} strokeWidth={2.2} style={{ flexShrink: 0, marginTop: 2 }} />
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{r.label}</div>
                 <div className="report-desc" style={{ fontSize: 11, marginTop: 2 }}>{r.desc}</div>
               </div>
             </div>
-          ))}
+          )})}
         </div>
         <div>
           <div className="card" style={{ marginBottom: 16 }}>
@@ -4217,18 +4233,18 @@ export default function Reports() {
                         )}
                       </div>
                       <button className="btn btn-secondary" onClick={openFieldReleaseModal} disabled={loading}>Field Release</button>
-                      <button className="btn btn-secondary" onClick={printCollectionSheet} disabled={loading}>Print</button>
+                      <button className="btn btn-secondary" onClick={printCollectionSheet} disabled={loading}><Printer size={15} /> Print</button>
                     </>
                   ) : ['collection-report', 'monthly-releases', 'past-due', 'payments-reversed', 'full-paid'].includes(active) ? (
                     <>
                       <button className="btn btn-secondary" onClick={handleExportExcel} disabled={loading || data?.error}>Export Excel</button>
-                      <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>Print Summary</button>
-                      <button className="btn btn-secondary" onClick={() => handlePrint('detailed')}>Print Detailed</button>
+                      <button className="btn btn-secondary" onClick={() => handlePrint('summary')}><Printer size={15} /> Print Summary</button>
+                      <button className="btn btn-secondary" onClick={() => handlePrint('detailed')}><Printer size={15} /> Print Detailed</button>
                     </>
                   ) : (
                     <>
                       <button className="btn btn-secondary" onClick={handleExportExcel} disabled={loading || data?.error}>Export Excel</button>
-                      <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>{active === 'disclosure-statement' ? 'Print Disclosure' : 'Print'}</button>
+                      <button className="btn btn-secondary" onClick={() => handlePrint('summary')}><Printer size={15} /> {active === 'disclosure-statement' ? 'Print Disclosure' : 'Print'}</button>
                     </>
                   )}
                   {active === 'disclosure-statement' && (
@@ -4307,7 +4323,7 @@ export default function Reports() {
             <div className="modal-header">
               <span className="modal-title">{active === 'full-paid' ? 'Fully Paid Details' : active === 'payments-reversed' ? 'Reversed Payment Details' : (active === 'monthly-releases' || active === 'loan-type') ? 'Release Details' : active === 'past-due' ? 'Maturity Details' : 'Collection Details'} - {selectedCollector.collector}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <button className="btn btn-secondary" style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => window.print()}>Print</button>
+                <button className="btn btn-secondary" style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => window.print()}><Printer size={14} /> Print</button>
                 <button className="modal-close" onClick={() => setSelectedCollector(null)}>x</button>
               </div>
             </div>
