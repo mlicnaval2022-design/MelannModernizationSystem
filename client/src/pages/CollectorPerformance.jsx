@@ -18,7 +18,7 @@ const getDefaultRange = () => {
   const to = new Date()
   if (to.getDay() === 0) to.setDate(to.getDate() - 1)
   const dateKey = toDateKey(to)
-  return { date_to: dateKey }
+  return { date_to: dateKey, pastdue_cutoff: `${to.getFullYear()}-05-15` }
 }
 
 const displayDate = value => {
@@ -135,6 +135,7 @@ export default function CollectorPerformance() {
       date_to: filters.date_to,
       target_date: filters.date_to,
       actual_date: filters.date_to,
+      pastdue_cutoff: filters.pastdue_cutoff,
       totals,
       top_collector: collectors[0] || null,
       collectors,
@@ -149,7 +150,8 @@ export default function CollectorPerformance() {
     try {
       const res = await API.get('/collector-performance/summary', {
         params: {
-          date_to: filters.date_to
+          date_to: filters.date_to,
+          pastdue_cutoff: filters.pastdue_cutoff
         }
       })
       setData(res.data)
@@ -178,12 +180,13 @@ export default function CollectorPerformance() {
   const collectors = (data?.collectors || [])
     .filter(collector => !String(collector.name || '').toLowerCase().includes('melann office'))
   const totals = collectors.reduce((acc, collector) => {
-    const collectorTotal = Number(collector.active_clients || 0) + Number(collector.recon_clients || 0) + Number(collector.pastdue_clients || 0)
+    const collectorTotal = Number(collector.active_clients || 0) + Number(collector.recon_clients || 0) + Number(collector.overdue_clients || 0) + Number(collector.pastdue_clients || 0)
     acc.target += Number(collector.target || 0)
     acc.collected += Number(collector.actual_collection ?? collector.collected ?? 0)
     acc.payment_count += Number(collector.payment_count || 0)
     acc.active_clients += Number(collector.active_clients || 0)
     acc.recon_clients += Number(collector.recon_clients || 0)
+    acc.overdue_clients += Number(collector.overdue_clients || 0)
     acc.pastdue_clients += Number(collector.pastdue_clients || 0)
     acc.total_clients += collectorTotal
     return acc
@@ -193,12 +196,15 @@ export default function CollectorPerformance() {
     payment_count: 0,
     active_clients: 0,
     recon_clients: 0,
+    overdue_clients: 0,
     pastdue_clients: 0,
     total_clients: 0
   })
   totals.achievement_rate = totals.target > 0 ? Math.round((totals.collected / totals.target) * 100) : 0
-  const totalClients = Number(totals.active_clients || 0) + Number(totals.recon_clients || 0) + Number(totals.pastdue_clients || 0)
+  const totalClients = Number(totals.active_clients || 0) + Number(totals.recon_clients || 0) + Number(totals.overdue_clients || 0) + Number(totals.pastdue_clients || 0)
+  const activeTotal = Number(totals.active_clients || 0) + Number(totals.overdue_clients || 0)
   const reportDate = data?.target_date || filters.date_to
+  const pastdueCutoff = data?.pastdue_cutoff || filters.pastdue_cutoff
 
   return (
     <div className="dashboard-v2">
@@ -281,11 +287,11 @@ export default function CollectorPerformance() {
             </thead>
             <tbody>
               {collectors.map(collector => {
-                const collectorTotal = Number(collector.active_clients || 0) + Number(collector.recon_clients || 0) + Number(collector.pastdue_clients || 0)
+                const collectorTotal = Number(collector.active_clients || 0) + Number(collector.recon_clients || 0) + Number(collector.overdue_clients || 0) + Number(collector.pastdue_clients || 0)
                 return (
                   <tr key={`print-left-${collector.id}`}>
                     <td className="collector-print-name">{String(collector.name || '').toUpperCase()}</td>
-                    <td className="collector-print-num">{countFmt(collector.active_clients)}</td>
+                    <td className="collector-print-num">{countFmt(Number(collector.active_clients || 0) + Number(collector.overdue_clients || 0))}</td>
                     <td className="collector-print-num">{countFmt(collector.recon_clients)}</td>
                     <td className="collector-print-num">{countFmt(collector.pastdue_clients)}</td>
                     <td className="collector-print-num">{countFmt(collectorTotal)}</td>
@@ -297,7 +303,7 @@ export default function CollectorPerformance() {
             <tfoot>
               <tr className="collector-print-total">
                 <td className="collector-print-money">TOTAL</td>
-                <td className="collector-print-num">{countFmt(totals.active_clients)}</td>
+                <td className="collector-print-num">{countFmt(activeTotal)}</td>
                 <td className="collector-print-num">{countFmt(totals.recon_clients)}</td>
                 <td className="collector-print-num">{countFmt(totals.pastdue_clients)}</td>
                 <td className="collector-print-num">{countFmt(totalClients)}</td>
@@ -324,7 +330,7 @@ export default function CollectorPerformance() {
               {collectors.map(collector => (
                 <tr key={`print-right-${collector.id}`}>
                   <td className="collector-print-name">{shortCollectorName(collector.name)}</td>
-                  <td className="collector-print-num">{countFmt(collector.active_clients)}</td>
+                  <td className="collector-print-num">{countFmt(Number(collector.active_clients || 0) + Number(collector.overdue_clients || 0))}</td>
                   <td className="collector-print-money">{printAmount(collector.target)}</td>
                   <td className="collector-print-money">{collector.actual_collection || collector.collected ? printAmount(collector.actual_collection ?? collector.collected) : ''}</td>
                 </tr>
@@ -361,7 +367,7 @@ export default function CollectorPerformance() {
               <div>
                 <div className="card-v2-title" style={{ marginBottom: 4 }}>Daily Target Breakout</div>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                  Target and counts match the Collection Sheet for {data?.target_date || filters.date_to}
+                  Target/counts match the Collection Sheet for {data?.target_date || filters.date_to}; actual excludes pastdue maturity on/before {pastdueCutoff || '-'}
                 </div>
               </div>
             </div>
@@ -374,8 +380,13 @@ export default function CollectorPerformance() {
                   setFilters(current => ({
                     ...current,
                     date_to: nextDate,
+                    pastdue_cutoff: current.pastdue_cutoff || `${new Date(`${nextDate}T00:00:00`).getFullYear()}-05-15`
                   }))
                 }} />
+              </div>
+              <div className="form-group" style={{ minWidth: 150, marginBottom: 0 }}>
+                <label className="form-label">Pastdue Cutoff</label>
+                <input className="form-control" type="date" value={filters.pastdue_cutoff || ''} onChange={e => setFilters(current => ({ ...current, pastdue_cutoff: e.target.value }))} />
               </div>
               <button className="btn btn-primary" type="button" onClick={loadData} disabled={loading}>
                 {loading ? 'Loading...' : 'Apply'}
@@ -405,12 +416,13 @@ export default function CollectorPerformance() {
                 {loading ? (
                   <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>Loading...</td></tr>
                 ) : collectors.length ? collectors.map(collector => {
-                  const collectorTotal = Number(collector.active_clients || 0) + Number(collector.recon_clients || 0) + Number(collector.pastdue_clients || 0)
+                  const collectorActive = Number(collector.active_clients || 0) + Number(collector.overdue_clients || 0)
+                  const collectorTotal = collectorActive + Number(collector.recon_clients || 0) + Number(collector.pastdue_clients || 0)
                   return (
                     <tr key={collector.id}>
                       <td style={{ fontWeight: 900, textTransform: 'uppercase' }}>{collector.name}</td>
                       <td style={{ textAlign: 'center', fontWeight: 800 }}>{countFmt(collectorTotal)}</td>
-                      <td style={{ textAlign: 'center', color: '#059669', fontWeight: 900 }}>{countFmt(collector.active_clients)}</td>
+                      <td style={{ textAlign: 'center', color: '#059669', fontWeight: 900 }}>{countFmt(collectorActive)}</td>
                       <td style={{ textAlign: 'center', color: '#1d4ed8', fontWeight: 900 }}>{countFmt(collector.recon_clients)}</td>
                       <td style={{ textAlign: 'center', color: '#dc2626', fontWeight: 900 }}>{countFmt(collector.pastdue_clients)}</td>
                       <td style={{ textAlign: 'right', color: '#7c3aed', fontWeight: 900 }}>PHP {fmt(collector.target)}</td>
@@ -425,7 +437,7 @@ export default function CollectorPerformance() {
                   <tr style={{ background: '#fff8e6' }}>
                     <td style={{ fontWeight: 900, textTransform: 'uppercase', padding: '18px 24px' }}>Total</td>
                     <td style={{ textAlign: 'center', fontWeight: 900 }}>{countFmt(totalClients)}</td>
-                    <td style={{ textAlign: 'center', color: '#059669', fontWeight: 900 }}>{countFmt(totals.active_clients)}</td>
+                    <td style={{ textAlign: 'center', color: '#059669', fontWeight: 900 }}>{countFmt(activeTotal)}</td>
                     <td style={{ textAlign: 'center', color: '#1d4ed8', fontWeight: 900 }}>{countFmt(totals.recon_clients)}</td>
                     <td style={{ textAlign: 'center', color: '#dc2626', fontWeight: 900 }}>{countFmt(totals.pastdue_clients)}</td>
                     <td style={{ textAlign: 'right', color: '#7c3aed', fontWeight: 900 }}>PHP {fmt(totals.target)}</td>
