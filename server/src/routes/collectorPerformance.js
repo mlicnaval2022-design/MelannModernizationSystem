@@ -13,13 +13,11 @@ function resolveDateRange(query) {
   const today = dayjs();
   const defaultTo = today.day() === 0 ? today.subtract(1, 'day') : today;
   const selectedDate = dayjs(query.date || query.date_to || defaultTo).format('YYYY-MM-DD');
-  const pastdueCutoff = dayjs(query.pastdue_cutoff || `${dayjs(selectedDate).year()}-05-15`).format('YYYY-MM-DD');
 
   return {
     from: selectedDate,
     to: selectedDate,
-    targetDate: selectedDate,
-    pastdueCutoff
+    targetDate: selectedDate
   };
 }
 
@@ -34,17 +32,15 @@ function eachOperationDate(from, to) {
   return dates;
 }
 
-function classifyCollectionLoan(loan, pastdueCutoff) {
+function classifyCollectionLoan(loan) {
   const dpd = Math.max(0, Number.parseInt(loan.days_past_due, 10) || 0);
-  if (dpd >= 45 && loan.date_maturity && !dayjs(toDate(loan.date_maturity)).isAfter(dayjs(pastdueCutoff), 'day')) {
-    return 'pastdue';
-  }
+  if (dpd >= 45) return 'pastdue';
   if (dpd >= 1) return 'overdue';
   if (String(loan.loan_type || '').toLowerCase().includes('recon')) return 'recon';
   return 'active';
 }
 
-async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
+async function getCollectorSheetStats(collectorId, targetDate) {
   const loans = await dbAll(`
     SELECT
       l.id,
@@ -155,7 +151,7 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
       ? dayjs(targetDate).diff(maturity, 'day')
       : 0;
 
-    const group = classifyCollectionLoan(loan, pastdueCutoff);
+    const group = classifyCollectionLoan(loan);
     const collectedToday = toAmount(loan.collected_today);
     stats.collected += collectedToday;
     stats.payment_count += toAmount(loan.payment_count_today);
@@ -178,7 +174,7 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
 
 router.get('/summary', authenticateToken, async (req, res) => {
   try {
-    const { from, to, targetDate, pastdueCutoff } = resolveDateRange(req.query);
+    const { from, to, targetDate } = resolveDateRange(req.query);
 
     const collectors = await dbAll(`
       SELECT
@@ -197,7 +193,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
     const collectorRows = [];
 
     for (const collector of collectors) {
-      const sheetStats = await getCollectorSheetStats(collector.id, targetDate, pastdueCutoff);
+      const sheetStats = await getCollectorSheetStats(collector.id, targetDate);
       const row = {
         ...collector,
         target: sheetStats.target,
@@ -212,7 +208,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
       };
 
       for (const date of dates) {
-        const dailyStats = date === targetDate ? sheetStats : await getCollectorSheetStats(collector.id, date, pastdueCutoff);
+        const dailyStats = date === targetDate ? sheetStats : await getCollectorSheetStats(collector.id, date);
         row.collected += dailyStats.collected;
         row.actual_collection += dailyStats.collected;
         row.paying_clients += dailyStats.paying_clients;
@@ -256,7 +252,6 @@ router.get('/summary', authenticateToken, async (req, res) => {
       date_to: to,
       target_date: targetDate,
       actual_date: targetDate,
-      pastdue_cutoff: pastdueCutoff,
       totals: {
         ...totals,
         achievement_rate: totals.target > 0 ? Math.round((totals.collected / totals.target) * 100) : 0

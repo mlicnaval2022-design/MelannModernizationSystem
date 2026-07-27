@@ -18,7 +18,7 @@ const getDefaultRange = () => {
   const to = new Date()
   if (to.getDay() === 0) to.setDate(to.getDate() - 1)
   const dateKey = toDateKey(to)
-  return { date_to: dateKey, pastdue_cutoff: `${to.getFullYear()}-05-15` }
+  return { date_to: dateKey }
 }
 
 const displayDate = value => {
@@ -135,7 +135,6 @@ export default function CollectorPerformance() {
       date_to: filters.date_to,
       target_date: filters.date_to,
       actual_date: filters.date_to,
-      pastdue_cutoff: filters.pastdue_cutoff,
       totals,
       top_collector: collectors[0] || null,
       collectors,
@@ -150,8 +149,7 @@ export default function CollectorPerformance() {
     try {
       const res = await API.get('/collector-performance/summary', {
         params: {
-          date_to: filters.date_to,
-          pastdue_cutoff: filters.pastdue_cutoff
+          date_to: filters.date_to
         }
       })
       setData(res.data)
@@ -201,7 +199,6 @@ export default function CollectorPerformance() {
   totals.achievement_rate = totals.target > 0 ? Math.round((totals.collected / totals.target) * 100) : 0
   const totalClients = Number(totals.active_clients || 0) + Number(totals.recon_clients || 0) + Number(totals.pastdue_clients || 0)
   const reportDate = data?.target_date || filters.date_to
-  const pastdueCutoff = data?.pastdue_cutoff || filters.pastdue_cutoff
 
   return (
     <div className="dashboard-v2">
@@ -364,7 +361,7 @@ export default function CollectorPerformance() {
               <div>
                 <div className="card-v2-title" style={{ marginBottom: 4 }}>Daily Target Breakout</div>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                  Target/counts based on Collection Sheet for {data?.target_date || filters.date_to}; Pastdue cutoff {pastdueCutoff || '-'}
+                  Target and counts match the Collection Sheet for {data?.target_date || filters.date_to}
                 </div>
               </div>
             </div>
@@ -377,13 +374,8 @@ export default function CollectorPerformance() {
                   setFilters(current => ({
                     ...current,
                     date_to: nextDate,
-                    pastdue_cutoff: current.pastdue_cutoff || `${new Date(`${nextDate}T00:00:00`).getFullYear()}-05-15`
                   }))
                 }} />
-              </div>
-              <div className="form-group" style={{ minWidth: 150, marginBottom: 0 }}>
-                <label className="form-label">Pastdue Cutoff</label>
-                <input className="form-control" type="date" value={filters.pastdue_cutoff || ''} onChange={e => setFilters(current => ({ ...current, pastdue_cutoff: e.target.value }))} />
               </div>
               <button className="btn btn-primary" type="button" onClick={loadData} disabled={loading}>
                 {loading ? 'Loading...' : 'Apply'}
