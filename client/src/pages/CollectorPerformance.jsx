@@ -5,6 +5,7 @@ import '../dashboard.css'
 
 const fmt = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 const countFmt = value => Number(value || 0).toLocaleString('en-PH')
+const printAmount = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 const toDateKey = date => {
   const year = date.getFullYear()
@@ -19,6 +20,24 @@ const getDefaultRange = () => {
   const from = new Date(to)
   from.setDate(from.getDate() - 6)
   return { date_from: toDateKey(from), date_to: toDateKey(to) }
+}
+
+const displayDate = value => {
+  if (!value) return ''
+  return new Date(`${value}T00:00:00`).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric'
+  })
+}
+
+const shortCollectorName = name => {
+  const raw = String(name || '').trim()
+  const parts = raw.split(/\s+/).filter(Boolean)
+  if (parts.length <= 1) return raw.toUpperCase()
+  const first = parts[0]
+  const last = parts.slice(1).join(' ')
+  return `${last}, ${first.charAt(0)}.`.toUpperCase()
 }
 
 export default function CollectorPerformance() {
@@ -136,9 +155,142 @@ export default function CollectorPerformance() {
   const collectors = data?.collectors || []
   const totals = data?.totals || {}
   const totalClients = Number(totals.active_clients || 0) + Number(totals.recon_clients || 0) + Number(totals.pastdue_clients || 0)
+  const reportDate = data?.date_to || filters.date_to
 
   return (
     <div className="dashboard-v2">
+      <style>{`
+        .collector-print-layout { display: none; }
+        .collector-print-table {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+          color: #000;
+          font-family: Arial, Helvetica, sans-serif;
+        }
+        .collector-print-table th,
+        .collector-print-table td {
+          border: 1px solid #000;
+          padding: 3px 4px;
+          font-size: 8px;
+          line-height: 1.05;
+          vertical-align: middle;
+        }
+        .collector-print-table th {
+          font-weight: 800;
+          text-align: center;
+        }
+        .collector-print-label {
+          width: 22%;
+          font-weight: 800;
+          text-align: left;
+        }
+        .collector-print-value {
+          font-weight: 800;
+          text-align: left;
+        }
+        .collector-print-name {
+          font-weight: 800;
+          text-align: left;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: clip;
+        }
+        .collector-print-num { text-align: center; font-weight: 700; }
+        .collector-print-money { text-align: right; font-weight: 700; }
+        .collector-print-total td { font-weight: 900; }
+        @media print {
+          @page { size: landscape; margin: 0.35in; }
+          body { background: #fff !important; }
+          body * { visibility: hidden !important; }
+          .collector-print-layout,
+          .collector-print-layout * { visibility: visible !important; }
+          .collector-print-layout {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.34in;
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100%;
+            padding: 0;
+            background: #fff;
+          }
+          .collector-print-panel { break-inside: avoid; page-break-inside: avoid; }
+        }
+      `}</style>
+
+      <div className="collector-print-layout">
+        <div className="collector-print-panel">
+          <table className="collector-print-table">
+            <thead>
+              <tr><td className="collector-print-label">MONDAY</td><td colSpan={6}></td></tr>
+              <tr><td className="collector-print-label">TYPE:</td><td colSpan={6} className="collector-print-value">DAILY</td></tr>
+              <tr><td className="collector-print-label">DATE:</td><td colSpan={6} className="collector-print-value">{displayDate(reportDate)}</td></tr>
+              <tr>
+                <th style={{ width: '33%' }}>Collector</th>
+                <th>Active</th>
+                <th>Recon</th>
+                <th>Pastdue</th>
+                <th>Total No.<br />of Clients</th>
+                <th colSpan={2}>Target</th>
+              </tr>
+            </thead>
+            <tbody>
+              {collectors.map(collector => {
+                const collectorTotal = Number(collector.active_clients || 0) + Number(collector.recon_clients || 0) + Number(collector.pastdue_clients || 0)
+                return (
+                  <tr key={`print-left-${collector.id}`}>
+                    <td className="collector-print-name">{String(collector.name || '').toUpperCase()}</td>
+                    <td className="collector-print-num">{countFmt(collector.active_clients)}</td>
+                    <td className="collector-print-num">{countFmt(collector.recon_clients)}</td>
+                    <td className="collector-print-num">{countFmt(collector.pastdue_clients)}</td>
+                    <td className="collector-print-num">{countFmt(collectorTotal)}</td>
+                    <td colSpan={2} className="collector-print-money">{printAmount(collector.target)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="collector-print-total">
+                <td className="collector-print-money">TOTAL</td>
+                <td className="collector-print-num">{countFmt(totals.active_clients)}</td>
+                <td className="collector-print-num">{countFmt(totals.recon_clients)}</td>
+                <td className="collector-print-num">{countFmt(totals.pastdue_clients)}</td>
+                <td className="collector-print-num">{countFmt(totalClients)}</td>
+                <td colSpan={2} className="collector-print-money">{printAmount(totals.target)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div className="collector-print-panel">
+          <table className="collector-print-table">
+            <thead>
+              <tr><td className="collector-print-label">MONDAY</td><td colSpan={3}></td></tr>
+              <tr><td className="collector-print-label">TYPE:</td><td colSpan={3} className="collector-print-value">DAILY</td></tr>
+              <tr><td className="collector-print-label">DATE:</td><td colSpan={3} className="collector-print-value">{displayDate(reportDate)}</td></tr>
+              <tr>
+                <th style={{ width: '44%' }}>Collector</th>
+                <th>No of<br />Active Accts</th>
+                <th>Target</th>
+                <th>Actual</th>
+              </tr>
+            </thead>
+            <tbody>
+              {collectors.map(collector => (
+                <tr key={`print-right-${collector.id}`}>
+                  <td className="collector-print-name">{shortCollectorName(collector.name)}</td>
+                  <td className="collector-print-num">{countFmt(collector.active_clients)}</td>
+                  <td className="collector-print-money">{printAmount(collector.target)}</td>
+                  <td className="collector-print-money">{collector.collected ? printAmount(collector.collected) : ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {errorMsg && <div className="empty-state"><p>{errorMsg}</p></div>}
 
       {!errorMsg && (
