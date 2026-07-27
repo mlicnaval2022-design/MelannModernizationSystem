@@ -13,12 +13,10 @@ function resolveDateRange(query) {
   const today = dayjs();
   const defaultTo = today.day() === 0 ? today.subtract(1, 'day') : today;
   const selectedDate = dayjs(query.date || query.date_to || defaultTo).format('YYYY-MM-DD');
-  const actualFrom = dayjs(query.actual_from || selectedDate).format('YYYY-MM-DD');
-  const actualTo = dayjs(query.actual_to || selectedDate).format('YYYY-MM-DD');
 
   return {
-    from: actualFrom,
-    to: actualTo,
+    from: selectedDate,
+    to: selectedDate,
     targetDate: selectedDate
   };
 }
@@ -202,8 +200,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
       date_from: from,
       date_to: to,
       target_date: targetDate,
-      actual_from: from,
-      actual_to: to,
+      actual_date: targetDate,
       totals: {
         ...totals,
         achievement_rate: totals.target > 0 ? Math.round((totals.collected / totals.target) * 100) : 0

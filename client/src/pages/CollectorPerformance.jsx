@@ -18,7 +18,7 @@ const getDefaultRange = () => {
   const to = new Date()
   if (to.getDay() === 0) to.setDate(to.getDate() - 1)
   const dateKey = toDateKey(to)
-  return { date_to: dateKey, actual_from: dateKey, actual_to: dateKey }
+  return { date_to: dateKey }
 }
 
 const displayDate = value => {
@@ -60,8 +60,8 @@ export default function CollectorPerformance() {
     try {
       collectionRes = await API.get('/reports/daily-collection', {
         params: {
-          date_from: filters.actual_from || filters.date_to,
-          date_to: filters.actual_to || filters.date_to
+          date_from: filters.date_to,
+          date_to: filters.date_to
         }
       })
     } catch (err) {
@@ -131,11 +131,10 @@ export default function CollectorPerformance() {
     totals.achievement_rate = totals.target > 0 ? Math.round((totals.collected / totals.target) * 100) : 0
 
     return {
-      date_from: filters.actual_from || filters.date_to,
+      date_from: filters.date_to,
       date_to: filters.date_to,
       target_date: filters.date_to,
-      actual_from: filters.actual_from || filters.date_to,
-      actual_to: filters.actual_to || filters.date_to,
+      actual_date: filters.date_to,
       totals,
       top_collector: collectors[0] || null,
       collectors,
@@ -150,9 +149,7 @@ export default function CollectorPerformance() {
     try {
       const res = await API.get('/collector-performance/summary', {
         params: {
-          date_to: filters.date_to,
-          actual_from: filters.actual_from || filters.date_to,
-          actual_to: filters.actual_to || filters.date_to
+          date_to: filters.date_to
         }
       })
       setData(res.data)
@@ -371,16 +368,8 @@ export default function CollectorPerformance() {
 
             <div style={{ display: 'flex', alignItems: 'end', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <div className="form-group" style={{ minWidth: 150, marginBottom: 0 }}>
-                <label className="form-label">Target Date</label>
+                <label className="form-label">Collection Sheet Date</label>
                 <input className="form-control" type="date" value={filters.date_to} onChange={e => setFilters(current => ({ ...current, date_to: e.target.value }))} />
-              </div>
-              <div className="form-group" style={{ minWidth: 150, marginBottom: 0 }}>
-                <label className="form-label">Actual From</label>
-                <input className="form-control" type="date" value={filters.actual_from || filters.date_to} onChange={e => setFilters(current => ({ ...current, actual_from: e.target.value }))} />
-              </div>
-              <div className="form-group" style={{ minWidth: 150, marginBottom: 0 }}>
-                <label className="form-label">Actual To</label>
-                <input className="form-control" type="date" value={filters.actual_to || filters.date_to} onChange={e => setFilters(current => ({ ...current, actual_to: e.target.value }))} />
               </div>
               <button className="btn btn-primary" type="button" onClick={loadData} disabled={loading}>
                 {loading ? 'Loading...' : 'Apply'}
