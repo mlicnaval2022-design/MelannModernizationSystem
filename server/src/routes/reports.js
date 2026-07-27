@@ -12,6 +12,8 @@ const toLocalDateString = (date = new Date()) => {
   return localDate.toISOString().split('T')[0];
 };
 
+const toDateKey = value => String(value || '').slice(0, 10);
+
 const buildMonitoringEligibilityCondition = () => `
   LOWER(c.status) IN ('active', 'recon')
   AND LOWER(l.status) = 'active'
@@ -476,9 +478,9 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
         c.last_name,
         c.middle_name,
         c.customer_code,
-        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status IN ('active', 'penalty') AND ${sqlNotSunday('date_paid')}) as collected_today,
-        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status = 'active' AND LOWER(COALESCE(remarks, '')) LIKE '%old balance%' AND ${sqlNotSunday('date_paid')}) as balance_collected_today,
-        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date_paid = ? AND status = 'penalty' AND ${sqlNotSunday('date_paid')}) as penalty_collected_today
+        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date(date_paid) = date(?) AND status IN ('active', 'penalty') AND ${sqlNotSunday('date_paid')}) as collected_today,
+        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date(date_paid) = date(?) AND status = 'active' AND LOWER(COALESCE(remarks, '')) LIKE '%old balance%' AND ${sqlNotSunday('date_paid')}) as balance_collected_today,
+        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date(date_paid) = date(?) AND status = 'penalty' AND ${sqlNotSunday('date_paid')}) as penalty_collected_today
       FROM tblLoan l
       LEFT JOIN tblCustomer c ON l.customer_id = c.id
       WHERE l.collector_id = ?
@@ -487,7 +489,7 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
           OR EXISTS (
             SELECT 1 FROM tblPayment p
             WHERE p.loan_id = l.id
-              AND p.date_paid = ?
+              AND date(p.date_paid) = date(?)
               AND p.status IN ('active', 'penalty')
               AND ${sqlNotSunday('p.date_paid')}
           )
@@ -519,7 +521,7 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
       const activeTransferLoan = customerLoans.find(loan =>
         String(loan.status || '').toLowerCase() === 'active' &&
         ['reloan', 'recon'].includes(String(loan.loan_type || '').toLowerCase().replace(/[^a-z0-9]/g, '')) &&
-        loan.date_released === targetDate
+        toDateKey(loan.date_released) === targetDate
       );
 
       if (!activeTransferLoan) {
@@ -548,7 +550,7 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
       SELECT COALESCE(SUM(passbook), 0) as total
       FROM tblLoan
       WHERE collector_id = ?
-        AND date_released = ?
+        AND date(date_released) = date(?)
         AND LOWER(COALESCE(status, '')) != 'reversed'
         AND COALESCE(passbook, 0) > 0
         AND ${sqlNotSunday('date_released')}
