@@ -3,27 +3,50 @@ import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import API from '../services/api'
 import logoImg from '../assets/logo.png'
+import {
+  BarChart3,
+  Bell,
+  Building2,
+  CalendarDays,
+  ClipboardCheck,
+  ClipboardList,
+  CreditCard,
+  FileBarChart,
+  FileText,
+  KeyRound,
+  Landmark,
+  LogOut,
+  MonitorCog,
+  PiggyBank,
+  ReceiptText,
+  Search,
+  ShieldCheck,
+  UserCog,
+  Users,
+  Wallet,
+  X,
+} from 'lucide-react'
 
 const NAV = [
-  { path: '/', label: 'Dashboard', icon: 'DB', section: 'Main' },
-  { path: '/customers', label: 'Customers', icon: 'CU', section: 'Operations' },
-  { path: '/credit-scoring', label: 'Credit Scoring', icon: 'CI', section: 'Operations' },
-  { path: '/loans', label: 'Loans', icon: 'LN', section: 'Operations' },
-  { path: '/promissory-disclosure', label: 'For Print', icon: 'FP', section: 'Operations' },
-  { path: '/payments', label: 'Encode Payments', icon: 'PM', section: 'Operations' },
-  { path: '/monitoring', label: '3-Day Monitoring', icon: '3D', section: 'Operations' },
-  { path: '/collectors', label: 'Collectors', icon: 'CO', section: 'Operations' },
-  { path: '/deposits', label: 'Deposits', icon: 'DP', section: 'Finance' },
-  { path: '/transactions', label: 'Transactions', icon: 'TR', section: 'Finance' },
-  { path: '/dcr', label: 'Daily Cash Report', icon: 'DC', section: 'Finance' },
-  { path: '/cash', label: 'Cash Position', icon: 'CA', section: 'Finance' },
-  { path: '/reports', label: 'Reports', icon: 'RP', section: 'Reports' },
-  { path: '/collector-performance', label: 'Collector Performance', icon: 'CP', section: 'Reports' },
-  { path: '/government-compliance', label: 'Government Compliance', icon: 'GC', section: 'Reports', roles: ['admin', 'compliance', 'compliance_officer', 'accounting', 'corporate_secretary', 'management', 'manager', 'it'] },
-  { path: '/branches', label: 'Branches', icon: 'BR', section: 'Admin', roles: ['admin', 'manager'] },
-  { path: '/users', label: 'User Management', icon: 'US', section: 'Admin', roles: ['admin'] },
-  { path: '/audit', label: 'Audit Trail', icon: 'AT', section: 'Admin', roles: ['admin', 'manager'] },
-  { path: '/monitoring-settings', label: 'Monitoring Settings', icon: 'MS', section: 'Admin', roles: ['admin'] },
+  { path: '/', label: 'Dashboard', Icon: BarChart3, section: 'Main' },
+  { path: '/customers', label: 'Customers', Icon: Users, section: 'Operations' },
+  { path: '/credit-scoring', label: 'Credit Scoring', Icon: ClipboardCheck, section: 'Operations' },
+  { path: '/loans', label: 'Loans', Icon: Wallet, section: 'Operations' },
+  { path: '/promissory-disclosure', label: 'For Print', Icon: FileText, section: 'Operations' },
+  { path: '/payments', label: 'Encode Payments', Icon: CreditCard, section: 'Operations' },
+  { path: '/monitoring', label: '3-Day Monitoring', Icon: Bell, section: 'Operations' },
+  { path: '/collectors', label: 'Collectors', Icon: Users, section: 'Operations' },
+  { path: '/deposits', label: 'Deposits', Icon: Landmark, section: 'Finance' },
+  { path: '/transactions', label: 'Transactions', Icon: ReceiptText, section: 'Finance' },
+  { path: '/dcr', label: 'Daily Cash Report', Icon: ClipboardList, section: 'Finance' },
+  { path: '/cash', label: 'Cash Position', Icon: PiggyBank, section: 'Finance' },
+  { path: '/reports', label: 'Reports', Icon: FileBarChart, section: 'Reports' },
+  { path: '/collector-performance', label: 'Collector Performance', Icon: BarChart3, section: 'Reports' },
+  { path: '/government-compliance', label: 'Government Compliance', Icon: ShieldCheck, section: 'Reports', roles: ['admin', 'compliance', 'compliance_officer', 'accounting', 'corporate_secretary', 'management', 'manager', 'it'] },
+  { path: '/branches', label: 'Branches', Icon: Building2, section: 'Admin', roles: ['admin', 'manager'] },
+  { path: '/users', label: 'User Management', Icon: UserCog, section: 'Admin', roles: ['admin'] },
+  { path: '/audit', label: 'Audit Trail', Icon: Search, section: 'Admin', roles: ['admin', 'manager'] },
+  { path: '/monitoring-settings', label: 'Monitoring Settings', Icon: MonitorCog, section: 'Admin', roles: ['admin'] },
 ]
 
 export default function Layout() {
@@ -113,17 +136,19 @@ export default function Layout() {
           {sections.map(section => (
             <div key={section}>
               <div className="nav-section-label">{section}</div>
-              {visibleNav.filter(n => n.section === section).map(nav => (
+              {visibleNav.filter(n => n.section === section).map(nav => {
+                const Icon = nav.Icon
+                return (
                 <NavLink
                   key={nav.path}
                   to={nav.path}
                   end={nav.path === '/'}
                   className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
                 >
-                  <span className="nav-icon">{nav.icon}</span>
+                  <span className="nav-icon"><Icon size={17} strokeWidth={2.2} /></span>
                   {nav.label}
                 </NavLink>
-              ))}
+              )})}
             </div>
           ))}
         </nav>
@@ -143,9 +168,9 @@ export default function Layout() {
             style={{ marginBottom: 4 }}
             onClick={() => { setChangePwModal(true); setPwError(''); setPwSuccess('') }}
           >
-            Change Password
+            <KeyRound size={15} /> Change Password
           </button>
-          <button id="btn-sign-out" className="btn-logout" onClick={logout}>Sign Out</button>
+          <button id="btn-sign-out" className="btn-logout" onClick={logout}><LogOut size={15} /> Sign Out</button>
         </div>
       </aside>
 
@@ -158,14 +183,14 @@ export default function Layout() {
         ) : (
           <div className="topbar-v2" style={{ padding: '0 24px', height: '70px', background: '#fff', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
             <div className="topbar-left">
-              <div className="topbar-title-wrapper">Dashboard Overview</div>
+              <div className="topbar-title-wrapper"><BarChart3 size={18} /> Dashboard Overview</div>
               <select className="topbar-branch-select" defaultValue="">
                 <option value="">All Branches</option>
                 <option value="1">Main Branch</option>
                 <option value="2">North Branch</option>
               </select>
               <div className="topbar-search">
-                <span className="icon">Search</span>
+                <span className="icon"><Search size={15} /></span>
                 <input 
                   type="text" 
                   placeholder="Quick Search Client..." 
@@ -180,14 +205,14 @@ export default function Layout() {
             </div>
             <div className="topbar-right">
               <div className="topbar-date" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 12, fontWeight: 800 }}>DATE</span>
+                <CalendarDays size={24} color="#3b82f6" />
                 <div style={{ textAlign: 'left' }}>
                   <strong>{today}</strong>
                   <span style={{ fontSize: 10 }}>Current Collection Date</span>
                 </div>
               </div>
               <div className="topbar-notif" onClick={() => setShowNotif(!showNotif)} style={{ position: 'relative', cursor: 'pointer' }}>
-                !
+                <Bell size={20} />
                 {notifications.length > 0 && <span className="topbar-notif-badge">{notifications.length}</span>}
                 {showNotif && (
                   <div className="notif-dropdown" style={{
@@ -245,8 +270,8 @@ export default function Layout() {
         <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setChangePwModal(false)}>
           <div className="modal" style={{ maxWidth: 420 }}>
             <div className="modal-header">
-              <span className="modal-title">Change Password</span>
-              <button className="modal-close" onClick={() => setChangePwModal(false)}>x</button>
+              <span className="modal-title"><KeyRound size={18} /> Change Password</span>
+              <button className="modal-close" onClick={() => setChangePwModal(false)}><X size={18} /></button>
             </div>
             <div className="modal-body">
               {pwError && <div className="login-error" style={{ marginBottom: 14 }}>{pwError}</div>}
@@ -275,7 +300,7 @@ export default function Layout() {
                 </div>
                 <div className="form-actions">
                   <button type="button" className="btn btn-secondary" onClick={() => setChangePwModal(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={pwSaving}>{pwSaving ? 'Saving...' : 'Change Password'}</button>
+                  <button type="submit" className="btn btn-primary" disabled={pwSaving}>{pwSaving ? 'Saving...' : <><KeyRound size={15} /> Change Password</>}</button>
                 </div>
               </form>
             </div>
