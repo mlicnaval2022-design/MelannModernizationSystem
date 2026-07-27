@@ -1,0 +1,368 @@
+.demand-letter-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.demand-letter-toolbar {
+  display: grid;
+  grid-template-columns: minmax(280px, 380px) 1fr auto;
+  gap: 14px;
+  align-items: end;
+}
+
+.demand-letter-generate {
+  position: relative;
+  display: inline-flex;
+  justify-content: flex-end;
+}
+
+.demand-letter-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 190px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+  padding: 6px;
+  z-index: 20;
+}
+
+.demand-letter-menu button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  background: transparent;
+  color: #0f172a;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.demand-letter-menu button:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.demand-letter-results {
+  max-height: 290px;
+  overflow-y: auto;
+}
+
+.demand-client-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 110px 1fr 110px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+  color: #0f172a;
+  text-align: left;
+}
+
+.demand-client-row:hover,
+.demand-client-row.active {
+  background: #eff6ff;
+}
+
+.demand-client-row:last-child {
+  border-bottom: 0;
+}
+
+.demand-letter-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 18px;
+  align-items: start;
+}
+
+.demand-letter-preview-wrap {
+  overflow: auto;
+  max-height: calc(100vh - 230px);
+  background: #dbe3ef;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.demand-letter-sheet {
+  --dl-top-bottom-margin: 1.91cm;
+  --dl-left-right-margin: 1.78cm;
+  --dl-header-footer-margin: 0.76cm;
+  width: 8.5in;
+  min-height: 13in;
+  margin: 0 auto;
+  background: #fff;
+  box-shadow: 0 14px 38px rgba(15, 23, 42, 0.22);
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  flex-shrink: 0;
+}
+
+.dl-letter-inner {
+  min-height: 13in;
+  padding: var(--dl-header-footer-margin) var(--dl-left-right-margin);
+  font-size: 11.2pt;
+  line-height: 1.35;
+}
+
+.dl-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0 0 calc(var(--dl-top-bottom-margin) - var(--dl-header-footer-margin));
+  line-height: 0;
+}
+
+.dl-letterhead {
+  display: block;
+  width: 5.98in;
+  height: auto;
+  object-fit: contain;
+}
+
+.dl-title {
+  margin: 0 0 20px;
+  text-align: center;
+  font-size: 11.8pt;
+  line-height: 1.2;
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+.dl-recipient {
+  margin-bottom: 30px;
+}
+
+.dl-date-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.dl-date-row span,
+.dl-to-block > strong:first-child {
+  font-weight: 800;
+}
+
+.dl-to-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.dl-client-name {
+  font-size: 11.6pt;
+}
+
+.dl-salutation {
+  margin-bottom: 22px;
+}
+
+.dl-salutation strong {
+  margin-left: 12px;
+}
+
+.demand-letter-sheet p {
+  margin: 0 0 14px;
+  text-align: justify;
+}
+
+.demand-letter-sheet u {
+  display: inline-block;
+  min-width: 95px;
+  margin: 0 8px;
+  text-align: center;
+  text-underline-offset: 2px;
+  font-weight: 500;
+}
+
+.dl-breakdown {
+  margin: 14px 0 20px 0.52in;
+  width: 3.35in;
+  border-collapse: collapse;
+  font-size: 11.3pt;
+  table-layout: fixed;
+}
+
+.dl-breakdown th,
+.dl-breakdown td {
+  padding: 1px 5px;
+  color: #000;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.dl-breakdown th {
+  width: 1.65in;
+  text-align: left;
+}
+
+.dl-breakdown td:nth-child(2) {
+  width: 0.1in;
+}
+
+.dl-breakdown td:nth-child(3) {
+  width: 0.42in;
+}
+
+.dl-breakdown td:last-child {
+  width: 1.08in;
+  text-align: right;
+}
+
+.dl-breakdown .total td:last-child {
+  border-top: 1.5px solid #000;
+  border-bottom: 3px double #000;
+}
+
+.dl-signature {
+  margin-top: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.dl-signature p {
+  margin-bottom: 22px;
+  text-align: left;
+}
+
+.dl-signature strong,
+.dl-signature span {
+  display: block;
+}
+
+.dl-received {
+  margin-top: 34px;
+  font-size: 11pt;
+}
+
+.dl-received > strong {
+  display: block;
+  margin-bottom: 26px;
+}
+
+.dl-received-lines {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55in;
+  width: 100%;
+}
+
+.dl-received-lines div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.dl-received-lines span {
+  display: block;
+  width: 100%;
+  border-bottom: 1px solid #000;
+  height: 18px;
+}
+
+.dl-received-lines small {
+  margin-top: 4px;
+  font-size: 9.5pt;
+  color: #000;
+  text-align: center;
+}
+
+.demand-letter-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.demand-detail-list {
+  display: grid;
+  gap: 10px;
+}
+
+.demand-detail-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 13px;
+}
+
+.demand-detail-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.demand-detail-item span {
+  color: #64748b;
+}
+
+.demand-detail-item strong {
+  color: #0f172a;
+  text-align: right;
+}
+
+.demand-letter-empty {
+  min-height: 520px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #64748b;
+}
+
+@media (max-width: 1180px) {
+  .demand-letter-toolbar,
+  .demand-letter-stage {
+    grid-template-columns: 1fr;
+  }
+
+  .demand-letter-generate {
+    justify-content: flex-start;
+  }
+
+  .demand-letter-preview-wrap {
+    max-height: none;
+  }
+}
+
+@media print {
+  @page {
+    size: 8.5in 13in;
+    margin: 0;
+  }
+
+  body.demand-letter-printing * {
+    visibility: hidden !important;
+  }
+
+  body.demand-letter-printing #printable-area,
+  body.demand-letter-printing #printable-area * {
+    visibility: visible !important;
+  }
+
+  body.demand-letter-printing #printable-area {
+    position: fixed !important;
+    inset: 0 auto auto 0 !important;
+    width: 8.5in !important;
+    min-height: 13in !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    box-shadow: none !important;
+    border: 0 !important;
+  }
+
+  body.demand-letter-printing .demand-letter-sheet {
+    box-shadow: none !important;
+  }
+}

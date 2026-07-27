@@ -9,6 +9,7 @@ import Customers from './pages/Customers'
 import Loans from './pages/Loans'
 import Payments from './pages/Payments'
 import Collectors from './pages/Collectors'
+import DemandLetter from './pages/DemandLetter'
 import CreditScoring from './pages/CreditScoring'
 import Deposits from './pages/Deposits'
 import Transactions from './pages/Transactions'
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="promissory-disclosure" element={<PromissoryDisclosure />} />
         <Route path="payments" element={<Payments />} />
         <Route path="collectors" element={<Collectors />} />
+        <Route path="demand-letter" element={<DemandLetter />} />
         <Route path="deposits" element={<Deposits />} />
         <Route path="transactions" element={<Transactions />} />
         <Route path="dcr" element={<DailyCashReport />} />

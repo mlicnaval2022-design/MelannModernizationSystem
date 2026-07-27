@@ -405,7 +405,10 @@ router.get('/', authenticateToken, async (req, res) => {
       LEFT JOIN tblCollector co ON c.collector_id = co.id
       WHERE 1=1`;
     const p = [];
-    if (search) { q += ` AND (c.full_name LIKE ? OR c.customer_code LIKE ? OR c.contact LIKE ?)`; p.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+    if (search) {
+      q += ` AND (c.full_name LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR c.customer_code LIKE ? OR c.contact LIKE ?)`;
+      p.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+    }
     if (status) { q += ` AND c.status = ?`; p.push(status); }
     if (branch_id) { q += ` AND c.branch_id = ?`; p.push(branch_id); }
     if (collector_id) { q += ` AND c.collector_id = ?`; p.push(collector_id); }
