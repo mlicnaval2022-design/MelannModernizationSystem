@@ -48,8 +48,10 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
   const loans = await dbAll(`
     SELECT
       l.id,
+      l.customer_id,
       l.loan_type,
       l.amortization,
+      l.date_released,
       l.date_maturity,
       l.balance,
       l.status,
@@ -69,6 +71,24 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
           AND p.status IN ('active', 'penalty')
           AND ${sqlNotSunday('p.date_paid')}
       ), 0) as payment_count_today
+      ,
+      COALESCE((
+        SELECT SUM(p.amount_paid)
+        FROM tblPayment p
+        WHERE p.loan_id = l.id
+          AND date(p.date_paid) = date(?)
+          AND p.status = 'active'
+          AND LOWER(COALESCE(p.remarks, '')) LIKE '%old balance%'
+          AND ${sqlNotSunday('p.date_paid')}
+      ), 0) as balance_collected_today,
+      COALESCE((
+        SELECT SUM(p.amount_paid)
+        FROM tblPayment p
+        WHERE p.loan_id = l.id
+          AND date(p.date_paid) = date(?)
+          AND p.status = 'penalty'
+          AND ${sqlNotSunday('p.date_paid')}
+      ), 0) as penalty_collected_today
     FROM tblLoan l
     WHERE l.collector_id = ?
       AND (
@@ -82,7 +102,7 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
             AND ${sqlNotSunday('p.date_paid')}
         )
       )
-  `, [targetDate, targetDate, collectorId, targetDate]);
+  `, [targetDate, targetDate, targetDate, targetDate, collectorId, targetDate]);
 
   const stats = {
     target: 0,
@@ -94,7 +114,42 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
     pastdue_clients: 0
   };
 
-  loans.forEach(loan => {
+  const loansByCustomer = loans.reduce((acc, loan) => {
+    if (!acc.has(loan.customer_id)) acc.set(loan.customer_id, []);
+    acc.get(loan.customer_id).push(loan);
+    return acc;
+  }, new Map());
+
+  const collectionLoans = [];
+  loansByCustomer.forEach(customerLoans => {
+    const activeTransferLoan = customerLoans.find(loan =>
+      String(loan.status || '').toLowerCase() === 'active' &&
+      ['reloan', 'recon'].includes(String(loan.loan_type || '').toLowerCase().replace(/[^a-z0-9]/g, '')) &&
+      toDate(loan.date_released) === targetDate
+    );
+
+    if (!activeTransferLoan) {
+      collectionLoans.push(...customerLoans);
+      return;
+    }
+
+    const priorCollections = customerLoans
+      .filter(loan => loan.id !== activeTransferLoan.id && String(loan.status || '').toLowerCase() === 'fullpaid')
+      .reduce((totals, loan) => {
+        totals.balance += toAmount(loan.balance_collected_today);
+        totals.penalty += toAmount(loan.penalty_collected_today);
+        return totals;
+      }, { balance: 0, penalty: 0 });
+
+    activeTransferLoan.collected_today = toAmount(activeTransferLoan.collected_today) + priorCollections.balance + priorCollections.penalty;
+    collectionLoans.push(activeTransferLoan);
+    collectionLoans.push(...customerLoans.filter(loan =>
+      loan.id !== activeTransferLoan.id &&
+      String(loan.status || '').toLowerCase() !== 'fullpaid'
+    ));
+  });
+
+  collectionLoans.forEach(loan => {
     const maturity = loan.date_maturity ? dayjs(toDate(loan.date_maturity)) : null;
     loan.days_past_due = maturity && dayjs(targetDate).isAfter(maturity, 'day')
       ? dayjs(targetDate).diff(maturity, 'day')
