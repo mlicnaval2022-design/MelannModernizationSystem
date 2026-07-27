@@ -28,10 +28,14 @@ export default function CollectorPerformance() {
   const [errorMsg, setErrorMsg] = useState('')
 
   const buildFallbackSummary = async () => {
-    const [dashboardRes, collectionRes] = await Promise.all([
-      API.get('/reports/dashboard', { params: { date: filters.date_to } }),
-      API.get('/reports/daily-collection', { params: filters })
-    ])
+    const dashboardRes = await API.get('/reports/dashboard', { params: { date: filters.date_to } })
+    let collectionRes = { data: { payments: [] } }
+
+    try {
+      collectionRes = await API.get('/reports/daily-collection', { params: filters })
+    } catch (err) {
+      if (err.response?.status !== 404) throw err
+    }
 
     const baseCollectors = dashboardRes.data?.collector_performance || []
     const payments = collectionRes.data?.payments || []
@@ -101,27 +105,27 @@ export default function CollectorPerformance() {
     }
   }
 
-  const loadData = () => {
+  const loadData = async () => {
     setLoading(true)
-    API.get('/collector-performance/summary', { params: filters })
-      .then(res => {
-        setData(res.data)
-        setErrorMsg('')
-      })
-      .catch(err => {
-        if (err.response?.status === 404) {
-          return buildFallbackSummary()
-            .then(fallbackData => {
-              setData(fallbackData)
-              setErrorMsg('')
-            })
-            .catch(fallbackErr => {
-              setErrorMsg(fallbackErr.response?.data?.error || fallbackErr.message || 'Could not load collector performance')
-            })
+    try {
+      const res = await API.get('/collector-performance/summary', { params: filters })
+      setData(res.data)
+      setErrorMsg('')
+    } catch (err) {
+      if (err.response?.status === 404) {
+        try {
+          const fallbackData = await buildFallbackSummary()
+          setData(fallbackData)
+          setErrorMsg('')
+        } catch (fallbackErr) {
+          setErrorMsg(fallbackErr.response?.data?.error || fallbackErr.message || 'Could not load collector performance')
         }
+      } else {
         setErrorMsg(err.response?.data?.error || err.message || 'Could not load collector performance')
-      })
-      .finally(() => setLoading(false))
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
