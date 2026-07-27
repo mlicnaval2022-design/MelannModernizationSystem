@@ -27,6 +27,80 @@ export default function CollectorPerformance() {
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
 
+  const buildFallbackSummary = async () => {
+    const [dashboardRes, collectionRes] = await Promise.all([
+      API.get('/reports/dashboard', { params: { date: filters.date_to } }),
+      API.get('/reports/daily-collection', { params: filters })
+    ])
+
+    const baseCollectors = dashboardRes.data?.collector_performance || []
+    const payments = collectionRes.data?.payments || []
+    const byCollector = new Map()
+
+    baseCollectors.forEach(collector => {
+      byCollector.set(collector.name, {
+        id: collector.id,
+        name: collector.name,
+        target: Number(collector.target || 0),
+        collected: 0,
+        paying_clients_set: new Set(),
+        active_loans: 0
+      })
+    })
+
+    payments.forEach(payment => {
+      const name = payment.collector_name || 'Unassigned'
+      const row = byCollector.get(name) || {
+        id: `fallback-${name}`,
+        name,
+        target: 0,
+        collected: 0,
+        paying_clients_set: new Set(),
+        active_loans: 0
+      }
+      row.collected += Number(payment.amount_paid || 0)
+      if (payment.customer_id) row.paying_clients_set.add(payment.customer_id)
+      byCollector.set(name, row)
+    })
+
+    const trendMap = new Map()
+    payments.forEach(payment => {
+      const date = payment.date_paid
+      trendMap.set(date, (trendMap.get(date) || 0) + Number(payment.amount_paid || 0))
+    })
+
+    const collectors = Array.from(byCollector.values())
+      .map(row => ({
+        ...row,
+        paying_clients: row.paying_clients_set.size,
+        achievement_rate: row.target > 0 ? Math.round((row.collected / row.target) * 100) : 0
+      }))
+      .sort((a, b) => b.collected - a.collected || a.name.localeCompare(b.name))
+      .map(({ paying_clients_set, ...row }) => row)
+
+    const totals = collectors.reduce((acc, row) => {
+      acc.target += Number(row.target || 0)
+      acc.collected += Number(row.collected || 0)
+      acc.paying_clients += Number(row.paying_clients || 0)
+      acc.active_loans += Number(row.active_loans || 0)
+      return acc
+    }, { target: 0, collected: 0, paying_clients: 0, active_loans: 0 })
+
+    totals.payment_count = payments.length
+    totals.achievement_rate = totals.target > 0 ? Math.round((totals.collected / totals.target) * 100) : 0
+
+    return {
+      date_from: filters.date_from,
+      date_to: filters.date_to,
+      totals,
+      top_collector: collectors[0] || null,
+      collectors,
+      trend: Array.from(trendMap.entries())
+        .map(([date, collected]) => ({ date, collected }))
+        .sort((a, b) => a.date.localeCompare(b.date))
+    }
+  }
+
   const loadData = () => {
     setLoading(true)
     API.get('/collector-performance/summary', { params: filters })
@@ -35,6 +109,16 @@ export default function CollectorPerformance() {
         setErrorMsg('')
       })
       .catch(err => {
+        if (err.response?.status === 404) {
+          return buildFallbackSummary()
+            .then(fallbackData => {
+              setData(fallbackData)
+              setErrorMsg('')
+            })
+            .catch(fallbackErr => {
+              setErrorMsg(fallbackErr.response?.data?.error || fallbackErr.message || 'Could not load collector performance')
+            })
+        }
         setErrorMsg(err.response?.data?.error || err.message || 'Could not load collector performance')
       })
       .finally(() => setLoading(false))
