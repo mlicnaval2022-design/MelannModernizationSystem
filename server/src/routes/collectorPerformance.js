@@ -151,17 +151,26 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
   });
 
   collectionLoans.forEach(loan => {
-    const maturity = loan.date_maturity ? dayjs(toDate(loan.date_maturity)) : null;
-    loan.days_past_due = maturity && dayjs(targetDate).isAfter(maturity, 'day')
-      ? dayjs(targetDate).diff(maturity, 'day')
+    const maturityDate = loan.date_maturity ? dayjs(toDate(loan.date_maturity)) : null;
+    loan.days_past_due = maturityDate && dayjs(targetDate).isAfter(maturityDate, 'day')
+      ? dayjs(targetDate).diff(maturityDate, 'day')
       : 0;
 
-    const group = classifyCollectionLoan(loan);
+    let group = classifyCollectionLoan(loan);
+
+    if (String(loan.status || '').toLowerCase() === 'pastdue') {
+      group = 'pastdue';
+    }
+
+    if (maturityDate && !maturityDate.isAfter(dayjs(pastdueCutoff), 'day')) {
+      group = 'pastdue';
+    }
+
     const collectedToday = toAmount(loan.collected_today);
-    const maturityDate = loan.date_maturity ? dayjs(toDate(loan.date_maturity)) : null;
-    const shouldDeductFromActual = group === 'pastdue' &&
-      maturityDate &&
-      !maturityDate.isAfter(dayjs(pastdueCutoff), 'day');
+    
+    // Only deduct if it's pastdue AND the maturity date is on or before the cutoff date
+    const shouldDeductFromActual = group === 'pastdue' && 
+      (!maturityDate || !maturityDate.isAfter(dayjs(pastdueCutoff), 'day'));
 
     stats.gross_collected += collectedToday;
     if (shouldDeductFromActual) stats.pastdue_deducted += collectedToday;
