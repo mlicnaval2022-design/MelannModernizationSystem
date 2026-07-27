@@ -491,16 +491,16 @@ const getMonthlyReleaseMatrix = (loans, params) => {
 }
 
 const REPORT_TYPES = [
-  { key: 'collection-report', label: 'ðŸ“… Collection Report', desc: 'Daily and monthly collections' },
-  { key: 'monthly-releases', label: 'ðŸš€ Releases Report', desc: 'Daily and monthly releases' },
-  { key: 'past-due', label: 'âš ï¸ Loans Maturity Checker', desc: 'Loans by maturity date range' },
-  { key: 'payments-reversed', label: 'â†©ï¸ Payments Reversed', desc: 'Reversed payments by date range' },
-  { key: 'full-paid', label: 'âœ… Fully Paid Loans', desc: 'Fully paid loan accounts' },
-  { key: 'loan-type', label: 'ðŸ“Š Loan Type Summary', desc: 'Summary by loan type and status' },
-  { key: 'collection-sheet', label: 'ðŸ“‹ Collection Sheet', desc: 'Per-collector active loan list' },
-  { key: 'daily-target', label: 'ðŸŽ¯ Daily Target', desc: 'Daily target collection' },
+  { key: 'collection-report', label: '📅 Collection Report', desc: 'Daily and monthly collections' },
+  { key: 'monthly-releases', label: '🚀 Releases Report', desc: 'Daily and monthly releases' },
+  { key: 'past-due', label: '⚠️ Loans Maturity Checker', desc: 'Loans by maturity date range' },
+  { key: 'payments-reversed', label: '↩️ Payments Reversed', desc: 'Reversed payments by date range' },
+  { key: 'full-paid', label: '✅ Fully Paid Loans', desc: 'Fully paid loan accounts' },
+  { key: 'loan-type', label: '📊 Loan Type Summary', desc: 'Summary by loan type and status' },
+  { key: 'collection-sheet', label: '📋 Collection Sheet', desc: 'Per-collector active loan list' },
+  { key: 'daily-target', label: '🎯 Daily Target', desc: 'Daily target collection' },
   { key: 'disclosure-statement', label: 'Disclosure Statement', desc: 'Client disclosure for every reloan' },
-  { key: 'monitoring-summary', label: 'ðŸš¨ Monitoring Summary', desc: 'Alerts, escalations, PTPs, and resolutions' },
+  { key: 'monitoring-summary', label: '🚨 Monitoring Summary', desc: 'Alerts, escalations, PTPs, and resolutions' },
 ]
 
 export default function Reports() {
@@ -634,7 +634,7 @@ export default function Reports() {
     const baseTarget = [...groups.active, ...groups.overdue.filter(c => !isReconLoan(c))].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
     const targetAmount = params.manual_target ? Number(params.manual_target) : baseTarget
 
-    // Currency formatter using standard ASCII 'P' to avoid \u20B1 (â‚±) encoding corruption in WinAnsi pdf fonts
+    // Currency formatter using standard ASCII 'P' to avoid \u20B1 (₱) encoding corruption in WinAnsi pdf fonts
     const pesoFmtPdf = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-P${f}` : `P${f}` }
     const cashSummaryAmountPdf = amount => Number(amount || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })
     const fDatePdf = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }) : '-'
@@ -2264,7 +2264,7 @@ export default function Reports() {
                     const cell = row.periods[period.key]
                     return (
                       <div key={period.key} style={{ marginBottom: 16, paddingLeft: 12 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 6 }}>{period.label} ({period.rangeLabel}) â€” {fmt(cell.amount)}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 6 }}>{period.label} ({period.rangeLabel}) — {fmt(cell.amount)}</div>
                         <table className="data-table" style={{ width: '100%', fontSize: 11 }}>
                           <thead>
                             <tr><th>Client Code</th><th>Date Paid</th><th>Client</th><th>OR#</th><th>Loan#</th><th className="text-right">Amount</th></tr>
@@ -2382,7 +2382,7 @@ export default function Reports() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 600 }} tickFormatter={compactChartLabel} angle={-40} textAnchor="end" height={76} interval={0} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `â‚±${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `₱${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
                     <Tooltip 
                       cursor={{ fill: 'rgba(59, 130, 246, 0.08)' }} 
                       contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }} 
@@ -2692,11 +2692,11 @@ export default function Reports() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `Ã¢â€šÂ±${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `₱${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
                       <Tooltip 
                         cursor={{ fill: 'rgba(245, 158, 11, 0.08)' }} 
                         contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }} 
-                        formatter={(val) => [`Ã¢â€šÂ± ${fmt(val)}`, 'Total Released']}
+                        formatter={(val) => [`₱ ${fmt(val)}`, 'Total Released']}
                         labelStyle={{ color: '#0f172a', fontWeight: 700, marginBottom: 6, fontSize: 13 }}
                       />
                       <Bar dataKey="amount" fill="url(#barGradientReleaseMonthly)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={1000} />
@@ -3218,7 +3218,7 @@ export default function Reports() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 500 }} tickFormatter={compactChartLabel} angle={-35} textAnchor="end" height={70} interval={0} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `â‚±${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `₱${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
                       <Tooltip 
                         cursor={{ fill: 'rgba(245, 158, 11, 0.08)' }} 
                         contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }} 
@@ -3772,7 +3772,7 @@ export default function Reports() {
       if (data.error) {
         return (
           <div className="empty-state">
-            <div className="empty-icon">ðŸ“Š</div>
+            <div className="empty-icon">📊</div>
             <p>{data.error}</p>
           </div>
         )
@@ -4208,7 +4208,7 @@ export default function Reports() {
                   {active === 'collection-sheet' ? (
                     <>
                       <div style={{ position: 'relative' }}>
-                        <button className="btn btn-secondary" onClick={() => setExportMenuOpen(open => !open)} disabled={loading || data?.error}>Export â–¾</button>
+                        <button className="btn btn-secondary" onClick={() => setExportMenuOpen(open => !open)} disabled={loading || data?.error}>Export ▾</button>
                         {exportMenuOpen && (
                           <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 20, minWidth: 130, background: '#fff', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 12px 24px rgba(15, 23, 42, 0.12)', padding: 4 }}>
                             <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start', border: 0 }} onClick={() => { setExportMenuOpen(false); handleExportExcel() }}>Excel</button>
@@ -4217,18 +4217,18 @@ export default function Reports() {
                         )}
                       </div>
                       <button className="btn btn-secondary" onClick={openFieldReleaseModal} disabled={loading}>Field Release</button>
-                      <button className="btn btn-secondary" onClick={printCollectionSheet} disabled={loading}>ðŸ–¨ï¸ Print</button>
+                      <button className="btn btn-secondary" onClick={printCollectionSheet} disabled={loading}>🖨️ Print</button>
                     </>
                   ) : ['collection-report', 'monthly-releases', 'past-due', 'payments-reversed', 'full-paid'].includes(active) ? (
                     <>
                       <button className="btn btn-secondary" onClick={handleExportExcel} disabled={loading || data?.error}>Export Excel</button>
-                      <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>ðŸ–¨ï¸ Print Summary</button>
-                      <button className="btn btn-secondary" onClick={() => handlePrint('detailed')}>ðŸ–¨ï¸ Print Detailed</button>
+                      <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>🖨️ Print Summary</button>
+                      <button className="btn btn-secondary" onClick={() => handlePrint('detailed')}>🖨️ Print Detailed</button>
                     </>
                   ) : (
                     <>
                       <button className="btn btn-secondary" onClick={handleExportExcel} disabled={loading || data?.error}>Export Excel</button>
-                      <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>{active === 'disclosure-statement' ? 'Print Disclosure' : 'ðŸ–¨ï¸ Print'}</button>
+                      <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>{active === 'disclosure-statement' ? 'Print Disclosure' : '🖨️ Print'}</button>
                     </>
                   )}
                   {active === 'disclosure-statement' && (
@@ -4257,7 +4257,7 @@ export default function Reports() {
                 <>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, marginBottom: 12, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'rgba(37, 99, 235, 0.06)' }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>Total Field Release</span>
-                    <span style={{ fontSize: 18, fontWeight: 800, color: '#0D1B3D' }}>â‚± {fmt(fieldReleaseRows.reduce((sum, row) => sum + Number(row.amount || 0), 0))}</span>
+                    <span style={{ fontSize: 18, fontWeight: 800, color: '#0D1B3D' }}>₱ {fmt(fieldReleaseRows.reduce((sum, row) => sum + Number(row.amount || 0), 0))}</span>
                   </div>
                   <div style={{ maxHeight: '55vh', overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
                     <table className="data-table" style={{ minWidth: 0, width: '100%' }}>
