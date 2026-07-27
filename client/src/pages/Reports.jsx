@@ -504,16 +504,16 @@ const getMonthlyReleaseMatrix = (loans, params) => {
 }
 
 const REPORT_TYPES = [
-  { key: 'collection-report', label: 'Collection Report', desc: 'Daily and monthly collections', Icon: CalendarDays },
-  { key: 'monthly-releases', label: 'Releases Report', desc: 'Daily and monthly releases', Icon: Rocket },
-  { key: 'past-due', label: 'Loans Maturity Checker', desc: 'Loans by maturity date range', Icon: AlertTriangle },
-  { key: 'payments-reversed', label: 'Payments Reversed', desc: 'Reversed payments by date range', Icon: RefreshCcw },
-  { key: 'full-paid', label: 'Fully Paid Loans', desc: 'Fully paid loan accounts', Icon: CheckCircle2 },
-  { key: 'loan-type', label: 'Loan Type Summary', desc: 'Summary by loan type and status', Icon: BarChart3 },
-  { key: 'collection-sheet', label: 'Collection Sheet', desc: 'Per-collector active loan list', Icon: ClipboardList },
-  { key: 'daily-target', label: 'Daily Target', desc: 'Daily target collection', Icon: Target },
-  { key: 'disclosure-statement', label: 'Disclosure Statement', desc: 'Client disclosure for every reloan', Icon: FileText },
-  { key: 'monitoring-summary', label: 'Monitoring Summary', desc: 'Alerts, escalations, PTPs, and resolutions', Icon: Bell },
+  { key: 'collection-report', label: 'Collection Report', desc: 'Daily and monthly collections', Icon: CalendarDays, color: '#2563eb', bg: '#dbeafe' },
+  { key: 'monthly-releases', label: 'Releases Report', desc: 'Daily and monthly releases', Icon: Rocket, color: '#ea580c', bg: '#ffedd5' },
+  { key: 'past-due', label: 'Loans Maturity Checker', desc: 'Loans by maturity date range', Icon: AlertTriangle, color: '#dc2626', bg: '#fee2e2' },
+  { key: 'payments-reversed', label: 'Payments Reversed', desc: 'Reversed payments by date range', Icon: RefreshCcw, color: '#7c3aed', bg: '#ede9fe' },
+  { key: 'full-paid', label: 'Fully Paid Loans', desc: 'Fully paid loan accounts', Icon: CheckCircle2, color: '#16a34a', bg: '#dcfce7' },
+  { key: 'loan-type', label: 'Loan Type Summary', desc: 'Summary by loan type and status', Icon: BarChart3, color: '#0891b2', bg: '#cffafe' },
+  { key: 'collection-sheet', label: 'Collection Sheet', desc: 'Per-collector active loan list', Icon: ClipboardList, color: '#4f46e5', bg: '#e0e7ff' },
+  { key: 'daily-target', label: 'Daily Target', desc: 'Daily target collection', Icon: Target, color: '#be123c', bg: '#ffe4e6' },
+  { key: 'disclosure-statement', label: 'Disclosure Statement', desc: 'Client disclosure for every reloan', Icon: FileText, color: '#0f766e', bg: '#ccfbf1' },
+  { key: 'monitoring-summary', label: 'Monitoring Summary', desc: 'Alerts, escalations, PTPs, and resolutions', Icon: Bell, color: '#ca8a04', bg: '#fef3c7' },
 ]
 
 export default function Reports() {
@@ -4202,9 +4202,26 @@ export default function Reports() {
           <div className="nav-section-label">Report Types</div>
           {REPORT_TYPES.map(r => {
             const Icon = r.Icon
+            const isActive = active === r.key
             return (
-            <div key={r.key} className={`report-nav-item${active === r.key ? ' active' : ''}`} onClick={() => handleSelect(r.key)}>
-              <Icon size={17} strokeWidth={2.2} style={{ flexShrink: 0, marginTop: 2 }} />
+            <div key={r.key} className={`report-nav-item${isActive ? ' active' : ''}`} onClick={() => handleSelect(r.key)}>
+              <span
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 8,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  marginTop: 1,
+                  color: isActive ? '#fff' : r.color,
+                  background: isActive ? r.color : r.bg,
+                  boxShadow: isActive ? `0 8px 18px ${r.color}33` : 'inset 0 0 0 1px rgba(255,255,255,0.65)',
+                }}
+              >
+                <Icon size={17} strokeWidth={2.4} />
+              </span>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{r.label}</div>
                 <div className="report-desc" style={{ fontSize: 11, marginTop: 2 }}>{r.desc}</div>

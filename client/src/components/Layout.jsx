@@ -28,25 +28,25 @@ import {
 } from 'lucide-react'
 
 const NAV = [
-  { path: '/', label: 'Dashboard', Icon: BarChart3, section: 'Main' },
-  { path: '/customers', label: 'Customers', Icon: Users, section: 'Operations' },
-  { path: '/credit-scoring', label: 'Credit Scoring', Icon: ClipboardCheck, section: 'Operations' },
-  { path: '/loans', label: 'Loans', Icon: Wallet, section: 'Operations' },
-  { path: '/promissory-disclosure', label: 'For Print', Icon: FileText, section: 'Operations' },
-  { path: '/payments', label: 'Encode Payments', Icon: CreditCard, section: 'Operations' },
-  { path: '/monitoring', label: '3-Day Monitoring', Icon: Bell, section: 'Operations' },
-  { path: '/collectors', label: 'Collectors', Icon: Users, section: 'Operations' },
-  { path: '/deposits', label: 'Deposits', Icon: Landmark, section: 'Finance' },
-  { path: '/transactions', label: 'Transactions', Icon: ReceiptText, section: 'Finance' },
-  { path: '/dcr', label: 'Daily Cash Report', Icon: ClipboardList, section: 'Finance' },
-  { path: '/cash', label: 'Cash Position', Icon: PiggyBank, section: 'Finance' },
-  { path: '/reports', label: 'Reports', Icon: FileBarChart, section: 'Reports' },
-  { path: '/collector-performance', label: 'Collector Performance', Icon: BarChart3, section: 'Reports' },
-  { path: '/government-compliance', label: 'Government Compliance', Icon: ShieldCheck, section: 'Reports', roles: ['admin', 'compliance', 'compliance_officer', 'accounting', 'corporate_secretary', 'management', 'manager', 'it'] },
-  { path: '/branches', label: 'Branches', Icon: Building2, section: 'Admin', roles: ['admin', 'manager'] },
-  { path: '/users', label: 'User Management', Icon: UserCog, section: 'Admin', roles: ['admin'] },
-  { path: '/audit', label: 'Audit Trail', Icon: Search, section: 'Admin', roles: ['admin', 'manager'] },
-  { path: '/monitoring-settings', label: 'Monitoring Settings', Icon: MonitorCog, section: 'Admin', roles: ['admin'] },
+  { path: '/', label: 'Dashboard', Icon: BarChart3, section: 'Main', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.16)' },
+  { path: '/customers', label: 'Customers', Icon: Users, section: 'Operations', color: '#10b981', bg: 'rgba(16, 185, 129, 0.16)' },
+  { path: '/credit-scoring', label: 'Credit Scoring', Icon: ClipboardCheck, section: 'Operations', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.18)' },
+  { path: '/loans', label: 'Loans', Icon: Wallet, section: 'Operations', color: '#6366f1', bg: 'rgba(99, 102, 241, 0.18)' },
+  { path: '/promissory-disclosure', label: 'For Print', Icon: FileText, section: 'Operations', color: '#06b6d4', bg: 'rgba(6, 182, 212, 0.16)' },
+  { path: '/payments', label: 'Encode Payments', Icon: CreditCard, section: 'Operations', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.18)' },
+  { path: '/monitoring', label: '3-Day Monitoring', Icon: Bell, section: 'Operations', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.16)' },
+  { path: '/collectors', label: 'Collectors', Icon: Users, section: 'Operations', color: '#14b8a6', bg: 'rgba(20, 184, 166, 0.16)' },
+  { path: '/deposits', label: 'Deposits', Icon: Landmark, section: 'Finance', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.16)' },
+  { path: '/transactions', label: 'Transactions', Icon: ReceiptText, section: 'Finance', color: '#0ea5e9', bg: 'rgba(14, 165, 233, 0.16)' },
+  { path: '/dcr', label: 'Daily Cash Report', Icon: ClipboardList, section: 'Finance', color: '#eab308', bg: 'rgba(234, 179, 8, 0.18)' },
+  { path: '/cash', label: 'Cash Position', Icon: PiggyBank, section: 'Finance', color: '#84cc16', bg: 'rgba(132, 204, 22, 0.16)' },
+  { path: '/reports', label: 'Reports', Icon: FileBarChart, section: 'Reports', color: '#2563eb', bg: 'rgba(37, 99, 235, 0.18)' },
+  { path: '/collector-performance', label: 'Collector Performance', Icon: BarChart3, section: 'Reports', color: '#f97316', bg: 'rgba(249, 115, 22, 0.18)' },
+  { path: '/government-compliance', label: 'Government Compliance', Icon: ShieldCheck, section: 'Reports', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.16)', roles: ['admin', 'compliance', 'compliance_officer', 'accounting', 'corporate_secretary', 'management', 'manager', 'it'] },
+  { path: '/branches', label: 'Branches', Icon: Building2, section: 'Admin', color: '#64748b', bg: 'rgba(148, 163, 184, 0.18)', roles: ['admin', 'manager'] },
+  { path: '/users', label: 'User Management', Icon: UserCog, section: 'Admin', color: '#a855f7', bg: 'rgba(168, 85, 247, 0.18)', roles: ['admin'] },
+  { path: '/audit', label: 'Audit Trail', Icon: Search, section: 'Admin', color: '#0891b2', bg: 'rgba(8, 145, 178, 0.16)', roles: ['admin', 'manager'] },
+  { path: '/monitoring-settings', label: 'Monitoring Settings', Icon: MonitorCog, section: 'Admin', color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.16)', roles: ['admin'] },
 ]
 
 export default function Layout() {
@@ -144,8 +144,13 @@ export default function Layout() {
                   to={nav.path}
                   end={nav.path === '/'}
                   className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                  style={({ isActive }) => ({
+                    '--nav-color': nav.color,
+                    '--nav-bg': nav.bg,
+                    ...(isActive ? { background: nav.color } : {}),
+                  })}
                 >
-                  <span className="nav-icon"><Icon size={17} strokeWidth={2.2} /></span>
+                  <span className="nav-icon nav-icon-badge"><Icon size={16} strokeWidth={2.25} /></span>
                   {nav.label}
                 </NavLink>
               )})}
