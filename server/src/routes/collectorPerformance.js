@@ -102,14 +102,13 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
 
     const group = classifyCollectionLoan(loan, pastdueCutoff);
     const collectedToday = toAmount(loan.collected_today);
+    stats.collected += collectedToday;
+    stats.payment_count += toAmount(loan.payment_count_today);
+    if (collectedToday > 0) stats.paying_clients += 1;
 
     if (group === 'pastdue') {
       stats.pastdue_clients += 1;
     } else {
-      stats.collected += collectedToday;
-      stats.payment_count += toAmount(loan.payment_count_today);
-      if (collectedToday > 0) stats.paying_clients += 1;
-
       if (group === 'recon') {
         stats.recon_clients += 1;
       } else {
