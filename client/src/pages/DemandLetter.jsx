@@ -25,8 +25,6 @@ const MONITORING_TYPES = [
   { key: 'third', label: '3rd Demand Letter' },
 ]
 
-const DEMAND_STATUSES = ['Generated', 'Delivered', 'Received', 'For Follow-up', 'Closed']
-
 const parseLocalDate = (value) => {
   if (!value) return null
   const text = String(value).slice(0, 10)
@@ -49,6 +47,38 @@ const addDays = (date, days) => {
   result.setDate(result.getDate() + days)
   return result
 }
+
+const toDateInputValue = (value) => {
+  const date = value instanceof Date ? value : parseLocalDate(value)
+  if (!date || Number.isNaN(date.getTime())) return ''
+  const local = new Date(date)
+  local.setMinutes(local.getMinutes() - local.getTimezoneOffset())
+  return local.toISOString().slice(0, 10)
+}
+
+const getDemandFollowUpDays = (demandType) => {
+  if (demandType === 'second') return 10
+  if (demandType === 'first') return 15
+  return 0
+}
+
+const getFollowUpDate = (dateReceived, demandType) => {
+  const receivedDate = parseLocalDate(dateReceived)
+  const days = getDemandFollowUpDays(demandType)
+  if (!receivedDate || !days) return ''
+  return toDateInputValue(addDays(receivedDate, days))
+}
+
+const getDemandStatus = (row) => {
+  if (!row?.date_received) return 'Pending'
+  const followUpDate = parseLocalDate(row.follow_up_date)
+  const today = parseLocalDate(toDateInputValue(new Date()))
+  if (followUpDate && followUpDate <= today) return 'Urgent Action Require'
+  return '2nd Demand on Process'
+}
+
+const getStatusClassName = (status) => `status-${String(status || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+
 
 const formatDateLong = (value) => {
   if (!value) return '-'
@@ -350,6 +380,8 @@ export default function DemandLetter() {
   const [monitoringLoading, setMonitoringLoading] = useState(false)
   const [monitoringError, setMonitoringError] = useState('')
   const [savingRecord, setSavingRecord] = useState(false)
+  const [successModal, setSuccessModal] = useState(null)
+  const [receivedModal, setReceivedModal] = useState(null)
 
   useEffect(() => {
     const query = search.trim()
@@ -424,7 +456,7 @@ export default function DemandLetter() {
       collector_name: selectedLoan.collector_name || selectedCustomer.collector_name || '',
       client_name: formatClientName(selectedCustomer),
       courier,
-      status: 'Generated',
+      status: 'Pending',
     })
     return res.data
   }
@@ -434,10 +466,14 @@ export default function DemandLetter() {
     setSavingRecord(true)
     setError('')
     try {
-      await saveDemandRecord()
+      const saved = await saveDemandRecord()
       await loadMonitoring(type)
       setMonitoringType(type)
       setActiveTab('monitoring')
+      setSuccessModal({
+        title: 'Successfully Saved',
+        message: `${DEMAND_TYPES[type].label} for ${saved?.client_name || formatClientName(selectedCustomer)} has been saved to Monitoring.`,
+      })
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save demand letter transaction')
     } finally {
@@ -468,6 +504,51 @@ export default function DemandLetter() {
     } catch (err) {
       setMonitoringError(err.response?.data?.error || 'Failed to update monitoring record')
       loadMonitoring(monitoringType)
+    }
+  }
+
+  const openReceivedModal = (row) => {
+    const dateReceived = row.date_received || toDateInputValue(new Date())
+    setReceivedModal({
+      ...row,
+      date_received: dateReceived,
+      follow_up_date: row.follow_up_date || getFollowUpDate(dateReceived, row.demand_type),
+      remarks: row.remarks || '',
+      saving: false,
+      error: '',
+    })
+  }
+
+  const updateReceivedForm = (patch) => {
+    setReceivedModal(prev => {
+      if (!prev) return prev
+      const next = { ...prev, ...patch }
+      if (patch.date_received !== undefined) {
+        next.follow_up_date = getFollowUpDate(patch.date_received, prev.demand_type)
+      }
+      return next
+    })
+  }
+
+  const saveReceivedDetails = async () => {
+    if (!receivedModal) return
+    const status = getDemandStatus(receivedModal)
+    setReceivedModal(prev => ({ ...prev, saving: true, error: '' }))
+    try {
+      const res = await API.put(`/demand-letters/${receivedModal.id}`, {
+        date_received: receivedModal.date_received,
+        follow_up_date: receivedModal.follow_up_date,
+        remarks: receivedModal.remarks,
+        status,
+      })
+      setMonitoringRows(prev => prev.map(row => row.id === receivedModal.id ? res.data : row))
+      setReceivedModal(null)
+    } catch (err) {
+      setReceivedModal(prev => ({
+        ...prev,
+        saving: false,
+        error: err.response?.data?.error || 'Failed to save received details',
+      }))
     }
   }
 
@@ -633,13 +714,14 @@ export default function DemandLetter() {
                   <th>Follow-up Date</th>
                   <th>Remarks</th>
                   <th>Status</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {monitoringLoading ? (
-                  <tr className="loading-row"><td colSpan={8}>Loading monitoring records...</td></tr>
+                  <tr className="loading-row"><td colSpan={9}>Loading monitoring records...</td></tr>
                 ) : monitoringRows.length === 0 ? (
-                  <tr><td colSpan={8} className="empty-state">No demand letter transactions found.</td></tr>
+                  <tr><td colSpan={9} className="empty-state">No demand letter transactions found.</td></tr>
                 ) : monitoringRows.map(row => (
                   <tr key={row.id}>
                     <td>
@@ -652,42 +734,91 @@ export default function DemandLetter() {
                     <td>{row.collector_name || '-'}</td>
                     <td className="fw-600">{row.client_name}</td>
                     <td>{formatDateLong(row.date_generated)}</td>
+                    <td>{row.date_received ? formatDateLong(row.date_received) : '-'}</td>
+                    <td>{row.follow_up_date ? formatDateLong(row.follow_up_date) : '-'}</td>
+                    <td className="demand-remarks-cell">{row.remarks || '-'}</td>
                     <td>
-                      <input
-                        type="date"
-                        className="form-control"
-                        value={row.date_received || ''}
-                        onChange={e => updateMonitoringRow(row.id, { date_received: e.target.value })}
-                      />
+                      <span className={`demand-status-badge ${getStatusClassName(getDemandStatus(row))}`}>
+                        {getDemandStatus(row)}
+                      </span>
                     </td>
                     <td>
-                      <input
-                        type="date"
-                        className="form-control"
-                        value={row.follow_up_date || ''}
-                        onChange={e => updateMonitoringRow(row.id, { follow_up_date: e.target.value })}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        className="form-control"
-                        defaultValue={row.remarks || ''}
-                        onBlur={e => updateMonitoringRow(row.id, { remarks: e.target.value })}
-                      />
-                    </td>
-                    <td>
-                      <select
-                        className="form-control"
-                        value={row.status || 'Generated'}
-                        onChange={e => updateMonitoringRow(row.id, { status: e.target.value })}
-                      >
-                        {DEMAND_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
-                      </select>
+                      <button className="btn btn-secondary demand-received-btn" onClick={() => openReceivedModal(row)}>
+                        Received
+                      </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {successModal && (
+        <div className="modal-overlay demand-modal-overlay" onMouseDown={e => e.target === e.currentTarget && setSuccessModal(null)}>
+          <div className="modal demand-feedback-modal">
+            <div className="modal-header">
+              <span className="modal-title">{successModal.title}</span>
+              <button className="modal-close" onClick={() => setSuccessModal(null)}>x</button>
+            </div>
+            <div className="modal-body">
+              <div className="demand-success-message">{successModal.message}</div>
+              <button className="btn btn-primary demand-modal-primary" onClick={() => setSuccessModal(null)}>
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {receivedModal && (
+        <div className="modal-overlay demand-modal-overlay" onMouseDown={e => e.target === e.currentTarget && !receivedModal.saving && setReceivedModal(null)}>
+          <div className="modal demand-received-modal">
+            <div className="modal-header">
+              <span className="modal-title">Received Demand - {receivedModal.client_name}</span>
+              <button className="modal-close" onClick={() => setReceivedModal(null)} disabled={receivedModal.saving}>x</button>
+            </div>
+            <div className="modal-body">
+              {receivedModal.error && <div className="login-error" style={{ marginBottom: 14 }}>{receivedModal.error}</div>}
+              <div className="demand-received-grid">
+                <div className="form-group">
+                  <label className="form-label">Date Received</label>
+                  <input
+                    type="date"
+                    className="form-control"
+                    value={receivedModal.date_received || ''}
+                    onChange={e => updateReceivedForm({ date_received: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Follow-up Date</label>
+                  <input
+                    type="date"
+                    className="form-control"
+                    value={receivedModal.follow_up_date || ''}
+                    readOnly
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Remarks</label>
+                <textarea
+                  className="form-control demand-received-remarks"
+                  value={receivedModal.remarks || ''}
+                  onChange={e => updateReceivedForm({ remarks: e.target.value })}
+                  placeholder="Input client remarks..."
+                />
+              </div>
+              <div className="demand-modal-actions">
+                <button className="btn btn-secondary" onClick={() => setReceivedModal(null)} disabled={receivedModal.saving}>
+                  Cancel
+                </button>
+                <button className="btn btn-primary" onClick={saveReceivedDetails} disabled={!receivedModal.date_received || receivedModal.saving}>
+                  {receivedModal.saving ? 'Saving...' : 'Save Received'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
