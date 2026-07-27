@@ -4,6 +4,7 @@ import API from '../services/api'
 import '../dashboard.css'
 
 const fmt = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
+const countFmt = value => Number(value || 0).toLocaleString('en-PH')
 
 const toDateKey = date => {
   const year = date.getFullYear()
@@ -142,7 +143,7 @@ export default function CollectorPerformance() {
           <div>
             <div className="card-v2-title" style={{ marginBottom: 4 }}>Melann Collector Performance</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              Collection target, actual collection, and achievement rate by collector.
+              Daily target and account counts come from Collection Sheet. Actual collection excludes past due payments.
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'end', flexWrap: 'wrap' }}>
@@ -157,6 +158,9 @@ export default function CollectorPerformance() {
             <button className="btn btn-primary" type="button" onClick={loadData} disabled={loading}>
               {loading ? 'Loading...' : 'Apply'}
             </button>
+            <button className="btn btn-secondary" type="button" onClick={() => window.print()} disabled={loading || !data}>
+              Print
+            </button>
           </div>
         </div>
       </div>
@@ -168,9 +172,9 @@ export default function CollectorPerformance() {
           <div className="metrics-top-row">
             <div className="metric-card-v2">
               <div className="header">
-                <span>Total Target</span>
+                <span>Daily Target</span>
                 <h3>PHP {fmt(totals.target)}</h3>
-                <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{data?.date_from} to {data?.date_to}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Based on {data?.date_to} Collection Sheet</span>
               </div>
               <div className="metric-icon-circle" style={{ background: '#0284c7', color: 'white' }}>T</div>
             </div>
@@ -178,7 +182,7 @@ export default function CollectorPerformance() {
               <div className="header">
                 <span>Total Collection</span>
                 <h3>PHP {fmt(totals.collected)}</h3>
-                <span style={{ color: 'var(--accent-success)', fontSize: 11 }}>{totals.payment_count || 0} payments posted</span>
+                <span style={{ color: 'var(--accent-success)', fontSize: 11 }}>{countFmt(totals.payment_count)} non-pastdue payments</span>
               </div>
               <div className="metric-icon-circle" style={{ background: '#10b981', color: 'white' }}>C</div>
             </div>
@@ -192,11 +196,15 @@ export default function CollectorPerformance() {
             </div>
             <div className="metric-card-v2">
               <div className="header">
-                <span>Top Collector</span>
-                <h3 style={{ fontSize: 22 }}>{data?.top_collector?.name || 'N/A'}</h3>
-                <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>PHP {fmt(data?.top_collector?.collected)} collected</span>
+                <span>Collection Sheet Accounts</span>
+                <h3 style={{ fontSize: 22 }}>
+                  <span style={{ color: '#111827' }}>{countFmt(totals.active_clients)}</span>
+                  <span style={{ color: '#2563eb' }}> / {countFmt(totals.recon_clients)}</span>
+                  <span style={{ color: '#dc2626' }}> / {countFmt(totals.pastdue_clients)}</span>
+                </h3>
+                <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Active+Overdue / Recon / Past Due</span>
               </div>
-              <div className="metric-icon-circle" style={{ background: '#8b5cf6', color: 'white' }}>#1</div>
+              <div className="metric-icon-circle" style={{ background: '#111827', color: 'white' }}>A</div>
             </div>
           </div>
 
@@ -226,7 +234,7 @@ export default function CollectorPerformance() {
             </div>
 
             <div className="card-v2">
-              <div className="card-v2-title">Collector Ranking</div>
+              <div className="card-v2-title">Collector Performance for Printing</div>
               <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
                 <table className="data-table" style={{ margin: 0, border: 'none' }}>
                   <thead>
@@ -234,14 +242,15 @@ export default function CollectorPerformance() {
                       <th>Collector</th>
                       <th style={{ textAlign: 'right' }}>Target</th>
                       <th style={{ textAlign: 'right' }}>Collection</th>
-                      <th style={{ textAlign: 'right' }}>Clients Paid</th>
-                      <th style={{ textAlign: 'right' }}>Active Loans</th>
+                      <th style={{ textAlign: 'right', color: '#111827' }}>Active</th>
+                      <th style={{ textAlign: 'right', color: '#2563eb' }}>Recon</th>
+                      <th style={{ textAlign: 'right', color: '#dc2626' }}>Past Due</th>
                       <th style={{ textAlign: 'right' }}>Rate</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</td></tr>
+                      <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</td></tr>
                     ) : collectors.length ? collectors.map(collector => {
                       const color = collector.achievement_rate >= 100 ? '#10b981' : collector.achievement_rate >= 80 ? '#f59e0b' : '#ef4444'
                       return (
@@ -249,8 +258,9 @@ export default function CollectorPerformance() {
                           <td className="fw-bold">{collector.name}</td>
                           <td style={{ textAlign: 'right' }}>PHP {fmt(collector.target)}</td>
                           <td style={{ textAlign: 'right' }}>PHP {fmt(collector.collected)}</td>
-                          <td style={{ textAlign: 'right' }}>{collector.paying_clients}</td>
-                          <td style={{ textAlign: 'right' }}>{collector.active_loans}</td>
+                          <td style={{ textAlign: 'right', color: '#111827', fontWeight: 800 }}>{countFmt(collector.active_clients)}</td>
+                          <td style={{ textAlign: 'right', color: '#2563eb', fontWeight: 800 }}>{countFmt(collector.recon_clients)}</td>
+                          <td style={{ textAlign: 'right', color: '#dc2626', fontWeight: 800 }}>{countFmt(collector.pastdue_clients)}</td>
                           <td style={{ textAlign: 'right', minWidth: 120 }}>
                             <span style={{ color, fontWeight: 800 }}>{collector.achievement_rate}%</span>
                             <div className="progress-container">
@@ -260,7 +270,7 @@ export default function CollectorPerformance() {
                         </tr>
                       )
                     }) : (
-                      <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No active collectors found.</td></tr>
+                      <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No active collectors found.</td></tr>
                     )}
                   </tbody>
                 </table>
