@@ -12,11 +12,14 @@ const toDate = value => dayjs(value).format('YYYY-MM-DD');
 function resolveDateRange(query) {
   const today = dayjs();
   const defaultTo = today.day() === 0 ? today.subtract(1, 'day') : today;
-  const defaultFrom = defaultTo.subtract(6, 'day');
+  const selectedDate = dayjs(query.date || query.date_to || defaultTo).format('YYYY-MM-DD');
+  const actualFrom = dayjs(query.actual_from || selectedDate).format('YYYY-MM-DD');
+  const actualTo = dayjs(query.actual_to || selectedDate).format('YYYY-MM-DD');
 
   return {
-    from: dayjs(query.date_from || defaultFrom).format('YYYY-MM-DD'),
-    to: dayjs(query.date_to || defaultTo).format('YYYY-MM-DD')
+    from: actualFrom,
+    to: actualTo,
+    targetDate: selectedDate
   };
 }
 
@@ -122,7 +125,7 @@ async function getCollectorSheetStats(collectorId, targetDate) {
 
 router.get('/summary', authenticateToken, async (req, res) => {
   try {
-    const { from, to } = resolveDateRange(req.query);
+    const { from, to, targetDate } = resolveDateRange(req.query);
 
     const collectors = await dbAll(`
       SELECT
@@ -141,7 +144,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
     const collectorRows = [];
 
     for (const collector of collectors) {
-      const sheetStats = await getCollectorSheetStats(collector.id, to);
+      const sheetStats = await getCollectorSheetStats(collector.id, targetDate);
       const row = {
         ...collector,
         target: sheetStats.target,
@@ -156,7 +159,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
       };
 
       for (const date of dates) {
-        const dailyStats = date === to ? sheetStats : await getCollectorSheetStats(collector.id, date);
+        const dailyStats = date === targetDate ? sheetStats : await getCollectorSheetStats(collector.id, date);
         row.collected += dailyStats.collected;
         row.actual_collection += dailyStats.collected;
         row.paying_clients += dailyStats.paying_clients;
@@ -198,6 +201,9 @@ router.get('/summary', authenticateToken, async (req, res) => {
     res.json({
       date_from: from,
       date_to: to,
+      target_date: targetDate,
+      actual_from: from,
+      actual_to: to,
       totals: {
         ...totals,
         achievement_rate: totals.target > 0 ? Math.round((totals.collected / totals.target) * 100) : 0

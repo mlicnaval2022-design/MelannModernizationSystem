@@ -17,9 +17,8 @@ const toDateKey = date => {
 const getDefaultRange = () => {
   const to = new Date()
   if (to.getDay() === 0) to.setDate(to.getDate() - 1)
-  const from = new Date(to)
-  from.setDate(from.getDate() - 6)
-  return { date_from: toDateKey(from), date_to: toDateKey(to) }
+  const dateKey = toDateKey(to)
+  return { date_to: dateKey, actual_from: dateKey, actual_to: dateKey }
 }
 
 const displayDate = value => {
@@ -29,6 +28,13 @@ const displayDate = value => {
     day: 'numeric',
     year: 'numeric'
   })
+}
+
+const displayWeekday = value => {
+  if (!value) return ''
+  return new Date(`${value}T00:00:00`).toLocaleDateString('en-US', {
+    weekday: 'long'
+  }).toUpperCase()
 }
 
 const shortCollectorName = name => {
@@ -52,7 +58,12 @@ export default function CollectorPerformance() {
     let collectionRes = { data: { payments: [] } }
 
     try {
-      collectionRes = await API.get('/reports/daily-collection', { params: filters })
+      collectionRes = await API.get('/reports/daily-collection', {
+        params: {
+          date_from: filters.actual_from || filters.date_to,
+          date_to: filters.actual_to || filters.date_to
+        }
+      })
     } catch (err) {
       if (err.response?.status !== 404) throw err
     }
@@ -120,8 +131,11 @@ export default function CollectorPerformance() {
     totals.achievement_rate = totals.target > 0 ? Math.round((totals.collected / totals.target) * 100) : 0
 
     return {
-      date_from: filters.date_from,
+      date_from: filters.actual_from || filters.date_to,
       date_to: filters.date_to,
+      target_date: filters.date_to,
+      actual_from: filters.actual_from || filters.date_to,
+      actual_to: filters.actual_to || filters.date_to,
       totals,
       top_collector: collectors[0] || null,
       collectors,
@@ -134,7 +148,13 @@ export default function CollectorPerformance() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const res = await API.get('/collector-performance/summary', { params: filters })
+      const res = await API.get('/collector-performance/summary', {
+        params: {
+          date_to: filters.date_to,
+          actual_from: filters.actual_from || filters.date_to,
+          actual_to: filters.actual_to || filters.date_to
+        }
+      })
       setData(res.data)
       setErrorMsg('')
     } catch (err) {
@@ -181,7 +201,7 @@ export default function CollectorPerformance() {
   })
   totals.achievement_rate = totals.target > 0 ? Math.round((totals.collected / totals.target) * 100) : 0
   const totalClients = Number(totals.active_clients || 0) + Number(totals.recon_clients || 0) + Number(totals.pastdue_clients || 0)
-  const reportDate = data?.date_to || filters.date_to
+  const reportDate = data?.target_date || filters.date_to
 
   return (
     <div className="dashboard-v2">
@@ -250,7 +270,7 @@ export default function CollectorPerformance() {
         <div className="collector-print-panel">
           <table className="collector-print-table">
             <thead>
-              <tr><td className="collector-print-label">MONDAY</td><td colSpan={6}></td></tr>
+              <tr><td className="collector-print-label">{displayWeekday(reportDate)}</td><td colSpan={6}></td></tr>
               <tr><td className="collector-print-label">TYPE:</td><td colSpan={6} className="collector-print-value">DAILY</td></tr>
               <tr><td className="collector-print-label">DATE:</td><td colSpan={6} className="collector-print-value">{displayDate(reportDate)}</td></tr>
               <tr>
@@ -293,7 +313,7 @@ export default function CollectorPerformance() {
         <div className="collector-print-panel">
           <table className="collector-print-table">
             <thead>
-              <tr><td className="collector-print-label">MONDAY</td><td colSpan={3}></td></tr>
+              <tr><td className="collector-print-label">{displayWeekday(reportDate)}</td><td colSpan={3}></td></tr>
               <tr><td className="collector-print-label">TYPE:</td><td colSpan={3} className="collector-print-value">DAILY</td></tr>
               <tr><td className="collector-print-label">DATE:</td><td colSpan={3} className="collector-print-value">{displayDate(reportDate)}</td></tr>
               <tr>
@@ -344,19 +364,23 @@ export default function CollectorPerformance() {
               <div>
                 <div className="card-v2-title" style={{ marginBottom: 4 }}>Daily Target Breakout</div>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                  Collector Performance based on Collection Sheet for {data?.date_to || filters.date_to}
+                  Target/counts based on Collection Sheet for {data?.target_date || filters.date_to}
                 </div>
               </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'end', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <div className="form-group" style={{ minWidth: 150, marginBottom: 0 }}>
-                <label className="form-label">Date From</label>
-                <input className="form-control" type="date" value={filters.date_from} onChange={e => setFilters(current => ({ ...current, date_from: e.target.value }))} />
+                <label className="form-label">Target Date</label>
+                <input className="form-control" type="date" value={filters.date_to} onChange={e => setFilters(current => ({ ...current, date_to: e.target.value }))} />
               </div>
               <div className="form-group" style={{ minWidth: 150, marginBottom: 0 }}>
-                <label className="form-label">Date To</label>
-                <input className="form-control" type="date" value={filters.date_to} onChange={e => setFilters(current => ({ ...current, date_to: e.target.value }))} />
+                <label className="form-label">Actual From</label>
+                <input className="form-control" type="date" value={filters.actual_from || filters.date_to} onChange={e => setFilters(current => ({ ...current, actual_from: e.target.value }))} />
+              </div>
+              <div className="form-group" style={{ minWidth: 150, marginBottom: 0 }}>
+                <label className="form-label">Actual To</label>
+                <input className="form-control" type="date" value={filters.actual_to || filters.date_to} onChange={e => setFilters(current => ({ ...current, actual_to: e.target.value }))} />
               </div>
               <button className="btn btn-primary" type="button" onClick={loadData} disabled={loading}>
                 {loading ? 'Loading...' : 'Apply'}
