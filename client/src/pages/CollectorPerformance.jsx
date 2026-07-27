@@ -203,13 +203,13 @@ export default function CollectorPerformance() {
           @page { size: landscape; margin: 0.35in; }
           body { background: #fff !important; }
           body * { visibility: hidden !important; }
-          .collector-print-layout,
-          .collector-print-layout * { visibility: visible !important; }
-          .collector-print-layout {
+          #printable-area.collector-print-layout,
+          #printable-area.collector-print-layout * { visibility: visible !important; }
+          #printable-area.collector-print-layout {
             display: grid !important;
             grid-template-columns: 1fr 1fr;
             gap: 0.34in;
-            position: fixed;
+            position: absolute !important;
             left: 0;
             top: 0;
             width: 100%;
@@ -220,7 +220,7 @@ export default function CollectorPerformance() {
         }
       `}</style>
 
-      <div className="collector-print-layout">
+      <div id="printable-area" className="collector-print-layout">
         <div className="collector-print-panel">
           <table className="collector-print-table">
             <thead>
