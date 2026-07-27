@@ -5,25 +5,25 @@ import API from '../services/api'
 import logoImg from '../assets/logo.png'
 
 const NAV = [
-  { path: '/', label: 'Dashboard', icon: '📊', section: 'Main' },
-  { path: '/customers', label: 'Customers', icon: '👥', section: 'Operations' },
-  { path: '/credit-scoring', label: 'Credit Scoring', icon: '📋', section: 'Operations' },
-  { path: '/loans', label: 'Loans', icon: '💰', section: 'Operations' },
+  { path: '/', label: 'Dashboard', icon: 'DB', section: 'Main' },
+  { path: '/customers', label: 'Customers', icon: 'CU', section: 'Operations' },
+  { path: '/credit-scoring', label: 'Credit Scoring', icon: 'CI', section: 'Operations' },
+  { path: '/loans', label: 'Loans', icon: 'LN', section: 'Operations' },
   { path: '/promissory-disclosure', label: 'For Print', icon: 'FP', section: 'Operations' },
-  { path: '/payments', label: 'Encode Payments', icon: '💳', section: 'Operations' },
-  { path: '/monitoring', label: '3-Day Monitoring', icon: '🚨', section: 'Operations' },
-  { path: '/collectors', label: 'Collectors', icon: '🚶', section: 'Operations' },
-  { path: '/deposits', label: 'Deposits', icon: '🏦', section: 'Finance' },
-  { path: '/transactions', label: 'Transactions', icon: '🧾', section: 'Finance' },
-  { path: '/dcr', label: 'Daily Cash Report', icon: '📝', section: 'Finance' },
-  { path: '/cash', label: 'Cash Position', icon: '🏧', section: 'Finance' },
-  { path: '/reports', label: 'Reports', icon: '📈', section: 'Reports' },
+  { path: '/payments', label: 'Encode Payments', icon: 'PM', section: 'Operations' },
+  { path: '/monitoring', label: '3-Day Monitoring', icon: '3D', section: 'Operations' },
+  { path: '/collectors', label: 'Collectors', icon: 'CO', section: 'Operations' },
+  { path: '/deposits', label: 'Deposits', icon: 'DP', section: 'Finance' },
+  { path: '/transactions', label: 'Transactions', icon: 'TR', section: 'Finance' },
+  { path: '/dcr', label: 'Daily Cash Report', icon: 'DC', section: 'Finance' },
+  { path: '/cash', label: 'Cash Position', icon: 'CA', section: 'Finance' },
+  { path: '/reports', label: 'Reports', icon: 'RP', section: 'Reports' },
   { path: '/collector-performance', label: 'Collector Performance', icon: 'CP', section: 'Reports' },
   { path: '/government-compliance', label: 'Government Compliance', icon: 'GC', section: 'Reports', roles: ['admin', 'compliance', 'compliance_officer', 'accounting', 'corporate_secretary', 'management', 'manager', 'it'] },
-  { path: '/branches', label: 'Branches', icon: '🏢', section: 'Admin', roles: ['admin', 'manager'] },
-  { path: '/users', label: 'User Management', icon: '🔐', section: 'Admin', roles: ['admin'] },
-  { path: '/audit', label: 'Audit Trail', icon: '🔍', section: 'Admin', roles: ['admin', 'manager'] },
-  { path: '/monitoring-settings', label: 'Monitoring Settings', icon: '⚙️', section: 'Admin', roles: ['admin'] },
+  { path: '/branches', label: 'Branches', icon: 'BR', section: 'Admin', roles: ['admin', 'manager'] },
+  { path: '/users', label: 'User Management', icon: 'US', section: 'Admin', roles: ['admin'] },
+  { path: '/audit', label: 'Audit Trail', icon: 'AT', section: 'Admin', roles: ['admin', 'manager'] },
+  { path: '/monitoring-settings', label: 'Monitoring Settings', icon: 'MS', section: 'Admin', roles: ['admin'] },
 ]
 
 export default function Layout() {
@@ -143,9 +143,9 @@ export default function Layout() {
             style={{ marginBottom: 4 }}
             onClick={() => { setChangePwModal(true); setPwError(''); setPwSuccess('') }}
           >
-            🔑 Change Password
+            Change Password
           </button>
-          <button id="btn-sign-out" className="btn-logout" onClick={logout}>⎋ Sign Out</button>
+          <button id="btn-sign-out" className="btn-logout" onClick={logout}>Sign Out</button>
         </div>
       </aside>
 
@@ -158,16 +158,14 @@ export default function Layout() {
         ) : (
           <div className="topbar-v2" style={{ padding: '0 24px', height: '70px', background: '#fff', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
             <div className="topbar-left">
-              <div className="topbar-title-wrapper">
-                📈 Dashboard Overview
-              </div>
+              <div className="topbar-title-wrapper">Dashboard Overview</div>
               <select className="topbar-branch-select" defaultValue="">
                 <option value="">All Branches</option>
                 <option value="1">Main Branch</option>
                 <option value="2">North Branch</option>
               </select>
               <div className="topbar-search">
-                <span className="icon">🔍</span>
+                <span className="icon">Search</span>
                 <input 
                   type="text" 
                   placeholder="Quick Search Client..." 
@@ -182,14 +180,14 @@ export default function Layout() {
             </div>
             <div className="topbar-right">
               <div className="topbar-date" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 24 }}>📅</span>
+                <span style={{ fontSize: 12, fontWeight: 800 }}>DATE</span>
                 <div style={{ textAlign: 'left' }}>
                   <strong>{today}</strong>
                   <span style={{ fontSize: 10 }}>Current Collection Date</span>
                 </div>
               </div>
               <div className="topbar-notif" onClick={() => setShowNotif(!showNotif)} style={{ position: 'relative', cursor: 'pointer' }}>
-                🔔
+                !
                 {notifications.length > 0 && <span className="topbar-notif-badge">{notifications.length}</span>}
                 {showNotif && (
                   <div className="notif-dropdown" style={{
@@ -247,14 +245,14 @@ export default function Layout() {
         <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setChangePwModal(false)}>
           <div className="modal" style={{ maxWidth: 420 }}>
             <div className="modal-header">
-              <span className="modal-title">🔑 Change Password</span>
-              <button className="modal-close" onClick={() => setChangePwModal(false)}>✕</button>
+              <span className="modal-title">Change Password</span>
+              <button className="modal-close" onClick={() => setChangePwModal(false)}>x</button>
             </div>
             <div className="modal-body">
-              {pwError && <div className="login-error" style={{ marginBottom: 14 }}>⚠️ {pwError}</div>}
+              {pwError && <div className="login-error" style={{ marginBottom: 14 }}>{pwError}</div>}
               {pwSuccess && (
                 <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 6, padding: '10px 12px', marginBottom: 14, fontSize: 13, color: 'var(--accent-success)' }}>
-                  ✅ {pwSuccess}
+                  {pwSuccess}
                 </div>
               )}
               <form onSubmit={handleChangePw}>
@@ -277,7 +275,7 @@ export default function Layout() {
                 </div>
                 <div className="form-actions">
                   <button type="button" className="btn btn-secondary" onClick={() => setChangePwModal(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={pwSaving}>{pwSaving ? 'Saving...' : '🔑 Change Password'}</button>
+                  <button type="submit" className="btn btn-primary" disabled={pwSaving}>{pwSaving ? 'Saving...' : 'Change Password'}</button>
                 </div>
               </form>
             </div>
