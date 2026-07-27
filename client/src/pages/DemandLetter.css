@@ -406,7 +406,7 @@
 }
 
 .demand-monitoring-table {
-  min-width: 1120px;
+  min-width: 1240px;
 }
 
 .demand-monitoring-table th {
@@ -422,8 +422,92 @@
   padding: 6px 8px;
 }
 
-.demand-monitoring-table td:nth-child(7) .form-control {
-  min-width: 220px;
+.demand-remarks-cell {
+  max-width: 240px;
+  white-space: normal;
+  color: #334155;
+}
+
+.demand-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 142px;
+  min-height: 28px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.demand-status-badge.status-pending {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.demand-status-badge.status-urgent-action-require {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.demand-status-badge.status-2nd-demand-on-process {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.demand-received-btn {
+  min-height: 32px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.demand-modal-overlay {
+  z-index: 10000;
+}
+
+.demand-feedback-modal {
+  max-width: 420px;
+}
+
+.demand-success-message {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 8px;
+  color: #047857;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 12px;
+}
+
+.demand-modal-primary {
+  width: 100%;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.demand-received-modal {
+  max-width: 560px;
+}
+
+.demand-received-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.demand-received-remarks {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.demand-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
 }
 
 @media (max-width: 1180px) {
@@ -438,6 +522,12 @@
 
   .demand-letter-preview-wrap {
     max-height: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .demand-received-grid {
+    grid-template-columns: 1fr;
   }
 }
 

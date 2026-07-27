@@ -5,7 +5,16 @@ const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
 
 const DEMAND_TYPES = new Set(['first', 'second', 'third']);
-const STATUSES = new Set(['Generated', 'Delivered', 'Received', 'For Follow-up', 'Closed']);
+const STATUSES = new Set([
+  'Generated',
+  'Delivered',
+  'Received',
+  'For Follow-up',
+  'Closed',
+  'Pending',
+  'Urgent Action Require',
+  '2nd Demand on Process'
+]);
 
 const todayDateOnly = () => {
   const now = new Date();
@@ -65,7 +74,7 @@ router.post('/', authenticateToken, async (req, res) => {
       req.body.date_received || '',
       req.body.follow_up_date || '',
       req.body.remarks || '',
-      req.body.status || 'Generated',
+      req.body.status || 'Pending',
       req.user.id
     ]);
 
