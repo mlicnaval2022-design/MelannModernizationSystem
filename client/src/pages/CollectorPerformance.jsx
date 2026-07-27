@@ -246,15 +246,15 @@ export default function CollectorPerformance() {
         .collector-print-money { text-align: right; font-weight: 700; }
         .collector-print-total td { font-weight: 900; }
         @media print {
-          @page { size: landscape; margin: 0.35in; }
+          @page { size: portrait; margin: 0.35in; }
           body { background: #fff !important; }
           body * { visibility: hidden !important; }
           #printable-area.collector-print-layout,
           #printable-area.collector-print-layout * { visibility: visible !important; }
           #printable-area.collector-print-layout {
             display: grid !important;
-            grid-template-columns: 1fr 1fr;
-            gap: 0.34in;
+            grid-template-columns: 1fr;
+            gap: 0.2in;
             position: absolute !important;
             left: 0;
             top: 0;
