@@ -564,6 +564,24 @@ async function initializeDatabase() {
       ytd_beg_expenses REAL DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS tblDemandLetter (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      demand_type TEXT NOT NULL,
+      customer_id INTEGER,
+      loan_id INTEGER,
+      loan_code TEXT,
+      courier TEXT,
+      collector_name TEXT,
+      client_name TEXT NOT NULL,
+      date_generated TEXT NOT NULL DEFAULT (date('now')),
+      date_received TEXT,
+      follow_up_date TEXT,
+      remarks TEXT,
+      status TEXT DEFAULT 'Generated',
+      generated_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
   `;
 
   await dbExec(schema);
@@ -615,6 +633,17 @@ async function initializeDatabase() {
   const paymentCols = await dbAll(`PRAGMA table_info(tblPayment)`);
   const paymentColNames = new Set(paymentCols.map(c => c.name));
   if (!paymentColNames.has('payment_code')) await dbRun(`ALTER TABLE tblPayment ADD COLUMN payment_code TEXT`);
+
+  const demandCols = await dbAll(`PRAGMA table_info(tblDemandLetter)`);
+  const demandColNames = new Set(demandCols.map(c => c.name));
+  const demandTextCols = ['loan_code', 'courier', 'collector_name', 'date_received', 'follow_up_date', 'remarks', 'status'];
+  for (const c of demandTextCols) {
+    if (!demandColNames.has(c)) await dbRun(`ALTER TABLE tblDemandLetter ADD COLUMN ${c} TEXT`);
+  }
+  if (!demandColNames.has('customer_id')) await dbRun(`ALTER TABLE tblDemandLetter ADD COLUMN customer_id INTEGER`);
+  if (!demandColNames.has('loan_id')) await dbRun(`ALTER TABLE tblDemandLetter ADD COLUMN loan_id INTEGER`);
+  if (!demandColNames.has('generated_by')) await dbRun(`ALTER TABLE tblDemandLetter ADD COLUMN generated_by INTEGER`);
+  if (!demandColNames.has('updated_at')) await dbRun(`ALTER TABLE tblDemandLetter ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))`);
 
   // Seed default admin
   const userCount = await dbGet('SELECT COUNT(*) as count FROM tblUser');
