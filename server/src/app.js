@@ -21,6 +21,7 @@ const cicRoutes = require('./routes/cic');
 const monitoringRoutes = require('./routes/monitoring');
 const settingsRoutes = require('./routes/settings');
 const collectorPerformanceRoutes = require('./routes/collectorPerformance');
+const demandLetterRoutes = require('./routes/demandLetters');
 const errorHandler = require('./middleware/errorHandler');
 
 function createApp() {
@@ -59,6 +60,7 @@ function createApp() {
   app.use('/api/monitoring', monitoringRoutes);
   app.use('/api/settings', settingsRoutes);
   app.use('/api/collector-performance', collectorPerformanceRoutes);
+  app.use('/api/demand-letters', demandLetterRoutes);
 
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', system: 'Melann Lending System V2', timestamp: new Date().toISOString() });
