@@ -69,6 +69,7 @@ export default function CollectorPerformance() {
         name: collector.name,
         target: Number(collector.target || 0),
         collected: 0,
+        actual_collection: 0,
         paying_clients_set: new Set(),
         active_loans: 0
       })
@@ -82,16 +83,18 @@ export default function CollectorPerformance() {
         name,
         target: 0,
         collected: 0,
+        actual_collection: 0,
         paying_clients_set: new Set(),
         active_loans: 0
       }
       row.collected += Number(payment.amount_paid || 0)
+      row.actual_collection += Number(payment.amount_paid || 0)
       if (payment.customer_id) row.paying_clients_set.add(payment.customer_id)
       byCollector.set(name, row)
     })
 
     const trendMap = new Map()
-    payments.forEach(payment => {
+    collectionRes.data?.payments?.forEach(payment => {
       const date = payment.date_paid
       trendMap.set(date, (trendMap.get(date) || 0) + Number(payment.amount_paid || 0))
     })
@@ -155,8 +158,28 @@ export default function CollectorPerformance() {
     loadData()
   }, [])
 
-  const collectors = data?.collectors || []
-  const totals = data?.totals || {}
+  const collectors = (data?.collectors || [])
+    .filter(collector => !String(collector.name || '').toLowerCase().includes('melann office'))
+  const totals = collectors.reduce((acc, collector) => {
+    const collectorTotal = Number(collector.active_clients || 0) + Number(collector.recon_clients || 0) + Number(collector.pastdue_clients || 0)
+    acc.target += Number(collector.target || 0)
+    acc.collected += Number(collector.actual_collection ?? collector.collected ?? 0)
+    acc.payment_count += Number(collector.payment_count || 0)
+    acc.active_clients += Number(collector.active_clients || 0)
+    acc.recon_clients += Number(collector.recon_clients || 0)
+    acc.pastdue_clients += Number(collector.pastdue_clients || 0)
+    acc.total_clients += collectorTotal
+    return acc
+  }, {
+    target: 0,
+    collected: 0,
+    payment_count: 0,
+    active_clients: 0,
+    recon_clients: 0,
+    pastdue_clients: 0,
+    total_clients: 0
+  })
+  totals.achievement_rate = totals.target > 0 ? Math.round((totals.collected / totals.target) * 100) : 0
   const totalClients = Number(totals.active_clients || 0) + Number(totals.recon_clients || 0) + Number(totals.pastdue_clients || 0)
   const reportDate = data?.date_to || filters.date_to
 
@@ -286,7 +309,7 @@ export default function CollectorPerformance() {
                   <td className="collector-print-name">{shortCollectorName(collector.name)}</td>
                   <td className="collector-print-num">{countFmt(collector.active_clients)}</td>
                   <td className="collector-print-money">{printAmount(collector.target)}</td>
-                  <td className="collector-print-money">{collector.collected ? printAmount(collector.collected) : ''}</td>
+                  <td className="collector-print-money">{collector.actual_collection || collector.collected ? printAmount(collector.actual_collection ?? collector.collected) : ''}</td>
                 </tr>
               ))}
             </tbody>

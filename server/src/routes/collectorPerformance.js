@@ -143,6 +143,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
         ...collector,
         target: sheetStats.target,
         collected: 0,
+        actual_collection: 0,
         paying_clients: 0,
         payment_count: 0,
         active_clients: sheetStats.active_clients,
@@ -154,6 +155,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
       for (const date of dates) {
         const dailyStats = date === to ? sheetStats : await getCollectorSheetStats(collector.id, date);
         row.collected += dailyStats.collected;
+        row.actual_collection += dailyStats.collected;
         row.paying_clients += dailyStats.paying_clients;
         row.payment_count += dailyStats.payment_count;
         trendMap.set(date, (trendMap.get(date) || 0) + dailyStats.collected);
