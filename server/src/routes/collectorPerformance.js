@@ -31,9 +31,12 @@ function eachOperationDate(from, to) {
   return dates;
 }
 
-function classifyCollectionLoan(loan) {
+function classifyCollectionLoan(loan, targetDate) {
   const dpd = Math.max(0, Number.parseInt(loan.days_past_due, 10) || 0);
-  if (dpd >= 45) return 'pastdue';
+  const pastdueCutoff = `${dayjs(targetDate).year()}-05-15`;
+  if (dpd >= 45 && loan.date_maturity && !dayjs(toDate(loan.date_maturity)).isAfter(dayjs(pastdueCutoff), 'day')) {
+    return 'pastdue';
+  }
   if (dpd >= 1) return 'overdue';
   if (String(loan.loan_type || '').toLowerCase().includes('recon')) return 'recon';
   return 'active';
@@ -95,7 +98,7 @@ async function getCollectorSheetStats(collectorId, targetDate) {
       ? dayjs(targetDate).diff(maturity, 'day')
       : 0;
 
-    const group = classifyCollectionLoan(loan);
+    const group = classifyCollectionLoan(loan, targetDate);
     const collectedToday = toAmount(loan.collected_today);
 
     if (group === 'pastdue') {
