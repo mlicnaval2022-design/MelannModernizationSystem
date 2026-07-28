@@ -129,7 +129,8 @@ export default function DailyCashReport() {
     // 2. EXPENSES
     csv += `2. EXPENSES\nParticulars,Amount\n`;
     data.expenses.forEach(e => {
-      csv += `"${e.category}",${(e.amount || 0).toFixed(2)}\n`;
+      const particulars = e.description ? `${e.category} - ${e.description}` : e.category;
+      csv += `"${particulars}",${(e.amount || 0).toFixed(2)}\n`;
     });
     csv += `TOTAL EXPENSES,,${data.total_expenses.toFixed(2)}\n\n`;
 
@@ -462,7 +463,7 @@ export default function DailyCashReport() {
                 <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
                 <tbody>
                   {data.expenses.map((e, i) => (
-                    <tr key={i}><td>{e.category}</td><td className="text-right">{fmt(e.amount)}</td></tr>
+                    <tr key={i}><td>{e.category}{e.description ? <span style={{color: '#64748b', fontWeight: 'normal'}}> — {e.description}</span> : ''}</td><td className="text-right">{fmt(e.amount)}</td></tr>
                   ))}
                   {data.expenses.length === 0 && <tr><td colSpan={2} style={{textAlign:'center', padding:20, color:'#94a3b8'}}>No expenses recorded.</td></tr>}
                   <tr className="dcr-footer-row"><td style={{color: '#ea580c'}}>TOTAL EXPENSES</td><td className="text-right" style={{color: '#ea580c'}}>₱{fmt(data.total_expenses)}</td></tr>
