@@ -346,6 +346,9 @@ async function initializeDatabase() {
       variance REAL DEFAULT 0,
       status TEXT DEFAULT 'CLOSED',
       closed_by INTEGER,
+      ytd_beg_releases REAL DEFAULT 0,
+      ytd_beg_collections REAL DEFAULT 0,
+      ytd_beg_expenses REAL DEFAULT 0,
       closed_at TEXT DEFAULT (datetime('now')),
       remarks TEXT
     );
@@ -574,6 +577,11 @@ async function initializeDatabase() {
       collector_name TEXT,
       client_name TEXT NOT NULL,
       date_generated TEXT NOT NULL DEFAULT (date('now')),
+      total_loan REAL DEFAULT 0,
+      running_balance REAL DEFAULT 0,
+      beginning_overdue REAL DEFAULT 0,
+      penalty_charges REAL DEFAULT 0,
+      total_amount_due REAL DEFAULT 0,
       date_received TEXT,
       follow_up_date TEXT,
       remarks TEXT,
@@ -629,6 +637,9 @@ async function initializeDatabase() {
   if (!dcrColNames.has('total_bank_charges')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN total_bank_charges REAL DEFAULT 0`);
   if (!dcrColNames.has('total_bank_interest')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN total_bank_interest REAL DEFAULT 0`);
   if (!dcrColNames.has('display_total_releases')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN display_total_releases REAL DEFAULT 0`);
+  if (!dcrColNames.has('ytd_beg_releases')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN ytd_beg_releases REAL DEFAULT 0`);
+  if (!dcrColNames.has('ytd_beg_collections')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN ytd_beg_collections REAL DEFAULT 0`);
+  if (!dcrColNames.has('ytd_beg_expenses')) await dbRun(`ALTER TABLE tblDailyCashReport ADD COLUMN ytd_beg_expenses REAL DEFAULT 0`);
 
   const paymentCols = await dbAll(`PRAGMA table_info(tblPayment)`);
   const paymentColNames = new Set(paymentCols.map(c => c.name));
@@ -644,6 +655,10 @@ async function initializeDatabase() {
   if (!demandColNames.has('loan_id')) await dbRun(`ALTER TABLE tblDemandLetter ADD COLUMN loan_id INTEGER`);
   if (!demandColNames.has('generated_by')) await dbRun(`ALTER TABLE tblDemandLetter ADD COLUMN generated_by INTEGER`);
   if (!demandColNames.has('updated_at')) await dbRun(`ALTER TABLE tblDemandLetter ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))`);
+  const demandAmountCols = ['total_loan', 'running_balance', 'beginning_overdue', 'penalty_charges', 'total_amount_due'];
+  for (const c of demandAmountCols) {
+    if (!demandColNames.has(c)) await dbRun(`ALTER TABLE tblDemandLetter ADD COLUMN ${c} REAL DEFAULT 0`);
+  }
 
   // Seed default admin
   const userCount = await dbGet('SELECT COUNT(*) as count FROM tblUser');

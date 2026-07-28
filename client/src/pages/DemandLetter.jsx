@@ -364,7 +364,7 @@ function DemandLetterSheet({ type, customer, loan, computation }) {
 }
 
 export default function DemandLetter() {
-  const [activeTab, setActiveTab] = useState('generate')
+  const [activeTab, setActiveTab] = useState('updates')
   const [type, setType] = useState(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [courier, setCourier] = useState('Field Personnel')
@@ -379,6 +379,11 @@ export default function DemandLetter() {
   const [monitoringRows, setMonitoringRows] = useState([])
   const [monitoringLoading, setMonitoringLoading] = useState(false)
   const [monitoringError, setMonitoringError] = useState('')
+  const [demandUpdates, setDemandUpdates] = useState([])
+  const [demandUpdateCount, setDemandUpdateCount] = useState(0)
+  const [demandTodayCount, setDemandTodayCount] = useState(0)
+  const [demandUpdatesLoading, setDemandUpdatesLoading] = useState(false)
+  const [demandUpdatesError, setDemandUpdatesError] = useState('')
   const [savingRecord, setSavingRecord] = useState(false)
   const [successModal, setSuccessModal] = useState(null)
   const [receivedModal, setReceivedModal] = useState(null)
@@ -411,6 +416,21 @@ export default function DemandLetter() {
 
   const computation = useMemo(() => getPenaltyComputation(selectedLoan, payments), [selectedLoan, payments])
 
+  const loadDemandUpdates = async () => {
+    setDemandUpdatesLoading(true)
+    setDemandUpdatesError('')
+    try {
+      const res = await API.get('/demand-letters/notifications')
+      setDemandUpdates(res.data.notifications || [])
+      setDemandUpdateCount(Number(res.data.count || 0))
+      setDemandTodayCount(Number(res.data.today_count || 0))
+    } catch (err) {
+      setDemandUpdatesError(err.response?.data?.error || 'Failed to load demand updates')
+    } finally {
+      setDemandUpdatesLoading(false)
+    }
+  }
+
   const loadMonitoring = async (targetType = monitoringType) => {
     setMonitoringLoading(true)
     setMonitoringError('')
@@ -427,6 +447,14 @@ export default function DemandLetter() {
   useEffect(() => {
     if (activeTab === 'monitoring') loadMonitoring(monitoringType)
   }, [activeTab, monitoringType])
+
+  useEffect(() => {
+    loadDemandUpdates()
+  }, [])
+
+  useEffect(() => {
+    if (activeTab === 'updates') loadDemandUpdates()
+  }, [activeTab])
 
   const handleSelectCustomer = async (row) => {
     setError('')
@@ -537,6 +565,7 @@ export default function DemandLetter() {
         status,
       })
       setMonitoringRows(prev => prev.map(row => row.id === receivedModal.id ? res.data : row))
+      await loadDemandUpdates()
       setReceivedModal(null)
       setSuccessModal({
         title: 'Updated Successfully',
@@ -554,11 +583,83 @@ export default function DemandLetter() {
   return (
     <div className="demand-letter-page">
       <div className="demand-module-tabs">
+        <button className={activeTab === 'updates' ? 'active' : ''} onClick={() => setActiveTab('updates')}>
+          Demand Update
+          {demandUpdateCount > 0 && <span className="demand-tab-badge">{demandTodayCount || demandUpdateCount}</span>}
+        </button>
         <button className={activeTab === 'generate' ? 'active' : ''} onClick={() => setActiveTab('generate')}>Generate Demand</button>
         <button className={activeTab === 'monitoring' ? 'active' : ''} onClick={() => setActiveTab('monitoring')}>Monitoring</button>
       </div>
 
-      {activeTab === 'generate' ? (
+      {activeTab === 'updates' ? (
+        <div className="card demand-update-card">
+          <div className="card-header">
+            <div>
+              <div className="card-title">Demand Update</div>
+              <div className="card-subtitle">Demand letters with follow-up due today or overdue</div>
+            </div>
+            <button className="btn btn-secondary" onClick={loadDemandUpdates} disabled={demandUpdatesLoading}>
+              <RefreshCw size={14} /> {demandUpdatesLoading ? 'Loading...' : 'Refresh'}
+            </button>
+          </div>
+
+          {demandUpdatesError && <div className="login-error" style={{ marginBottom: 12 }}>{demandUpdatesError}</div>}
+
+          <div className="demand-update-summary">
+            <div>
+              <span>Notifications Today</span>
+              <strong>{demandTodayCount}</strong>
+            </div>
+            <div>
+              <span>Total Due Updates</span>
+              <strong>{demandUpdateCount}</strong>
+            </div>
+          </div>
+
+          <div className="table-wrapper">
+            <table className="data-table demand-update-table">
+              <thead>
+                <tr>
+                  <th>Demand</th>
+                  <th>Client Name</th>
+                  <th>Collector</th>
+                  <th>Follow-up Date</th>
+                  <th>Remarks</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {demandUpdatesLoading ? (
+                  <tr className="loading-row"><td colSpan={7}>Loading demand updates...</td></tr>
+                ) : demandUpdates.length === 0 ? (
+                  <tr><td colSpan={7} className="empty-state">No demand letter follow-up notifications today.</td></tr>
+                ) : demandUpdates.map(row => (
+                  <tr key={row.id}>
+                    <td>{DEMAND_TYPES[row.demand_type]?.label || row.demand_type}</td>
+                    <td className="fw-600">{row.client_name}</td>
+                    <td>{row.collector_name || '-'}</td>
+                    <td>
+                      <span className="demand-update-date">{formatDateLong(row.follow_up_date)}</span>
+                    </td>
+                    <td className="demand-remarks-cell">{row.remarks || '-'}</td>
+                    <td>
+                      <span className={`demand-status-badge ${getStatusClassName(getDemandStatus(row))}`}>
+                        {getDemandStatus(row)}
+                      </span>
+                    </td>
+                    <td>
+                      <button className="btn btn-secondary demand-received-btn" onClick={() => openReceivedModal(row)}>
+                        Update
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : activeTab === 'generate' ? (
         <>
           <div className="page-toolbar demand-letter-toolbar">
             <div className="form-group">

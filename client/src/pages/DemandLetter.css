@@ -14,6 +14,9 @@
 }
 
 .demand-module-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   padding: 9px 16px;
   border-radius: 6px;
   background: transparent;
@@ -26,6 +29,65 @@
   background: #fff;
   color: #0f172a;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.demand-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.demand-update-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.demand-update-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 220px));
+  gap: 12px;
+}
+
+.demand-update-summary div {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #f8fafc;
+}
+
+.demand-update-summary span {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.demand-update-summary strong {
+  display: block;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.demand-update-table {
+  min-width: 980px;
+}
+
+.demand-update-date {
+  color: #b91c1c;
+  font-weight: 800;
 }
 
 .demand-letter-toolbar {
