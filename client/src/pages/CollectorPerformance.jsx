@@ -343,110 +343,183 @@ export default function CollectorPerformance() {
       {errorMsg && <div className="empty-state"><p>{errorMsg}</p></div>}
 
       {!errorMsg && (
-        <div className="card-v2" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr auto',
-            gap: 20,
-            alignItems: 'center',
-            padding: '20px 24px',
-            borderBottom: '1px solid var(--border)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{
-                width: 38,
-                height: 38,
-                borderRadius: 8,
-                background: '#eef2f7',
-                color: '#475569',
-                display: 'grid',
-                placeItems: 'center'
-              }}>
-                <Users size={22} />
+        <>
+          <div className="card-v2" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr auto',
+              gap: 20,
+              alignItems: 'center',
+              padding: '20px 24px',
+              borderBottom: '1px solid var(--border)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 8,
+                  background: '#eef2f7',
+                  color: '#475569',
+                  display: 'grid',
+                  placeItems: 'center'
+                }}>
+                  <Users size={22} />
+                </div>
+                <div>
+                  <div className="card-v2-title" style={{ marginBottom: 4 }}>Daily Target Breakout</div>
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                    Target/counts match the Collection Sheet for {data?.target_date || filters.date_to}; actual excludes pastdue maturity on/before {pastdueCutoff || '-'}
+                  </div>
+                </div>
               </div>
-              <div>
-                <div className="card-v2-title" style={{ marginBottom: 4 }}>Daily Target Breakout</div>
-                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                  Target/counts match the Collection Sheet for {data?.target_date || filters.date_to}; actual excludes pastdue maturity on/before {pastdueCutoff || '-'}
+
+              <div style={{ display: 'flex', alignItems: 'end', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <div className="form-group" style={{ minWidth: 150, marginBottom: 0 }}>
+                  <label className="form-label">Collection Sheet Date</label>
+                  <input className="form-control" type="date" value={filters.date_to} onChange={e => {
+                    const nextDate = e.target.value
+                    setFilters(current => ({
+                      ...current,
+                      date_to: nextDate,
+                      pastdue_cutoff: current.pastdue_cutoff || `${new Date(`${nextDate}T00:00:00`).getFullYear()}-05-15`
+                    }))
+                  }} />
+                </div>
+                <div className="form-group" style={{ minWidth: 150, marginBottom: 0 }}>
+                  <label className="form-label">Pastdue Cutoff</label>
+                  <input className="form-control" type="date" value={filters.pastdue_cutoff || ''} onChange={e => setFilters(current => ({ ...current, pastdue_cutoff: e.target.value }))} />
+                </div>
+                <button className="btn btn-primary" type="button" onClick={loadData} disabled={loading}>
+                  {loading ? 'Loading...' : 'Apply'}
+                </button>
+                <button className="btn btn-secondary" type="button" onClick={() => window.print()} disabled={loading || !data}>
+                  <Printer size={16} /> Print Report
+                </button>
+                <button className="btn btn-success" type="button" onClick={() => window.print()} disabled={loading || !data}>
+                  <FileText size={16} /> Export PDF Manifest
+                </button>
+              </div>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table" style={{ margin: 0, border: 'none', minWidth: 900 }}>
+                <thead>
+                  <tr>
+                    <th>Collector</th>
+                    <th style={{ textAlign: 'center' }}>Total No. of Clients</th>
+                    <th style={{ textAlign: 'center', color: '#059669' }}>Active</th>
+                    <th style={{ textAlign: 'center', color: '#1d4ed8' }}>Recon</th>
+                    <th style={{ textAlign: 'center', color: '#dc2626' }}>Past Due</th>
+                    <th style={{ textAlign: 'right', color: '#7c3aed' }}>Target (PHP)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>Loading...</td></tr>
+                  ) : collectors.length ? collectors.map(collector => {
+                    const collectorActive = Number(collector.active_clients || 0) + Number(collector.overdue_clients || 0)
+                    const collectorTotal = collectorActive + Number(collector.recon_clients || 0) + Number(collector.pastdue_clients || 0)
+                    return (
+                      <tr key={collector.id}>
+                        <td style={{ fontWeight: 900, textTransform: 'uppercase' }}>{collector.name}</td>
+                        <td style={{ textAlign: 'center', fontWeight: 800 }}>{countFmt(collectorTotal)}</td>
+                        <td style={{ textAlign: 'center', color: '#059669', fontWeight: 900 }}>{countFmt(collectorActive)}</td>
+                        <td style={{ textAlign: 'center', color: '#1d4ed8', fontWeight: 900 }}>{countFmt(collector.recon_clients)}</td>
+                        <td style={{ textAlign: 'center', color: '#dc2626', fontWeight: 900 }}>{countFmt(collector.pastdue_clients)}</td>
+                        <td style={{ textAlign: 'right', color: '#7c3aed', fontWeight: 900 }}>PHP {fmt(collector.target)}</td>
+                      </tr>
+                    )
+                  }) : (
+                    <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>No active collectors found.</td></tr>
+                  )}
+                </tbody>
+                {!loading && collectors.length > 0 && (
+                  <tfoot>
+                    <tr style={{ background: '#fff8e6' }}>
+                      <td style={{ fontWeight: 900, textTransform: 'uppercase', padding: '18px 24px' }}>Total</td>
+                      <td style={{ textAlign: 'center', fontWeight: 900 }}>{countFmt(totalClients)}</td>
+                      <td style={{ textAlign: 'center', color: '#059669', fontWeight: 900 }}>{countFmt(activeTotal)}</td>
+                      <td style={{ textAlign: 'center', color: '#1d4ed8', fontWeight: 900 }}>{countFmt(totals.recon_clients)}</td>
+                      <td style={{ textAlign: 'center', color: '#dc2626', fontWeight: 900 }}>{countFmt(totals.pastdue_clients)}</td>
+                      <td style={{ textAlign: 'right', color: '#7c3aed', fontWeight: 900 }}>PHP {fmt(totals.target)}</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </div>
+
+          <div className="card-v2" style={{ padding: 0, overflow: 'hidden', marginTop: 24 }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr',
+              padding: '20px 24px',
+              borderBottom: '1px solid var(--border)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 8,
+                  background: '#eef2f7',
+                  color: '#475569',
+                  display: 'grid',
+                  placeItems: 'center'
+                }}>
+                  <FileText size={22} />
+                </div>
+                <div>
+                  <div className="card-v2-title" style={{ marginBottom: 4 }}>Actual Collection</div>
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                    Actual collection summary for {displayDate(reportDate)}
+                  </div>
                 </div>
               </div>
             </div>
-
-            <div style={{ display: 'flex', alignItems: 'end', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <div className="form-group" style={{ minWidth: 150, marginBottom: 0 }}>
-                <label className="form-label">Collection Sheet Date</label>
-                <input className="form-control" type="date" value={filters.date_to} onChange={e => {
-                  const nextDate = e.target.value
-                  setFilters(current => ({
-                    ...current,
-                    date_to: nextDate,
-                    pastdue_cutoff: current.pastdue_cutoff || `${new Date(`${nextDate}T00:00:00`).getFullYear()}-05-15`
-                  }))
-                }} />
-              </div>
-              <div className="form-group" style={{ minWidth: 150, marginBottom: 0 }}>
-                <label className="form-label">Pastdue Cutoff</label>
-                <input className="form-control" type="date" value={filters.pastdue_cutoff || ''} onChange={e => setFilters(current => ({ ...current, pastdue_cutoff: e.target.value }))} />
-              </div>
-              <button className="btn btn-primary" type="button" onClick={loadData} disabled={loading}>
-                {loading ? 'Loading...' : 'Apply'}
-              </button>
-              <button className="btn btn-secondary" type="button" onClick={() => window.print()} disabled={loading || !data}>
-                <Printer size={16} /> Print Report
-              </button>
-              <button className="btn btn-success" type="button" onClick={() => window.print()} disabled={loading || !data}>
-                <FileText size={16} /> Export PDF Manifest
-              </button>
+            
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table" style={{ margin: 0, border: 'none', minWidth: 900 }}>
+                <thead>
+                  <tr>
+                    <th>Collector</th>
+                    <th style={{ textAlign: 'center' }}>No of Active Accts</th>
+                    <th style={{ textAlign: 'right', color: '#7c3aed' }}>Target (PHP)</th>
+                    <th style={{ textAlign: 'right', color: '#0ea5e9' }}>Actual (PHP)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>Loading...</td></tr>
+                  ) : collectors.length ? collectors.map(collector => {
+                    const collectorActive = Number(collector.active_clients || 0) + Number(collector.overdue_clients || 0)
+                    return (
+                      <tr key={`actual-${collector.id}`}>
+                        <td style={{ fontWeight: 900, textTransform: 'uppercase' }}>{collector.name}</td>
+                        <td style={{ textAlign: 'center', fontWeight: 900 }}>{countFmt(collectorActive)}</td>
+                        <td style={{ textAlign: 'right', color: '#7c3aed', fontWeight: 900 }}>PHP {fmt(collector.target)}</td>
+                        <td style={{ textAlign: 'right', color: '#0ea5e9', fontWeight: 900 }}>
+                          {collector.actual_collection || collector.collected ? `PHP ${fmt(collector.actual_collection ?? collector.collected)}` : '-'}
+                        </td>
+                      </tr>
+                    )
+                  }) : (
+                    <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>No active collectors found.</td></tr>
+                  )}
+                </tbody>
+                {!loading && collectors.length > 0 && (
+                  <tfoot>
+                    <tr style={{ background: '#fff8e6' }}>
+                      <td style={{ fontWeight: 900, textTransform: 'uppercase', padding: '18px 24px' }}>Total</td>
+                      <td style={{ textAlign: 'center', fontWeight: 900 }}>{countFmt(activeTotal)}</td>
+                      <td style={{ textAlign: 'right', color: '#7c3aed', fontWeight: 900 }}>PHP {fmt(totals.target)}</td>
+                      <td style={{ textAlign: 'right', color: '#0ea5e9', fontWeight: 900 }}>PHP {fmt(totals.collected)}</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
             </div>
           </div>
-
-          <div style={{ overflowX: 'auto' }}>
-            <table className="data-table" style={{ margin: 0, border: 'none', minWidth: 900 }}>
-              <thead>
-                <tr>
-                  <th>Collector</th>
-                  <th style={{ textAlign: 'center' }}>Total No. of Clients</th>
-                  <th style={{ textAlign: 'center', color: '#059669' }}>Active</th>
-                  <th style={{ textAlign: 'center', color: '#1d4ed8' }}>Recon</th>
-                  <th style={{ textAlign: 'center', color: '#dc2626' }}>Past Due</th>
-                  <th style={{ textAlign: 'right', color: '#7c3aed' }}>Target (PHP)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>Loading...</td></tr>
-                ) : collectors.length ? collectors.map(collector => {
-                  const collectorActive = Number(collector.active_clients || 0) + Number(collector.overdue_clients || 0)
-                  const collectorTotal = collectorActive + Number(collector.recon_clients || 0) + Number(collector.pastdue_clients || 0)
-                  return (
-                    <tr key={collector.id}>
-                      <td style={{ fontWeight: 900, textTransform: 'uppercase' }}>{collector.name}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 800 }}>{countFmt(collectorTotal)}</td>
-                      <td style={{ textAlign: 'center', color: '#059669', fontWeight: 900 }}>{countFmt(collectorActive)}</td>
-                      <td style={{ textAlign: 'center', color: '#1d4ed8', fontWeight: 900 }}>{countFmt(collector.recon_clients)}</td>
-                      <td style={{ textAlign: 'center', color: '#dc2626', fontWeight: 900 }}>{countFmt(collector.pastdue_clients)}</td>
-                      <td style={{ textAlign: 'right', color: '#7c3aed', fontWeight: 900 }}>PHP {fmt(collector.target)}</td>
-                    </tr>
-                  )
-                }) : (
-                  <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>No active collectors found.</td></tr>
-                )}
-              </tbody>
-              {!loading && collectors.length > 0 && (
-                <tfoot>
-                  <tr style={{ background: '#fff8e6' }}>
-                    <td style={{ fontWeight: 900, textTransform: 'uppercase', padding: '18px 24px' }}>Total</td>
-                    <td style={{ textAlign: 'center', fontWeight: 900 }}>{countFmt(totalClients)}</td>
-                    <td style={{ textAlign: 'center', color: '#059669', fontWeight: 900 }}>{countFmt(activeTotal)}</td>
-                    <td style={{ textAlign: 'center', color: '#1d4ed8', fontWeight: 900 }}>{countFmt(totals.recon_clients)}</td>
-                    <td style={{ textAlign: 'center', color: '#dc2626', fontWeight: 900 }}>{countFmt(totals.pastdue_clients)}</td>
-                    <td style={{ textAlign: 'right', color: '#7c3aed', fontWeight: 900 }}>PHP {fmt(totals.target)}</td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-        </div>
+        </>
       )}
     </div>
   )
