@@ -107,12 +107,18 @@ export default function DailyCashReport() {
     collByCollector[name] = (collByCollector[name] || 0) + c.amount;
   });
 
+  (data.otherTransactions || []).forEach(c => {
+    const name = 'Office';
+    collByCollector[name] = (collByCollector[name] || 0) + c.amount;
+  });
+
   const bankCharges = data.bankCharges || [];
   const interest = data.interest || [];
   const withdrawal = data.withdrawals || [];
   const deposit = data.deposits || [];
   const adjustments = data.adjustments || [];
   const collectorsOverList = data.collectorsOver || [];
+  const otherTransactionsList = data.otherTransactions || [];
   const collectionBreakdown = data.collection_breakdown || {};
 
   const handleExportExcel = () => {
@@ -143,6 +149,7 @@ export default function DailyCashReport() {
     csv += `Balance Collections,${Number(collectionBreakdown.balance || 0).toFixed(2)}\n`;
     csv += `Penalty Collections,${Number(collectionBreakdown.penalty || 0).toFixed(2)}\n`;
     csv += `Passbook Collections,${Number(collectionBreakdown.passbook || 0).toFixed(2)}\n`;
+    csv += `Other Transactions,${Number(collectionBreakdown.other_transactions || 0).toFixed(2)}\n`;
     csv += `TOTAL COLLECTIONS,,${data.total_collections.toFixed(2)}\n\n`;
 
     // Summary
@@ -553,6 +560,20 @@ export default function DailyCashReport() {
                 </table>
               </div>
             )}
+
+            {/* OTHER TRANSACTIONS */}
+            {otherTransactionsList.length > 0 && (
+              <div className="dcr-section">
+                <h3 className="dcr-section-title" style={{color: '#0891b2'}}>OTHER TRANSACTIONS</h3>
+                <table className="dcr-table">
+                  <thead><tr><th>Particulars</th><th className="text-right">Amount</th></tr></thead>
+                  <tbody>
+                    {otherTransactionsList.map((c, i) => <tr key={i}><td>{c.description || 'Unassigned'}</td><td className="text-right">{fmt(c.amount)}</td></tr>)}
+                    <tr className="dcr-footer-row"><td style={{color:'#0891b2'}}>TOTAL OTHER TRANSACTIONS</td><td className="text-right" style={{color:'#0891b2'}}>₱{fmt(otherTransactionsList.reduce((sum, c) => sum + (Number(c.amount) || 0), 0))}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
 
@@ -594,6 +615,7 @@ export default function DailyCashReport() {
               <div className="cash-summary-row"><span>Total Collections</span><span>₱{fmt(data.total_collections)}</span></div>
               <div className="cash-summary-row"><span style={{paddingLeft: 10}}>Balance Collections</span><span>₱{fmt(collectionBreakdown.balance || 0)}</span></div>
               <div className="cash-summary-row"><span style={{paddingLeft: 10}}>Penalty Collections</span><span>₱{fmt(collectionBreakdown.penalty || 0)}</span></div>
+              <div className="cash-summary-row"><span style={{paddingLeft: 10}}>Other Transactions</span><span>₱{fmt(collectionBreakdown.other_transactions || 0)}</span></div>
               <div className="cash-summary-row"><span style={{paddingLeft: 10}}>Reconstruct Amount</span><span>₱{fmt(data.total_reconstruct_amount || 0)}</span></div>
               
               <div className="cash-summary-row bold" style={{ marginTop: 10 }}><span>CASH AVAILABLE</span><span>₱{fmt(data.beginning_cash + data.total_collections + data.total_adjustments + data.total_withdrawals)}</span></div>
