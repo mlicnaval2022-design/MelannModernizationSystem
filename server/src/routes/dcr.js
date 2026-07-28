@@ -127,7 +127,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
       WHERE ${eCond.replace(/e\./g, 't.')}
     `, eParams);
 
-    const expenses = transactions.filter(t => t.transaction_type === 'Expense' || t.transaction_type === 'expense' || !t.transaction_type);
+    const expenses = transactions.filter(t => t.transaction_type === 'Expense' || t.transaction_type === 'expense' || !t.transaction_type || t.transaction_type === 'Other Transactions');
     const passbooks = transactions.filter(t => t.transaction_type === 'Passbook');
     const penalties = transactions.filter(t => t.transaction_type === 'Penalty');
     const collectorsOver = transactions.filter(t => t.transaction_type === 'Collectors Over');
@@ -364,7 +364,7 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
     let other_disbursements = 0;
     
     transactions.forEach(t => {
-      if (t.transaction_type === 'Expense') total_expenses += t.amount;
+      if (t.transaction_type === 'Expense' || t.transaction_type === 'Other Transactions') total_expenses += t.amount;
       else if (t.transaction_type === 'Short Overage') total_expenses += t.amount;
     });
     
