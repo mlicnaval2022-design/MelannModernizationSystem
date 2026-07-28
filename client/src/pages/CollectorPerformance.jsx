@@ -266,11 +266,15 @@ export default function CollectorPerformance() {
             background: #fff;
           }
           .collector-print-panel { break-inside: avoid; page-break-inside: avoid; }
+          body.print-target .print-actual-only,
+          body.print-target .print-actual-only * { display: none !important; visibility: hidden !important; }
+          body.print-actual .print-target-only,
+          body.print-actual .print-target-only * { display: none !important; visibility: hidden !important; }
         }
       `}</style>
 
       <div id="printable-area" className="collector-print-layout">
-        <div className="collector-print-panel">
+        <div className="collector-print-panel print-target-only">
           <table className="collector-print-table">
             <thead>
               <tr><td className="collector-print-label">{displayWeekday(reportDate)}</td><td colSpan={6}></td></tr>
@@ -313,7 +317,7 @@ export default function CollectorPerformance() {
           </table>
         </div>
 
-        <div className="collector-print-panel">
+        <div className="collector-print-panel print-actual-only">
           <table className="collector-print-table">
             <thead>
               <tr><td className="collector-print-label">{displayWeekday(reportDate)}</td><td colSpan={3}></td></tr>
@@ -392,8 +396,19 @@ export default function CollectorPerformance() {
                 <button className="btn btn-primary" type="button" onClick={loadData} disabled={loading}>
                   {loading ? 'Loading...' : 'Apply'}
                 </button>
-                <button className="btn btn-secondary" type="button" onClick={() => window.print()} disabled={loading || !data}>
-                  <Printer size={16} /> Print Report
+                <button className="btn btn-secondary" type="button" onClick={() => {
+                  document.body.classList.add('print-actual');
+                  window.print();
+                  document.body.classList.remove('print-actual');
+                }} disabled={loading || !data}>
+                  <Printer size={16} /> Print Actual Collection
+                </button>
+                <button className="btn btn-secondary" type="button" onClick={() => {
+                  document.body.classList.add('print-target');
+                  window.print();
+                  document.body.classList.remove('print-target');
+                }} disabled={loading || !data}>
+                  <Printer size={16} /> Print Daily Target
                 </button>
                 <button className="btn btn-success" type="button" onClick={() => window.print()} disabled={loading || !data}>
                   <FileText size={16} /> Export PDF Manifest
