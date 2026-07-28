@@ -7,7 +7,8 @@ const CATS = ['AUDITORS ALLOWANCE', 'BANK TRANSPORTATION', 'BIR', 'BIR PAYMENT',
 
 const TABS = [
   { id: 'Expense', label: 'Expenses', icon: '🧾' },
-  { id: 'Collectors Over', label: 'Collectors Over', icon: '💰' }
+  { id: 'Collectors Over', label: 'Collectors Over', icon: '💰' },
+  { id: 'Other Transactions', label: 'Other Transactions', icon: '📝' }
 ]
 
 export default function Transactions() {
