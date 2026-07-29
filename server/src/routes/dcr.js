@@ -191,14 +191,17 @@ router.get('/summary', authenticateToken, async (req, res) => {
     else { ytdOverrideQuery += ` AND branch_id IS NULL`; }
     ytdOverrideQuery += ` ORDER BY id DESC LIMIT 1`;
     const ytdOverride = await dbGet(ytdOverrideQuery, ytdOverrideParams).catch(() => null);
+    const ytd_beg_releases_default = ytdOverride
+      ? Number(ytdOverride.ytd_beg_releases || 0)
+      : Number(prevDcr ? Number(prevDcr.ytd_beg_releases || 0) + Number(prevDcr.total_releases || 0) : 0);
+    const ytd_beg_collections_default = ytdOverride
+      ? Number(ytdOverride.ytd_beg_collections || 0)
+      : Number(prevDcr ? Number(prevDcr.ytd_beg_collections || 0) + Number(prevDcr.total_collections || 0) : 0);
+    const ytd_beg_expenses_default = ytdOverride
+      ? Number(ytdOverride.ytd_beg_expenses || 0)
+      : Number(prevDcr ? Number(prevDcr.ytd_beg_expenses || 0) + Number(prevDcr.total_expenses || 0) : 0);
 
-    // YTD defaults
-    const ytd_beg_releases_default = ytdOverride ? ytdOverride.ytd_beg_releases : (prevDcr ? (prevDcr.ytd_beg_releases + prevDcr.total_releases) : 0);
-    const ytd_beg_collections_default = ytdOverride ? ytdOverride.ytd_beg_collections : (prevDcr ? (prevDcr.ytd_beg_collections + prevDcr.total_collections) : 0);
-    const ytd_beg_expenses_default = ytdOverride ? ytdOverride.ytd_beg_expenses : (prevDcr ? (prevDcr.ytd_beg_expenses + prevDcr.total_expenses) : 0);
-
-    // Cash available and expected ending cash
-    const cash_available = beginning_cash + total_collections + total_withdrawals;
+    const cash_available = beginning_cash + total_collections + total_adjustments + total_withdrawals;
     const expected_ending_cash = cash_available - cash_out_releases - total_expenses - total_deposits;
 
     // Cash in Bank formula

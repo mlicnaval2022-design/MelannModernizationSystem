@@ -61,6 +61,7 @@ export default function Layout() {
   const [pwSuccess, setPwSuccess] = useState('')
   const [logoFailed, setLogoFailed] = useState(false)
   const [showNotif, setShowNotif] = useState(false)
+  const [demandLetterBadgeCount, setDemandLetterBadgeCount] = useState(0)
   const [notifications, setNotifications] = useState([
     { id: 1, title: 'System Update', message: 'Your weekly collection report is ready to download.', time: '10 mins ago', color: '#3b82f6' },
     { id: 2, title: 'Past Due Alert', message: '3 accounts have moved to past due status today.', time: '1 hour ago', color: '#ef4444' },
@@ -97,6 +98,12 @@ export default function Layout() {
           const ids = new Set(prev.map(p => p.id))
           return [...monNotes.filter(n => !ids.has(n.id)), ...prev]
         })
+      })
+      .catch(() => {})
+
+    API.get('/demand-letters/notifications')
+      .then(r => {
+        setDemandLetterBadgeCount(Number(r.data.today_count || r.data.count || 0))
       })
       .catch(() => {})
   }, [])
@@ -152,7 +159,10 @@ export default function Layout() {
                   })}
                 >
                   <span className="nav-icon nav-icon-badge"><Icon size={16} strokeWidth={2.25} /></span>
-                  {nav.label}
+                  <span className="nav-label">{nav.label}</span>
+                  {nav.path === '/demand-letter' && demandLetterBadgeCount > 0 && (
+                    <span className="nav-count-badge">{demandLetterBadgeCount}</span>
+                  )}
                 </NavLink>
               )})}
             </div>
