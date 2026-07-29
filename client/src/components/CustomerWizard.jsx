@@ -11,6 +11,8 @@ const STEPS = [
 ];
 
 export default function CustomerWizard({ initialData, onClose, onSaved, collectors, branches }) {
+  const educationalBackgroundOptions = ['Primary', 'Secondary', 'College', 'Undergraduate'];
+  const occupationalStatusOptions = ['Government', 'Private', 'Self-Employed', 'Unemployed'];
   const businessTypeOptions = [
     'SARI-SARI STORE',
     'EATERY / CARENDERIA',
@@ -47,6 +49,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
   const [form, setForm] = useState(initialData || {
     customer_classification: 'New Client', risk_category: 'Medium Risk', cic_verification: 'Verified',
     first_name: '', last_name: '', middle_name: '', gender: 'Male', birth_date: '', civil_status: 'Single', nationality: 'Filipino',
+    educational_background: '', occupational_status: '',
     address: '', sitio: '', purok: '', brgy: '', city: '', province: '', zip_code: '', home_status: 'Owned', length_of_stay: '', previous_address: '',
     contact: '', secondary_contact: '', email: '', confirm_email: '', fb_account: '', messenger_account: '', preferred_contact_method: 'Call / SMS', preferred_contact_time_from: '', preferred_contact_time_to: '', contact_notes: '',
     business_type: 'SARI-SARI STORE', business_type_other: '', occupation: 'Retail', business_name: '', business_address: '', business_years: '', business_months: '', income_per_month: '', business_employees: '', business_ownership: 'Sole Proprietorship', business_permit: 'Yes', permit_date_issued: '', permit_place_issued: '', permit_no: '',
@@ -224,6 +227,30 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
                 <option value="Filipino">Filipino</option><option value="Foreigner">Foreigner</option>
               </select>
             </div>
+          </div>
+
+          <label className="section-label">Educational Background</label>
+          <div className="radio-cards">
+            {educationalBackgroundOptions.map(option => (
+              <div key={option} className={`radio-card checkbox-card ${form.educational_background === option ? 'active' : ''}`} onClick={() => setForm({...form, educational_background: option})}>
+                <input type="checkbox" checked={form.educational_background === option} readOnly />
+                <div className="radio-content">
+                  <strong>{option}</strong>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <label className="section-label">Occupational Status</label>
+          <div className="radio-cards">
+            {occupationalStatusOptions.map(option => (
+              <div key={option} className={`radio-card checkbox-card ${form.occupational_status === option ? 'active' : ''}`} onClick={() => setForm({...form, occupational_status: option})}>
+                <input type="checkbox" checked={form.occupational_status === option} readOnly />
+                <div className="radio-content">
+                  <strong>{option}</strong>
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="form-group" style={{ marginTop: '15px' }}><label>Assigned Collector *</label>
