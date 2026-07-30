@@ -38,9 +38,9 @@ export default function DailyCashReport() {
       const res = await API.get(`/dcr/summary?date=${date}&branch_id=${branchId}`);
       setData(res.data);
       
-      setYtdReleases(res.data.dcr?.ytd_beg_releases ?? res.data.ytd_beg_releases_default ?? 0);
-      setYtdCollections(res.data.dcr?.ytd_beg_collections ?? res.data.ytd_beg_collections_default ?? 0);
-      setYtdExpenses(res.data.dcr?.ytd_beg_expenses ?? res.data.ytd_beg_expenses_default ?? 0);
+      setYtdReleases(res.data.ytd_beg_releases_default ?? 0);
+      setYtdCollections(res.data.ytd_beg_collections_default ?? 0);
+      setYtdExpenses(res.data.ytd_beg_expenses_default ?? 0);
 
       if (res.data.dcr) {
         setDenom({
@@ -234,10 +234,10 @@ export default function DailyCashReport() {
         ytd_beg_collections: ytdCollections,
         ytd_beg_expenses: ytdExpenses
       });
-      alert('YTD balances saved successfully.');
+      setAlertModal({ type: 'success', title: 'Success!', message: 'YTD balances saved successfully.' });
       loadData();
     } catch (err) {
-      alert('Failed to save YTD balances.');
+      setAlertModal({ type: 'error', title: 'Error', message: 'Failed to save YTD balances.' });
       console.error(err);
     } finally {
       setYtdSaving(false);
@@ -661,7 +661,7 @@ export default function DailyCashReport() {
               <tr>
                 <td style={{ fontWeight: 700 }}>Total Releases</td>
                 <td className="text-right">
-                  {data.dcr || !isEditingYtd ? (
+                  {!isEditingYtd ? (
                     <span>₱{fmt(ytdReleases)}</span>
                   ) : (
                     <input type="number" value={ytdReleases} onChange={e => setYtdReleases(Number(e.target.value))} style={{ textAlign: 'right', width: '100px', border: '1px solid #cbd5e1', padding: '4px', borderRadius: '4px' }} />
@@ -673,7 +673,7 @@ export default function DailyCashReport() {
               <tr>
                 <td style={{ fontWeight: 700 }}>Total Collections</td>
                 <td className="text-right">
-                  {data.dcr || !isEditingYtd ? (
+                  {!isEditingYtd ? (
                     <span>₱{fmt(ytdCollections)}</span>
                   ) : (
                     <input type="number" value={ytdCollections} onChange={e => setYtdCollections(Number(e.target.value))} style={{ textAlign: 'right', width: '100px', border: '1px solid #cbd5e1', padding: '4px', borderRadius: '4px' }} />
@@ -685,7 +685,7 @@ export default function DailyCashReport() {
               <tr>
                 <td style={{ fontWeight: 700 }}>Total Expenses</td>
                 <td className="text-right">
-                  {data.dcr || !isEditingYtd ? (
+                  {!isEditingYtd ? (
                     <span>₱{fmt(ytdExpenses)}</span>
                   ) : (
                     <input type="number" value={ytdExpenses} onChange={e => setYtdExpenses(Number(e.target.value))} style={{ textAlign: 'right', width: '100px', border: '1px solid #cbd5e1', padding: '4px', borderRadius: '4px' }} />
@@ -696,43 +696,41 @@ export default function DailyCashReport() {
               </tr>
             </tbody>
           </table>
-          {!data.dcr && (
-            <div style={{ marginTop: '15px', textAlign: 'right' }}>
-              {!isEditingYtd ? (
+          <div style={{ marginTop: '15px', textAlign: 'right' }}>
+            {!isEditingYtd ? (
+              <button 
+                type="button" 
+                onClick={() => setIsEditingYtd(true)}
+                style={{ padding: '8px 16px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              >
+                ✏️ Edit YTD Balances
+              </button>
+            ) : (
+              <div style={{ display: 'inline-flex', gap: '10px' }}>
                 <button 
                   type="button" 
-                  onClick={() => setIsEditingYtd(true)}
-                  style={{ padding: '8px 16px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                  onClick={() => {
+                    setIsEditingYtd(false);
+                    setYtdReleases(data.ytd_beg_releases_default || 0);
+                    setYtdCollections(data.ytd_beg_collections_default || 0);
+                    setYtdExpenses(data.ytd_beg_expenses_default || 0);
+                  }}
+                  disabled={ytdSaving}
+                  style={{ padding: '8px 16px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
                 >
-                  ✏️ Edit YTD Balances
+                  Cancel
                 </button>
-              ) : (
-                <div style={{ display: 'inline-flex', gap: '10px' }}>
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      setIsEditingYtd(false);
-                      setYtdReleases(data.ytd_beg_releases_default || 0);
-                      setYtdCollections(data.ytd_beg_collections_default || 0);
-                      setYtdExpenses(data.ytd_beg_expenses_default || 0);
-                    }}
-                    disabled={ytdSaving}
-                    style={{ padding: '8px 16px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="button" 
-                    onClick={() => { handleSaveYtd(); setIsEditingYtd(false); }} 
-                    disabled={ytdSaving}
-                    style={{ padding: '8px 16px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: ytdSaving ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-                  >
-                    {ytdSaving ? 'Saving...' : '💾 Save YTD Balances'}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+                <button 
+                  type="button" 
+                  onClick={() => { handleSaveYtd(); setIsEditingYtd(false); }} 
+                  disabled={ytdSaving}
+                  style={{ padding: '8px 16px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: ytdSaving ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                >
+                  {ytdSaving ? 'Saving...' : '💾 Save YTD Balances'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

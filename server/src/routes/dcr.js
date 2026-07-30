@@ -313,6 +313,20 @@ router.post('/save-ytd', authenticateToken, async (req, res) => {
       await dbRun(`INSERT INTO tblDcrYtdOverride (report_date, branch_id, ytd_beg_releases, ytd_beg_collections, ytd_beg_expenses) VALUES (?, ?, ?, ?, ?)`, [date, branch_id || null, ytd_beg_releases || 0, ytd_beg_collections || 0, ytd_beg_expenses || 0]);
     }
 
+    // Also update tblDailyCashReport if it exists for this date, so tomorrow's calculation (which depends on this row) will be correct.
+    let dcrQuery = `SELECT id FROM tblDailyCashReport WHERE report_date = ?`;
+    let dcrParams = [date];
+    if (branch_id) {
+      dcrQuery += ` AND branch_id = ?`;
+      dcrParams.push(branch_id);
+    } else {
+      dcrQuery += ` AND branch_id IS NULL`;
+    }
+    const existingDcr = await dbGet(dcrQuery, dcrParams).catch(() => null);
+    if (existingDcr) {
+      await dbRun(`UPDATE tblDailyCashReport SET ytd_beg_releases = ?, ytd_beg_collections = ?, ytd_beg_expenses = ? WHERE id = ?`, [ytd_beg_releases || 0, ytd_beg_collections || 0, ytd_beg_expenses || 0, existingDcr.id]);
+    }
+
     res.json({ success: true, message: 'YTD balances saved successfully.' });
   } catch (err) {
     console.error(err);

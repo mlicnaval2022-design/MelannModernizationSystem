@@ -37,8 +37,8 @@ function eachOperationDate(from, to) {
 function classifyCollectionLoan(loan) {
   const dpd = Math.max(0, Number.parseInt(loan.days_past_due, 10) || 0);
   if (dpd >= 45) return 'pastdue';
-  if (dpd >= 1) return 'overdue';
   if (String(loan.loan_type || '').toLowerCase().includes('recon')) return 'recon';
+  if (dpd >= 1) return 'overdue';
   return 'active';
 }
 
