@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import API from '../services/api'
 import letterHeadImg from '../assets/new-letter-head-logo.jpg'
 import './DemandLetter.css'
-import { ChevronDown, FileText, Printer, RefreshCw, Search } from 'lucide-react'
+import { ChevronDown, FileText, Printer, RefreshCw, Search, Bell, Calendar } from 'lucide-react'
 
 const DEMAND_TYPES = {
   first: {
@@ -606,13 +606,19 @@ export default function DemandLetter() {
           {demandUpdatesError && <div className="login-error" style={{ marginBottom: 12 }}>{demandUpdatesError}</div>}
 
           <div className="demand-update-summary">
-            <div>
-              <span>Notifications Today</span>
-              <strong>{demandTodayCount}</strong>
+            <div className="summary-card-today">
+              <div className="summary-icon"><Bell size={20} color="#3b82f6" /></div>
+              <div className="summary-details">
+                <span>Notifications Today</span>
+                <strong>{demandTodayCount}</strong>
+              </div>
             </div>
-            <div>
-              <span>Total Due Updates</span>
-              <strong>{demandUpdateCount}</strong>
+            <div className="summary-card-total">
+              <div className="summary-icon"><Calendar size={20} color="#2563eb" /></div>
+              <div className="summary-details">
+                <span>Total Due Updates</span>
+                <strong>{demandUpdateCount}</strong>
+              </div>
             </div>
           </div>
 
