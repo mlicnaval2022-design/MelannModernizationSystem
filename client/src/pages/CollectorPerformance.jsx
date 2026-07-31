@@ -177,8 +177,24 @@ export default function CollectorPerformance() {
     loadData()
   }, [])
 
+  const targetOrder = [
+    'TORRETA, ANGELITO',
+    'DOMINGONO, RENATO',
+    'CABALLES, EDDIE JR.',
+    'JUGAR, NOEL',
+    'ROSAL, ALDIE',
+    'LAUDE, REYNALDO JR.'
+  ].map(n => n.toLowerCase());
+
+  const getSortOrder = (name) => {
+    const lowerName = String(name || '').toLowerCase().trim();
+    const index = targetOrder.findIndex(target => lowerName.includes(target));
+    return index !== -1 ? index : targetOrder.length;
+  };
+
   const collectors = (data?.collectors || [])
     .filter(collector => !String(collector.name || '').toLowerCase().includes('melann office'))
+    .sort((a, b) => getSortOrder(a.name) - getSortOrder(b.name) || String(a.name || '').localeCompare(String(b.name || '')))
   const totals = collectors.reduce((acc, collector) => {
     const collectorTotal = Number(collector.active_clients || 0) + Number(collector.recon_clients || 0) + Number(collector.overdue_clients || 0) + Number(collector.pastdue_clients || 0)
     acc.target += Number(collector.target || 0)
