@@ -89,18 +89,18 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
       ), 0) as penalty_collected_today
     FROM tblLoan l
     WHERE l.collector_id = ?
+      AND date(l.date_released) <= date(?)
       AND (
         (LOWER(l.status) IN ('active', 'pastdue') AND COALESCE(l.balance, 0) > 0)
         OR EXISTS (
           SELECT 1
           FROM tblPayment p
           WHERE p.loan_id = l.id
-            AND date(p.date_paid) = date(?)
+            AND date(p.date_paid) >= date(?)
             AND p.status IN ('active', 'penalty')
-            AND ${sqlNotSunday('p.date_paid')}
         )
       )
-  `, [targetDate, targetDate, targetDate, targetDate, collectorId, targetDate]);
+  `, [targetDate, targetDate, targetDate, targetDate, collectorId, targetDate, targetDate]);
 
   const stats = {
     target: 0,
