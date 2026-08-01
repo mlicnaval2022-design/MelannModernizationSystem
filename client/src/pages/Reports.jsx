@@ -529,6 +529,56 @@ export default function Reports() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [selectedCollector, setSelectedCollector] = useState(null)
+  const [modalSortConfig, setModalSortConfig] = useState({ key: null, direction: 'asc' })
+  const [modalTypeFilter, setModalTypeFilter] = useState([])
+  const [typeFilterMenuOpen, setTypeFilterMenuOpen] = useState(false)
+
+  useEffect(() => {
+    if (selectedCollector) {
+      setModalTypeFilter([])
+      setTypeFilterMenuOpen(false)
+    }
+  }, [selectedCollector])
+
+  const toggleModalTypeFilter = (type) => {
+    setModalTypeFilter(prev => {
+      if (prev.includes(type)) return prev.filter(t => t !== type)
+      return [...prev, type]
+    })
+  }
+
+  const handleModalSort = (key) => {
+    let direction = 'asc'
+    if (modalSortConfig.key === key && modalSortConfig.direction === 'asc') {
+      direction = 'desc'
+    }
+    setModalSortConfig({ key, direction })
+  }
+  const getSortedModalData = () => {
+    if (!selectedCollector) return []
+    const list = selectedCollector.loans || selectedCollector.payments || []
+    
+    let filteredList = list
+    if (modalTypeFilter.length > 0) {
+      filteredList = list.filter(l => modalTypeFilter.includes(l.loan_type))
+    }
+
+    if (!modalSortConfig.key) return filteredList
+    return [...filteredList].sort((a, b) => {
+      let aVal = a[modalSortConfig.key]
+      let bVal = b[modalSortConfig.key]
+      if (modalSortConfig.key === 'principal' || modalSortConfig.key === 'net_proceeds') {
+        aVal = Number(aVal || 0)
+        bVal = Number(bVal || 0)
+      } else {
+        aVal = String(aVal || '').toLowerCase()
+        bVal = String(bVal || '').toLowerCase()
+      }
+      if (aVal < bVal) return modalSortConfig.direction === 'asc' ? -1 : 1
+      if (aVal > bVal) return modalSortConfig.direction === 'asc' ? 1 : -1
+      return 0
+    })
+  }
   const [fieldReleaseOpen, setFieldReleaseOpen] = useState(false)
   const [fieldReleaseRows, setFieldReleaseRows] = useState([])
   const [fieldReleaseLoading, setFieldReleaseLoading] = useState(false)
@@ -4340,6 +4390,31 @@ export default function Reports() {
             <div className="modal-header">
               <span className="modal-title">{active === 'full-paid' ? 'Fully Paid Details' : active === 'payments-reversed' ? 'Reversed Payment Details' : (active === 'monthly-releases' || active === 'loan-type') ? 'Release Details' : active === 'past-due' ? 'Maturity Details' : 'Collection Details'} - {selectedCollector.collector}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {(active === 'monthly-releases' || active === 'loan-type') && (
+                  <div style={{ position: 'relative' }}>
+                    <button className="btn btn-secondary" style={{ padding: '4px 12px', fontSize: 13 }} onClick={() => setTypeFilterMenuOpen(open => !open)}>
+                      Filter Type {modalTypeFilter.length > 0 && `(${modalTypeFilter.length})`}
+                    </button>
+                    {typeFilterMenuOpen && (
+                      <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 20, minWidth: 160, background: '#fff', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 12px 24px rgba(15, 23, 42, 0.12)', padding: 8 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, padding: '0 4px' }}>SELECT TYPES</div>
+                        <div style={{ maxHeight: 200, overflow: 'auto' }}>
+                          {Array.from(new Set((selectedCollector.loans || []).map(l => l.loan_type).filter(Boolean))).sort().map(type => (
+                            <label key={type} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', cursor: 'pointer', fontSize: 13 }}>
+                              <input type="checkbox" checked={modalTypeFilter.includes(type)} onChange={() => toggleModalTypeFilter(type)} style={{ cursor: 'pointer' }} />
+                              {type}
+                            </label>
+                          ))}
+                        </div>
+                        {modalTypeFilter.length > 0 && (
+                          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                            <button className="btn btn-secondary" style={{ width: '100%', fontSize: 12, padding: '4px 0' }} onClick={() => setModalTypeFilter([])}>Clear Filters</button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <button className="btn btn-secondary" style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => window.print()}><Printer size={14} /> Print</button>
                 <button className="modal-close" onClick={() => setSelectedCollector(null)}>x</button>
               </div>
@@ -4352,11 +4427,11 @@ export default function Reports() {
                 </div>
                 <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-soft, #f8fafc)' }}>
                   <div className="nav-section-label" style={{ marginBottom: 4 }}>{active === 'payments-reversed' ? 'No. of Reversals' : (active === 'monthly-releases' || active === 'loan-type') ? 'No. of Releases' : active === 'past-due' || active === 'full-paid' ? 'No. of Client' : 'No. of Payments'}</div>
-                  <div className="fw-bold">{(active === 'monthly-releases' || active === 'loan-type') || active === 'full-paid' ? (selectedCollector.loan_count || selectedCollector.payment_count) : active === 'past-due' ? selectedCollector.client_count : selectedCollector.payment_count}</div>
+                  <div className="fw-bold">{(active === 'monthly-releases' || active === 'loan-type') ? getSortedModalData().length : active === 'full-paid' ? (selectedCollector.loan_count || selectedCollector.payment_count) : active === 'past-due' ? selectedCollector.client_count : selectedCollector.payment_count}</div>
                 </div>
                 <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-soft, #f8fafc)' }}>
                   <div className="nav-section-label" style={{ marginBottom: 4 }}>{active === 'payments-reversed' ? 'Total Reversed' : (active === 'monthly-releases' || active === 'loan-type') ? 'Total Released' : active === 'past-due' ? 'Total Balance' : active === 'full-paid' ? 'Total Principal' : 'Total Collection'}</div>
-                  <div className={`fw-bold ${active === 'payments-reversed' ? '' : 'text-success'}`} style={active === 'payments-reversed' ? { color: '#dc2626' } : {}}>PHP {fmt(active === 'past-due' ? selectedCollector.total_balance : (selectedCollector.total_amount || selectedCollector.total_principal))}</div>
+                  <div className={`fw-bold ${active === 'payments-reversed' ? '' : 'text-success'}`} style={active === 'payments-reversed' ? { color: '#dc2626' } : {}}>PHP {fmt(active === 'past-due' ? selectedCollector.total_balance : ((active === 'monthly-releases' || active === 'loan-type') ? getSortedModalData().reduce((sum, l) => sum + Number(l.principal || 0), 0) : (selectedCollector.total_amount || selectedCollector.total_principal)))}</div>
                 </div>
                 {active === 'full-paid' && (
                   <>
@@ -4376,10 +4451,24 @@ export default function Reports() {
                   {active === 'monthly-releases' || active === 'loan-type' ? (
                     <>
                       <thead>
-                        <tr><th>Client Code</th><th>Client</th><th>Loan#</th><th>Type</th><th className="text-right">Loan Amount</th><th className="text-right">Net Proceeds</th><th>Date Released</th></tr>
+                        <tr>
+                          <th>Client Code</th>
+                          <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleModalSort('customer_name')}>
+                            Client {modalSortConfig.key === 'customer_name' ? (modalSortConfig.direction === 'asc' ? '↑' : '↓') : ''}
+                          </th>
+                          <th>Loan#</th>
+                          <th>Type</th>
+                          <th className="text-right" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleModalSort('principal')}>
+                            Loan Amount {modalSortConfig.key === 'principal' ? (modalSortConfig.direction === 'asc' ? '↑' : '↓') : ''}
+                          </th>
+                          <th className="text-right">Net Proceeds</th>
+                          <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleModalSort('date_released')}>
+                            Date Released {modalSortConfig.key === 'date_released' ? (modalSortConfig.direction === 'asc' ? '↑' : '↓') : ''}
+                          </th>
+                        </tr>
                       </thead>
                       <tbody>
-                        {(selectedCollector.loans || selectedCollector.payments)?.length === 0 ? <tr><td colSpan={7} className="empty-state">No release details</td></tr> : (selectedCollector.loans || selectedCollector.payments)?.map(l => (
+                        {(selectedCollector.loans || selectedCollector.payments)?.length === 0 ? <tr><td colSpan={7} className="empty-state">No release details</td></tr> : getSortedModalData().map(l => (
                           <tr key={l.id}>
                             <td className="mono">{l.customer_code || '-'}</td>
                             <td className="fw-600">{l.customer_name || '-'}</td>
