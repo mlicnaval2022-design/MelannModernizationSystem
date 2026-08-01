@@ -183,7 +183,7 @@ export default function CollectorPerformance() {
     'CABALLES, EDDIE JR.',
     'JUGAR, NOEL',
     'ROSAL, ALDIE',
-    'LAUDE, REYNALDO JR.'
+    'LAUDE, REYNALDO'
   ].map(n => n.toLowerCase());
 
   const getSortOrder = (name) => {
