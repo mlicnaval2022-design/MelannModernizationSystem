@@ -227,7 +227,7 @@ function buildIdRow(loan, period, idCode, contact) {
   row[32] = cleanText(loan.id_issued_by);
   row[34] = CONTACT_TYPE_CODE;
   row[35] = contact;
-  return row;
+  return padRow(row);
 }
 
 function buildCiRow(loan, period) {

@@ -1,18 +1,28 @@
-const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('melann.db');
+const jwt = require('jsonwebtoken');
+require('dotenv').config({ path: './.env' });
 
-const request = {
-  year: 2026,
-  month: 7,
-  branch_id: '',
-  file_reference_number: ''
-};
-
-const axios = require('axios');
-axios.post('http://localhost:5001/api/cic/preview', request, {
-  headers: {
-    Authorization: 'Bearer MOCK_TOKEN' // I can't easily mock auth, wait.
+async function run() {
+  try {
+    const token = jwt.sign({ id: 1, role: 'admin' }, process.env.JWT_SECRET || 'fallback_secret', { expiresIn: '1h' });
+    const res = await fetch('http://localhost:5000/api/cic/preview', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        year: 2026,
+        month: 7,
+        file_reference_number: 'TEST001'
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    console.log('Preview success!');
+    console.log('ID row length:', data.previewRecords.find(r => r.recordType === 'ID')?.values.length);
+    console.log('CI row length:', data.previewRecords.find(r => r.recordType === 'CI')?.values.length);
+  } catch (err) {
+    console.error(err.message);
   }
-}).catch(console.error);
-
-// Alternatively, let's just make the http request directly using curl (Invoke-WebRequest) in run_command, wait, I can't easily generate a valid token.
+}
+run();
