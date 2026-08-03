@@ -1262,126 +1262,265 @@ export default function Customers() {
 
                     {soaTab === 'profile' && (() => {
                       const customerStatus = getCalculatedCustomerStatus(soaData) || 'Active';
-                      const statusClass = customerStatus.toLowerCase().replace(' ', '');
-                      const profileAge = soaData.birth_date ? (() => { const bd = new Date(soaData.birth_date); const now = new Date(); let a = now.getFullYear() - bd.getFullYear(); if (now.getMonth() < bd.getMonth() || (now.getMonth() === bd.getMonth() && now.getDate() < bd.getDate())) a--; return a > 0 ? `${a} yrs old` : null; })() : null;
-                      const sectionIcons = { 'Personal Information': '👤', 'Address Information': '📍', 'Contact Information': '📞', 'Business Information': '💼', 'ID Information': '🪪' };
-                      const sectionColors = { 'Personal Information': '#3b82f6', 'Address Information': '#10b981', 'Contact Information': '#8b5cf6', 'Business Information': '#f59e0b', 'ID Information': '#06b6d4' };
+                      const statusClass = customerStatus.toLowerCase().replace(/\s+/g, '');
+                      const createdDate = soaData.created_at ? new Date(soaData.created_at).toISOString().split('T')[0] : '-';
+                      const updatedDate = soaData.updated_at ? new Date(soaData.updated_at).toISOString().split('T')[0] : createdDate;
+
                       return (
-                      <div className="sp-profile-redesign">
-                        {/* Hero Banner */}
-                        <div className="sp-hero-banner">
-                          <div className="sp-hero-bg-pattern"></div>
-                          <div className="sp-hero-content">
-                            <div className="sp-hero-left">
-                              <div className="sp-hero-avatar">
-                                {soaData.photo_client ? (
-                                  <img src={getImageUrl(soaData.photo_client)} alt="Avatar" />
-                                ) : (
-                                  <span>{cleanInitials}</span>
-                                )}
-                                <div className={`sp-hero-status-dot ${statusClass}`}></div>
+                        <div className="po-container">
+                          {/* Header Bar */}
+                          <div className="po-header">
+                            <div className="po-header-left">
+                              <div className="po-header-icon">
+                                <User size={22} color="#fff" />
                               </div>
-                              <div className="sp-hero-info">
-                                <div className="sp-hero-name">{soaData.full_name}</div>
-                                <div className="sp-hero-meta">
-                                  <span className="sp-hero-code"><i className="bi bi-hash"></i> {soaData.customer_code}</span>
-                                  <span className="sp-hero-divider">•</span>
-                                  <span className="sp-hero-classification">{soaData.customer_classification || 'Client'}</span>
-                                  {profileAge && <><span className="sp-hero-divider">•</span><span>{profileAge}</span></>}
+                              <div>
+                                <h3 className="po-header-title">Profile Overview</h3>
+                                <p className="po-header-sub">View and manage customer details</p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              className="po-edit-btn"
+                              onClick={() => {
+                                setSoaModal(false);
+                                openEdit(soaData);
+                              }}
+                            >
+                              <i className="bi bi-pencil" style={{ marginRight: '4px' }}></i> Edit Profile
+                            </button>
+                          </div>
+
+                          {/* 2-Column Grid */}
+                          <div className="po-grid">
+                            {/* Left Column */}
+                            <div className="po-col">
+                              {/* Personal Information */}
+                              <div className="po-card">
+                                <div className="po-card-header">
+                                  <div className="po-card-icon-box"><User size={16} color="#0b297a" /></div>
+                                  <h4 className="po-card-title">PERSONAL INFORMATION</h4>
                                 </div>
-                                <div className="sp-hero-badges">
-                                  <span className={`sp-status-pill ${statusClass}`}><span className="sp-status-dot"></span>{customerStatus}</span>
-                                  {soaData.branch_name && <span className="sp-info-pill"><i className="bi bi-building"></i> {soaData.branch_name}</span>}
-                                  {soaData.collector_name && <span className="sp-info-pill"><i className="bi bi-person-badge"></i> {soaData.collector_name}</span>}
+                                <div className="po-card-body po-fields-grid-3">
+                                  <div className="po-field">
+                                    <span className="po-field-label">CUSTOMER CODE</span>
+                                    <div className="po-field-val-wrap"><Users size={14} className="po-field-icon" /><strong>{soaData.customer_code || '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">CLASSIFICATION</span>
+                                    <div className="po-field-val-wrap"><FileText size={14} className="po-field-icon" /><strong>{soaData.customer_classification || 'New Client'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">FULL NAME</span>
+                                    <div className="po-field-val-wrap"><User size={14} className="po-field-icon" /><strong>{soaData.full_name || '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">GENDER</span>
+                                    <div className="po-field-val-wrap"><User size={14} className="po-field-icon" /><strong>{soaData.gender || '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">BIRTHDATE</span>
+                                    <div className="po-field-val-wrap"><Calendar size={14} className="po-field-icon" /><strong>{soaData.birth_date || '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">CIVIL STATUS</span>
+                                    <div className="po-field-val-wrap"><Scale size={14} className="po-field-icon" /><strong>{soaData.civil_status || '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">NATIONALITY</span>
+                                    <div className="po-field-val-wrap"><FileText size={14} className="po-field-icon" /><strong>{soaData.nationality || 'Filipino'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">PREFERRED PRONOUN</span>
+                                    <div className="po-field-val-wrap"><Info size={14} className="po-field-icon" /><strong>{soaData.preferred_pronoun || 'Prefer not to say'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">OCCUPATIONAL STATUS</span>
+                                    <div className="po-field-val-wrap"><User size={14} className="po-field-icon" /><strong>{soaData.occupational_status || '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">STATUS</span>
+                                    <div><span className={`po-status-badge ${statusClass}`}>{customerStatus}</span></div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Address Information */}
+                              <div className="po-card">
+                                <div className="po-card-header">
+                                  <div className="po-card-icon-box"><MapPin size={16} color="#0b297a" /></div>
+                                  <h4 className="po-card-title">ADDRESS INFORMATION</h4>
+                                </div>
+                                <div className="po-card-body po-fields-grid-4">
+                                  <div className="po-field">
+                                    <span className="po-field-label">ADDRESS</span>
+                                    <div className="po-field-val-wrap"><MapPin size={14} className="po-field-icon" /><strong>{[soaData.address, soaData.sitio, soaData.purok, soaData.brgy, soaData.city].filter(Boolean).join(', ') || '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">PROVINCE</span>
+                                    <strong>{soaData.province || '-'}</strong>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">ZIP CODE</span>
+                                    <strong>{soaData.zip_code || '-'}</strong>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">NEARBY ESTABLISHMENT</span>
+                                    <strong>{soaData.home_status || soaData.nearby_establishment || '-'}</strong>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* ID Information */}
+                              <div className="po-card">
+                                <div className="po-card-header">
+                                  <div className="po-card-icon-box"><FileText size={16} color="#0b297a" /></div>
+                                  <h4 className="po-card-title">ID INFORMATION</h4>
+                                </div>
+                                <div className="po-card-body po-fields-grid-3">
+                                  <div className="po-field">
+                                    <span className="po-field-label">ID TYPE</span>
+                                    <div className="po-field-val-wrap"><FileText size={14} className="po-field-icon" /><strong>{soaData.id_type || '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">ID NUMBER</span>
+                                    <div className="po-field-val-wrap"><FileText size={14} className="po-field-icon" /><strong>{soaData.id_number || '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">ISSUE DATE</span>
+                                    <div className="po-field-val-wrap"><Calendar size={14} className="po-field-icon" /><strong>{soaData.id_issue_date || '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">EXPIRY DATE</span>
+                                    <div className="po-field-val-wrap"><Calendar size={14} className="po-field-icon" /><strong>{soaData.id_expiry_date || '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">ISSUED BY</span>
+                                    <div className="po-field-val-wrap"><MapPin size={14} className="po-field-icon" /><strong>{soaData.id_issued_by || '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">PLACE OF ISSUE</span>
+                                    <div className="po-field-val-wrap"><MapPin size={14} className="po-field-icon" /><strong>{soaData.id_place_of_issue || '-'}</strong></div>
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                            <div className="sp-hero-right">
-                              <button type="button" className="sp-edit-btn" onClick={() => { setSoaModal(false); openEdit(soaData); }}>
-                                <i className="bi bi-pencil-square"></i> Edit Profile
-                              </button>
-                            </div>
-                          </div>
-                          {/* Quick stats row */}
-                          <div className="sp-quick-stats">
-                            <div className="sp-quick-stat">
-                              <div className="sp-qs-icon blue"><Phone size={16} /></div>
-                              <div><div className="sp-qs-label">Contact</div><div className="sp-qs-val">{soaData.contact || '-'}</div></div>
-                            </div>
-                            <div className="sp-quick-stat">
-                              <div className="sp-qs-icon green"><MapPin size={16} /></div>
-                              <div><div className="sp-qs-label">Address</div><div className="sp-qs-val">{[soaData.brgy, soaData.city].filter(Boolean).join(', ') || '-'}</div></div>
-                            </div>
-                            <div className="sp-quick-stat">
-                              <div className="sp-qs-icon purple"><Mail size={16} /></div>
-                              <div><div className="sp-qs-label">Email</div><div className="sp-qs-val">{soaData.email || '-'}</div></div>
-                            </div>
-                            <div className="sp-quick-stat">
-                              <div className="sp-qs-icon amber"><CalendarDays size={16} /></div>
-                              <div><div className="sp-qs-label">Member Since</div><div className="sp-qs-val">{memberSince}</div></div>
-                            </div>
-                          </div>
-                        </div>
 
-                        {/* Info Sections Grid */}
-                        <div className="sp-sections-grid">
-                          {profileSections.map(section => (
-                            <div className="sp-info-card" key={section.title}>
-                              <div className="sp-card-header" style={{ '--accent': sectionColors[section.title] || '#3b82f6' }}>
-                                <span className="sp-card-icon">{sectionIcons[section.title] || '📋'}</span>
-                                <span className="sp-card-title">{section.title}</span>
-                              </div>
-                              <div className="sp-card-body">
-                                {section.fields.map(([label, value]) => (
-                                  <div className="sp-field-row" key={label}>
-                                    <span className="sp-field-label">{label}</span>
-                                    <span className="sp-field-value">{label === 'Status' && value ? (
-                                      <span className={`sp-status-pill-sm ${(value || '').toLowerCase()}`}>{value}</span>
-                                    ) : (value || '-')}</span>
+                            {/* Right Column */}
+                            <div className="po-col">
+                              {/* Contact Information */}
+                              <div className="po-card">
+                                <div className="po-card-header">
+                                  <div className="po-card-icon-box"><Phone size={16} color="#0b297a" /></div>
+                                  <h4 className="po-card-title">CONTACT INFORMATION</h4>
+                                </div>
+                                <div className="po-card-body po-fields-grid-2">
+                                  <div className="po-field">
+                                    <span className="po-field-label">MAIN CONTACT</span>
+                                    <div className="po-field-val-wrap"><Phone size={14} className="po-field-icon" /><strong>{soaData.contact || '-'}</strong></div>
                                   </div>
-                                ))}
+                                  <div className="po-field">
+                                    <span className="po-field-label">SECONDARY CONTACT</span>
+                                    <div className="po-field-val-wrap"><Phone size={14} className="po-field-icon" /><strong>{soaData.secondary_contact || '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">EMAIL</span>
+                                    <div className="po-field-val-wrap"><Mail size={14} className="po-field-icon" /><strong>{soaData.email || '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">FACEBOOK</span>
+                                    <div className="po-field-val-wrap"><User size={14} className="po-field-icon" /><strong>{soaData.fb_account || '-'}</strong></div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Business Information */}
+                              <div className="po-card">
+                                <div className="po-card-header">
+                                  <div className="po-card-icon-box"><Wallet size={16} color="#0b297a" /></div>
+                                  <h4 className="po-card-title">BUSINESS INFORMATION</h4>
+                                </div>
+                                <div className="po-card-body po-fields-grid-3">
+                                  <div className="po-field">
+                                    <span className="po-field-label">BUSINESS TYPE</span>
+                                    <div className="po-field-val-wrap"><MapPin size={14} className="po-field-icon" /><strong>{soaData.business_type || '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">DESCRIPTION</span>
+                                    <div className="po-field-val-wrap"><User size={14} className="po-field-icon" /><strong>{soaData.occupation || soaData.business_description || '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">BUSINESS NAME</span>
+                                    <div className="po-field-val-wrap"><MapPin size={14} className="po-field-icon" /><strong>{soaData.business_name || '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">MONTHLY INCOME</span>
+                                    <div className="po-field-val-wrap"><Wallet size={14} className="po-field-icon" /><strong>{soaData.income_per_month ? formatPhp(soaData.income_per_month) : '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">MONTHLY EXPENSES</span>
+                                    <div className="po-field-val-wrap"><BarChart2 size={14} className="po-field-icon" /><strong>{soaData.expenses_per_month ? formatPhp(soaData.expenses_per_month) : '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">LOAN PURPOSE</span>
+                                    <div className="po-field-val-wrap"><FileText size={14} className="po-field-icon" /><strong>{soaData.loan_purpose || '-'}</strong></div>
+                                  </div>
+                                  <div className="po-field">
+                                    <span className="po-field-label">COLLECTOR</span>
+                                    <div className="po-field-val-wrap"><User size={14} className="po-field-icon" /><strong>{soaData.collector_name || '-'}</strong></div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* ID and Photo Attachments */}
+                              <div className="po-card">
+                                <div className="po-card-header">
+                                  <div className="po-card-icon-box"><FileText size={16} color="#0b297a" /></div>
+                                  <h4 className="po-card-title">ID AND PHOTO ATTACHMENTS</h4>
+                                </div>
+                                <div className="po-card-body">
+                                  <div className="po-attachments-grid">
+                                    {[
+                                      ['Client Photo', soaData.photo_client, User],
+                                      ['ID Front', soaData.photo_id_front, FileText],
+                                      ['ID Back', soaData.photo_id_back, FileText],
+                                      ['Business Proof / Store', soaData.photo_business_proof, MapPin],
+                                    ].map(([label, path, IconComp]) => (
+                                      <div key={label} className="po-attachment-tile">
+                                        <div className="po-attachment-label">
+                                          <IconComp size={13} color="#2563eb" /> <span>{label}</span>
+                                        </div>
+                                        {path ? (
+                                          <div className="po-attachment-img-box">
+                                            <img src={getImageUrl(path)} alt={label} />
+                                          </div>
+                                        ) : (
+                                          <div className="po-attachment-placeholder">
+                                            <IconComp size={24} color="#94a3b8" />
+                                            <span>No Image</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
                               </div>
                             </div>
-                          ))}
-                        </div>
-
-                        {/* Photo Gallery */}
-                        <div className="sp-photo-section">
-                          <div className="sp-photo-header">
-                            <span className="sp-card-icon">📸</span>
-                            <span className="sp-card-title">ID & Photo Attachments</span>
                           </div>
-                          <div className="sp-photo-grid">
-                            {[
-                              ['Client Photo', soaData.photo_client, 'bi-person-bounding-box'],
-                              ['ID Front', soaData.photo_id_front, 'bi-card-heading'],
-                              ['ID Back', soaData.photo_id_back, 'bi-card-text'],
-                              ['Business Proof / Store', soaData.photo_business_proof, 'bi-shop'],
-                            ].map(([label, path, icon]) => (
-                              <div className="sp-photo-tile" key={label}>
-                                <div className="sp-photo-label"><i className={`bi ${icon}`}></i> {label}</div>
-                                {path ? (
-                                  <div className="sp-photo-img-wrap">
-                                    <img src={getImageUrl(path)} alt={label} />
-                                  </div>
-                                ) : (
-                                  <div className="sp-photo-placeholder">
-                                    <i className={`bi ${icon}`}></i>
-                                    <span>No Image</span>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
+
+                          {/* Footer Bar */}
+                          <div className="po-footer">
+                            <div className="po-footer-item">
+                              <i className="bi bi-shield-check"></i> <span>Profile ID: #{soaData.customer_code || soaData.id}</span>
+                            </div>
+                            <div className="po-footer-item">
+                              <Calendar size={14} /> <span>Date Created: {createdDate}</span>
+                            </div>
+                            <div className="po-footer-item">
+                              <Calendar size={14} /> <span>Last Updated: {updatedDate}</span>
+                            </div>
                           </div>
                         </div>
-
-                        {/* Footer */}
-                        <div className="sp-profile-footer">
-                          <span><i className="bi bi-shield-check"></i> Profile ID: #{soaData.id}</span>
-                          <span><i className="bi bi-calendar-check"></i> Created: {soaData.created_at ? new Date(soaData.created_at).toLocaleDateString('en-US') : '-'}</span>
-                          <span><i className="bi bi-clock-history"></i> Updated: {soaData.updated_at ? new Date(soaData.updated_at).toLocaleDateString('en-US') : '-'}</span>
-                        </div>
-                      </div>
                       );
                     })()}
 
