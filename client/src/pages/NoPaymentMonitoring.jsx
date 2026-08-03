@@ -568,7 +568,7 @@ function ClientProfileModal({ data, loading, onClose }) {
                 onClick={() => setActiveSection('loans')}
               >
                 <CreditCard size={15} />
-                Loans ({(data.loans || []).length})
+                Latest Loan
               </button>
               <button
                 type="button"
@@ -600,7 +600,7 @@ function ClientProfileModal({ data, loading, onClose }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.loans.map(loan => (
+                      {data.loans.slice(0, 1).map(loan => (
                         <tr key={loan.id}>
                           <td><strong className="npm-profile-loan-code">{loan.loan_code}</strong></td>
                           <td>{loan.loan_type || '—'}</td>
