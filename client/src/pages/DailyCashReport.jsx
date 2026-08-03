@@ -30,6 +30,10 @@ export default function DailyCashReport() {
   const [isEditingYtd, setIsEditingYtd] = useState(false);
 
   const loadData = async () => {
+    if (!date) {
+      setData(null);
+      return;
+    }
     setLoading(true);
     setError('');
     try {
