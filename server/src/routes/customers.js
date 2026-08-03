@@ -323,7 +323,7 @@ router.get('/list/fully-paid', authenticateToken, async (req, res) => {
         co.first_name || ' ' || co.last_name as collector_name,
         (SELECT l.principal FROM tblLoan l WHERE l.customer_id = c.id ORDER BY l.date_released DESC LIMIT 1) as last_loan_amount,
         (SELECT l.date_released FROM tblLoan l WHERE l.customer_id = c.id ORDER BY l.date_released DESC LIMIT 1) as date_released,
-        (SELECT p.date_paid FROM tblPayment p JOIN tblLoan l ON p.loan_id = l.id WHERE l.customer_id = c.id AND l.status='fullpaid' ORDER BY p.date_paid DESC LIMIT 1) as date_fully_paid,
+        (SELECT MAX(p.date_paid) FROM tblPayment p JOIN tblLoan l ON p.loan_id = l.id WHERE l.customer_id = c.id AND p.status != 'reversed') as date_fully_paid,
         (SELECT COUNT(*) FROM tblLoan l WHERE l.customer_id = c.id) as loan_cycles,
         (SELECT h.remarks FROM tblCustomerStatusHistory h WHERE h.customer_id = c.id AND UPPER(h.new_status) = 'RELAX' ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as relax_note,
         (SELECT h.created_at FROM tblCustomerStatusHistory h WHERE h.customer_id = c.id AND UPPER(h.new_status) = 'RELAX' ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as relax_note_date,
@@ -331,7 +331,16 @@ router.get('/list/fully-paid', authenticateToken, async (req, res) => {
         (SELECT h.created_at FROM tblCustomerStatusHistory h WHERE h.customer_id = c.id AND UPPER(h.new_status) = 'HOLD' ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as hold_note_date
       FROM tblCustomer c
       LEFT JOIN tblCollector co ON c.collector_id = co.id
-      WHERE c.status = 'FULLY PAID'
+      WHERE UPPER(c.status) IN ('FULLY PAID', 'RELAX', 'HOLD')
+         OR (
+           EXISTS (SELECT 1 FROM tblLoan l WHERE l.customer_id = c.id)
+           AND NOT EXISTS (
+             SELECT 1 FROM tblLoan l 
+             WHERE l.customer_id = c.id 
+               AND COALESCE(l.balance, 0) > 0 
+               AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled')
+           )
+         )
     `);
     
     const today = new Date().toISOString().split('T')[0];

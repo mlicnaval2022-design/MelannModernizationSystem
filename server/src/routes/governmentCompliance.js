@@ -101,17 +101,25 @@ router.get('/summary', authenticateToken, async (req, res) => {
 
 router.get('/client-reports/:agency', authenticateToken, requireAgencyAccess, async (req, res) => {
   try {
-    const rows = await dbAll(
-      `SELECT gcc.*,
+    const { startDate, endDate } = req.query;
+    let q = `SELECT gcc.*,
               COALESCE(l.principal, gcc.loan_amount, 0) as principal_loan,
               COALESCE(l.interest_amount, 0) as interest_amount,
               COALESCE(l.total_amortization, COALESCE(l.principal, gcc.loan_amount, 0) + COALESCE(l.interest_amount, 0), gcc.loan_amount, 0) as total_loan
        FROM tblGovernmentComplianceClients gcc
        LEFT JOIN tblLoan l ON l.id = gcc.loan_id
-       WHERE gcc.agency = ?
-       ORDER BY gcc.created_at DESC`,
-      [req.agency]
-    );
+       WHERE gcc.agency = ?`;
+    const p = [req.agency];
+    if (startDate) {
+      q += ` AND (DATE(gcc.created_at) >= ? OR gcc.release_date >= ?)`;
+      p.push(startDate, startDate);
+    }
+    if (endDate) {
+      q += ` AND (DATE(gcc.created_at) <= ? OR gcc.release_date <= ?)`;
+      p.push(endDate, endDate);
+    }
+    q += ` ORDER BY gcc.created_at DESC`;
+    const rows = await dbAll(q, p);
     res.json(rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -139,10 +147,18 @@ router.post('/send-clients', authenticateToken, async (req, res) => {
 
 router.get('/:agency', authenticateToken, requireAgencyAccess, async (req, res) => {
   try {
-    const { month, year, status, filing_type, tax_type, search, page = 1, limit = 10, sort = 'due_date', dir = 'ASC' } = req.query;
+    const { month, year, status, filing_type, tax_type, search, startDate, endDate, page = 1, limit = 10, sort = 'due_date', dir = 'ASC' } = req.query;
     const allowedSort = ['due_date', 'status', 'date_submitted', 'date_filed', 'date_paid', 'created_at', 'compliance_name', 'filing_type', 'tax_type'];
     let q = `SELECT * FROM tblGovernmentCompliance WHERE agency = ? AND is_archived = 0`;
     const p = [req.agency];
+    if (startDate) {
+      q += ` AND (due_date >= ? OR date_filed >= ? OR date_paid >= ?)`;
+      p.push(startDate, startDate, startDate);
+    }
+    if (endDate) {
+      q += ` AND (due_date <= ? OR date_filed <= ? OR date_paid <= ?)`;
+      p.push(endDate, endDate, endDate);
+    }
     if (month) { q += ` AND (submission_month = ? OR strftime('%m', due_date) = ?)`; p.push(month, String(month).padStart(2, '0')); }
     if (year) { q += ` AND strftime('%Y', due_date) = ?`; p.push(String(year)); }
     if (status) { q += ` AND status = ?`; p.push(status); }
