@@ -259,16 +259,14 @@ export default function FullyPaid({ search = '' }) {
                 <th>Date Fully Paid</th>
                 <th>Loan Cycles</th>
                 <th>Credit Score</th>
-                <th>Relax Note</th>
-                <th>Hold Note</th>
                 <th>Action</th>
               </tr>
             </thead>
             <tbody>
               {loading
-                ? <tr><td colSpan={11} style={{ textAlign: 'center', padding: '30px' }}>⏳ Loading...</td></tr>
+                ? <tr><td colSpan={9} style={{ textAlign: 'center', padding: '30px' }}>⏳ Loading...</td></tr>
                 : filteredRows.length === 0
-                  ? <tr><td colSpan={11} className="empty-state">No fully paid clients found</td></tr>
+                  ? <tr><td colSpan={9} className="empty-state">No fully paid clients found</td></tr>
                   : filteredRows.map(r => {
                     const scoreInfo = getScoreColor(r.credit_score);
                     return (
@@ -285,8 +283,6 @@ export default function FullyPaid({ search = '' }) {
                             {scoreInfo.label} ({r.credit_score})
                           </span>
                         </td>
-                        <td>{renderNoteCell(r, 'RELAX', r.relax_note, r.relax_note_date)}</td>
-                        <td>{renderNoteCell(r, 'HOLD', r.hold_note, r.hold_note_date)}</td>
                         <td>
                           {hasRole('admin', 'manager') ? (
                             <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>

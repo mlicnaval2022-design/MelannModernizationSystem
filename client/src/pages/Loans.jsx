@@ -130,6 +130,8 @@ export default function Loans() {
     if (filterType && r.loan_type !== filterType) return false;
     if (filterReleasedFrom && (r.date_released || '') < filterReleasedFrom) return false;
     if (filterReleasedTo && (r.date_released || '') > filterReleasedTo) return false;
+    if (filterPaidFrom && (r.date_fully_paid || '') < filterPaidFrom) return false;
+    if (filterPaidTo && (r.date_fully_paid || '') > filterPaidTo) return false;
     return true;
   }).sort((a, b) => (a.customer_name || '').localeCompare(b.customer_name || ''));
 
@@ -283,27 +285,51 @@ export default function Loans() {
         <FullyPaid search={search} />
       ) : (
         <>
-          <div style={{ display: 'flex', gap: '12px', marginBottom: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#64748b' }}>Filters:</span>
-            <select className="form-control" style={{ width: '180px', padding: '6px 12px' }} value={filterCollector} onChange={e => setFilterCollector(e.target.value)}>
-              <option value="">All Collectors</option>
-              {uniqueCollectors.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <select className="form-control" style={{ width: '160px', padding: '6px 12px' }} value={filterType} onChange={e => setFilterType(e.target.value)}>
-              <option value="">All Loan Types</option>
-              {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>Released From:</span>
-              <input type="date" className="form-control" style={{ width: '145px', padding: '6px 10px' }} value={filterReleasedFrom} onChange={e => setFilterReleasedFrom(e.target.value)} />
+          {/* Toolbar & Filters */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end', marginBottom: '15px', padding: '14px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', flexWrap: 'wrap', flex: 1 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Collector</label>
+                <select className="form-control" style={{ width: 170, padding: '6px 10px' }} value={filterCollector} onChange={e => setFilterCollector(e.target.value)}>
+                  <option value="">All Collectors</option>
+                  {uniqueCollectors.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Type</label>
+                <select className="form-control" style={{ width: 140, padding: '6px 10px' }} value={filterType} onChange={e => setFilterType(e.target.value)}>
+                  <option value="">All Types</option>
+                  {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Released From</label>
+                <input type="date" className="form-control" style={{ width: 145, padding: '6px 10px' }} value={filterReleasedFrom} onChange={e => setFilterReleasedFrom(e.target.value)} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Released To</label>
+                <input type="date" className="form-control" style={{ width: 145, padding: '6px 10px' }} value={filterReleasedTo} onChange={e => setFilterReleasedTo(e.target.value)} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Fully Paid From</label>
+                <input type="date" className="form-control" style={{ width: 145, padding: '6px 10px' }} value={filterPaidFrom} onChange={e => setFilterPaidFrom(e.target.value)} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Fully Paid To</label>
+                <input type="date" className="form-control" style={{ width: 145, padding: '6px 10px' }} value={filterPaidTo} onChange={e => setFilterPaidTo(e.target.value)} />
+              </div>
+              {(filterCollector || filterType || filterReleasedFrom || filterReleasedTo || filterPaidFrom || filterPaidTo) && (
+                <button className="btn btn-secondary btn-sm" onClick={() => { setFilterCollector(''); setFilterType(''); setFilterReleasedFrom(''); setFilterReleasedTo(''); setFilterPaidFrom(''); setFilterPaidTo(''); }} style={{ alignSelf: 'flex-end' }}>✕ Clear</button>
+              )}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>Released To:</span>
-              <input type="date" className="form-control" style={{ width: '145px', padding: '6px 10px' }} value={filterReleasedTo} onChange={e => setFilterReleasedTo(e.target.value)} />
+            <div style={{ display: 'flex', gap: 8, alignSelf: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={load}>🔄 Refresh</button>
+              <button className="btn btn-dark" onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>🖨️ Print</button>
             </div>
-            {(filterCollector || filterType || filterReleasedFrom || filterReleasedTo) && (
-              <button className="btn btn-secondary btn-sm" onClick={() => { setFilterCollector(''); setFilterType(''); setFilterReleasedFrom(''); setFilterReleasedTo(''); }}>✕ Clear</button>
-            )}
+          </div>
+
+          <div style={{ marginBottom: 10, fontSize: 13, color: '#64748b', fontWeight: 600 }}>
+            Showing {filteredRows.length} of {rows.length} records
           </div>
 
           <div className="card">
@@ -319,14 +345,15 @@ export default function Loans() {
                   <th className="text-right">Total Loan</th>
                   <th className="text-right">Balance</th>
                   <th>Released</th>
+                  <th>Fully Paid</th>
                   <th>Maturity</th>
                   <th>Collector</th>
                   <th>Status</th>
                 </tr>
               </thead>
             <tbody>
-              {loading ? <tr className="loading-row"><td colSpan={11}>⏳ Loading...</td></tr>
-                : filteredRows.length === 0 ? <tr><td colSpan={11} className="empty-state">No loans found</td></tr>
+              {loading ? <tr className="loading-row"><td colSpan={12}>⏳ Loading...</td></tr>
+                : filteredRows.length === 0 ? <tr><td colSpan={12} className="empty-state">No loans found</td></tr>
                 : filteredRows.map(r => {
                   const interestAmt = Number(r.interest_amount || (Number(r.total_amortization || 0) - Number(r.principal || 0)) || 0);
                   const totalLoanAmt = Number(r.total_amortization || (Number(r.principal || 0) + interestAmt) || 0);
@@ -345,6 +372,7 @@ export default function Loans() {
                         {r.status === 'fullpaid' || Number(r.balance || 0) <= 0 ? <span className="text-success">PAID</span> : <span>₱ {fmt(r.balance)}</span>}
                       </td>
                       <td>{r.date_released || '—'}</td>
+                      <td>{r.date_fully_paid || '—'}</td>
                       <td>{r.date_maturity || '—'}</td>
                       <td>{r.collector_name || '—'}</td>
                       <td>
@@ -389,7 +417,7 @@ export default function Loans() {
                   <td className="text-right" style={{ padding: '12px 14px', color: '#2563eb' }}>₱ {fmt(totalInterest)}</td>
                   <td className="text-right" style={{ padding: '12px 14px', color: '#059669' }}>₱ {fmt(totalLoan)}</td>
                   <td className="text-right" style={{ padding: '12px 14px', color: totalBalance > 0 ? '#dc2626' : '#059669' }}>₱ {fmt(totalBalance)}</td>
-                  <td colSpan={4}></td>
+                  <td colSpan={5}></td>
                 </tr>
               </tfoot>
             )}
