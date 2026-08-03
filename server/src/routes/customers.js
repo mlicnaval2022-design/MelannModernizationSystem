@@ -1052,12 +1052,21 @@ router.post('/:id/status', authenticateToken, requireRole('admin', 'manager'), a
 router.put('/:id/status-note', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   try {
     const { note, status } = req.body;
-    const latest = await dbGet(`SELECT id FROM tblCustomerStatusHistory WHERE customer_id = ? AND LOWER(new_status) = LOWER(?) ORDER BY id DESC LIMIT 1`, [req.params.id, status]);
+    const targetStatus = status || 'RELAX';
+    const latest = await dbGet(
+      `SELECT id FROM tblCustomerStatusHistory WHERE customer_id = ? AND LOWER(new_status) = LOWER(?) ORDER BY id DESC LIMIT 1`,
+      [req.params.id, targetStatus]
+    );
     if (latest) {
-       await dbRun(`UPDATE tblCustomerStatusHistory SET remarks = ? WHERE id = ?`, [note, latest.id]);
-       res.json({ message: 'Note updated' });
+      await dbRun(`UPDATE tblCustomerStatusHistory SET remarks = ? WHERE id = ?`, [note, latest.id]);
+      res.json({ message: 'Note updated' });
     } else {
-       res.status(404).json({ error: 'Status history not found' });
+      const customer = await dbGet('SELECT status FROM tblCustomer WHERE id = ?', [req.params.id]);
+      await dbRun(
+        `INSERT INTO tblCustomerStatusHistory (customer_id, previous_status, new_status, changed_by, remarks) VALUES (?, ?, ?, ?, ?)`,
+        [req.params.id, customer?.status || 'FULLY PAID', targetStatus.toUpperCase(), req.user.id, note]
+      );
+      res.json({ message: 'Note created' });
     }
   } catch (err) {
     res.status(500).json({ error: err.message });

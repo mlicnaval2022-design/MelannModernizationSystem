@@ -20,6 +20,8 @@ export default function Loans() {
   // Filters
   const [filterCollector, setFilterCollector] = useState('')
   const [filterType, setFilterType] = useState('')
+  const [filterReleasedFrom, setFilterReleasedFrom] = useState('')
+  const [filterReleasedTo, setFilterReleasedTo] = useState('')
   
   const [detailModal, setDetailModal] = useState(false)
   const [detailLoan, setDetailLoan] = useState(null)
@@ -98,15 +100,14 @@ export default function Loans() {
     }
   };
 
-  const load = () => { 
-    if (status === 'input') {
-      setRows([]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true); 
-    API.get('/loans', { params: { search, status } })
+  const load = () => {
+    setLoading(true)
+    const params = new URLSearchParams()
+    if (search) params.set('search', search)
+    if (status) params.set('status', status)
+    API.get(`/loans?${params.toString()}`)
        .then(r => setRows(r.data))
+       .catch(err => console.error(err))
        .finally(() => setLoading(false)) 
   }
   useEffect(() => { load() }, [search, status])
@@ -127,8 +128,15 @@ export default function Loans() {
   const filteredRows = rows.filter(r => {
     if (filterCollector && (r.collector_name || 'Unassigned') !== filterCollector) return false;
     if (filterType && r.loan_type !== filterType) return false;
+    if (filterReleasedFrom && (r.date_released || '') < filterReleasedFrom) return false;
+    if (filterReleasedTo && (r.date_released || '') > filterReleasedTo) return false;
     return true;
   }).sort((a, b) => (a.customer_name || '').localeCompare(b.customer_name || ''));
+
+  const totalPrincipal = filteredRows.reduce((sum, r) => sum + Number(r.principal || 0), 0);
+  const totalInterest = filteredRows.reduce((sum, r) => sum + Number(r.interest_amount || (Number(r.total_amortization || 0) - Number(r.principal || 0)) || 0), 0);
+  const totalLoan = filteredRows.reduce((sum, r) => sum + Number(r.total_amortization || (Number(r.principal || 0) + Number(r.interest_amount || 0)) || 0), 0);
+  const totalBalance = filteredRows.reduce((sum, r) => sum + (r.status === 'fullpaid' ? 0 : Number(r.balance || 0)), 0);
 
   const uniqueCollectors = [...new Set(rows.map(r => r.collector_name || 'Unassigned'))].sort();
   const uniqueTypes = [...new Set(rows.map(r => r.loan_type))].sort();
@@ -278,18 +286,26 @@ export default function Loans() {
         <FullyPaid search={search} />
       ) : (
         <>
-          <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#64748b' }}>Filters:</span>
-            <select className="form-control" style={{ width: '200px', padding: '6px 12px' }} value={filterCollector} onChange={e => setFilterCollector(e.target.value)}>
+            <select className="form-control" style={{ width: '180px', padding: '6px 12px' }} value={filterCollector} onChange={e => setFilterCollector(e.target.value)}>
               <option value="">All Collectors</option>
               {uniqueCollectors.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-            <select className="form-control" style={{ width: '200px', padding: '6px 12px' }} value={filterType} onChange={e => setFilterType(e.target.value)}>
+            <select className="form-control" style={{ width: '160px', padding: '6px 12px' }} value={filterType} onChange={e => setFilterType(e.target.value)}>
               <option value="">All Loan Types</option>
               {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
-            {(filterCollector || filterType) && (
-              <button className="btn btn-secondary btn-sm" onClick={() => { setFilterCollector(''); setFilterType(''); }}>Clear</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>Released From:</span>
+              <input type="date" className="form-control" style={{ width: '145px', padding: '6px 10px' }} value={filterReleasedFrom} onChange={e => setFilterReleasedFrom(e.target.value)} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>Released To:</span>
+              <input type="date" className="form-control" style={{ width: '145px', padding: '6px 10px' }} value={filterReleasedTo} onChange={e => setFilterReleasedTo(e.target.value)} />
+            </div>
+            {(filterCollector || filterType || filterReleasedFrom || filterReleasedTo) && (
+              <button className="btn btn-secondary btn-sm" onClick={() => { setFilterCollector(''); setFilterType(''); setFilterReleasedFrom(''); setFilterReleasedTo(''); }}>✕ Clear</button>
             )}
           </div>
 
@@ -297,49 +313,92 @@ export default function Loans() {
           <div className="table-wrapper">
             <table className="data-table">
               <thead>
-                <tr><th>Loan #</th><th>Customer</th><th>Type</th><th>Principal</th><th>Balance</th><th>Released</th><th>Maturity</th><th>Collector</th><th>Status</th></tr>
+                <tr>
+                  <th>Loan #</th>
+                  <th>Customer</th>
+                  <th>Type</th>
+                  <th className="text-right">Principal</th>
+                  <th className="text-right">Interest</th>
+                  <th className="text-right">Total Loan</th>
+                  <th className="text-right">Balance</th>
+                  <th>Released</th>
+                  <th>Maturity</th>
+                  <th>Collector</th>
+                  <th>Status</th>
+                </tr>
               </thead>
             <tbody>
-              {loading ? <tr className="loading-row"><td colSpan={9}>⏳ Loading...</td></tr>
-                : filteredRows.length === 0 ? <tr><td colSpan={9} className="empty-state">No loans found</td></tr>
-                : filteredRows.map(r => (
-                  <tr key={r.id}>
-                    <td><span className="mono">{r.loan_code}</span></td>
-                    <td>
-                      <div className="fw-600">{r.customer_name}</div>
-                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', fontFamily: 'monospace' }}>{r.customer_code}</div>
-                    </td>
-                    <td><span className="tag">{r.loan_type}</span></td>
-                    <td className="text-right">₱ {fmt(r.principal)}</td>
-                    <td className="text-right fw-bold">
-                      {r.status === 'fullpaid' || Number(r.balance || 0) <= 0 ? <span className="text-success">PAID</span> : <span>₱ {fmt(r.balance)}</span>}
-                    </td>
-                    <td>{r.date_released}</td>
-                    <td>{r.date_maturity}</td>
-                    <td>{r.collector_name || '—'}</td>
-                    <td>
-                      {(() => {
-                        const isContext = ['relax', 'hold'].includes(r.customer_status?.toLowerCase());
-                        const badgeText = isContext ? r.customer_status.toUpperCase() : (r.status === 'approved' ? 'Approved (Not Released)' : r.status);
-                        const badgeClass = isContext ? r.customer_status.toLowerCase() : r.status;
-                        return (
-                          <>
-                            <span className={`badge badge-${badgeClass}`}>{badgeText}</span>
-                            {isContext && r.status_note && (
-                              <div style={{ marginTop: '6px', fontSize: '11px', color: '#64748b', maxWidth: '150px', whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.2' }}>
-                                <i>Note: {r.status_note}</i>
-                              </div>
-                            )}
-                          </>
-                        )
-                      })()}
-                    </td>
-                  </tr>
-                ))}
+              {loading ? <tr className="loading-row"><td colSpan={11}>⏳ Loading...</td></tr>
+                : filteredRows.length === 0 ? <tr><td colSpan={11} className="empty-state">No loans found</td></tr>
+                : filteredRows.map(r => {
+                  const interestAmt = Number(r.interest_amount || (Number(r.total_amortization || 0) - Number(r.principal || 0)) || 0);
+                  const totalLoanAmt = Number(r.total_amortization || (Number(r.principal || 0) + interestAmt) || 0);
+                  return (
+                    <tr key={r.id}>
+                      <td><span className="mono">{r.loan_code}</span></td>
+                      <td>
+                        <div className="fw-600">{r.customer_name}</div>
+                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', fontFamily: 'monospace' }}>{r.customer_code}</div>
+                      </td>
+                      <td><span className="tag">{r.loan_type}</span></td>
+                      <td className="text-right">₱ {fmt(r.principal)}</td>
+                      <td className="text-right" style={{ color: '#2563eb' }}>₱ {fmt(interestAmt)}</td>
+                      <td className="text-right fw-bold" style={{ color: '#059669' }}>₱ {fmt(totalLoanAmt)}</td>
+                      <td className="text-right fw-bold">
+                        {r.status === 'fullpaid' || Number(r.balance || 0) <= 0 ? <span className="text-success">PAID</span> : <span>₱ {fmt(r.balance)}</span>}
+                      </td>
+                      <td>{r.date_released || '—'}</td>
+                      <td>{r.date_maturity || '—'}</td>
+                      <td>{r.collector_name || '—'}</td>
+                      <td>
+                        {(() => {
+                          const isContext = ['relax', 'hold'].includes(r.customer_status?.toLowerCase());
+                          const badgeText = isContext ? r.customer_status.toUpperCase() : (r.status === 'approved' ? 'Approved (Not Released)' : r.status);
+                          const badgeClass = isContext ? r.customer_status.toLowerCase() : r.status;
+                          return (
+                            <>
+                              <span className={`badge badge-${badgeClass}`}>{badgeText}</span>
+                              {isContext && (
+                                <div style={{ marginTop: '6px', fontSize: '11px', color: '#64748b', maxWidth: '170px', whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.2' }}>
+                                  <i>Note: {r.status_note || '(No note)'}</i>
+                                  {hasRole('admin', 'manager') && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditNote(r)}
+                                      style={{ border: 'none', background: 'transparent', cursor: 'pointer', marginLeft: '4px', color: '#2563eb', fontWeight: 'bold', fontSize: '11px', padding: 0 }}
+                                      title="Edit Note"
+                                    >
+                                      ✏️ Edit
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          )
+                        })()}
+                      </td>
+                    </tr>
+                  )
+                })
+              }
             </tbody>
-          </table>
-        </div>
-      </div>
+            {filteredRows.length > 0 && (
+              <tfoot>
+                <tr style={{ background: '#f8fafc', fontWeight: 'bold', borderTop: '2px solid #cbd5e1' }}>
+                  <td colSpan={3} style={{ textAlign: 'right', padding: '12px 14px', color: '#475569', fontSize: '12px' }}>
+                    TOTALS ({filteredRows.length} {filteredRows.length === 1 ? 'record' : 'records'}):
+                  </td>
+                  <td className="text-right" style={{ padding: '12px 14px', color: '#0f172a' }}>₱ {fmt(totalPrincipal)}</td>
+                  <td className="text-right" style={{ padding: '12px 14px', color: '#2563eb' }}>₱ {fmt(totalInterest)}</td>
+                  <td className="text-right" style={{ padding: '12px 14px', color: '#059669' }}>₱ {fmt(totalLoan)}</td>
+                  <td className="text-right" style={{ padding: '12px 14px', color: totalBalance > 0 ? '#dc2626' : '#059669' }}>₱ {fmt(totalBalance)}</td>
+                  <td colSpan={4}></td>
+                </tr>
+              </tfoot>
+            )}
+            </table>
+          </div>
+          </div>
 
       {/* ===================== Loan Detail Modal ===================== */}
       {detailModal && detailLoan && (

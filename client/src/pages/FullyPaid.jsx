@@ -92,8 +92,9 @@ export default function FullyPaid({ search = '' }) {
       return;
     }
     if (action === 'RELAX' || action === 'HOLD') {
+      const existingNote = action === 'RELAX' ? customer.relax_note : customer.hold_note;
       setReasonModal({ customer, action });
-      setReasonText('');
+      setReasonText(existingNote || '');
       return;
     }
     if (!confirm(`Are you sure you want to set status to ${action}?`)) return;
@@ -116,8 +117,9 @@ export default function FullyPaid({ search = '' }) {
       return;
     }
     if (action === 'RELAX' || action === 'HOLD') {
+      const existingNote = action === 'RELAX' ? evalCustomer.relax_note : evalCustomer.hold_note;
       setReasonModal({ customer: evalCustomer, action });
-      setReasonText('');
+      setReasonText(existingNote || '');
       return;
     }
     await handleActionDirect(evalCustomer, action);
@@ -134,6 +136,11 @@ export default function FullyPaid({ search = '' }) {
         status: reasonModal.action,
         remarks: note
       });
+      await API.put(`/customers/${reasonModal.customer.id}/status-note`, {
+        note: note,
+        status: reasonModal.action
+      }).catch(() => {});
+
       setReasonModal(null);
       setReasonText('');
       setEvalModal(false);
@@ -176,9 +183,26 @@ export default function FullyPaid({ search = '' }) {
 
   const evalTimestamp = new Date().toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
-  const renderNoteCell = (note, date) => (
-    <div style={{ maxWidth: 180, color: note ? '#0f172a' : '#94a3b8', fontSize: 12, lineHeight: 1.35 }}>
-      <div style={{ fontWeight: note ? 700 : 500 }}>{note || '-'}</div>
+  const renderNoteCell = (customer, actionType, note, date) => (
+    <div style={{ maxWidth: 180, fontSize: 12, lineHeight: 1.35 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 4 }}>
+        <div style={{ fontWeight: note ? 700 : 500, color: note ? '#0f172a' : '#94a3b8', flex: 1 }}>
+          {note || '-'}
+        </div>
+        {hasRole('admin', 'manager') && (
+          <button
+            type="button"
+            onClick={() => {
+              setReasonModal({ customer, action: actionType });
+              setReasonText(note || '');
+            }}
+            title={`Edit ${actionType} note`}
+            style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '0 2px', fontSize: 13, color: '#3b82f6', opacity: 0.85 }}
+          >
+            ✏️
+          </button>
+        )}
+      </div>
       {date && <div style={{ marginTop: 4, color: '#64748b', fontWeight: 500 }}>{String(date).slice(0, 10)}</div>}
     </div>
   );
@@ -261,8 +285,8 @@ export default function FullyPaid({ search = '' }) {
                             {scoreInfo.label} ({r.credit_score})
                           </span>
                         </td>
-                        <td>{renderNoteCell(r.relax_note, r.relax_note_date)}</td>
-                        <td>{renderNoteCell(r.hold_note, r.hold_note_date)}</td>
+                        <td>{renderNoteCell(r, 'RELAX', r.relax_note, r.relax_note_date)}</td>
+                        <td>{renderNoteCell(r, 'HOLD', r.hold_note, r.hold_note_date)}</td>
                         <td>
                           {hasRole('admin', 'manager') ? (
                             <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
