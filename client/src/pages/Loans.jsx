@@ -209,10 +209,7 @@ export default function Loans() {
           { value: 'hold', label: 'Hold' },
           { value: 'active', label: 'Active' },
           { value: 'pastdue', label: 'Past Due' },
-          { value: 'fullpaid', label: 'Fully Paid' },
-          { value: 'reloan_pending', label: 'Pending Reloans' },
-          { value: 'approved', label: 'Approved (Not Released)' },
-
+          { value: 'fullpaid', label: 'Fully Paid' }
         ].map(tab => (
           <div 
             key={tab.value}
