@@ -9,7 +9,13 @@ export default function FullyPaid({ search = '' }) {
   const { hasRole } = useAuth();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
+  // Date filters
+  const [filterReleasedFrom, setFilterReleasedFrom] = useState('');
+  const [filterReleasedTo,   setFilterReleasedTo]   = useState('');
+  const [filterPaidFrom,     setFilterPaidFrom]     = useState('');
+  const [filterPaidTo,       setFilterPaidTo]       = useState('');
+
   // Credit Eval Modal State
   const [evalModal, setEvalModal] = useState(false);
   const [evalData, setEvalData] = useState(null);
@@ -35,15 +41,29 @@ export default function FullyPaid({ search = '' }) {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
-  const filteredRows = rows.filter(r => 
-    (r.client_name || '').toLowerCase().includes(search.toLowerCase()) || 
-    (r.customer_code || '').toLowerCase().includes(search.toLowerCase()) ||
-    (r.collector_name || '').toLowerCase().includes(search.toLowerCase())
-  ).sort((a, b) => (a.client_name || '').localeCompare(b.client_name || ''));
+  const filteredRows = rows.filter(r => {
+    const nameMatch = (
+      (r.client_name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (r.customer_code || '').toLowerCase().includes(search.toLowerCase()) ||
+      (r.collector_name || '').toLowerCase().includes(search.toLowerCase())
+    );
+    const released = r.date_released || '';
+    const paid     = r.date_fully_paid || '';
+    if (filterReleasedFrom && released < filterReleasedFrom) return false;
+    if (filterReleasedTo   && released > filterReleasedTo)   return false;
+    if (filterPaidFrom     && paid     < filterPaidFrom)     return false;
+    if (filterPaidTo       && paid     > filterPaidTo)       return false;
+    return nameMatch;
+  }).sort((a, b) => (a.client_name || '').localeCompare(b.client_name || ''));
+
+  const clearFilters = () => {
+    setFilterReleasedFrom(''); setFilterReleasedTo('');
+    setFilterPaidFrom('');     setFilterPaidTo('');
+  };
+
+  const handlePrint = () => window.print();
 
   const openEval = async (customer) => {
     setEvalCustomer(customer);
@@ -71,15 +91,12 @@ export default function FullyPaid({ search = '' }) {
       setReloanModalOpen(true);
       return;
     }
-
     if (action === 'RELAX' || action === 'HOLD') {
       setReasonModal({ customer, action });
       setReasonText('');
       return;
     }
-
     if (!confirm(`Are you sure you want to set status to ${action}?`)) return;
-
     try {
       await API.post(`/customers/${customer.id}/status`, { status: action, remarks: `Manager decided to ${action}` });
       load();
@@ -110,11 +127,7 @@ export default function FullyPaid({ search = '' }) {
   const submitReasonAction = async () => {
     if (!reasonModal || !reasonModal.customer) return;
     const note = reasonText.trim();
-    if (!note) {
-      alert('Please enter manager note / reason.');
-      return;
-    }
-
+    if (!note) { alert('Please enter a manager note / reason.'); return; }
     setReasonSaving(true);
     try {
       await API.post(`/customers/${reasonModal.customer.id}/status`, {
@@ -145,7 +158,6 @@ export default function FullyPaid({ search = '' }) {
     }
   };
 
-
   const getScoreColor = (score) => {
     if (score >= 90) return { bg: '#dcfce7', text: '#166534', label: '🟢 Excellent' };
     if (score >= 80) return { bg: '#e0f2fe', text: '#075985', label: '🔵 Good' };
@@ -163,6 +175,7 @@ export default function FullyPaid({ search = '' }) {
   };
 
   const evalTimestamp = new Date().toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+
   const renderNoteCell = (note, date) => (
     <div style={{ maxWidth: 180, color: note ? '#0f172a' : '#94a3b8', fontSize: 12, lineHeight: 1.35 }}>
       <div style={{ fontWeight: note ? 700 : 500 }}>{note || '-'}</div>
@@ -170,11 +183,45 @@ export default function FullyPaid({ search = '' }) {
     </div>
   );
 
+  const hasDateFilters = filterReleasedFrom || filterReleasedTo || filterPaidFrom || filterPaidTo;
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
-        <button className="btn btn-secondary" onClick={load}>🔄 Refresh Data</button>
+      {/* ── Toolbar: date filters + print ── */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end', marginBottom: '15px', padding: '14px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', flexWrap: 'wrap', flex: 1 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Released From</label>
+            <input type="date" className="form-control" style={{ width: 150, padding: '6px 10px' }} value={filterReleasedFrom} onChange={e => setFilterReleasedFrom(e.target.value)} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Released To</label>
+            <input type="date" className="form-control" style={{ width: 150, padding: '6px 10px' }} value={filterReleasedTo} onChange={e => setFilterReleasedTo(e.target.value)} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Fully Paid From</label>
+            <input type="date" className="form-control" style={{ width: 150, padding: '6px 10px' }} value={filterPaidFrom} onChange={e => setFilterPaidFrom(e.target.value)} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Fully Paid To</label>
+            <input type="date" className="form-control" style={{ width: 150, padding: '6px 10px' }} value={filterPaidTo} onChange={e => setFilterPaidTo(e.target.value)} />
+          </div>
+          {hasDateFilters && (
+            <button className="btn btn-secondary btn-sm" onClick={clearFilters} style={{ alignSelf: 'flex-end' }}>✕ Clear</button>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignSelf: 'flex-end' }}>
+          <button className="btn btn-secondary" onClick={load}>🔄 Refresh</button>
+          <button className="btn btn-dark" onClick={handlePrint} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>🖨️ Print</button>
+        </div>
       </div>
+
+      {/* ── Result count ── */}
+      <div style={{ marginBottom: 10, fontSize: 13, color: '#64748b', fontWeight: 600 }}>
+        Showing {filteredRows.length} of {rows.length} clients
+        {hasDateFilters && <span style={{ marginLeft: 8, color: '#3b82f6' }}>(filtered)</span>}
+      </div>
+
       <div className="card">
         <div className="table-wrapper">
           <table className="data-table">
@@ -194,44 +241,69 @@ export default function FullyPaid({ search = '' }) {
               </tr>
             </thead>
             <tbody>
-              {loading ? <tr><td colSpan={11} style={{textAlign:'center', padding:'30px'}}>⏳ Loading...</td></tr>
-                : filteredRows.length === 0 ? <tr><td colSpan={11} className="empty-state">No fully paid clients found</td></tr>
-                : filteredRows.map(r => {
-                  const scoreInfo = getScoreColor(r.credit_score);
-                  return (
-                    <tr key={r.id}>
-                      <td>{r.customer_code}</td>
-                      <td style={{fontWeight: 'bold'}}>{r.client_name}</td>
-                      <td>{r.collector_name || 'Unassigned'}</td>
-                      <td>₱{fmt(r.last_loan_amount)}</td>
-                      <td>{r.date_released || '—'}</td>
-                      <td>{r.date_fully_paid || '—'}</td>
-                      <td>{r.loan_cycles}</td>
-                      <td>
-                        <span style={{ background: scoreInfo.bg, color: scoreInfo.text, padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
-                          {scoreInfo.label} ({r.credit_score})
-                        </span>
-                      </td>
-                      <td>{renderNoteCell(r.relax_note, r.relax_note_date)}</td>
-                      <td>{renderNoteCell(r.hold_note, r.hold_note_date)}</td>
-                      <td>
-                        {hasRole('admin', 'manager') ? (
-                          <div style={{ display: 'flex', gap: '5px' }}>
-                            <button className="btn btn-dark btn-sm" onClick={() => openEval(r)}>Evaluate</button>
-                          </div>
-                        ) : (
-                          <span style={{color: '#94a3b8', fontSize: '12px'}}>Manager Only</span>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })
+              {loading
+                ? <tr><td colSpan={11} style={{ textAlign: 'center', padding: '30px' }}>⏳ Loading...</td></tr>
+                : filteredRows.length === 0
+                  ? <tr><td colSpan={11} className="empty-state">No fully paid clients found</td></tr>
+                  : filteredRows.map(r => {
+                    const scoreInfo = getScoreColor(r.credit_score);
+                    return (
+                      <tr key={r.id}>
+                        <td>{r.customer_code}</td>
+                        <td style={{ fontWeight: 'bold' }}>{r.client_name}</td>
+                        <td>{r.collector_name || 'Unassigned'}</td>
+                        <td>₱{fmt(r.last_loan_amount)}</td>
+                        <td>{r.date_released || '—'}</td>
+                        <td>{r.date_fully_paid || '—'}</td>
+                        <td>{r.loan_cycles}</td>
+                        <td>
+                          <span style={{ background: scoreInfo.bg, color: scoreInfo.text, padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
+                            {scoreInfo.label} ({r.credit_score})
+                          </span>
+                        </td>
+                        <td>{renderNoteCell(r.relax_note, r.relax_note_date)}</td>
+                        <td>{renderNoteCell(r.hold_note, r.hold_note_date)}</td>
+                        <td>
+                          {hasRole('admin', 'manager') ? (
+                            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                              <button
+                                className="btn btn-dark btn-sm"
+                                onClick={() => openEval(r)}
+                                title="Open full credit evaluation"
+                              >
+                                Evaluate
+                              </button>
+                              <button
+                                className="btn btn-sm"
+                                style={{ background: '#ecfdf5', color: '#065f46', border: '1px solid #6ee7b7', fontWeight: 700 }}
+                                onClick={() => handleActionDirect(r, 'RELAX')}
+                                title="Mark client as Relax — cleared for reloan"
+                              >
+                                ✅ Relax
+                              </button>
+                              <button
+                                className="btn btn-sm"
+                                style={{ background: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d', fontWeight: 700 }}
+                                onClick={() => handleActionDirect(r, 'HOLD')}
+                                title="Put client on Hold — requires manager note"
+                              >
+                                ⏸ Hold
+                              </button>
+                            </div>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontSize: '12px' }}>Manager Only</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
               }
             </tbody>
           </table>
         </div>
       </div>
 
+      {/* ── Credit Evaluation Modal ── */}
       {evalModal && evalCustomer && (
         <div className="modal-overlay" style={{ background: 'rgba(15, 23, 42, 0.42)', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
           <div className="modal" style={{ width: 'min(1180px, 96vw)', maxWidth: '1180px', maxHeight: '92vh', overflow: 'auto', borderRadius: '14px', border: '1px solid #dbe7f6', boxShadow: '0 24px 70px rgba(15, 23, 42, 0.25)', padding: 0, background: '#fff' }}>
@@ -245,7 +317,7 @@ export default function FullyPaid({ search = '' }) {
             </div>
 
             <div style={{ padding: '30px 34px 0' }}>
-              {evalLoading ? <div style={{textAlign: 'center', padding: '60px', color: '#334155', fontSize: 18}}>Calculating Credit Score...</div> : evalData && (() => {
+              {evalLoading ? <div style={{ textAlign: 'center', padding: '60px', color: '#334155', fontSize: 18 }}>Calculating Credit Score...</div> : evalData && (() => {
                 const scoreMeta = getScoreMeta(evalData.credit_score);
                 let gapText = '';
                 if (evalCustomer.date_fully_paid && evalData.last_loan?.date_maturity) {
@@ -298,175 +370,153 @@ export default function FullyPaid({ search = '' }) {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '4px 8px 16px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 14, color: '#0f4fbf', fontSize: 22, fontWeight: 800 }}>
                             <span style={{ width: 40, height: 40, borderRadius: 8, background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>*</span>
-                            LOAN HISTORY SUMMARY
+                            Payment Statistics
                           </div>
-                          {evalData.payments && evalData.payments.length > 0 && (
-                            <button 
-                              className="btn btn-primary btn-sm" 
-                              onClick={() => setShowPaymentHistory(true)}
-                              style={{ borderRadius: 6, fontWeight: 'bold' }}
-                            >
-                              View Loan Payment History
-                            </button>
-                          )}
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                          <div style={{ border: '1px solid #dbe7f6', borderRadius: 8, padding: '4px 14px' }}>{statLeft.map(item => <StatRow key={item[3]} item={item} />)}</div>
-                          <div style={{ border: '1px solid #dbe7f6', borderRadius: 8, padding: '4px 14px' }}>{statRight.map(item => <StatRow key={item[3]} item={item} />)}</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+                          <div>{statLeft.map((item, i) => <StatRow key={i} item={item} />)}</div>
+                          <div>{statRight.map((item, i) => <StatRow key={i} item={item} />)}</div>
                         </div>
-                          {(() => {
-                            const risk = evalData.payment_consistency?.risk || 'neutral';
-                            let styles = { border: '#fecaca', bg: '#fff1f2', text: '#dc2626', icon: '!' };
-                            if (risk === 'excellent' || risk === 'good') {
-                              styles = { border: '#bbf7d0', bg: '#f0fdf4', text: '#16a34a', icon: '✓' };
-                            } else if (risk === 'fair' || risk === 'neutral') {
-                              styles = { border: '#fde68a', bg: '#fffbeb', text: '#d97706', icon: '⚠' };
-                            }
-                            return (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 16, border: `1px solid ${styles.border}`, background: styles.bg, color: styles.text, borderRadius: 8, padding: '14px 18px', fontSize: 15, fontWeight: 800 }}>
-                                <span style={{ width: 34, height: 34, minWidth: 34, borderRadius: 17, background: styles.text, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{styles.icon}</span>
-                                Payment Pattern: {evalData.payment_consistency?.label || 'No payment history'}
-                              </div>
-                            );
-                          })()}
                       </section>
-
-                      <aside style={{ border: '1px solid #bfdbfe', borderRadius: 12, padding: 22, background: 'linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)', textAlign: 'center' }}>
-                        <div style={{ width: 76, height: 76, borderRadius: 38, background: '#dbeafe', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontSize: 34 }}>&rarr;</div>
-                        <div style={{ color: '#0f4fbf', fontSize: 22, fontWeight: 800, marginBottom: 22 }}>CREDIT SCORE</div>
-                        <div style={{ width: 240, height: 240, margin: '0 auto', borderRadius: '50%', background: 'conic-gradient(#16a34a 0 33%, #f59e0b 33% 66%, #ef4444 66% 100%)', padding: 14 }}>
-                          <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                            <div style={{ fontSize: 76, lineHeight: 1, color: scoreMeta.color, fontWeight: 900 }}>{evalData.credit_score}</div>
-                            <div style={{ color: '#475569', fontSize: 22 }}>/100</div>
-                          </div>
-                        </div>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginTop: 18, background: scoreMeta.bg, color: scoreMeta.color, border: '1px solid ' + scoreMeta.color + '33', borderRadius: 999, padding: '12px 34px', fontSize: 20, fontWeight: 800 }}>
-                          <span style={{ width: 20, height: 20, borderRadius: 10, background: scoreMeta.color, display: 'inline-block' }} /> {scoreMeta.label}
-                        </div>
-                        <div style={{ borderTop: '1px solid #dbe7f6', marginTop: 28, paddingTop: 26, textAlign: 'left', color: '#475569', fontSize: 16, lineHeight: 1.45 }}>{scoreMeta.note}</div>
-                      </aside>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        <section style={{ border: `2px solid ${scoreMeta.color}`, borderRadius: 12, padding: 20, background: scoreMeta.bg, textAlign: 'center' }}>
+                          <div style={{ fontSize: 72, fontWeight: 900, color: scoreMeta.color, lineHeight: 1 }}>{evalData.credit_score}</div>
+                          <div style={{ fontSize: 20, fontWeight: 800, color: scoreMeta.color, marginTop: 4 }}>{scoreMeta.label}</div>
+                          <div style={{ marginTop: 10, color: '#475569', fontSize: 14, lineHeight: 1.4 }}>{scoreMeta.note}</div>
+                        </section>
+                        {evalData.penalty_amount > 0 && (
+                          <section style={{ border: '1px solid #fca5a5', borderRadius: 12, padding: 16, background: '#fef2f2' }}>
+                            <div style={{ fontWeight: 800, color: '#dc2626', fontSize: 16, marginBottom: 8 }}>⚠ Penalty Due</div>
+                            <div style={{ color: '#7f1d1d', fontSize: 14 }}>Amount: <strong>PHP {fmt(evalData.penalty_amount)}</strong></div>
+                            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <input type="checkbox" id="penaltyApprove" checked={penaltyApproved} onChange={e => setPenaltyApproved(e.target.checked)} />
+                              <label htmlFor="penaltyApprove" style={{ fontSize: 13, color: '#7f1d1d', cursor: 'pointer' }}>I confirm penalty approval</label>
+                            </div>
+                            <button className="btn btn-sm" style={{ marginTop: 10, background: '#dc2626', color: '#fff', width: '100%' }} disabled={!penaltyApproved} onClick={handleApprovePenalty}>Approve Penalty</button>
+                          </section>
+                        )}
+                      </div>
                     </div>
 
-                    {evalData.overdue && evalData.overdue.days > 0 && (
-                      <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '8px', padding: '15px', marginTop: '20px' }}>
-                        <h4 style={{ margin: '0 0 10px 0', color: '#9a3412' }}>Overdue and Penalty Review</h4>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', fontSize: '14px', marginBottom: '12px' }}>
-                          <div><span style={{ color: '#64748b' }}>Status:</span> <b style={{ textTransform: 'uppercase', color: '#dc2626' }}>{evalData.overdue.status}</b></div>
-                          <div><span style={{ color: '#64748b' }}>Days Overdue:</span> <b>{evalData.overdue.days}</b></div>
-                          <div><span style={{ color: '#64748b' }}>Recommended Penalty:</span> <b>{evalData.overdue.penalty_rate}% / PHP {fmt(evalData.overdue.recommended_penalty)}</b></div>
-                        </div>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#7c2d12', fontWeight: 600 }}>
-                          <input type="checkbox" checked={penaltyApproved} onChange={e => setPenaltyApproved(e.target.checked)} />
-                          Manager approves applying this penalty
-                        </label>
-                        <button className="btn" style={{ marginTop: '12px', background: penaltyApproved ? '#ea580c' : '#e2e8f0', color: penaltyApproved ? '#fff' : '#64748b', borderColor: penaltyApproved ? '#ea580c' : '#cbd5e1' }} disabled={!penaltyApproved} onClick={handleApprovePenalty}>Apply Penalty</button>
+                    {/* Payment History toggle */}
+                    {evalData.payment_history?.length > 0 && (
+                      <div style={{ marginTop: 20 }}>
+                        <button className="btn btn-secondary btn-sm" onClick={() => setShowPaymentHistory(v => !v)}>
+                          {showPaymentHistory ? '▲ Hide' : '▼ Show'} Payment History ({evalData.payment_history.length})
+                        </button>
+                        {showPaymentHistory && (
+                          <div style={{ marginTop: 12, maxHeight: 260, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                            <table className="data-table" style={{ margin: 0 }}>
+                              <thead>
+                                <tr><th>Date</th><th>Amount</th><th>Type</th><th>Status</th></tr>
+                              </thead>
+                              <tbody>
+                                {evalData.payment_history.map((p, i) => (
+                                  <tr key={i}>
+                                    <td>{p.date_paid}</td>
+                                    <td>₱{fmt(p.amount_paid)}</td>
+                                    <td>{p.payment_type}</td>
+                                    <td>
+                                      <span style={{
+                                        padding: '4px 8px',
+                                        borderRadius: '4px',
+                                        fontSize: '12px',
+                                        fontWeight: 'bold',
+                                        background: (p.status === 'paid' || p.status === 'active') ? '#dcfce7' : '#fee2e2',
+                                        color: (p.status === 'paid' || p.status === 'active') ? '#166534' : '#991b1b'
+                                      }}>
+                                        {p.status.toUpperCase()}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
                       </div>
                     )}
 
-                    <div style={{ borderTop: '1px solid #dbe7f6', marginTop: 24, paddingTop: 24 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 14, color: '#071a3d', fontSize: 22, fontWeight: 800, marginBottom: 20 }}>
-                        <span style={{ width: 38, height: 38, borderRadius: 8, background: '#dbeafe', color: '#0f4fbf', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>*</span>
-                        MANAGER ACTION
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28 }}>
-                        {actionCard('RELOAN', 'Open Reloan Application', 'RL', '#2563eb', '#eff6ff', '#bfdbfe', 'RELOAN', true)}
-                        {actionCard('RELAX', 'Temporarily resting', 'RX', '#f59e0b', '#fff7ed', '#fed7aa', 'RELAX')}
-                        {actionCard('HOLD', 'Block new applications', '!', '#ef4444', '#fff1f2', '#fecaca', 'HOLD')}
-                      </div>
+                    {/* Action cards */}
+                    <div style={{ display: 'flex', gap: 16, marginTop: 28, paddingBottom: 28, flexWrap: 'wrap' }}>
+                      {actionCard('RELOAN', 'Client is eligible and cleared for a new loan.', '🔄', '#2563eb', '#eff6ff', '#bfdbfe', 'RELOAN')}
+                      {actionCard('RECON', 'Reconstruct or adjust existing loan records.', '🔧', '#7c3aed', '#f5f3ff', '#ddd6fe', 'RECON')}
+                      {actionCard('✅ RELAX', 'Mark as cleared — eligible for reloan. Appears in Relax tab.', '✅', '#059669', '#ecfdf5', '#6ee7b7', 'RELAX')}
+                      {actionCard('⏸ HOLD', 'Restrict from reloaning. Appears in Hold tab.', '⏸', '#d97706', '#fffbeb', '#fcd34d', 'HOLD')}
                     </div>
                   </div>
                 );
               })()}
             </div>
-
-            <div style={{ marginTop: 26, borderTop: '1px solid #dbe7f6', background: '#f8fbff', padding: '20px 100px', display: 'flex', alignItems: 'center', gap: 16, color: '#475569', fontSize: 15 }}>
-              <span style={{ width: 28, height: 28, borderRadius: 14, background: '#2563eb', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>i</span>
-              This evaluation is based on the borrower's payment history and account activity. Please review all details before taking action.
-            </div>
           </div>
         </div>
       )}
 
-      {showPaymentHistory && evalData && evalData.last_loan && (
-        <div className="modal-overlay" style={{ background: 'rgba(15, 23, 42, 0.6)', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 9999 }}>
-          <div className="modal" style={{ width: 'min(800px, 96vw)', maxHeight: '92vh', overflow: 'auto', borderRadius: '14px', border: '1px solid #dbe7f6', boxShadow: '0 24px 70px rgba(15, 23, 42, 0.25)', padding: 0, background: '#fff' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #d7e3f2', background: '#f8fbff' }}>
-              <div>
-                <h3 style={{ margin: 0, color: '#0b1f44', fontSize: 20, fontWeight: 800 }}>Payment History</h3>
-                <div style={{ marginTop: 4, color: '#64748b', fontSize: 14 }}>Latest Loan: {evalData.last_loan.loan_code || evalData.last_loan.id} - PHP {fmt(evalData.last_loan.total_amortization)}</div>
+      {/* ── Hold / Relax Reason Modal ── */}
+      {reasonModal && (() => {
+        const isRelax = reasonModal.action === 'RELAX';
+        const accentColor  = isRelax ? '#059669' : '#d97706';
+        const accentBg     = isRelax ? '#ecfdf5'  : '#fffbeb';
+        const accentBorder = isRelax ? '#6ee7b7'  : '#fcd34d';
+        const icon         = isRelax ? '✅' : '⏸';
+        return (
+          <div className="modal-overlay" style={{ background: 'rgba(15, 23, 42, 0.55)', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 10000 }}>
+            <div className="modal" style={{ width: 'min(520px, 94vw)', borderRadius: 16, border: `1px solid ${accentBorder}`, boxShadow: '0 32px 80px rgba(15, 23, 42, 0.30)', padding: 0, background: '#fff', overflow: 'hidden' }}>
+              {/* Header */}
+              <div style={{ padding: '20px 26px', borderBottom: `1px solid ${accentBorder}`, background: accentBg, display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{ width: 46, height: 46, borderRadius: 12, background: '#fff', border: `2px solid ${accentBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>{icon}</div>
+                <div>
+                  <h3 style={{ margin: 0, color: accentColor, fontSize: 20, fontWeight: 900 }}>
+                    {isRelax ? 'Mark as Relax' : 'Put on Hold'}
+                  </h3>
+                  <div style={{ marginTop: 3, color: '#64748b', fontSize: 13, fontWeight: 600 }}>{reasonModal.customer.client_name}</div>
+                </div>
               </div>
-              <button className="btn-close" onClick={() => setShowPaymentHistory(false)} style={{ fontSize: 28, color: '#475569', background: 'transparent', border: 'none', cursor: 'pointer' }}>x</button>
-            </div>
-            <div style={{ padding: '24px' }}>
-              <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#f1f5f9', textAlign: 'left' }}>
-                    <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Date Paid</th>
-                    <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Payment Code</th>
-                    <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Amount</th>
-                    <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Receipt No</th>
-                    <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {evalData.payments && evalData.payments.length > 0 ? evalData.payments.map(p => (
-                    <tr key={p.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '12px' }}>{new Date(p.date_paid).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
-                      <td style={{ padding: '12px', fontWeight: 'bold', color: '#3b82f6', fontFamily: 'monospace' }}>{p.payment_code || 'N/A'}</td>
-                      <td style={{ padding: '12px', fontWeight: 'bold' }}>PHP {fmt(p.amount_paid)}</td>
-                      <td style={{ padding: '12px' }}>{p.or_number || 'N/A'}</td>
-                      <td style={{ padding: '12px' }}>
-                        <span style={{ 
-                          padding: '4px 8px', 
-                          borderRadius: '4px', 
-                          fontSize: '12px', 
-                          fontWeight: 'bold',
-                          background: (p.status === 'paid' || p.status === 'active') ? '#dcfce7' : '#fee2e2',
-                          color: (p.status === 'paid' || p.status === 'active') ? '#166534' : '#991b1b'
-                        }}>
-                          {p.status.toUpperCase()}
-                        </span>
-                      </td>
-                    </tr>
-                  )) : (
-                    <tr><td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>No payments found for this loan.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {reasonModal && (
-        <div className="modal-overlay" style={{ background: 'rgba(15, 23, 42, 0.55)', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 10000 }}>
-          <div className="modal" style={{ width: 'min(520px, 94vw)', borderRadius: 14, border: '1px solid #dbe7f6', boxShadow: '0 24px 70px rgba(15, 23, 42, 0.28)', padding: 0, background: '#fff', overflow: 'hidden' }}>
-            <div style={{ padding: '22px 26px', borderBottom: '1px solid #dbe7f6', background: '#f8fbff' }}>
-              <h3 style={{ margin: 0, color: '#0b1f44', fontSize: 22, fontWeight: 800 }}>{reasonModal.action} Note / Reason</h3>
-              <div style={{ marginTop: 6, color: '#64748b', fontSize: 14 }}>{reasonModal.customer.client_name}</div>
-            </div>
-            <div style={{ padding: 26 }}>
-              <label style={{ display: 'block', color: '#071a3d', fontSize: 14, fontWeight: 800, marginBottom: 8 }}>Manager note / reason</label>
-              <textarea
-                value={reasonText}
-                onChange={(e) => setReasonText(e.target.value)}
-                rows={5}
-                autoFocus
-                placeholder={`Enter reason for ${reasonModal.action.toLowerCase()}...`}
-                style={{ width: '100%', resize: 'vertical', border: '1px solid #cbd5e1', borderRadius: 8, padding: 12, fontSize: 14, lineHeight: 1.45, outlineColor: '#2563eb' }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
-                <button className="btn btn-secondary" type="button" disabled={reasonSaving} onClick={() => { setReasonModal(null); setReasonText(''); }}>Cancel</button>
-                <button className="btn btn-primary" type="button" disabled={reasonSaving} onClick={submitReasonAction}>
-                  {reasonSaving ? 'Saving...' : `Save ${reasonModal.action}`}
-                </button>
+              {/* Body */}
+              <div style={{ padding: 26 }}>
+                <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 10, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 13, color: '#475569', lineHeight: 1.6 }}>
+                  {isRelax
+                    ? '✅ Marking this client as Relax means they are cleared and eligible for a reloan. This status will reflect in the Relax tab under Loans.'
+                    : '⏸ Putting this client on Hold means they are temporarily restricted from reloaning. This status will reflect in the Hold tab under Loans.'}
+                </div>
+                <label style={{ display: 'block', color: '#071a3d', fontSize: 14, fontWeight: 800, marginBottom: 8 }}>
+                  Manager Note / Reason <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <textarea
+                  value={reasonText}
+                  onChange={e => setReasonText(e.target.value)}
+                  rows={4}
+                  autoFocus
+                  placeholder={isRelax
+                    ? 'e.g. Client has good payment history, cleared for reloan...'
+                    : 'e.g. Client has pending obligations, hold until further notice...'}
+                  style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', border: `1.5px solid ${accentBorder}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, lineHeight: 1.5, outlineColor: accentColor }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    disabled={reasonSaving}
+                    onClick={() => { setReasonModal(null); setReasonText(''); }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={reasonSaving}
+                    onClick={submitReasonAction}
+                    style={{ padding: '9px 22px', borderRadius: 10, border: 'none', background: accentColor, color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    {reasonSaving ? 'Saving...' : `${icon} Confirm ${reasonModal.action}`}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
-      <ReloanModal 
+      <ReloanModal
         isOpen={reloanModalOpen}
         onClose={() => setReloanModalOpen(false)}
         customerId={reloanCustomerId}
@@ -478,8 +528,6 @@ export default function FullyPaid({ search = '' }) {
           load();
         }}
       />
-
     </div>
   );
 }
-

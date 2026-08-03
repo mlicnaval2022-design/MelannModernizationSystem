@@ -19,8 +19,10 @@ import {
   Receipt,
   RefreshCw,
   Settings,
+  ShieldCheck,
   UserRound,
-  X
+  X,
+  XCircle
 } from 'lucide-react';
 import './NoPaymentMonitoring.css';
 
@@ -63,6 +65,11 @@ export default function NoPaymentMonitoring() {
   const [resolveModal, setResolveModal] = useState({ show: false, alert: null });
   const [escalateModal, setEscalateModal] = useState({ show: false, alert: null });
   const [clientProfileModal, setClientProfileModal] = useState({ show: false, data: null, loading: false });
+  const [toastModal, setToastModal] = useState({ show: false, type: 'success', title: '', message: '', meta: null });
+
+  const showToast = (type, title, message, meta = null) => {
+    setToastModal({ show: true, type, title, message, meta });
+  };
 
   const fetchAlerts = async () => {
     setLoading(true);
@@ -82,7 +89,7 @@ export default function NoPaymentMonitoring() {
       const res = await API.get(`/customers/${customerId}`);
       setClientProfileModal({ show: true, data: res.data, loading: false });
     } catch (err) {
-      alert('Could not load client profile: ' + (err.response?.data?.error || err.message));
+      showToast('error', 'Load Failed', 'Could not load client profile: ' + (err.response?.data?.error || err.message));
       setClientProfileModal({ show: false, data: null, loading: false });
     }
   };
@@ -111,7 +118,7 @@ export default function NoPaymentMonitoring() {
       fetchAlerts();
       return true;
     } catch (err) {
-      alert(err.response?.data?.error || err.message);
+      showToast('error', 'Action Failed', err.response?.data?.error || err.message);
       return false;
     }
   };
@@ -121,7 +128,7 @@ export default function NoPaymentMonitoring() {
       const res = await API.get(`/monitoring/timeline/${alertItem.id}`);
       setTimelineModal({ show: true, alert: alertItem, history: res.data });
     } catch (err) {
-      alert('Could not load timeline');
+      showToast('error', 'Load Failed', 'Could not load timeline.');
     }
   };
 
@@ -145,10 +152,10 @@ export default function NoPaymentMonitoring() {
               setScanning(true);
               try {
                 const res = await API.post('/monitoring/run-daily');
-                alert(`Scan complete! Active alerts: ${res.data.active_alerts}`);
                 fetchAlerts();
+                showToast('success', 'Scan Complete', res.data.message || 'Daily scan finished successfully.', { active_alerts: res.data.active_alerts });
               } catch (err) {
-                alert(`Error: ${err.response?.data?.error || err.message}`);
+                showToast('error', 'Scan Failed', err.response?.data?.error || err.message);
               } finally {
                 setScanning(false);
               }
@@ -492,6 +499,16 @@ export default function NoPaymentMonitoring() {
           onClose={() => setClientProfileModal({ show: false, data: null, loading: false })}
         />
       )}
+
+      {toastModal.show && (
+        <ToastModal
+          type={toastModal.type}
+          title={toastModal.title}
+          message={toastModal.message}
+          meta={toastModal.meta}
+          onClose={() => setToastModal({ show: false, type: 'success', title: '', message: '', meta: null })}
+        />
+      )}
     </div>
   );
 }
@@ -505,6 +522,51 @@ function Modal({ title, onClose, children }) {
           <button onClick={onClose} aria-label="Close modal"><X size={20} /></button>
         </div>
         {children}
+      </div>
+    </div>
+  );
+}
+
+function ToastModal({ type, title, message, meta, onClose }) {
+  const isSuccess = type === 'success';
+  return (
+    <div className="npm-modal-overlay npm-toast-overlay" onClick={onClose}>
+      <div className={`npm-toast-modal ${isSuccess ? 'npm-toast-success' : 'npm-toast-error'}`} onClick={e => e.stopPropagation()}>
+        {/* Icon */}
+        <div className="npm-toast-icon-wrap">
+          <div className="npm-toast-icon-ring" />
+          <div className="npm-toast-icon">
+            {isSuccess ? <ShieldCheck size={32} /> : <XCircle size={32} />}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="npm-toast-body">
+          <h3 className="npm-toast-title">{title}</h3>
+          <p className="npm-toast-message">{message}</p>
+
+          {/* Scan stats — only shown on success with meta */}
+          {isSuccess && meta && (
+            <div className="npm-toast-stats">
+              <div className="npm-toast-stat">
+                <span className="npm-toast-stat-num">{meta.active_alerts ?? '—'}</span>
+                <span className="npm-toast-stat-label">Active Alerts</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Close button */}
+        <button className="npm-toast-close" onClick={onClose}>
+          <X size={16} />
+        </button>
+
+        {/* OK button */}
+        <div className="npm-toast-footer">
+          <button className={`npm-toast-btn ${isSuccess ? 'npm-toast-btn-success' : 'npm-toast-btn-error'}`} onClick={onClose}>
+            <Check size={16} /> Got it
+          </button>
+        </div>
       </div>
     </div>
   );
