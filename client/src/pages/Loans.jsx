@@ -398,18 +398,59 @@ export default function Loans() {
                             <>
                               <span className={`badge badge-${badgeClass}`}>{badgeText}</span>
                               {isContext && (
-                                <div style={{ marginTop: '6px', fontSize: '11px', color: '#64748b', maxWidth: '170px', whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.2' }}>
-                                  <i>Note: {r.status_note || '(No note)'}</i>
-                                  {hasRole('admin', 'manager') && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleEditNote(r)}
-                                      style={{ border: 'none', background: 'transparent', cursor: 'pointer', marginLeft: '4px', color: '#2563eb', fontWeight: 'bold', fontSize: '11px', padding: 0 }}
-                                      title="Edit Note"
-                                    >
-                                      ✏️ Edit
-                                    </button>
-                                  )}
+                                <div
+                                  onClick={() => handleEditNote(r)}
+                                  style={{
+                                    marginTop: '6px',
+                                    fontSize: '11px',
+                                    color: '#475569',
+                                    maxWidth: '180px',
+                                    background: '#f8fafc',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '8px',
+                                    padding: '6px 9px',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '3px'
+                                  }}
+                                  title="Click to view or edit full note"
+                                  onMouseEnter={e => {
+                                    e.currentTarget.style.borderColor = '#3b82f6';
+                                    e.currentTarget.style.background = '#eff6ff';
+                                  }}
+                                  onMouseLeave={e => {
+                                    e.currentTarget.style.borderColor = '#cbd5e1';
+                                    e.currentTarget.style.background = '#f8fafc';
+                                  }}
+                                >
+                                  <div style={{
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    lineHeight: '1.35',
+                                    fontWeight: 500
+                                  }}>
+                                    <i>Note: {r.status_note || '(Click to add note)'}</i>
+                                  </div>
+                                  <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justify: 'space-between',
+                                    fontSize: '10px',
+                                    color: '#2563eb',
+                                    fontWeight: 700,
+                                    marginTop: '2px',
+                                    paddingTop: '2px',
+                                    borderTop: '1px dashed #cbd5e1'
+                                  }}>
+                                    <span>🔍 View / Edit</span>
+                                    <span>✏️</span>
+                                  </div>
                                 </div>
                               )}
                             </>
