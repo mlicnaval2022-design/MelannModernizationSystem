@@ -10,7 +10,7 @@ import '../customers-v2.css'
 import CustomerWizard from '../components/CustomerWizard'
 import ReloanModal from '../components/ReloanModal'
 import logoImg from '../assets/logo.png'
-import { Users, CheckCircle, XCircle, Calendar, Search, Filter, FileText, Phone, Mail, MapPin, User, MoreVertical, BarChart2, Plus, Printer, X, PieChart, List, Wallet, Scale, CalendarDays, CalendarClock, Info } from 'lucide-react'
+import { Users, CheckCircle, XCircle, Calendar, Search, Filter, FileText, Phone, Mail, MapPin, User, MoreVertical, BarChart2, Plus, Printer, X, PieChart, List, Wallet, Scale, CalendarDays, CalendarClock, Info, ArrowDown, ArrowUp, ArrowDownUp } from 'lucide-react'
 
 export default function Customers() {
   const { user } = useAuth()
@@ -48,6 +48,7 @@ export default function Customers() {
   const [soaLoading, setSoaLoading] = useState(false)
   const [soaTab, setSoaTab] = useState('summary')
   const [selectedLoanForPayments, setSelectedLoanForPayments] = useState(null)
+  const [paymentHistoryDateSort, setPaymentHistoryDateSort] = useState('desc')
   const [penaltyLoan, setPenaltyLoan] = useState(null)
   const [editingPenaltyPayment, setEditingPenaltyPayment] = useState(null)
   const [printModeLoan, setPrintModeLoan] = useState(null)
@@ -360,9 +361,16 @@ export default function Customers() {
     .map(p => ({ ...p, paidDate: parseLocalDate(p.date_paid), amount: Number(p.amount_paid || 0) }))
     .filter(p => p.paidDate)
     .sort((a, b) => a.paidDate - b.paidDate);
-  const getPaymentHistoryRows = (loan) => (soaData?.payments || [])
-    .filter(p => p.loan_code === loan?.loan_code)
-    .sort((a, b) => new Date(b.date_paid) - new Date(a.date_paid));
+  const getPaymentHistoryRows = (loan) => {
+    const direction = paymentHistoryDateSort === 'asc' ? 1 : -1;
+    return (soaData?.payments || [])
+      .filter(p => p.loan_code === loan?.loan_code)
+      .sort((a, b) => {
+        const dateCompare = String(a.date_paid || '').localeCompare(String(b.date_paid || ''));
+        if (dateCompare !== 0) return dateCompare * direction;
+        return (Number(a.id || 0) - Number(b.id || 0)) * direction;
+      });
+  };
   const getPaymentStatusText = (payment) => {
     const isReversed = payment.status === 'reversed';
     const isFullyPaid = payment.status === 'active' && Number(payment.balance_after) <= 0;
@@ -1954,7 +1962,56 @@ export default function Customers() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                           <thead style={{ backgroundColor: '#0d6efd', color: '#ffffff' }}>
                             <tr>
-                              <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>DATE</th>
+                              <th style={{ padding: '10px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setPaymentHistoryDateSort(sort => sort === 'desc' ? 'asc' : 'desc')}
+                                  title="Sort payment history by date"
+                                  aria-label={`Sort payment history by date. Current: ${paymentHistoryDateSort === 'desc' ? 'newest first' : 'oldest first'}`}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '10px',
+                                    minHeight: '34px',
+                                    padding: '6px 10px 6px 12px',
+                                    borderRadius: '8px',
+                                    border: '1px solid rgba(255,255,255,0.65)',
+                                    background: 'rgba(255,255,255,0.18)',
+                                    color: '#ffffff',
+                                    fontSize: '12px',
+                                    fontWeight: 800,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px',
+                                    cursor: 'pointer',
+                                    boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)'
+                                  }}
+                                >
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                    Date
+                                    <ArrowDownUp size={16} strokeWidth={2.8} aria-hidden="true" />
+                                  </span>
+                                  <span
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      padding: '3px 8px',
+                                      borderRadius: '999px',
+                                      background: '#ffffff',
+                                      color: '#0d6efd',
+                                      fontSize: '11px',
+                                      fontWeight: 900,
+                                      letterSpacing: 0,
+                                      textTransform: 'none'
+                                    }}
+                                  >
+                                    {paymentHistoryDateSort === 'desc'
+                                      ? <ArrowDown size={14} strokeWidth={3} aria-hidden="true" />
+                                      : <ArrowUp size={14} strokeWidth={3} aria-hidden="true" />}
+                                    {paymentHistoryDateSort === 'desc' ? 'Newest' : 'Oldest'}
+                                  </span>
+                                </button>
+                              </th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENT CODE</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENTS</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>RUNNING BALANCE</th>

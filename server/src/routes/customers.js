@@ -3,6 +3,7 @@ const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { computeMaturityDate, generateAmortizationSchedule, getWorkingDays } = require('../services/loanCalculator');
 const { requireOperationDate } = require('../services/operationDays');
+const { recalculateLoanBalances } = require('../services/loanBalanceRecalculator');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -78,6 +79,11 @@ const todayDateOnly = () => {
 async function postPriorLoanBalancePayment({ customerId, sourceLoanId, amount, user, date_released, loanType }) {
   const paymentAmount = Number(amount || 0);
   if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) return null;
+  const loanTypeLabel = String(loanType || '').toUpperCase() === 'RELOAN'
+    ? 'Re-Loan'
+    : String(loanType || '').toUpperCase() === 'RECON'
+      ? 'RECON'
+      : loanType;
 
   const sourceLoan = sourceLoanId
     ? await dbGet(
@@ -124,39 +130,30 @@ async function postPriorLoanBalancePayment({ customerId, sourceLoanId, amount, u
       paymentAmount,
       balanceBefore,
       balanceAfter,
-      `Auto-posted old balance during ${loanType}`,
+      `Auto-posted old balance during ${loanTypeLabel}`,
       user.id,
       paymentCode
     ]
   );
 
-  const newStatus = balanceAfter <= 0 ? 'fullpaid' : 'active';
-  await dbRun(
-    `UPDATE tblLoan SET balance = ?, total_paid = total_paid + ?, status = ?, updated_at = datetime('now') WHERE id = ?`,
-    [balanceAfter, paymentAmount, newStatus, sourceLoan.id]
-  );
-
-  let remaining = paymentAmount;
-  const unpaidSchedules = await dbAll(
-    `SELECT * FROM tblAmortizationSchedule WHERE loan_id = ? AND status != 'paid' ORDER BY period_number ASC`,
-    [sourceLoan.id]
-  );
-  for (const sched of unpaidSchedules) {
-    if (remaining <= 0) break;
-    const amountToPay = Math.min(remaining, Number(sched.amount_due || 0) - Number(sched.amount_paid || 0));
-    if (amountToPay <= 0) continue;
-    const newPaid = Number(sched.amount_paid || 0) + amountToPay;
-    const schedStatus = newPaid >= Number(sched.amount_due || 0) ? 'paid' : 'partial';
+  let newStatus;
+  let postedPayment;
+  if (latestPayment) {
+    const recalculation = await recalculateLoanBalances(sourceLoan.id, { userId: user.id });
+    postedPayment = await dbGet(`SELECT balance_before, balance_after FROM tblPayment WHERE id = ?`, [payment.lastID]);
+    newStatus = recalculation.status;
+  } else {
+    newStatus = balanceAfter <= 0 ? 'fullpaid' : 'active';
     await dbRun(
-      `UPDATE tblAmortizationSchedule SET amount_paid = ?, date_paid = ?, status = ? WHERE id = ?`,
-      [newPaid, datePaid, schedStatus, sched.id]
+      `UPDATE tblLoan SET balance = ?, total_paid = total_paid + ?, status = ?, updated_at = datetime('now') WHERE id = ?`,
+      [balanceAfter, paymentAmount, newStatus, sourceLoan.id]
     );
-    remaining -= amountToPay;
+    postedPayment = { balance_before: balanceBefore, balance_after: balanceAfter };
   }
 
   await dbRun(
     `INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
-    [user.id, user.username, 'CREATE', 'PAYMENT', payment.lastID, `${loanType} old balance auto-posted. Loan:${sourceLoan.loan_code} Amt:${paymentAmount}`]
+    [user.id, user.username, 'CREATE', 'PAYMENT', payment.lastID, `${loanTypeLabel} old balance auto-posted. Loan:${sourceLoan.loan_code} Amt:${paymentAmount}`]
   );
 
   return {
@@ -166,8 +163,8 @@ async function postPriorLoanBalancePayment({ customerId, sourceLoanId, amount, u
     payment_code: paymentCode,
     date_paid: datePaid,
     amount_paid: paymentAmount,
-    balance_before: balanceBefore,
-    balance_after: balanceAfter,
+    balance_before: postedPayment.balance_before,
+    balance_after: postedPayment.balance_after,
     loan_status: newStatus
   };
 }
@@ -899,7 +896,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
       ? (normalizedLoanType === 'NEW' ? 50 : 0)
       : Number(passbook || 0);
     const shouldPostPriorBalance = ['RECON', 'RELOAN'].includes(normalizedLoanType);
-    const newLoanPreviousBalance = balanceAmount;
+    const newLoanPreviousBalance = shouldPostPriorBalance ? 0 : balanceAmount;
     const totalCharges = balanceAmount + penaltyAmount + passbookAmount;
     const netProceeds = amount;
 

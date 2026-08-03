@@ -8,7 +8,7 @@ process.env.DB_PATH = join(mkdtempSync(join(tmpdir(), 'melann-integration-')), '
 process.env.JWT_SECRET = 'integration-test-secret';
 
 const { createApp } = require('../../src/app');
-const { closeDb, dbGet, dbRun, initializeDatabase } = require('../../src/db/database');
+const { closeDb, dbAll, dbGet, dbRun, initializeDatabase } = require('../../src/db/database');
 
 let server;
 let baseUrl;
@@ -144,6 +144,76 @@ test('posting a regular payment creates payment and updates loan balance', async
   assert.equal(updatedLoan.balance, 900);
   assert.equal(updatedLoan.total_paid, 100);
   assert.equal(updatedLoan.status, 'active');
+});
+
+test('posting a backdated payment recalculates later payment running balances', async () => {
+  const login = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: 'admin123' }),
+  });
+  const { token } = await login.json();
+
+  const branch = await dbGet(`SELECT id FROM tblBranch LIMIT 1`);
+  const user = await dbGet(`SELECT id FROM tblUser WHERE username = 'admin'`);
+  const collector = await dbRun(`
+    INSERT INTO tblCollector (collector_code, first_name, last_name, branch_id)
+    VALUES (?, ?, ?, ?)
+  `, ['COL-BACKDATE', 'Back', 'Date', branch.id]);
+  const customer = await dbRun(`
+    INSERT INTO tblCustomer (customer_code, first_name, last_name, full_name, branch_id, collector_id)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `, ['C-BACKDATE', 'Backdated', 'Client', 'Backdated Client', branch.id, collector.lastID]);
+  const loan = await dbRun(`
+    INSERT INTO tblLoan (
+      loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate,
+      loan_period, date_released, date_maturity, amortization, total_amortization,
+      net_proceeds, balance, status, created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, ['LN-BACKDATE', customer.lastID, collector.lastID, branch.id, 'New', 1000, 0, 45, '2026-07-01', '2026-08-15', 26, 1000, 1000, 1000, 'active', user.id]);
+
+  const laterResponse = await fetch(`${baseUrl}/api/payments`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      loan_id: loan.lastID,
+      or_number: 'LATER-PAYMENT',
+      date_paid: '2026-07-15',
+      amount_paid: 100,
+      collector_id: collector.lastID,
+    }),
+  });
+  assert.equal(laterResponse.status, 201, (await laterResponse.json()).error);
+
+  const backdatedResponse = await fetch(`${baseUrl}/api/payments`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      loan_id: loan.lastID,
+      or_number: 'BACKDATED-PAYMENT',
+      date_paid: '2026-07-10',
+      amount_paid: 50,
+      collector_id: collector.lastID,
+    }),
+  });
+  const backdatedBody = await backdatedResponse.json();
+  const payments = await dbAll(`
+    SELECT or_number, date_paid, amount_paid, balance_before, balance_after
+    FROM tblPayment
+    WHERE loan_id = ? AND status = 'active'
+    ORDER BY date_paid ASC, id ASC
+  `, [loan.lastID]);
+  const updatedLoan = await dbGet(`SELECT balance, total_paid FROM tblLoan WHERE id = ?`, [loan.lastID]);
+
+  assert.equal(backdatedResponse.status, 201, backdatedBody.error);
+  assert.equal(backdatedBody.balance_before, 1000);
+  assert.equal(backdatedBody.balance_after, 950);
+  assert.deepEqual(payments, [
+    { or_number: 'BACKDATED-PAYMENT', date_paid: '2026-07-10', amount_paid: 50, balance_before: 1000, balance_after: 950 },
+    { or_number: 'LATER-PAYMENT', date_paid: '2026-07-15', amount_paid: 100, balance_before: 950, balance_after: 850 },
+  ]);
+  assert.equal(updatedLoan.balance, 850);
+  assert.equal(updatedLoan.total_paid, 150);
 });
 
 test('reloan old balance posts to prior loan on release date and not to new loan', async () => {

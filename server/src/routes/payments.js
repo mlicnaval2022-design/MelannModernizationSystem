@@ -3,6 +3,7 @@ const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken } = require('../middleware/auth');
 const { triggerLoanRecalculation } = require('../services/noPaymentMonitoring');
 const { requireOperationDate, sqlNotSunday } = require('../services/operationDays');
+const { recalculateLoanBalances } = require('../services/loanBalanceRecalculator');
 const router = express.Router();
 const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
 const formatDate = value => {
@@ -81,6 +82,8 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(409).json({ error: 'Possible duplicate payment detected. Please verify before proceeding.', is_duplicate: true });
     }
     
+    await dbRun('BEGIN TRANSACTION');
+
     const balance_before = loan.balance;
     const balance_after = Math.max(0, balance_before - amount_paid);
 
@@ -89,46 +92,26 @@ router.post('/', authenticateToken, async (req, res) => {
     const payment_code = String(nextCode).padStart(4, '0');
 
     const result = await dbRun(`INSERT INTO tblPayment (loan_id, customer_id, collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, status, remarks, encoded_by, payment_code) VALUES (?,?,?,?,?,?,?,?,'active',?,?,?)`, [loan_id, loan.customer_id, collector_id || loan.collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, remarks, req.user.id, payment_code]);
-    const newStatus = balance_after <= 0 ? 'fullpaid' : 'active';
-    await dbRun(`UPDATE tblLoan SET balance=?, total_paid=total_paid+?, status=?, updated_at=datetime('now') WHERE id=?`, [balance_after, amount_paid, newStatus, loan_id]);
-    
-    if (newStatus === 'fullpaid') {
-      const openLoansCount = await dbGet(`
-        SELECT COUNT(*) as c
-        FROM tblLoan
-        WHERE customer_id = ?
-          AND LOWER(COALESCE(status, '')) NOT IN ('fullpaid', 'closed', 'rejected', 'cancelled', 'reversed')
-          AND COALESCE(balance, 0) > 0
-      `, [loan.customer_id]);
-      if (openLoansCount.c === 0) {
-        const cust = await dbGet(`SELECT status FROM tblCustomer WHERE id = ?`, [loan.customer_id]);
-        if (cust && cust.status !== 'FULLY PAID') {
-          await dbRun(`UPDATE tblCustomer SET status='FULLY PAID' WHERE id=?`, [loan.customer_id]);
-          await dbRun(`INSERT INTO tblCustomerStatusHistory (customer_id, previous_status, new_status, changed_by, remarks) VALUES (?, ?, 'FULLY PAID', ?, 'Auto-transition: Loan fully paid')`, [loan.customer_id, cust.status, req.user.id]);
-        }
-      }
-    }
-    
-    // Distribute payment across amortization schedule
-    let remaining = amount_paid;
-    const unpaidSchedules = await dbAll(`SELECT * FROM tblAmortizationSchedule WHERE loan_id = ? AND status != 'paid' ORDER BY period_number ASC`, [loan_id]);
-    for (const sched of unpaidSchedules) {
-      if (remaining <= 0) break;
-      const amountToPay = Math.min(remaining, sched.amount_due - sched.amount_paid);
-      if (amountToPay <= 0) continue;
-      const newPaid = sched.amount_paid + amountToPay;
-      const schedStatus = (newPaid >= sched.amount_due) ? 'paid' : 'partial';
-      await dbRun(`UPDATE tblAmortizationSchedule SET amount_paid = ?, date_paid = ?, status = ? WHERE id = ?`, [newPaid, date_paid, schedStatus, sched.id]);
-      remaining -= amountToPay;
-    }
+    const recalculation = await recalculateLoanBalances(loan_id, { userId: req.user.id });
 
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'PAYMENT', result.lastID, `OR#${or_number} Amt:${amount_paid} Col:${collector_id || loan.collector_id}`]);
+    await dbRun('COMMIT');
     
     // Trigger No Payment Monitoring recalculation
     await triggerLoanRecalculation(loan_id).catch(e => console.error('Error triggering recalculation:', e));
 
-    res.status(201).json({ id: result.lastID, payment_code, balance_before, balance_after, loan_status: newStatus });
-  } catch (err) { sendRouteError(res, err); }
+    const postedPayment = await dbGet(`SELECT balance_before, balance_after FROM tblPayment WHERE id = ?`, [result.lastID]);
+    res.status(201).json({
+      id: result.lastID,
+      payment_code,
+      balance_before: postedPayment.balance_before,
+      balance_after: postedPayment.balance_after,
+      loan_status: recalculation.status
+    });
+  } catch (err) {
+    await dbRun('ROLLBACK').catch(() => {});
+    sendRouteError(res, err);
+  }
 });
 
 router.put('/:id/penalty-amount', authenticateToken, async (req, res) => {
