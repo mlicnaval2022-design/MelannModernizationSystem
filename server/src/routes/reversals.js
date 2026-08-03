@@ -2,6 +2,7 @@ const express = require('express');
 const { dbGet, dbRun, dbAll } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { triggerLoanRecalculation } = require('../services/noPaymentMonitoring');
+const { recalculateLoanBalances } = require('../services/loanBalanceRecalculator');
 const router = express.Router();
 
 router.get('/search', authenticateToken, async (req, res) => {
@@ -120,44 +121,38 @@ router.post('/payment/by-code', authenticateToken, requireRole('admin', 'manager
     if (!p) return res.status(404).json({ error: 'Payment Code not found for this client.' });
     if (p.status === 'reversed') return res.status(400).json({ error: 'This payment has already been reversed.' });
 
-    await dbRun(`UPDATE tblLoan SET balance=balance+?, total_paid=total_paid-?, status='active', updated_at=datetime('now') WHERE id=?`, [p.amount_paid, p.amount_paid, p.loan_id]);
+    await dbRun('BEGIN TRANSACTION');
     await dbRun(`UPDATE tblPayment SET status='reversed', reversed_at=datetime('now'), reversed_by=?, reversal_reason=? WHERE id=?`, [req.user.id, reason, p.id]);
-    
-    // Reverse amortization schedules
-    // We only reverse what was paid on THAT EXACT DATE by THAT EXACT AMOUNT.
-    // Wait, the new spec says "Reverse all amortization allocations made by that payment."
-    // If multiple payments were made on the same date, how do we know which schedules? 
-    // We'll just reverse `p.amount_paid` from the most recently paid schedules.
-    let remainingToReverse = p.amount_paid;
-    const paidSchedules = await dbAll(`SELECT * FROM tblAmortizationSchedule WHERE loan_id = ? AND amount_paid > 0 ORDER BY period_number DESC`, [p.loan_id]);
-    for (const sched of paidSchedules) {
-      if (remainingToReverse <= 0) break;
-      const amountToReverse = Math.min(remainingToReverse, sched.amount_paid);
-      const newPaid = sched.amount_paid - amountToReverse;
-      const schedStatus = (newPaid <= 0) ? 'pending' : 'partial';
-      await dbRun(`UPDATE tblAmortizationSchedule SET amount_paid = ?, status = ? WHERE id = ?`, [newPaid, schedStatus, sched.id]);
-      remainingToReverse -= amountToReverse;
-    }
+    await recalculateLoanBalances(p.loan_id, { userId: req.user.id });
 
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REVERSE', 'PAYMENT', p.id, `Reversed OR#${p.or_number} Reason: ${reason}`]);
+    await dbRun('COMMIT');
     
     // Trigger No Payment Monitoring recalculation
     triggerLoanRecalculation(p.loan_id).catch(e => console.error(e));
 
     res.json({ message: 'Payment reversed successfully' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    await dbRun('ROLLBACK').catch(() => {});
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/payment/:id', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   try {
     const payment = await dbGet(`SELECT * FROM tblPayment WHERE id = ? AND status = 'active'`, [req.params.id]);
     if (!payment) return res.status(404).json({ error: 'Active payment not found' });
-    await dbRun(`UPDATE tblLoan SET balance=balance+?, total_paid=total_paid-?, status='active', updated_at=datetime('now') WHERE id=?`, [payment.amount_paid, payment.amount_paid, payment.loan_id]);
+    await dbRun('BEGIN TRANSACTION');
     await dbRun(`UPDATE tblPayment SET status='reversed', reversed_at=datetime('now'), reversed_by=? WHERE id=?`, [req.user.id, payment.id]);
+    await recalculateLoanBalances(payment.loan_id, { userId: req.user.id });
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REVERSE', 'PAYMENT', payment.id, `Reversed OR#${payment.or_number}`]);
+    await dbRun('COMMIT');
     triggerLoanRecalculation(payment.loan_id).catch(e => console.error(e));
     res.json({ message: 'Payment reversed successfully' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    await dbRun('ROLLBACK').catch(() => {});
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/loan/:id', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
@@ -185,26 +180,13 @@ router.post('/batch', authenticateToken, requireRole('admin', 'manager'), async 
     const placeholders = payment_ids.map(() => '?').join(',');
     const payments = await dbAll(`SELECT * FROM tblPayment WHERE id IN (${placeholders}) ORDER BY date_paid DESC, id DESC`, payment_ids);
 
+    await dbRun('BEGIN TRANSACTION');
+
     for (const p of payments) {
       if (p.status === 'reversed') continue;
 
-      // Update Loan Balance
-      await dbRun(`UPDATE tblLoan SET balance=balance+?, total_paid=total_paid-?, status='active', updated_at=datetime('now') WHERE id=?`, [p.amount_paid, p.amount_paid, p.loan_id]);
-      
       // Update Payment Status
       await dbRun(`UPDATE tblPayment SET status='reversed', reversed_at=datetime('now'), reversed_by=?, reversal_reason=? WHERE id=?`, [req.user.id, reason || 'Batch Reversal', p.id]);
-      
-      // Reverse Amortization Schedules
-      let remainingToReverse = p.amount_paid;
-      const paidSchedules = await dbAll(`SELECT * FROM tblAmortizationSchedule WHERE loan_id = ? AND amount_paid > 0 ORDER BY period_number DESC`, [p.loan_id]);
-      for (const sched of paidSchedules) {
-        if (remainingToReverse <= 0) break;
-        const amountToReverse = Math.min(remainingToReverse, sched.amount_paid);
-        const newPaid = sched.amount_paid - amountToReverse;
-        const schedStatus = (newPaid <= 0) ? 'pending' : 'partial';
-        await dbRun(`UPDATE tblAmortizationSchedule SET amount_paid = ?, status = ? WHERE id = ?`, [newPaid, schedStatus, sched.id]);
-        remainingToReverse -= amountToReverse;
-      }
 
       await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, 
         [req.user.id, req.user.username, 'REVERSE', 'PAYMENT', p.id, `Batch Reversal [${batch_id}] OR#${p.or_number}`]
@@ -214,11 +196,17 @@ router.post('/batch', authenticateToken, requireRole('admin', 'manager'), async 
     // Trigger recalculations for unique loans
     const uniqueLoans = [...new Set(payments.map(p => p.loan_id))];
     for (const lid of uniqueLoans) {
+      await recalculateLoanBalances(lid, { userId: req.user.id });
       triggerLoanRecalculation(lid).catch(e => console.error(e));
     }
 
+    await dbRun('COMMIT');
+
     res.json({ message: 'Batch reversal processed successfully', batch_id });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    await dbRun('ROLLBACK').catch(() => {});
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;
