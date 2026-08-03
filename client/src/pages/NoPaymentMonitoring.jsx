@@ -1,19 +1,22 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   AlertTriangle,
   Bell,
+  Banknote,
   Check,
   CheckCircle2,
   Clock3,
+  CreditCard,
   Eye,
   Flame,
   Handshake,
   History,
   Loader2,
   Phone,
+  Receipt,
   RefreshCw,
   Settings,
   UserRound,
@@ -59,6 +62,7 @@ export default function NoPaymentMonitoring() {
   const [timelineModal, setTimelineModal] = useState({ show: false, alert: null, history: [] });
   const [resolveModal, setResolveModal] = useState({ show: false, alert: null });
   const [escalateModal, setEscalateModal] = useState({ show: false, alert: null });
+  const [clientProfileModal, setClientProfileModal] = useState({ show: false, data: null, loading: false });
 
   const fetchAlerts = async () => {
     setLoading(true);
@@ -69,6 +73,17 @@ export default function NoPaymentMonitoring() {
       setError(err.response?.data?.error || err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openClientProfile = async (customerId) => {
+    setClientProfileModal({ show: true, data: null, loading: true });
+    try {
+      const res = await API.get(`/customers/${customerId}`);
+      setClientProfileModal({ show: true, data: res.data, loading: false });
+    } catch (err) {
+      alert('Could not load client profile: ' + (err.response?.data?.error || err.message));
+      setClientProfileModal({ show: false, data: null, loading: false });
     }
   };
 
@@ -227,7 +242,14 @@ export default function NoPaymentMonitoring() {
                     <div className="npm-client">
                       <div className="npm-avatar"><UserRound size={15} /></div>
                       <div>
-                        <strong>{item.customer_name}</strong>
+                        <button
+                          type="button"
+                          className="npm-client-name-btn"
+                          onClick={() => openClientProfile(item.customer_id)}
+                          title="Click to view loans & payment history"
+                        >
+                          {item.customer_name}
+                        </button>
                         <span>{item.customer_code} | {item.contact}</span>
                       </div>
                     </div>
@@ -462,6 +484,14 @@ export default function NoPaymentMonitoring() {
           </div>
         </Modal>
       )}
+
+      {clientProfileModal.show && (
+        <ClientProfileModal
+          data={clientProfileModal.data}
+          loading={clientProfileModal.loading}
+          onClose={() => setClientProfileModal({ show: false, data: null, loading: false })}
+        />
+      )}
     </div>
   );
 }
@@ -475,6 +505,178 @@ function Modal({ title, onClose, children }) {
           <button onClick={onClose} aria-label="Close modal"><X size={20} /></button>
         </div>
         {children}
+      </div>
+    </div>
+  );
+}
+
+function ClientProfileModal({ data, loading, onClose }) {
+  const [activeSection, setActiveSection] = useState('loans');
+
+  return (
+    <div className="npm-modal-overlay" onClick={onClose}>
+      <div className="npm-profile-modal" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="npm-profile-header">
+          <div className="npm-profile-title">
+            <div className="npm-profile-avatar">
+              <UserRound size={22} />
+            </div>
+            <div>
+              {loading ? (
+                <div className="npm-profile-loading"><Loader2 size={18} className="npm-spin" /> Loading profile...</div>
+              ) : (
+                <>
+                  <h3>{data?.full_name}</h3>
+                  <span>{data?.customer_code} &bull; {data?.contact || 'No contact'}</span>
+                </>
+              )}
+            </div>
+          </div>
+          <button className="npm-profile-close" onClick={onClose} aria-label="Close"><X size={20} /></button>
+        </div>
+
+        {!loading && data && (
+          <>
+            {/* Info bar */}
+            <div className="npm-profile-infobar">
+              <div className="npm-profile-info-item">
+                <span>Branch</span>
+                <strong>{data.branch_name || '—'}</strong>
+              </div>
+              <div className="npm-profile-info-item">
+                <span>Address</span>
+                <strong>{data.address || '—'}</strong>
+              </div>
+              <div className="npm-profile-info-item">
+                <span>Collector</span>
+                <strong>{data.collector_name || '—'}</strong>
+              </div>
+              <div className="npm-profile-info-item">
+                <span>Status</span>
+                <strong className={`npm-profile-status npm-profile-status--${(data.status || 'active').toLowerCase()}`}>
+                  {data.status || '—'}
+                </strong>
+              </div>
+            </div>
+
+            {/* Section tabs */}
+            <div className="npm-profile-tabs">
+              <button
+                type="button"
+                className={`npm-profile-tab ${activeSection === 'loans' ? 'active' : ''}`}
+                onClick={() => setActiveSection('loans')}
+              >
+                <CreditCard size={15} />
+                Loans ({(data.loans || []).length})
+              </button>
+              <button
+                type="button"
+                className={`npm-profile-tab ${activeSection === 'payments' ? 'active' : ''}`}
+                onClick={() => setActiveSection('payments')}
+              >
+                <Receipt size={15} />
+                Payment History ({(data.payments || []).length})
+              </button>
+            </div>
+
+            {/* Loans section */}
+            {activeSection === 'loans' && (
+              <div className="npm-profile-section">
+                {(data.loans || []).length === 0 ? (
+                  <div className="npm-profile-empty">No loans found.</div>
+                ) : (
+                  <table className="npm-profile-table">
+                    <thead>
+                      <tr>
+                        <th>Loan Code</th>
+                        <th>Type</th>
+                        <th>Principal</th>
+                        <th>Balance</th>
+                        <th>Amortization</th>
+                        <th>Released</th>
+                        <th>Maturity</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.loans.map(loan => (
+                        <tr key={loan.id}>
+                          <td><strong className="npm-profile-loan-code">{loan.loan_code}</strong></td>
+                          <td>{loan.loan_type || '—'}</td>
+                          <td>₱{fmtAmt(loan.principal)}</td>
+                          <td>
+                            <strong className={Number(loan.balance) > 0 ? 'npm-profile-bal-active' : 'npm-profile-bal-paid'}>
+                              ₱{fmtAmt(loan.balance)}
+                            </strong>
+                          </td>
+                          <td>₱{fmtAmt(loan.amortization)}</td>
+                          <td>{fmtDate(loan.date_released)}</td>
+                          <td>{fmtDate(loan.date_maturity)}</td>
+                          <td>
+                            <span className={`npm-profile-loan-status npm-profile-loan-status--${(loan.status || '').toLowerCase()}`}>
+                              {loan.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+
+            {/* Payments section */}
+            {activeSection === 'payments' && (
+              <div className="npm-profile-section">
+                {(data.payments || []).length === 0 ? (
+                  <div className="npm-profile-empty">No payment history found.</div>
+                ) : (
+                  <table className="npm-profile-table">
+                    <thead>
+                      <tr>
+                        <th>Loan Code</th>
+                        <th>Date Paid</th>
+                        <th>Amount</th>
+                        <th>Type</th>
+                        <th>OR No.</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.payments.map(p => (
+                        <tr key={p.id} className={p.status !== 'active' ? 'npm-profile-row-voided' : ''}>
+                          <td><strong>{p.loan_code}</strong></td>
+                          <td>{fmtDate(p.date_paid)}</td>
+                          <td>
+                            <strong className="npm-profile-pay-amount">
+                              <Banknote size={13} style={{ verticalAlign: 'middle', marginRight: 3 }} />
+                              ₱{fmtAmt(p.amount_paid)}
+                            </strong>
+                          </td>
+                          <td>{p.payment_type || p.or_type || '—'}</td>
+                          <td>{p.or_number || '—'}</td>
+                          <td>
+                            <span className={`npm-profile-pay-status ${p.status !== 'active' ? 'voided' : 'active'}`}>
+                              {p.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {loading && (
+          <div className="npm-profile-loading-full">
+            <Loader2 size={28} className="npm-spin" />
+            <span>Loading client data...</span>
+          </div>
+        )}
       </div>
     </div>
   );
