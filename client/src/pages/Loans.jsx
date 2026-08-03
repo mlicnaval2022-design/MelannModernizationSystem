@@ -17,13 +17,13 @@ export default function Loans() {
   const [status, setStatus] = useState('input')
   const [loading, setLoading] = useState(true)
 
-  // Filters
-  const [filterCollector, setFilterCollector] = useState('')
-  const [filterType, setFilterType] = useState('')
-  const [filterReleasedFrom, setFilterReleasedFrom] = useState('')
-  const [filterReleasedTo, setFilterReleasedTo] = useState('')
-  const [filterPaidFrom, setFilterPaidFrom] = useState('')
-  const [filterPaidTo, setFilterPaidTo] = useState('')
+  // Date & Collector Filters
+  const [filterCollector, setFilterCollector] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [filterReleasedFrom, setFilterReleasedFrom] = useState('');
+  const [filterReleasedTo, setFilterReleasedTo] = useState('');
+  const [filterPaidFrom, setFilterPaidFrom] = useState('');
+  const [filterPaidTo, setFilterPaidTo] = useState('');
   
   const [detailModal, setDetailModal] = useState(false)
   const [detailLoan, setDetailLoan] = useState(null)
