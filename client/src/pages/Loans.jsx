@@ -350,6 +350,18 @@ export default function Loans() {
                   <th>Collector</th>
                   <th>Status</th>
                 </tr>
+                {filteredRows.length > 0 && (
+                  <tr style={{ background: '#f8fafc', fontWeight: 'bold', borderBottom: '2px solid #cbd5e1' }}>
+                    <td colSpan={3} style={{ textAlign: 'right', padding: '12px 14px', color: '#475569', fontSize: '12px' }}>
+                      TOTALS ({filteredRows.length} {filteredRows.length === 1 ? 'record' : 'records'}):
+                    </td>
+                    <td className="text-right" style={{ padding: '12px 14px', color: '#0f172a', fontSize: '13px' }}>₱ {fmt(totalPrincipal)}</td>
+                    <td className="text-right" style={{ padding: '12px 14px', color: '#2563eb', fontSize: '13px' }}>₱ {fmt(totalInterest)}</td>
+                    <td className="text-right" style={{ padding: '12px 14px', color: '#059669', fontSize: '13px' }}>₱ {fmt(totalLoan)}</td>
+                    <td className="text-right" style={{ padding: '12px 14px', color: totalBalance > 0 ? '#dc2626' : '#059669', fontSize: '13px' }}>₱ {fmt(totalBalance)}</td>
+                    <td colSpan={5}></td>
+                  </tr>
+                )}
               </thead>
             <tbody>
               {loading ? <tr className="loading-row"><td colSpan={12}>⏳ Loading...</td></tr>
@@ -407,20 +419,6 @@ export default function Loans() {
                 })
               }
             </tbody>
-            {filteredRows.length > 0 && (
-              <tfoot>
-                <tr style={{ background: '#f8fafc', fontWeight: 'bold', borderTop: '2px solid #cbd5e1' }}>
-                  <td colSpan={3} style={{ textAlign: 'right', padding: '12px 14px', color: '#475569', fontSize: '12px' }}>
-                    TOTALS ({filteredRows.length} {filteredRows.length === 1 ? 'record' : 'records'}):
-                  </td>
-                  <td className="text-right" style={{ padding: '12px 14px', color: '#0f172a' }}>₱ {fmt(totalPrincipal)}</td>
-                  <td className="text-right" style={{ padding: '12px 14px', color: '#2563eb' }}>₱ {fmt(totalInterest)}</td>
-                  <td className="text-right" style={{ padding: '12px 14px', color: '#059669' }}>₱ {fmt(totalLoan)}</td>
-                  <td className="text-right" style={{ padding: '12px 14px', color: totalBalance > 0 ? '#dc2626' : '#059669' }}>₱ {fmt(totalBalance)}</td>
-                  <td colSpan={5}></td>
-                </tr>
-              </tfoot>
-            )}
             </table>
           </div>
           </div>
