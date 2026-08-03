@@ -10,6 +10,7 @@ import '../customers.css'
 import '../customers-v2.css'
 import CustomerWizard from '../components/CustomerWizard'
 import ReloanModal from '../components/ReloanModal'
+import ConfirmModal from '../components/ConfirmModal'
 import logoImg from '../assets/logo.png'
 import { Users, CheckCircle, XCircle, Calendar, Search, Filter, FileText, Phone, Mail, MapPin, User, MoreVertical, BarChart2, Plus, Printer, X, PieChart, List, Wallet, Scale, CalendarDays, CalendarClock, Info, ArrowDown, ArrowUp, ArrowDownUp } from 'lucide-react'
 
@@ -59,6 +60,7 @@ export default function Customers() {
   const [loanDeleteError, setLoanDeleteError] = useState(null)
   const [editLoanModal, setEditLoanModal] = useState(null)
   const [editLoanError, setEditLoanError] = useState(null)
+  const [cancelConfirmModal, setCancelConfirmModal] = useState(null)
   const suppressNextPrintRef = useRef(false)
 
   useEffect(() => {
@@ -256,22 +258,32 @@ export default function Customers() {
     }
   }
 
-  const cancelLoanFromSoa = async () => {
+  const initiateCancelLoanFromSoa = () => {
     if (!editLoanModal?.id) return;
-    const loanCode = editLoanModal.loan_code || `Loan ${editLoanModal.id}`;
-    if (!window.confirm(`Cancel ${loanCode}? This will mark it as cancelled and remove it from DCR release totals.`)) return;
+    setCancelConfirmModal({
+      loan: editLoanModal,
+      processing: false
+    });
+  };
+
+  const confirmCancelLoanFromSoa = async () => {
+    if (!cancelConfirmModal?.loan?.id) return;
+    const targetLoan = cancelConfirmModal.loan;
     try {
+      setCancelConfirmModal(prev => prev ? ({ ...prev, processing: true }) : null);
       setEditLoanError(null);
-      await API.put(`/loans/${editLoanModal.id}/status`, { status: 'cancelled' });
-      const idToReload = editLoanModal.customer_id || soaData?.id;
+      await API.put(`/loans/${targetLoan.id}/status`, { status: 'cancelled' });
+      const idToReload = targetLoan.customer_id || soaData?.id;
+      setCancelConfirmModal(null);
       setEditLoanModal(null);
-      setSelectedLoanForPayments(prev => prev?.id === editLoanModal.id ? null : prev);
-      setPrintModeLoan(prev => prev?.id === editLoanModal.id ? null : prev);
+      setSelectedLoanForPayments(prev => prev?.id === targetLoan.id ? null : prev);
+      setPrintModeLoan(prev => prev?.id === targetLoan.id ? null : prev);
       if (idToReload) {
         openSoa(idToReload);
       }
       load();
     } catch (err) {
+      setCancelConfirmModal(null);
       setEditLoanError(err.response?.data?.error || 'Failed to cancel loan');
     }
   };
@@ -2627,57 +2639,256 @@ export default function Customers() {
       )}
 
       {editLoanModal && (
-        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999 }}>
-          <div className="modal-content" style={{ background: '#fff', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)' }}>
-            <h3 style={{ margin: '0 0 20px 0', color: '#0f172a', fontSize: '20px', fontWeight: 700 }}>Edit Loan</h3>
-            {editLoanError && (
-              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', borderRadius: 10, padding: '12px 14px', marginBottom: 16, fontSize: 13, lineHeight: 1.4 }}>
-                <i className="bi bi-exclamation-circle" style={{ fontSize: 16, marginTop: 1 }}></i>
+        <div
+          className="modal-overlay"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '20px'
+          }}
+          onMouseDown={e => e.target === e.currentTarget && setEditLoanModal(null)}
+        >
+          <div
+            className="modal-content"
+            style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              padding: '28px 32px 32px',
+              width: '100%',
+              maxWidth: '460px',
+              boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(226, 232, 240, 0.8)',
+              animation: 'modalIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+              position: 'relative'
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px', paddingBottom: '16px', borderBottom: '1px solid #f1f5f9' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#eff6ff', color: '#2563eb', border: '1px solid #dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                  <i className="bi bi-pencil-square"></i>
+                </div>
                 <div>
-                  <div style={{ fontWeight: 800, marginBottom: 2 }}>Unable to save changes</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ margin: 0, color: '#0f172a', fontSize: '20px', fontWeight: 800, letterSpacing: '-0.02em' }}>Edit Loan</h3>
+                    <span style={{ fontSize: '12px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: '#f1f5f9', color: '#475569', fontFamily: 'monospace' }}>
+                      {editLoanModal.loan_code || `LN-${editLoanModal.id}`}
+                    </span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#64748b', marginTop: '2px' }}>Modify loan terms or status</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setEditLoanError(null); setEditLoanModal(null); }}
+                style={{ width: '32px', height: '32px', borderRadius: '50%', border: 'none', background: '#f8fafc', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', transition: 'all 0.15s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = '#ef4444'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#64748b'; }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Error alert if any */}
+            {editLoanError && (
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', borderRadius: '12px', padding: '12px 14px', marginBottom: '20px', fontSize: '13px', lineHeight: 1.4 }}>
+                <i className="bi bi-exclamation-circle-fill" style={{ fontSize: '16px', marginTop: '1px', color: '#ef4444' }}></i>
+                <div>
+                  <div style={{ fontWeight: 800, marginBottom: '2px' }}>Unable to save changes</div>
                   <div>{editLoanError}</div>
                 </div>
               </div>
             )}
+
+            {/* Form controls */}
             <form onSubmit={handleEditLoanSubmit}>
-              <div className="form-group" style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Loan Type</label>
-                <select className="form-control" value={editLoanModal.loan_type || 'New'} onChange={e => { setEditLoanError(null); setEditLoanModal({...editLoanModal, loan_type: e.target.value, __loanTypeTouched: true}); }} required>
-                  <option value="New">New</option>
-                  <option value="Reloan">Reloan</option>
-                  <option value="Recon">Recon</option>
-                  <option value="Reconstruct">Reconstruct</option>
-                  <option value="Re-CI">Re-CI</option>
-                </select>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', marginBottom: '28px' }}>
+                
+                {/* Loan Type */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Loan Type
+                  </label>
+                  <select
+                    className="form-control"
+                    style={{ width: '100%', borderRadius: '10px', border: '1px solid #cbd5e1', padding: '10px 12px', fontSize: '14px', fontWeight: 600, color: '#0f172a', background: '#ffffff' }}
+                    value={editLoanModal.loan_type || 'New'}
+                    onChange={e => { setEditLoanError(null); setEditLoanModal({...editLoanModal, loan_type: e.target.value, __loanTypeTouched: true}); }}
+                    required
+                  >
+                    <option value="New">New</option>
+                    <option value="Reloan">Reloan</option>
+                    <option value="Recon">Recon</option>
+                    <option value="Reconstruct">Reconstruct</option>
+                    <option value="Re-CI">Re-CI</option>
+                  </select>
+                </div>
+
+                {/* Grid for Financial Fields */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                      Principal Amount
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontWeight: 700, fontSize: '14px' }}>₱</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="form-control"
+                        style={{ width: '100%', paddingLeft: '28px', borderRadius: '10px', border: '1px solid #cbd5e1', padding: '10px 12px 10px 28px', fontSize: '14px', fontWeight: 600, color: '#0f172a' }}
+                        value={editLoanModal.principal || ''}
+                        onChange={e => setEditLoanModal({...editLoanModal, principal: e.target.value, __financialTouched: true})}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                      Interest Rate (%)
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="form-control"
+                        style={{ width: '100%', paddingRight: '28px', borderRadius: '10px', border: '1px solid #cbd5e1', padding: '10px 28px 10px 12px', fontSize: '14px', fontWeight: 600, color: '#0f172a' }}
+                        value={editLoanModal.interest_rate || 0}
+                        onChange={e => setEditLoanModal({...editLoanModal, interest_rate: e.target.value, __financialTouched: true})}
+                        required
+                      />
+                      <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontWeight: 700, fontSize: '14px' }}>%</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                      Loan Period (Days)
+                    </label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      style={{ width: '100%', borderRadius: '10px', border: '1px solid #cbd5e1', padding: '10px 12px', fontSize: '14px', fontWeight: 600, color: '#0f172a' }}
+                      value={editLoanModal.loan_period || ''}
+                      onChange={e => setEditLoanModal({...editLoanModal, loan_period: e.target.value, __financialTouched: true})}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                      Date Released
+                    </label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      style={{ width: '100%', borderRadius: '10px', border: '1px solid #cbd5e1', padding: '9px 12px', fontSize: '13px', fontWeight: 600, color: '#0f172a' }}
+                      value={editLoanModal.date_released || ''}
+                      onChange={e => setEditLoanModal({...editLoanModal, date_released: e.target.value, __financialTouched: true})}
+                      required
+                    />
+                  </div>
+                </div>
+
               </div>
-              <div className="form-group" style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Principal Amount</label>
-                <input type="number" step="0.01" className="form-control" value={editLoanModal.principal || ''} onChange={e => setEditLoanModal({...editLoanModal, principal: e.target.value, __financialTouched: true})} required />
-              </div>
-              <div className="form-group" style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Interest Rate (%)</label>
-                <input type="number" step="0.01" className="form-control" value={editLoanModal.interest_rate || 0} onChange={e => setEditLoanModal({...editLoanModal, interest_rate: e.target.value, __financialTouched: true})} required />
-              </div>
-              <div className="form-group" style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Loan Period (Days)</label>
-                <input type="number" className="form-control" value={editLoanModal.loan_period || ''} onChange={e => setEditLoanModal({...editLoanModal, loan_period: e.target.value, __financialTouched: true})} required />
-              </div>
-              <div className="form-group" style={{ marginBottom: '24px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Date Released</label>
-                <input type="date" className="form-control" value={editLoanModal.date_released || ''} onChange={e => setEditLoanModal({...editLoanModal, date_released: e.target.value, __financialTouched: true})} required />
-              </div>
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+
+              {/* Footer Action Buttons */}
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
                 {!['cancelled', 'canceled'].includes(String(editLoanModal.status || '').toLowerCase()) && (
-                  <button type="button" onClick={cancelLoanFromSoa} className="btn btn-danger" style={{ marginRight: 'auto' }}>
+                  <button
+                    type="button"
+                    onClick={initiateCancelLoanFromSoa}
+                    style={{
+                      marginRight: 'auto',
+                      padding: '10px 16px',
+                      borderRadius: '10px',
+                      border: '1px solid #fecaca',
+                      background: '#fef2f2',
+                      color: '#dc2626',
+                      fontWeight: 700,
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#dc2626'; e.currentTarget.style.color = '#ffffff'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626'; }}
+                  >
+                    <i className="bi bi-x-circle-fill"></i>
                     Cancel Loan
                   </button>
                 )}
-                <button type="button" onClick={() => { setEditLoanError(null); setEditLoanModal(null); }} className="btn btn-light" style={{ border: '1px solid #cbd5e1' }}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Save Changes</button>
+
+                <button
+                  type="button"
+                  onClick={() => { setEditLoanError(null); setEditLoanModal(null); }}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: '10px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#475569',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; }}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  style={{
+                    padding: '10px 22px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(37, 99, 235, 0.4)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37, 99, 235, 0.3)'; }}
+                >
+                  Save Changes
+                </button>
               </div>
             </form>
           </div>
         </div>
+      )}
+
+      {cancelConfirmModal && (
+        <ConfirmModal
+          isOpen={true}
+          title="Cancel Loan Confirmation"
+          badgeText={cancelConfirmModal.loan?.loan_code || `LN-${cancelConfirmModal.loan?.id}`}
+          message="Are you sure you want to cancel this loan? This action will mark it as cancelled and remove it from DCR release totals."
+          subMessage="This operation cannot be undone. All release records for this loan will be removed from daily totals."
+          type="danger"
+          confirmText="Yes, Cancel Loan"
+          cancelText="Keep Loan"
+          loading={cancelConfirmModal.processing}
+          onConfirm={confirmCancelLoanFromSoa}
+          onCancel={() => setCancelConfirmModal(null)}
+        />
       )}
 
       <ReloanModal 

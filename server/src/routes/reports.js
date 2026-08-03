@@ -657,6 +657,20 @@ router.get('/disclosure-statement', authenticateToken, async (req, res) => {
     }
 
     const loan = loans[0];
+    const normalizedLoanType = String(loan.loan_type || '').toUpperCase().replace(/[-\s]/g, '');
+    if (['RECON', 'RELOAN'].includes(normalizedLoanType) && Number(loan.previous_balance || 0) <= 0) {
+      const priorBalancePayment = await dbGet(`
+        SELECT amount_paid
+        FROM tblPayment
+        WHERE customer_id = ?
+          AND date_paid = ?
+          AND status = 'active'
+          AND LOWER(COALESCE(remarks, '')) LIKE '%old balance during%'
+        ORDER BY id DESC
+        LIMIT 1
+      `, [loan.customer_id, loan.date_released]);
+      if (priorBalancePayment) loan.previous_balance = Number(priorBalancePayment.amount_paid || 0);
+    }
     const clientAddress = buildClientAddress(loan);
     loan.address = clientAddress || loan.address;
     loan.customer_address = loan.address;

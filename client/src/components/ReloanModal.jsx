@@ -55,6 +55,7 @@ const findLatestLoan = loans => [...(loans || [])].sort((a, b) => {
 })[0] || null;
 
 const activeStatuses = ['active', 'pastdue', 'pending', 'approved', 'for_approval', 'reloan_pending'];
+const hasPositiveAmount = value => Number(value || 0) > 0;
 
 export default function ReloanModal({ isOpen, onClose, customerId, customer, loanType = 'RELOAN', onReloanSubmitted, onViewSoa }) {
   const { user, hasRole } = useAuth();
@@ -95,9 +96,12 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
         API.get(`/customers/${activeCustomerId}/reloan-eval`)
       ]);
       setAccount({ ...profile.data, eval: evalRes.data });
+      const latest = findLatestLoan(profile.data?.loans);
+      const transferBalance = evalRes.data.active_balance || latest?.balance || 0;
       setForm(current => ({
         ...current,
-        principal: current.principal || (normalizeLoanType(current.loanType) === 'RECON' ? evalRes.data.active_balance || '' : ''),
+        principal: current.principal || '',
+        balance: normalizeLoanType(current.loanType) === 'NEW' || hasPositiveAmount(current.balance) ? current.balance : String(transferBalance || 0),
         passbook: normalizeLoanType(current.loanType) === 'NEW' ? '50' : current.passbook
       }));
     } catch (err) {
@@ -201,7 +205,17 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
 
   const updateForm = (key, value) => {
     setPreview(false);
-    setForm(current => ({ ...current, [key]: value }));
+    setForm(current => {
+      if (key !== 'loanType') return { ...current, [key]: value };
+      const normalizedType = normalizeLoanType(value);
+      const transferBalance = account?.eval?.active_balance || latestLoan?.balance || 0;
+      return {
+        ...current,
+        loanType: value,
+        balance: normalizedType === 'NEW' ? '0' : (hasPositiveAmount(current.balance) ? current.balance : String(transferBalance || 0)),
+        passbook: normalizedType === 'NEW' ? '50' : current.passbook
+      };
+    });
   };
 
   const validate = () => {

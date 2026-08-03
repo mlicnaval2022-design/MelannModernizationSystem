@@ -4,6 +4,7 @@ import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import FullyPaid from './FullyPaid'
 import ReloanModal from '../components/ReloanModal'
+import ConfirmModal from '../components/ConfirmModal'
 import { FilePlus, RefreshCw, Wrench, FileText } from 'lucide-react'
 import './Loans.css'
 
@@ -34,6 +35,7 @@ export default function Loans() {
   const [reloanModalOpen, setReloanModalOpen] = useState(false)
   const [confirmModal, setConfirmModal] = useState(null)
   const [editModal, setEditModal] = useState(null)
+  const [cancelConfirmModal, setCancelConfirmModal] = useState(null)
   const [noteModal, setNoteModal] = useState(null)
 
   const triggerRecon = (r) => {
@@ -102,15 +104,25 @@ export default function Loans() {
     }
   };
 
-  const handleCancelLoan = async () => {
+  const initiateCancelLoan = () => {
     if (!editModal?.id) return;
-    const loanCode = editModal.loan_code || `Loan ${editModal.id}`;
-    if (!window.confirm(`Cancel ${loanCode}? This will mark it as cancelled and remove it from DCR release totals.`)) return;
+    setCancelConfirmModal({
+      loan: editModal,
+      processing: false
+    });
+  };
+
+  const confirmCancelLoan = async () => {
+    if (!cancelConfirmModal?.loan?.id) return;
+    const targetLoan = cancelConfirmModal.loan;
     try {
-      await API.put(`/loans/${editModal.id}/status`, { status: 'cancelled' });
+      setCancelConfirmModal(prev => prev ? ({ ...prev, processing: true }) : null);
+      await API.put(`/loans/${targetLoan.id}/status`, { status: 'cancelled' });
+      setCancelConfirmModal(null);
       setEditModal(null);
       load();
     } catch (err) {
+      setCancelConfirmModal(null);
       alert(err.response?.data?.error || 'Failed to cancel loan');
     }
   };

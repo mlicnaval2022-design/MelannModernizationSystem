@@ -905,7 +905,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
       ? (normalizedLoanType === 'NEW' ? 50 : 0)
       : Number(passbook || 0);
     const shouldPostPriorBalance = ['RECON', 'RELOAN'].includes(normalizedLoanType);
-    const newLoanPreviousBalance = shouldPostPriorBalance ? 0 : balanceAmount;
+    const newLoanPreviousBalance = shouldPostPriorBalance ? balanceAmount : 0;
     const totalCharges = balanceAmount + penaltyAmount + passbookAmount;
     const netProceeds = amount;
 
