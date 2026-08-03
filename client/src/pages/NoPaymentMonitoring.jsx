@@ -513,6 +513,12 @@ function Modal({ title, onClose, children }) {
 function ClientProfileModal({ data, loading, onClose }) {
   const [activeSection, setActiveSection] = useState('loans');
 
+  // Only show the latest loan and its payments
+  const latestLoan = (data?.loans || [])[0] || null;
+  const latestLoanPayments = latestLoan
+    ? (data?.payments || []).filter(p => p.loan_code === latestLoan.loan_code)
+    : [];
+
   return (
     <div className="npm-modal-overlay" onClick={onClose}>
       <div className="npm-profile-modal" onClick={e => e.stopPropagation()}>
@@ -576,7 +582,7 @@ function ClientProfileModal({ data, loading, onClose }) {
                 onClick={() => setActiveSection('payments')}
               >
                 <Receipt size={15} />
-                Payment History ({(data.payments || []).length})
+                Payment History ({latestLoanPayments.length})
               </button>
             </div>
 
@@ -629,8 +635,8 @@ function ClientProfileModal({ data, loading, onClose }) {
             {/* Payments section */}
             {activeSection === 'payments' && (
               <div className="npm-profile-section">
-                {(data.payments || []).length === 0 ? (
-                  <div className="npm-profile-empty">No payment history found.</div>
+                {latestLoanPayments.length === 0 ? (
+                  <div className="npm-profile-empty">No payment history found for this loan.</div>
                 ) : (
                   <table className="npm-profile-table">
                     <thead>
@@ -644,7 +650,7 @@ function ClientProfileModal({ data, loading, onClose }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.payments.map(p => (
+                      {latestLoanPayments.map(p => (
                         <tr key={p.id} className={p.status !== 'active' ? 'npm-profile-row-voided' : ''}>
                           <td><strong>{p.loan_code}</strong></td>
                           <td>{fmtDate(p.date_paid)}</td>
