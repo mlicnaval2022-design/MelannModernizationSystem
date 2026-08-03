@@ -312,13 +312,24 @@ router.put('/:id/edit', authenticateToken, requireRole('admin', 'manager'), asyn
 
 router.put('/:id/status', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   try {
-    const { status } = req.body;
-    await dbRun(`UPDATE tblLoan SET status=?, updated_at=datetime('now') WHERE id=?`, [status, req.params.id]);
-    
-    if (status === 'reversed') {
-      await dbRun(`UPDATE tblAmortizationSchedule SET status='reversed' WHERE loan_id=? AND status='unpaid'`, [req.params.id]);
+    const requestedStatus = String(req.body.status || '').trim().toLowerCase();
+    const status = ['cancel', 'canceled', 'cancelled'].includes(requestedStatus) ? 'cancelled' : requestedStatus;
+    if (!status) return res.status(400).json({ error: 'Status is required' });
+
+    const loan = await dbGet('SELECT * FROM tblLoan WHERE id = ?', [req.params.id]);
+    if (!loan) return res.status(404).json({ error: 'Loan not found' });
+    if (status === 'cancelled' && loan.dcr_id) {
+      return res.status(400).json({ error: 'Cannot cancel a loan that has already been closed in a Daily Cash Report.' });
     }
+
+    await dbRun(`UPDATE tblLoan SET status=?, dcr_id = CASE WHEN ? = 'cancelled' THEN NULL ELSE dcr_id END, updated_at=datetime('now') WHERE id=?`, [status, status, req.params.id]);
     
+    if (status === 'reversed' || status === 'cancelled') {
+      await dbRun(`UPDATE tblAmortizationSchedule SET status=? WHERE loan_id=? AND status='unpaid'`, [status, req.params.id]);
+    }
+
+    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
+      [req.user.id, req.user.username, status === 'cancelled' ? 'CANCEL' : 'STATUS', 'LOAN', req.params.id, `Loan ${loan.loan_code} status changed from ${loan.status || 'blank'} to ${status}`]);
     res.json({ message: 'Loan status updated' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

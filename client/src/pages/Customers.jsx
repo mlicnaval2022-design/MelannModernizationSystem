@@ -256,6 +256,26 @@ export default function Customers() {
     }
   }
 
+  const cancelLoanFromSoa = async () => {
+    if (!editLoanModal?.id) return;
+    const loanCode = editLoanModal.loan_code || `Loan ${editLoanModal.id}`;
+    if (!window.confirm(`Cancel ${loanCode}? This will mark it as cancelled and remove it from DCR release totals.`)) return;
+    try {
+      setEditLoanError(null);
+      await API.put(`/loans/${editLoanModal.id}/status`, { status: 'cancelled' });
+      const idToReload = editLoanModal.customer_id || soaData?.id;
+      setEditLoanModal(null);
+      setSelectedLoanForPayments(prev => prev?.id === editLoanModal.id ? null : prev);
+      setPrintModeLoan(prev => prev?.id === editLoanModal.id ? null : prev);
+      if (idToReload) {
+        openSoa(idToReload);
+      }
+      load();
+    } catch (err) {
+      setEditLoanError(err.response?.data?.error || 'Failed to cancel loan');
+    }
+  };
+
   const handleEditLoanSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -2647,6 +2667,11 @@ export default function Customers() {
                 <input type="date" className="form-control" value={editLoanModal.date_released || ''} onChange={e => setEditLoanModal({...editLoanModal, date_released: e.target.value, __financialTouched: true})} required />
               </div>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                {!['cancelled', 'canceled'].includes(String(editLoanModal.status || '').toLowerCase()) && (
+                  <button type="button" onClick={cancelLoanFromSoa} className="btn btn-danger" style={{ marginRight: 'auto' }}>
+                    Cancel Loan
+                  </button>
+                )}
                 <button type="button" onClick={() => { setEditLoanError(null); setEditLoanModal(null); }} className="btn btn-light" style={{ border: '1px solid #cbd5e1' }}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Save Changes</button>
               </div>

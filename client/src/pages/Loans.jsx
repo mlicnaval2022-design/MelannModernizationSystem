@@ -102,6 +102,19 @@ export default function Loans() {
     }
   };
 
+  const handleCancelLoan = async () => {
+    if (!editModal?.id) return;
+    const loanCode = editModal.loan_code || `Loan ${editModal.id}`;
+    if (!window.confirm(`Cancel ${loanCode}? This will mark it as cancelled and remove it from DCR release totals.`)) return;
+    try {
+      await API.put(`/loans/${editModal.id}/status`, { status: 'cancelled' });
+      setEditModal(null);
+      load();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to cancel loan');
+    }
+  };
+
   const load = () => {
     setLoading(true)
     const params = new URLSearchParams()
@@ -798,6 +811,11 @@ export default function Loans() {
                 <input type="date" className="form-control" value={editModal.date_released || ''} onChange={e => setEditModal({...editModal, date_released: e.target.value})} required />
               </div>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                {!['cancelled', 'canceled'].includes(String(editModal.status || '').toLowerCase()) && (
+                  <button type="button" onClick={handleCancelLoan} className="btn btn-danger" style={{ marginRight: 'auto' }}>
+                    Cancel Loan
+                  </button>
+                )}
                 <button type="button" onClick={() => setEditModal(null)} className="btn btn-light" style={{ border: '1px solid #cbd5e1' }}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Save Changes</button>
               </div>
