@@ -5,6 +5,7 @@ import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import '../soa.css'
 import '../soa-v2.css'
+import '../soa-profile.css'
 import '../customers.css'
 import '../customers-v2.css'
 import CustomerWizard from '../components/CustomerWizard'
@@ -1259,59 +1260,130 @@ export default function Customers() {
                       </>
                     )}
 
-                    {soaTab === 'profile' && (
-                      <div className="soa-card">
-                        <div className="soa-list-card-header">
-                          <div className="soa-list-title">Profile</div>
-                          <button
-                            type="button"
-                            className="action-btn"
-                            onClick={() => {
-                              setSoaModal(false);
-                              openEdit(soaData);
-                            }}
-                          >
-                            Edit
-                          </button>
+                    {soaTab === 'profile' && (() => {
+                      const customerStatus = getCalculatedCustomerStatus(soaData) || 'Active';
+                      const statusClass = customerStatus.toLowerCase().replace(' ', '');
+                      const profileAge = soaData.birth_date ? (() => { const bd = new Date(soaData.birth_date); const now = new Date(); let a = now.getFullYear() - bd.getFullYear(); if (now.getMonth() < bd.getMonth() || (now.getMonth() === bd.getMonth() && now.getDate() < bd.getDate())) a--; return a > 0 ? `${a} yrs old` : null; })() : null;
+                      const sectionIcons = { 'Personal Information': '👤', 'Address Information': '📍', 'Contact Information': '📞', 'Business Information': '💼', 'ID Information': '🪪' };
+                      const sectionColors = { 'Personal Information': '#3b82f6', 'Address Information': '#10b981', 'Contact Information': '#8b5cf6', 'Business Information': '#f59e0b', 'ID Information': '#06b6d4' };
+                      return (
+                      <div className="sp-profile-redesign">
+                        {/* Hero Banner */}
+                        <div className="sp-hero-banner">
+                          <div className="sp-hero-bg-pattern"></div>
+                          <div className="sp-hero-content">
+                            <div className="sp-hero-left">
+                              <div className="sp-hero-avatar">
+                                {soaData.photo_client ? (
+                                  <img src={getImageUrl(soaData.photo_client)} alt="Avatar" />
+                                ) : (
+                                  <span>{cleanInitials}</span>
+                                )}
+                                <div className={`sp-hero-status-dot ${statusClass}`}></div>
+                              </div>
+                              <div className="sp-hero-info">
+                                <div className="sp-hero-name">{soaData.full_name}</div>
+                                <div className="sp-hero-meta">
+                                  <span className="sp-hero-code"><i className="bi bi-hash"></i> {soaData.customer_code}</span>
+                                  <span className="sp-hero-divider">•</span>
+                                  <span className="sp-hero-classification">{soaData.customer_classification || 'Client'}</span>
+                                  {profileAge && <><span className="sp-hero-divider">•</span><span>{profileAge}</span></>}
+                                </div>
+                                <div className="sp-hero-badges">
+                                  <span className={`sp-status-pill ${statusClass}`}><span className="sp-status-dot"></span>{customerStatus}</span>
+                                  {soaData.branch_name && <span className="sp-info-pill"><i className="bi bi-building"></i> {soaData.branch_name}</span>}
+                                  {soaData.collector_name && <span className="sp-info-pill"><i className="bi bi-person-badge"></i> {soaData.collector_name}</span>}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="sp-hero-right">
+                              <button type="button" className="sp-edit-btn" onClick={() => { setSoaModal(false); openEdit(soaData); }}>
+                                <i className="bi bi-pencil-square"></i> Edit Profile
+                              </button>
+                            </div>
+                          </div>
+                          {/* Quick stats row */}
+                          <div className="sp-quick-stats">
+                            <div className="sp-quick-stat">
+                              <div className="sp-qs-icon blue"><Phone size={16} /></div>
+                              <div><div className="sp-qs-label">Contact</div><div className="sp-qs-val">{soaData.contact || '-'}</div></div>
+                            </div>
+                            <div className="sp-quick-stat">
+                              <div className="sp-qs-icon green"><MapPin size={16} /></div>
+                              <div><div className="sp-qs-label">Address</div><div className="sp-qs-val">{[soaData.brgy, soaData.city].filter(Boolean).join(', ') || '-'}</div></div>
+                            </div>
+                            <div className="sp-quick-stat">
+                              <div className="sp-qs-icon purple"><Mail size={16} /></div>
+                              <div><div className="sp-qs-label">Email</div><div className="sp-qs-val">{soaData.email || '-'}</div></div>
+                            </div>
+                            <div className="sp-quick-stat">
+                              <div className="sp-qs-icon amber"><CalendarDays size={16} /></div>
+                              <div><div className="sp-qs-label">Member Since</div><div className="sp-qs-val">{memberSince}</div></div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="soa-profile-grid">
+
+                        {/* Info Sections Grid */}
+                        <div className="sp-sections-grid">
                           {profileSections.map(section => (
-                            <section className="soa-profile-section" key={section.title}>
-                              <h4>{section.title}</h4>
-                              <div className="soa-profile-fields">
+                            <div className="sp-info-card" key={section.title}>
+                              <div className="sp-card-header" style={{ '--accent': sectionColors[section.title] || '#3b82f6' }}>
+                                <span className="sp-card-icon">{sectionIcons[section.title] || '📋'}</span>
+                                <span className="sp-card-title">{section.title}</span>
+                              </div>
+                              <div className="sp-card-body">
                                 {section.fields.map(([label, value]) => (
-                                  <div className="soa-profile-field" key={label}>
-                                    <span>{label}</span>
-                                    <strong>{value || '-'}</strong>
+                                  <div className="sp-field-row" key={label}>
+                                    <span className="sp-field-label">{label}</span>
+                                    <span className="sp-field-value">{label === 'Status' && value ? (
+                                      <span className={`sp-status-pill-sm ${(value || '').toLowerCase()}`}>{value}</span>
+                                    ) : (value || '-')}</span>
                                   </div>
                                 ))}
                               </div>
-                            </section>
+                            </div>
                           ))}
                         </div>
 
-                        <section className="soa-profile-section" style={{ marginTop: '24px', gridColumn: '1 / -1' }}>
-                          <h4>ID AND PHOTO ATTACHMENTS</h4>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '12px' }}>
+                        {/* Photo Gallery */}
+                        <div className="sp-photo-section">
+                          <div className="sp-photo-header">
+                            <span className="sp-card-icon">📸</span>
+                            <span className="sp-card-title">ID & Photo Attachments</span>
+                          </div>
+                          <div className="sp-photo-grid">
                             {[
-                              ['Client Photo', soaData.photo_client],
-                              ['ID Front', soaData.photo_id_front],
-                              ['ID Back', soaData.photo_id_back],
-                              ['Business Proof / Store', soaData.photo_business_proof],
-                            ].map(([label, path]) => (
-                              <div key={label} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', background: '#fff' }}>
-                                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>{label}</div>
+                              ['Client Photo', soaData.photo_client, 'bi-person-bounding-box'],
+                              ['ID Front', soaData.photo_id_front, 'bi-card-heading'],
+                              ['ID Back', soaData.photo_id_back, 'bi-card-text'],
+                              ['Business Proof / Store', soaData.photo_business_proof, 'bi-shop'],
+                            ].map(([label, path, icon]) => (
+                              <div className="sp-photo-tile" key={label}>
+                                <div className="sp-photo-label"><i className={`bi ${icon}`}></i> {label}</div>
                                 {path ? (
-                                  <img src={getImageUrl(path)} alt={label} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '4px' }} />
+                                  <div className="sp-photo-img-wrap">
+                                    <img src={getImageUrl(path)} alt={label} />
+                                  </div>
                                 ) : (
-                                  <div style={{ width: '100%', height: '150px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', borderRadius: '4px', fontSize: '14px' }}>No image</div>
+                                  <div className="sp-photo-placeholder">
+                                    <i className={`bi ${icon}`}></i>
+                                    <span>No Image</span>
+                                  </div>
                                 )}
                               </div>
                             ))}
                           </div>
-                        </section>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="sp-profile-footer">
+                          <span><i className="bi bi-shield-check"></i> Profile ID: #{soaData.id}</span>
+                          <span><i className="bi bi-calendar-check"></i> Created: {soaData.created_at ? new Date(soaData.created_at).toLocaleDateString('en-US') : '-'}</span>
+                          <span><i className="bi bi-clock-history"></i> Updated: {soaData.updated_at ? new Date(soaData.updated_at).toLocaleDateString('en-US') : '-'}</span>
+                        </div>
                       </div>
-                    )}
+                      );
+                    })()}
 
                     {soaTab === 'history' && (
                       <div className="soa-card">
