@@ -670,6 +670,7 @@ router.get('/disclosure-statement', authenticateToken, async (req, res) => {
         LIMIT 1
       `, [loan.customer_id, loan.date_released]);
       if (priorBalancePayment) loan.previous_balance = Number(priorBalancePayment.amount_paid || 0);
+      else if (normalizedLoanType === 'RECON') loan.previous_balance = Number(loan.balance || 0);
     }
     const clientAddress = buildClientAddress(loan);
     loan.address = clientAddress || loan.address;
