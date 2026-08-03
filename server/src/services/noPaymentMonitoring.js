@@ -71,7 +71,7 @@ async function evaluateLoan(loan, holidays, settings, todayStr = dayjs().format(
   let firstMissedDate = null;
   let latestMissedDate = null;
 
-  while (currentDate.isAfter(releaseDate) || currentDate.isSame(releaseDate, 'day')) {
+  while (currentDate.isAfter(releaseDate, 'day')) {
     const dateStr = currentDate.format('YYYY-MM-DD');
     const isSunday = currentDate.day() === 0;
 
