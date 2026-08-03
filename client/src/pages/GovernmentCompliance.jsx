@@ -23,31 +23,6 @@ const AGENCIES = {
     statuses: ['Not Started', 'Ongoing', 'Ready for Submission', 'Submitted', 'Approved', 'Returned', 'Completed'],
     filingTypes: ['GIS', 'AFS', 'General Information Sheet', 'Articles of Amendment', 'Increase of Capital', 'Business Plan', 'Certificate Under Oath', 'Comparative Matrix', 'Other SEC Filings'],
     attachments: ['GIS', 'AFS', 'Articles of Amendment', 'Business Plan', 'Certificate Under Oath', 'Comparative Matrix', 'Other SEC Filing'],
-import { useEffect, useMemo, useRef, useState } from 'react';
-import API from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import './GovernmentCompliance.css';
-
-const apiOrigin = API.defaults.baseURL.replace('/api', '');
-
-const AGENCIES = {
-  CIC: {
-    label: 'FOR CIC',
-    filters: ['month', 'year', 'status'],
-    statuses: ['Pending', 'For Review', 'Submitted', 'Accepted', 'Rejected', 'Needs Correction'],
-    attachments: ['CIC Data File', 'Transmittal', 'Confirmation Receipt', 'Supporting Documents'],
-    columns: [
-      ['submission_month', 'Submission Month'], ['reporting_period', 'Reporting Period'], ['due_date', 'Due Date'],
-      ['date_submitted', 'Date Submitted'], ['status', 'Status'], ['remarks', 'Remarks'], ['prepared_by', 'Prepared By'],
-      ['verified_by', 'Verified By'], ['file_uploaded', 'File Uploaded'], ['date_uploaded', 'Date Uploaded']
-    ]
-  },
-  SEC: {
-    label: 'FOR SEC',
-    filters: ['filing_type', 'year', 'status'],
-    statuses: ['Not Started', 'Ongoing', 'Ready for Submission', 'Submitted', 'Approved', 'Returned', 'Completed'],
-    filingTypes: ['GIS', 'AFS', 'General Information Sheet', 'Articles of Amendment', 'Increase of Capital', 'Business Plan', 'Certificate Under Oath', 'Comparative Matrix', 'Other SEC Filings'],
-    attachments: ['GIS', 'AFS', 'Articles of Amendment', 'Business Plan', 'Certificate Under Oath', 'Comparative Matrix', 'Other SEC Filing'],
     columns: [
       ['compliance_name', 'Compliance Name'], ['filing_type', 'Filing Type'], ['due_date', 'Due Date'],
       ['date_submitted', 'Date Submitted'], ['status', 'Status'], ['assigned_personnel', 'Assigned Personnel'],
@@ -203,114 +178,198 @@ export default function GovernmentCompliance() {
     interest: totals.interest + Number(row.interest_amount || 0),
     totalLoan: totals.totalLoan + Number(row.total_loan ?? row.loan_amount ?? 0)
   }), { count: 0, principal: 0, interest: 0, totalLoan: 0 }), [filteredClientRows]);
-  const kpis = useMemo(() => [
-            <tbody>
-              {loading ? <tr className="loading-row"><td colSpan={config.columns.length + 1}>Loading compliance records...</td></tr>
-                : rows.length === 0 ? <tr><td colSpan={config.columns.length + 1} className="empty-state">No compliance records found.</td></tr>
-                : rows.map(row => (
-                  <tr key={row.id}>
-                    {config.columns.map(([key]) => <td key={key}>{renderValue(row, key)}</td>)}
-                    <td><div className="gc-actions">
-                      {canWrite && <button className="btn btn-sm btn-secondary" onClick={() => openForm(row)}>Edit</button>}
-                      {canWrite && <button className="btn btn-sm btn-secondary" onClick={() => setUploadTarget({ row, document_type: config.attachments[0], replace: false })}>Upload</button>}
-                      {firstAttachment(row) && <a className="btn btn-sm btn-secondary" href={`${apiOrigin}${firstAttachment(row).file_url}`} target="_blank" rel="noreferrer">View</a>}
-                      {firstAttachment(row) && <a className="btn btn-sm btn-secondary" href={`${apiOrigin}${firstAttachment(row).file_url}`} download>Download</a>}
-                      {canWrite && firstAttachment(row) && <button className="btn btn-sm btn-secondary" onClick={() => setUploadTarget({ row, document_type: firstAttachment(row).document_type, replace: true })}>Replace</button>}
-                      <button className="btn btn-sm btn-secondary" onClick={() => window.print()}>Print</button>
-                      <button className="btn btn-sm btn-secondary" onClick={() => openHistory(row)}>{active === 'SEC' ? 'Timeline' : 'History'}</button>
-                      {canWrite && <button className="btn btn-sm btn-danger" onClick={() => archiveRow(row)}>Archive</button>}
-                    </div></td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
+  const kpis = useMemo(() => {
+    const cards = summary.cards?.[active] || {};
+    return [
+      ['Total', cards.total || 0, 'blue'],
+      ['Due Soon', cards.due_soon || cards.dueSoon || 0, 'yellow'],
+      ['Overdue', cards.overdue || 0, 'red'],
+      ['Completed', cards.completed || cards.accepted || cards.approved || 0, 'green']
+    ];
+  }, [summary, active]);
 
-        <div className="gc-pagination">
-          <span>{total} record(s)</span>
-          <button className="btn btn-sm btn-secondary" disabled={filters.page <= 1} onClick={() => setFilters(f => ({ ...f, page: f.page - 1 }))}>Previous</button>
-          <span>Page {filters.page} of {pageCount}</span>
-          <button className="btn btn-sm btn-secondary" disabled={filters.page >= pageCount} onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}>Next</button>
+  const renderValue = (row, key) => {
+    const value = row[key];
+    if (key === 'status') return <span className={badgeClass(value)}>{value || '-'}</span>;
+    if (key === 'amount') return money(value);
+    if (key === 'file_uploaded') return firstAttachment(row) ? 'Yes' : 'No';
+    if (key === 'date_uploaded') return firstAttachment(row)?.uploaded_at || '-';
+    if (key === 'uploaded_documents') return row.attachments?.length ? `${row.attachments.length} file(s)` : '-';
+    return value || '-';
+  };
+
+  const sortBy = key => {
+    setFilters(f => ({ ...f, sort: key, dir: f.sort === key && f.dir === 'ASC' ? 'DESC' : 'ASC', page: 1 }));
+  };
+
+  const openForm = row => {
+    setForm(row ? { ...emptyForm, ...row } : { ...emptyForm, status: config.statuses[0] || '' });
+    setModal('form');
+  };
+
+  const saveForm = async e => {
+    e.preventDefault();
+    if (form.id) await API.put(`/government-compliance/${active}/${form.id}`, form);
+    else await API.post(`/government-compliance/${active}`, form);
+    setModal(null);
+    await loadRows();
+    await loadSummary().catch(() => {});
+  };
+
+  const archiveRow = async row => {
+    if (!window.confirm('Archive this compliance record?')) return;
+    await API.delete(`/government-compliance/${active}/${row.id}`);
+    await loadRows();
+    await loadSummary().catch(() => {});
+  };
+
+  const uploadFile = async e => {
+    e.preventDefault();
+    const file = fileRef.current?.files?.[0];
+    if (!file || !uploadTarget?.row) return;
+    const body = new FormData();
+    body.append('file', file);
+    body.append('document_type', uploadTarget.document_type || config.attachments[0]);
+    body.append('replace', uploadTarget.replace ? '1' : '0');
+    await API.post(`/government-compliance/${active}/${uploadTarget.row.id}/attachments`, body);
+    setUploadTarget(null);
+    await loadRows();
+  };
+
+  const openHistory = async row => {
+    const { data } = await API.get(`/government-compliance/${active}/${row.id}/history`);
+    setHistory(data);
+    setModal('history');
+  };
+
+  if (!canOpenModule(user)) return <div className="gc-page"><div className="empty-state">You do not have access to Government Compliance.</div></div>;
+
+  return (
+    <div className="gc-page">
+      <div className="payments-header">
+        <div>
+          <h2 className="payments-title">Government Compliance</h2>
+          <p className="payments-subtitle">Track CIC, SEC, and BIR compliance submissions.</p>
         </div>
-        </>
-        ) : (
-          <div className="table-wrapper gc-table-wrap" style={{ marginTop: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 16 }}>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Search</label>
-                  <input className="form-control" placeholder="Client, collector, branch" value={clientFilters.search} onChange={e => setClientFilters(f => ({ ...f, search: e.target.value }))} style={{ minWidth: 200 }} />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">From Date</label>
-                  <input className="form-control" type="date" value={clientFilters.startDate || ''} onChange={e => setClientFilters(f => ({ ...f, startDate: e.target.value }))} />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">To Date</label>
-                  <input className="form-control" type="date" value={clientFilters.endDate || ''} onChange={e => setClientFilters(f => ({ ...f, endDate: e.target.value }))} />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Loan Type</label>
-                  <select className="form-control" value={clientFilters.loanType} onChange={e => setClientFilters(f => ({ ...f, loanType: e.target.value }))}>
-                    <option value="">All Types</option>
-                    {clientLoanTypes.map(type => <option key={type}>{type}</option>)}
-                  </select>
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Status</label>
-                  <select className="form-control" value={clientFilters.status} onChange={e => setClientFilters(f => ({ ...f, status: e.target.value }))}>
-                    <option value="">All Status</option>
-                    {clientStatuses.map(status => <option key={status}>{status}</option>)}
-                  </select>
-                </div>
-                <button className="btn btn-secondary" onClick={() => setClientFilters({ search: '', loanType: '', status: '', startDate: '', endDate: '' })}>Clear</button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))', gap: 10, minWidth: 520 }}>
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Records</div><div style={{ fontWeight: 800 }}>{clientTotals.count}</div></div>
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Principal</div><div style={{ fontWeight: 800 }}>{money(clientTotals.principal)}</div></div>
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Interest</div><div style={{ fontWeight: 800 }}>{money(clientTotals.interest)}</div></div>
-                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#166534', fontWeight: 700 }}>Total Loan</div><div style={{ fontWeight: 800, color: '#166534' }}>{money(clientTotals.totalLoan)}</div></div>
-              </div>
-            </div>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Date Sent</th>
-                  <th>Client Code</th>
-                  <th>Client Name</th>
-                  <th>Principal Loan</th>
-                  <th>Interest</th>
-                  <th>Total Loan</th>
-                  <th>Type</th>
-                  <th>Release Date</th>
-                  <th>Collector</th>
-                  <th>Branch</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? <tr className="loading-row"><td colSpan={11}>Loading client reports...</td></tr>
-                  : filteredClientRows.length === 0 ? <tr><td colSpan={11} className="empty-state">No clients sent to {active} yet.</td></tr>
-                  : filteredClientRows.map(row => (
-                    <tr key={row.id}>
-                      <td style={{ color: '#64748b' }}>{new Date(row.created_at).toLocaleString()}</td>
-                      <td style={{ fontWeight: 'bold', color: '#1d4ed8' }}>{row.customer_code}</td>
-                      <td style={{ fontWeight: 'bold' }}>{row.customer_name}</td>
-                      <td>{money(row.principal_loan ?? row.loan_amount)}</td>
-                      <td>{money(row.interest_amount)}</td>
-                      <td style={{ fontWeight: 800, color: '#166534' }}>{money(row.total_loan ?? row.loan_amount)}</td>
-                      <td><span style={{ padding: '2px 8px', background: '#f1f5f9', borderRadius: '4px', fontSize: '12px' }}>{row.loan_type}</span></td>
-                      <td>{row.release_date}</td>
-                      <td>{row.collector_name || 'N/A'}</td>
-                      <td>{row.branch_name || 'N/A'}</td>
-                      <td><span className="gc-badge good">{row.status}</span></td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {canWrite && viewMode === 'company' && <button className="btn btn-primary" onClick={() => openForm(null)}>Add Record</button>}
       </div>
+
+      <div className="gc-kpis">
+        {kpis.map(([label, value, tone]) => <div className={`gc-kpi ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}
+      </div>
+
+      {summary.notifications?.length > 0 && (
+        <div className="gc-notifications">
+          <strong>Notifications</strong>
+          <div className="gc-notification-list">
+            {summary.notifications.map((note, idx) => <div className={`gc-note ${note.level || ''}`} key={idx}><strong>{note.title || note.agency || 'Reminder'}</strong><span>{note.message || note.description || ''}</span></div>)}
+          </div>
+        </div>
+      )}
+
+      <div className="gc-tabs">
+        {visibleAgencies.map(agency => <button key={agency} className={active === agency ? 'active' : ''} onClick={() => { setActive(agency); setViewMode('company'); setFilters(emptyFilters); }}>{AGENCIES[agency].label}</button>)}
+        {active === 'CIC' && <button className={viewMode === 'generator' ? 'active' : ''} onClick={() => setViewMode('generator')}>CIC Generator</button>}
+      </div>
+
+      {viewMode !== 'generator' && (
+        <div className="gc-tabs">
+          <button className={viewMode === 'company' ? 'active' : ''} onClick={() => setViewMode('company')}>Company Compliance</button>
+          <button className={viewMode === 'clients' ? 'active' : ''} onClick={() => setViewMode('clients')}>Client Reports</button>
+        </div>
+      )}
+
+      {viewMode === 'generator' ? <CICGenerator /> : (
+        <div>
+          {viewMode === 'company' ? (
+            <>
+              <div className="gc-toolbar">
+                <input className="form-control gc-filter" placeholder="Search" value={filters.search || ''} onChange={e => setFilters(f => ({ ...f, search: e.target.value, page: 1 }))} />
+                <input className="form-control gc-filter" type="date" value={filters.startDate || ''} onChange={e => setFilters(f => ({ ...f, startDate: e.target.value, page: 1 }))} />
+                <input className="form-control gc-filter" type="date" value={filters.endDate || ''} onChange={e => setFilters(f => ({ ...f, endDate: e.target.value, page: 1 }))} />
+                <select className="form-control gc-filter" value={filters.status || ''} onChange={e => setFilters(f => ({ ...f, status: e.target.value, page: 1 }))}>
+                  <option value="">All Status</option>
+                  {config.statuses.map(status => <option key={status}>{status}</option>)}
+                </select>
+                <button className="btn btn-secondary" onClick={() => setFilters(emptyFilters)}>Clear</button>
+              </div>
+              <div className="table-wrapper gc-table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>{config.columns.map(([key, label]) => <th key={key} onClick={() => sortBy(key)}>{label} {filters.sort === key ? (filters.dir === 'ASC' ? '^' : 'v') : ''}</th>)}<th>Actions</th></tr>
+                  </thead>
+                  <tbody>
+                    {loading ? <tr className="loading-row"><td colSpan={config.columns.length + 1}>Loading compliance records...</td></tr>
+                      : rows.length === 0 ? <tr><td colSpan={config.columns.length + 1} className="empty-state">No compliance records found.</td></tr>
+                      : rows.map(row => (
+                        <tr key={row.id}>
+                          {config.columns.map(([key]) => <td key={key}>{renderValue(row, key)}</td>)}
+                          <td><div className="gc-actions">
+                            {canWrite && <button className="btn btn-sm btn-secondary" onClick={() => openForm(row)}>Edit</button>}
+                            {canWrite && <button className="btn btn-sm btn-secondary" onClick={() => setUploadTarget({ row, document_type: config.attachments[0], replace: false })}>Upload</button>}
+                            {firstAttachment(row) && <a className="btn btn-sm btn-secondary" href={`${apiOrigin}${firstAttachment(row).file_url}`} target="_blank" rel="noreferrer">View</a>}
+                            {firstAttachment(row) && <a className="btn btn-sm btn-secondary" href={`${apiOrigin}${firstAttachment(row).file_url}`} download>Download</a>}
+                            {canWrite && firstAttachment(row) && <button className="btn btn-sm btn-secondary" onClick={() => setUploadTarget({ row, document_type: firstAttachment(row).document_type, replace: true })}>Replace</button>}
+                            <button className="btn btn-sm btn-secondary" onClick={() => window.print()}>Print</button>
+                            <button className="btn btn-sm btn-secondary" onClick={() => openHistory(row)}>{active === 'SEC' ? 'Timeline' : 'History'}</button>
+                            {canWrite && <button className="btn btn-sm btn-danger" onClick={() => archiveRow(row)}>Archive</button>}
+                          </div></td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="gc-pagination">
+                <span>{total} record(s)</span>
+                <button className="btn btn-sm btn-secondary" disabled={filters.page <= 1} onClick={() => setFilters(f => ({ ...f, page: f.page - 1 }))}>Previous</button>
+                <span>Page {filters.page} of {pageCount}</span>
+                <button className="btn btn-sm btn-secondary" disabled={filters.page >= pageCount} onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}>Next</button>
+              </div>
+            </>
+          ) : (
+            <div className="table-wrapper gc-table-wrap" style={{ marginTop: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 16 }}>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">Search</label><input className="form-control" placeholder="Client, collector, branch" value={clientFilters.search} onChange={e => setClientFilters(f => ({ ...f, search: e.target.value }))} style={{ minWidth: 200 }} /></div>
+                  <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">From Date</label><input className="form-control" type="date" value={clientFilters.startDate || ''} onChange={e => setClientFilters(f => ({ ...f, startDate: e.target.value }))} /></div>
+                  <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">To Date</label><input className="form-control" type="date" value={clientFilters.endDate || ''} onChange={e => setClientFilters(f => ({ ...f, endDate: e.target.value }))} /></div>
+                  <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">Loan Type</label><select className="form-control" value={clientFilters.loanType} onChange={e => setClientFilters(f => ({ ...f, loanType: e.target.value }))}><option value="">All Types</option>{clientLoanTypes.map(type => <option key={type}>{type}</option>)}</select></div>
+                  <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">Status</label><select className="form-control" value={clientFilters.status} onChange={e => setClientFilters(f => ({ ...f, status: e.target.value }))}><option value="">All Status</option>{clientStatuses.map(status => <option key={status}>{status}</option>)}</select></div>
+                  <button className="btn btn-secondary" onClick={() => setClientFilters({ search: '', loanType: '', status: '', startDate: '', endDate: '' })}>Clear</button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))', gap: 10, minWidth: 520 }}>
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Records</div><div style={{ fontWeight: 800 }}>{clientTotals.count}</div></div>
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Principal</div><div style={{ fontWeight: 800 }}>{money(clientTotals.principal)}</div></div>
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Interest</div><div style={{ fontWeight: 800 }}>{money(clientTotals.interest)}</div></div>
+                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#166534', fontWeight: 700 }}>Total Loan</div><div style={{ fontWeight: 800, color: '#166534' }}>{money(clientTotals.totalLoan)}</div></div>
+                </div>
+              </div>
+              <table className="data-table">
+                <thead><tr><th>Date Sent</th><th>Client Code</th><th>Client Name</th><th>Principal Loan</th><th>Interest</th><th>Total Loan</th><th>Type</th><th>Release Date</th><th>Collector</th><th>Branch</th><th>Status</th></tr></thead>
+                <tbody>
+                  {loading ? <tr className="loading-row"><td colSpan={11}>Loading client reports...</td></tr>
+                    : filteredClientRows.length === 0 ? <tr><td colSpan={11} className="empty-state">No clients sent to {active} yet.</td></tr>
+                    : filteredClientRows.map(row => (
+                      <tr key={row.id}>
+                        <td style={{ color: '#64748b' }}>{row.created_at ? new Date(row.created_at).toLocaleString() : '-'}</td>
+                        <td style={{ fontWeight: 'bold', color: '#1d4ed8' }}>{row.customer_code}</td>
+                        <td style={{ fontWeight: 'bold' }}>{row.customer_name}</td>
+                        <td>{money(row.principal_loan ?? row.loan_amount)}</td>
+                        <td>{money(row.interest_amount)}</td>
+                        <td style={{ fontWeight: 800, color: '#166534' }}>{money(row.total_loan ?? row.loan_amount)}</td>
+                        <td><span style={{ padding: '2px 8px', background: '#f1f5f9', borderRadius: '4px', fontSize: '12px' }}>{row.loan_type}</span></td>
+                        <td>{row.release_date}</td>
+                        <td>{row.collector_name || 'N/A'}</td>
+                        <td>{row.branch_name || 'N/A'}</td>
+                        <td><span className="gc-badge good">{row.status}</span></td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {modal && modal !== 'history' && (
         <div className="modal-overlay"><div className="modal gc-modal"><div className="modal-header"><span className="modal-title">{form.id ? 'Edit' : 'Add'} {AGENCIES[active].label}</span><button className="modal-close" onClick={() => setModal(null)}>x</button></div>
