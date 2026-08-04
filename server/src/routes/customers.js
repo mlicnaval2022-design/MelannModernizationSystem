@@ -331,16 +331,19 @@ router.get('/list/fully-paid', authenticateToken, async (req, res) => {
         (SELECT h.created_at FROM tblCustomerStatusHistory h WHERE h.customer_id = c.id AND UPPER(h.new_status) = 'HOLD' ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as hold_note_date
       FROM tblCustomer c
       LEFT JOIN tblCollector co ON c.collector_id = co.id
-      WHERE UPPER(c.status) IN ('FULLY PAID', 'RELAX', 'HOLD')
-         OR (
-           EXISTS (SELECT 1 FROM tblLoan l WHERE l.customer_id = c.id)
-           AND NOT EXISTS (
-             SELECT 1 FROM tblLoan l 
-             WHERE l.customer_id = c.id 
-               AND COALESCE(l.balance, 0) > 0 
-               AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled')
-           )
-         )
+      WHERE (
+        UPPER(c.status) = 'FULLY PAID'
+        OR (
+          EXISTS (SELECT 1 FROM tblLoan l WHERE l.customer_id = c.id)
+          AND NOT EXISTS (
+            SELECT 1 FROM tblLoan l 
+            WHERE l.customer_id = c.id 
+              AND COALESCE(l.balance, 0) > 0 
+              AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled')
+          )
+        )
+      )
+      AND UPPER(COALESCE(c.status, '')) NOT IN ('RELAX', 'HOLD', 'RECON', 'HOLD/PASTDUE')
     `);
     
     const today = new Date().toISOString().split('T')[0];
@@ -602,25 +605,27 @@ router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
     const pd = await dbGet(`SELECT COUNT(*) as past_due_occurrences FROM tblLoan WHERE customer_id = ? AND status='pastdue'`, [id]);
     const recon = await dbGet(`SELECT COUNT(*) as recon_history FROM tblCustomerStatusHistory WHERE customer_id = ? AND new_status='RECON'`, [id]);
 
-    const payments = lastLoan
-      ? await dbAll(`SELECT * FROM tblPayment WHERE loan_id = ? AND status != 'reversed' ORDER BY date_paid ASC, id ASC`, [lastLoan.id])
-      : [];
-    const totalPaymentCount = payments.length;
-    const consistency = lastLoan ? getPaymentConsistency(lastLoan, payments) : getPaymentConsistency({}, []);
-
-    const daysOverdue = lastLoan && lastLoan.date_maturity && Number(lastLoan.balance || 0) > 0
-      ? Math.max(0, daysBetween(lastLoan.date_maturity, today))
+    const releaseDate = lastLoan ? (lastLoan.date_released || (lastLoan.created_at ? String(lastLoan.created_at).split('T')[0] : null)) : null;
+    const daysSinceRelease = (releaseDate && String(lastLoan.status || '').toLowerCase() === 'active')
+      ? Math.max(0, daysBetween(releaseDate, today))
       : 0;
-    const penaltyRate = getPenaltyRate(daysOverdue);
-    const penaltyBase = lastLoan ? Number(lastLoan.balance || 0) : 0;
-    const recommendedPenalty = Math.round((penaltyBase * (penaltyRate / 100)) * 100) / 100;
-    const overdueStatus = daysOverdue > 0
-      ? (String(lastLoan.status).toLowerCase() === 'pastdue' ? 'past due' : 'overdue')
-      : 'current';
 
-    let score = 100 - ((sched ? sched.late : 0) * 2) - ((pd ? pd.past_due_occurrences : 0) * 20) + consistency.score_adjustment;
-    if (daysOverdue > 0) score -= Math.min(40, daysOverdue * 2);
-    score = Math.max(0, score);
+    let isUnrated = false;
+    let score = 100;
+
+    if (totalPaymentCount === 0) {
+      if (!lastLoan || daysSinceRelease <= 1) {
+        isUnrated = true;
+        score = 100;
+      } else {
+        // Active loan for 2+ days with ZERO payments
+        score = Math.max(0, 100 - (daysSinceRelease * 15) - ((pd ? pd.past_due_occurrences : 0) * 20));
+      }
+    } else {
+      score = 100 - ((sched ? sched.late : 0) * 2) - ((pd ? pd.past_due_occurrences : 0) * 20) + consistency.score_adjustment;
+      if (daysOverdue > 0) score -= Math.min(40, daysOverdue * 2);
+      score = Math.max(0, score);
+    }
 
     res.json({
       total_loans: stats ? stats.total_loans : 0,
@@ -632,6 +637,8 @@ router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
       past_due_occurrences: pd ? pd.past_due_occurrences : 0,
       recon_history: recon ? recon.recon_history : 0,
       credit_score: score,
+      is_unrated: isUnrated,
+      days_since_release_no_payment: totalPaymentCount === 0 ? daysSinceRelease : 0,
       payment_consistency: consistency,
       last_loan: lastLoan ? {
         id: lastLoan.id,

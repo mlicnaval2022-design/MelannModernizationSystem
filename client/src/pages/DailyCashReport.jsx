@@ -29,6 +29,14 @@ export default function DailyCashReport() {
   const [ytdExpenses, setYtdExpenses] = useState(0);
   const [isEditingYtd, setIsEditingYtd] = useState(false);
 
+  const getLoadErrorMessage = (err) => {
+    if (err?.response) {
+      const detail = err.response.data?.error || err.response.statusText || 'Request failed';
+      return `${detail} (HTTP ${err.response.status})`;
+    }
+    return err?.message || 'Failed to load Daily Cash Report.';
+  };
+
   const loadData = async () => {
     if (!date) {
       setData(null);
@@ -37,10 +45,13 @@ export default function DailyCashReport() {
     setLoading(true);
     setError('');
     try {
-      const bRes = await API.get('/branches');
-      setBranches(bRes.data);
-      const res = await API.get(`/dcr/summary?date=${date}&branch_id=${branchId}`);
+      const res = await API.get('/dcr/summary', {
+        params: { date, ...(branchId ? { branch_id: branchId } : {}) }
+      });
       setData(res.data);
+      API.get('/branches')
+        .then(bRes => setBranches(Array.isArray(bRes.data) ? bRes.data : []))
+        .catch(err => console.warn('Unable to load DCR branch list', err));
       
       setYtdReleases(res.data.ytd_beg_releases_default ?? 0);
       setYtdCollections(res.data.ytd_beg_collections_default ?? 0);
@@ -59,7 +70,7 @@ export default function DailyCashReport() {
     } catch (err) {
       console.error(err);
       setData(null);
-      setError(err?.response?.data?.error || err?.message || 'Failed to load Daily Cash Report.');
+      setError(getLoadErrorMessage(err));
     } 
     finally { setLoading(false); }
   };
