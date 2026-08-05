@@ -78,6 +78,10 @@ export default function DailyCashReport() {
   useEffect(() => { loadData(); }, [date, branchId]);
 
   const fmt = (num) => Number(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const releaseBalance = (release) => {
+    const previousBalance = Number(release.previous_balance || 0);
+    return previousBalance > 0 ? previousBalance : Number(release.old_balance_paid_today || 0);
+  };
 
   if (!data && loading) return <div style={{padding: 20}}>Loading Daily Cash Report...</div>;
   if (!data) return (
@@ -101,7 +105,8 @@ export default function DailyCashReport() {
     const name = r.collector_name || 'Unassigned';
     const releasePenalty = Number(r.penalty_payment_count || 0) > 0 ? 0 : Number(r.penalty || 0);
     const releasePassbook = Number(r.today_passbook ?? (r.passbook || 0));
-    const releaseCollections = Number(r.previous_balance || 0) + releasePenalty + releasePassbook;
+    const releaseBalanceNotInCollections = Math.max(0, Number(r.previous_balance || 0) - Number(r.old_balance_paid_today || 0));
+    const releaseCollections = releaseBalanceNotInCollections + releasePenalty + releasePassbook;
     if (releaseCollections > 0) {
       collByCollector[name] = (collByCollector[name] || 0) + releaseCollections;
     }
@@ -457,7 +462,7 @@ export default function DailyCashReport() {
                       <td className="text-right">{fmt(r.principal)}</td>
                       <td className="text-right">{fmt(r.today_penalty || 0)}</td>
                       <td className="text-right">{fmt(r.today_passbook || 0)}</td>
-                      <td className="text-right">{fmt(r.previous_balance || 0)}</td>
+                      <td className="text-right">{fmt(releaseBalance(r))}</td>
                     </tr>
                   ));
                 })()}
@@ -466,7 +471,7 @@ export default function DailyCashReport() {
                   <td className="text-right">₱{fmt(data.display_total_releases)}</td>
                   <td className="text-right">{fmt(data.releases.reduce((s, r) => s + Number(r.today_penalty || 0), 0))}</td>
                   <td className="text-right">{fmt(data.releases.reduce((s, r) => s + Number(r.today_passbook || 0), 0))}</td>
-                  <td className="text-right">{fmt(data.releases.reduce((s, r) => s + Number(r.previous_balance || 0), 0))}</td>
+                  <td className="text-right">{fmt(data.releases.reduce((s, r) => s + releaseBalance(r), 0))}</td>
                 </tr>
                 <tr className="dcr-footer-row">
                   <td colSpan={5}>TOTAL RECONSTRUCT AMOUNT</td>

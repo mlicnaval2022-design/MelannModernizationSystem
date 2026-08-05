@@ -1264,7 +1264,7 @@ export default function Reports() {
     if (active === 'past-due') {
       const loans = data.loans || []
       const rows = [
-        ['Collector', 'Customer Code', 'Customer Name', 'Loan Number', 'Principal', 'Interest', 'Total Loan Amount', 'Running Balance', 'Date Released', 'Maturity Date', 'Days Overdue'],
+        ['Collector', 'Customer Code', 'Customer Name', 'Loan Number', 'Principal', 'Interest', 'Total Loan Amount', 'Total Payment', 'Running Balance', 'Date Released', 'Maturity Date', 'Days Overdue'],
         ...loans.map(loan => [
           loan.collector_name || 'Unassigned',
           loan.customer_code,
@@ -1273,6 +1273,7 @@ export default function Reports() {
           rawMoney(loan.principal),
           rawMoney(loan.interest_amount),
           rawMoney(Number(loan.principal || 0) + Number(loan.interest_amount || 0)),
+          rawMoney(loan.total_paid),
           rawMoney(loan.balance),
           dateOnly(loan.date_released),
           dateOnly(loan.date_maturity),
@@ -4386,7 +4387,7 @@ export default function Reports() {
       )}
       {selectedCollector && (
         <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setSelectedCollector(null)}>
-          <div className="modal modal-print-area" id="printable-area" style={{ maxWidth: active === 'full-paid' ? 1180 : 980 }}>
+          <div className="modal modal-print-area" id="printable-area" style={{ maxWidth: (active === 'full-paid' || active === 'past-due') ? 1180 : 980 }}>
             <div className="modal-header">
               <span className="modal-title">{active === 'full-paid' ? 'Fully Paid Details' : active === 'payments-reversed' ? 'Reversed Payment Details' : (active === 'monthly-releases' || active === 'loan-type') ? 'Release Details' : active === 'past-due' ? 'Maturity Details' : 'Collection Details'} - {selectedCollector.collector}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -4484,7 +4485,7 @@ export default function Reports() {
                   ) : active === 'past-due' ? (
                     <>
                       <thead>
-                        <tr><th>Client Code</th><th>Client</th><th>Loan#</th><th className="text-right">Principal</th><th className="text-right">Total Loan Amount</th><th className="text-right">Balance</th><th>Maturity</th><th>Status</th></tr>
+                        <tr><th>Client Code</th><th>Client</th><th>Loan#</th><th className="text-right">Principal</th><th className="text-right">Total Loan Amount</th><th className="text-right">Total Payment</th><th className="text-right">Balance</th><th>Maturity</th><th>Status</th></tr>
                       </thead>
                       <tbody>
                         {selectedCollector.loans?.length === 0 ? <tr><td colSpan={9} className="empty-state">No maturity details</td></tr> : selectedCollector.loans?.map(l => (
@@ -4494,6 +4495,7 @@ export default function Reports() {
                             <td className="mono">{l.loan_code || '-'}</td>
                             <td className="text-right">PHP {fmt(l.principal)}</td>
                             <td className="text-right fw-bold text-accent">PHP {fmt(Number(l.principal || 0) + Number(l.interest_amount || 0))}</td>
+                            <td className="text-right fw-bold text-success">PHP {fmt(l.total_paid)}</td>
                             <td className="text-right fw-bold">PHP {fmt(l.balance)}</td>
                             <td>{l.date_maturity || '-'}</td>
                             <td><span className={`badge badge-${l.status}`}>{l.status === 'pastdue' && l.days_overdue > 0 ? `Pastdue (${l.days_overdue} days)` : l.status}</span></td>
