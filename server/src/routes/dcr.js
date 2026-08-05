@@ -7,6 +7,10 @@ const router = express.Router();
 const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
 
 const reconLoanTypesSql = `('recon', 'reconstruct', 'reconstructed')`;
+const optionalId = value => {
+  const normalized = String(value ?? '').trim();
+  return normalized || null;
+};
 
 const getDcrLoanCondition = () => `
   l.date_released = ?
@@ -42,7 +46,7 @@ const getCollectionBreakdown = (collections, passbooks, penalties, collectorsOve
     const amount = Number(payment.amount_paid || 0);
 
     if (status === 'penalty' || paymentType === 'penalty') breakdown.penalty += amount;
-    else if (remarks.includes('old balance') || remarks.includes('recon balance')) breakdown.balance += amount;
+    else if (remarks.includes('old balance') || remarks.includes('recon balance') || ['balance', 'recon', 'old_balance'].includes(paymentType)) breakdown.balance += amount;
     else breakdown.regular += amount;
   });
 
@@ -54,7 +58,7 @@ const isReleaseChargePayment = payment => {
   const status = String(payment.status || '').toLowerCase();
   const paymentType = String(payment.payment_type || '').toLowerCase();
   const remarks = String(payment.remarks || '').toLowerCase();
-  return status === 'penalty' || paymentType === 'penalty' || remarks.includes('old balance') || remarks.includes('recon balance');
+  return status === 'penalty' || paymentType === 'penalty' || remarks.includes('old balance') || remarks.includes('recon balance') || ['balance', 'recon', 'old_balance'].includes(paymentType);
 };
 
 const getReleaseChargeBreakdown = releases => releases.reduce((acc, release) => {
@@ -67,7 +71,8 @@ const getReleaseChargeBreakdown = releases => releases.reduce((acc, release) => 
 // Get summary for a specific date (combines collections, releases, expenses)
 router.get('/summary', authenticateToken, async (req, res) => {
   try {
-    const { date, branch_id } = req.query;
+    const { date } = req.query;
+    const branch_id = optionalId(req.query.branch_id);
     if (!date) return res.status(400).json({ error: 'Date is required' });
     requireOperationDate(date, 'DCR date');
 
@@ -152,10 +157,17 @@ router.get('/summary', authenticateToken, async (req, res) => {
     const existingDcr = await dbGet(dcrQuery, dcrParams);
 
     // Compute totals
-    const regularCollections = collections.filter(payment => !isReleaseChargePayment(payment) || String(payment.status || '').toLowerCase() === 'penalty');
-    const collection_breakdown = getCollectionBreakdown(regularCollections, passbooks, penalties, collectorsOver, otherTransactions);
+    const collection_breakdown = getCollectionBreakdown(collections, passbooks, penalties, collectorsOver, otherTransactions);
     const releaseChargeBreakdown = getReleaseChargeBreakdown(releases);
-    collection_breakdown.balance += releaseChargeBreakdown.balance;
+    
+    // Add release charges that were not already posted as payments in collections
+    const collectionsOldBal = collections
+      .filter(p => isReleaseChargePayment(p) && String(p.status || '').toLowerCase() !== 'penalty')
+      .reduce((sum, p) => sum + Number(p.amount_paid || 0), 0);
+      
+    if (releaseChargeBreakdown.balance > collectionsOldBal) {
+      collection_breakdown.balance += (releaseChargeBreakdown.balance - collectionsOldBal);
+    }
     collection_breakdown.penalty += releaseChargeBreakdown.penalty;
     collection_breakdown.passbook += releaseChargeBreakdown.passbook;
     const total_collections = Object.values(collection_breakdown).reduce((acc, amount) => acc + amount, 0);
@@ -243,7 +255,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
       expected_ending_cash,
       ending_cash_on_bank,
       total_cash_position,
-      collections: regularCollections,
+      collections,
       releases,
       transactions,
       expenses,
@@ -384,10 +396,15 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
     const penalties = transactions.filter(t => t.transaction_type === 'Penalty');
     const collectorsOver = transactions.filter(t => t.transaction_type === 'Collectors Over');
     const otherTransactions = transactions.filter(t => t.transaction_type === 'Other Transactions');
-    const regularCollections = collections.filter(payment => !isReleaseChargePayment(payment) || String(payment.status || '').toLowerCase() === 'penalty');
-    const collection_breakdown = getCollectionBreakdown(regularCollections, passbooks, penalties, collectorsOver, otherTransactions);
+    const collection_breakdown = getCollectionBreakdown(collections, passbooks, penalties, collectorsOver, otherTransactions);
     const releaseChargeBreakdown = getReleaseChargeBreakdown(releases);
-    collection_breakdown.balance += releaseChargeBreakdown.balance;
+    const collectionsOldBal = collections
+      .filter(p => isReleaseChargePayment(p) && String(p.status || '').toLowerCase() !== 'penalty')
+      .reduce((sum, p) => sum + Number(p.amount_paid || 0), 0);
+
+    if (releaseChargeBreakdown.balance > collectionsOldBal) {
+      collection_breakdown.balance += (releaseChargeBreakdown.balance - collectionsOldBal);
+    }
     collection_breakdown.penalty += releaseChargeBreakdown.penalty;
     collection_breakdown.passbook += releaseChargeBreakdown.passbook;
     let total_collections = Object.values(collection_breakdown).reduce((acc, amount) => acc + amount, 0);

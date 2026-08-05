@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import dayjs from 'dayjs';
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -210,41 +211,51 @@ export default function NoPaymentMonitoring() {
         </div>
       )}
 
-      {loading ? (
-        <div className="npm-state"><Loader2 size={22} className="npm-spin" /> Loading monitoring records...</div>
-      ) : error ? (
-        <div className="npm-error">{error}</div>
-      ) : (
-        <div className="npm-table-wrap">
-          <table className="data-table npm-table">
-            <thead>
-              <tr>
-                <th>Client</th>
-                <th>Loan Info</th>
-                <th>Collector</th>
-                <th>Alert Level</th>
-                <th>Consecutive Days</th>
-                <th>First Missed</th>
-                <th>Repeat Risk</th>
-                {activeTab === 'ptp' && <th>PTP Date</th>}
-                {activeTab === 'ptp' && <th>PTP Amount</th>}
-                <th>Last Follow-up</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.length === 0 ? (
+      {(() => {
+        const filteredRecords = data.filter(item => {
+          const cStatus = String(item.customer_status || '').toLowerCase();
+          const lStatus = String(item.status || item.loan_status || item.loan_type || '').toLowerCase();
+          if (cStatus.includes('pastdue') || cStatus.includes('past due')) return false;
+          if (lStatus.includes('pastdue') || lStatus.includes('past due')) return false;
+          if (item.date_maturity && dayjs(item.date_maturity).isBefore(dayjs(), 'day')) return false;
+          return true;
+        });
+
+        return loading ? (
+          <div className="npm-state"><Loader2 size={22} className="npm-spin" /> Loading monitoring records...</div>
+        ) : error ? (
+          <div className="npm-error">{error}</div>
+        ) : (
+          <div className="npm-table-wrap">
+            <table className="data-table npm-table">
+              <thead>
                 <tr>
-                  <td colSpan="11">
-                    <div className="npm-empty">
-                      <CheckCircle2 size={28} />
-                      <strong>No alerts found</strong>
-                      <span>There are no records for this tab and filter.</span>
-                    </div>
-                  </td>
+                  <th>Client</th>
+                  <th>Loan Info</th>
+                  <th>Collector</th>
+                  <th>Alert Level</th>
+                  <th>Consecutive Days</th>
+                  <th>First Missed</th>
+                  <th>Repeat Risk</th>
+                  {activeTab === 'ptp' && <th>PTP Date</th>}
+                  {activeTab === 'ptp' && <th>PTP Amount</th>}
+                  <th>Last Follow-up</th>
+                  <th>Actions</th>
                 </tr>
-              ) : data.map(item => (
-                <tr key={item.id} className={item.repeat_risk === 'High Risk' ? 'npm-row-high-risk' : ''}>
+              </thead>
+              <tbody>
+                {filteredRecords.length === 0 ? (
+                  <tr>
+                    <td colSpan="11">
+                      <div className="npm-empty">
+                        <CheckCircle2 size={28} />
+                        <strong>No alerts found</strong>
+                        <span>There are no records for this tab and filter.</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredRecords.map(item => (
+                  <tr key={item.id} className={item.repeat_risk === 'High Risk' ? 'npm-row-high-risk' : ''}>
                   <td>
                     <div className="npm-client">
                       <div className="npm-avatar"><UserRound size={15} /></div>
@@ -313,7 +324,8 @@ export default function NoPaymentMonitoring() {
             </tbody>
           </table>
         </div>
-      )}
+      );
+    })()}
 
       {followUpModal.show && (
         <Modal title="Log Follow-up" onClose={() => setFollowUpModal({ show: false, alert: null })}>
@@ -573,13 +585,63 @@ function ToastModal({ type, title, message, meta, onClose }) {
 }
 
 function ClientProfileModal({ data, loading, onClose }) {
-  const [activeSection, setActiveSection] = useState('loans');
-
   // Only show the latest loan and its payments
   const latestLoan = (data?.loans || [])[0] || null;
   const latestLoanPayments = latestLoan
     ? (data?.payments || []).filter(p => p.loan_code === latestLoan.loan_code)
     : [];
+
+  const loans = data?.loans || [];
+  const payments = data?.payments || [];
+  const activePaymentsCount = payments.filter(p => p.status === 'active').length;
+  const pastDueCount = loans.filter(l => String(l.status || '').toLowerCase() === 'pastdue').length;
+
+  const latestL = loans[0];
+  const releaseDate = latestL ? (latestL.date_released || (latestL.created_at ? String(latestL.created_at).split('T')[0] : null)) : null;
+  const todayStr = new Date().toISOString().split('T')[0];
+  const daysSinceRel = releaseDate ? Math.max(0, Math.floor((new Date(todayStr) - new Date(releaseDate)) / 86400000)) : 0;
+  const isUnrated = activePaymentsCount === 0 && daysSinceRel <= 1;
+
+  let creditScore = 100;
+  if (activePaymentsCount === 0) {
+    if (daysSinceRel <= 1) {
+      creditScore = 100;
+    } else {
+      creditScore = Math.max(0, 100 - (daysSinceRel * 15) - (pastDueCount * 20));
+    }
+  } else {
+    creditScore = Math.max(0, Math.min(100, 100 - (pastDueCount * 20)));
+  }
+
+  let creditColor = '#059669';
+  let creditLabel = 'EXCELLENT';
+  let creditIcon = '⭐';
+
+  if (isUnrated) {
+    creditColor = '#64748b';
+    creditLabel = 'NEW (UNRATED)';
+    creditIcon = '🆕';
+  } else if (creditScore >= 90) {
+    creditColor = '#059669';
+    creditLabel = 'EXCELLENT';
+    creditIcon = '⭐';
+  } else if (creditScore >= 80) {
+    creditColor = '#0284c7';
+    creditLabel = 'GOOD';
+    creditIcon = '👍';
+  } else if (creditScore >= 70) {
+    creditColor = '#ca8a04';
+    creditLabel = 'FAIR';
+    creditIcon = '⚖️';
+  } else if (creditScore >= 60) {
+    creditColor = '#ea580c';
+    creditLabel = 'RISKY';
+    creditIcon = '⚠️';
+  } else {
+    creditColor = '#dc2626';
+    creditLabel = 'POOR';
+    creditIcon = '🚨';
+  }
 
   return (
     <div className="npm-modal-overlay" onClick={onClose}>
@@ -605,7 +667,7 @@ function ClientProfileModal({ data, loading, onClose }) {
         </div>
 
         {!loading && data && (
-          <>
+          <div className="npm-profile-content">
             {/* Info bar */}
             <div className="npm-profile-infobar">
               <div className="npm-profile-info-item">
@@ -626,117 +688,129 @@ function ClientProfileModal({ data, loading, onClose }) {
                   {data.status || '—'}
                 </strong>
               </div>
+              <div className="npm-profile-info-item">
+                <span>Credit Score</span>
+                <strong style={{ color: creditColor }}>
+                  {creditIcon} {isUnrated ? 'NEW (UNRATED)' : `${creditScore}/100 (${creditLabel})`}
+                </strong>
+              </div>
             </div>
 
-            {/* Section tabs */}
-            <div className="npm-profile-tabs">
-              <button
-                type="button"
-                className={`npm-profile-tab ${activeSection === 'loans' ? 'active' : ''}`}
-                onClick={() => setActiveSection('loans')}
-              >
-                <CreditCard size={15} />
-                Latest Loan
-              </button>
-              <button
-                type="button"
-                className={`npm-profile-tab ${activeSection === 'payments' ? 'active' : ''}`}
-                onClick={() => setActiveSection('payments')}
-              >
-                <Receipt size={15} />
-                Payment History ({latestLoanPayments.length})
-              </button>
-            </div>
-
-            {/* Loans section */}
-            {activeSection === 'loans' && (
-              <div className="npm-profile-section">
+            {/* Combined Profile Body */}
+            <div className="npm-profile-body">
+              {/* Latest Loan Section */}
+              <div className="npm-profile-block">
+                <div className="npm-profile-block-title">
+                  <CreditCard size={16} />
+                  <span>Latest Loan Details</span>
+                </div>
                 {(data.loans || []).length === 0 ? (
                   <div className="npm-profile-empty">No loans found.</div>
                 ) : (
-                  <table className="npm-profile-table">
-                    <thead>
-                      <tr>
-                        <th>Loan Code</th>
-                        <th>Type</th>
-                        <th>Principal</th>
-                        <th>Balance</th>
-                        <th>Amortization</th>
-                        <th>Released</th>
-                        <th>Maturity</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.loans.slice(0, 1).map(loan => (
-                        <tr key={loan.id}>
-                          <td><strong className="npm-profile-loan-code">{loan.loan_code}</strong></td>
-                          <td>{loan.loan_type || '—'}</td>
-                          <td>₱{fmtAmt(loan.principal)}</td>
-                          <td>
-                            <strong className={Number(loan.balance) > 0 ? 'npm-profile-bal-active' : 'npm-profile-bal-paid'}>
-                              ₱{fmtAmt(loan.balance)}
-                            </strong>
-                          </td>
-                          <td>₱{fmtAmt(loan.amortization)}</td>
-                          <td>{fmtDate(loan.date_released)}</td>
-                          <td>{fmtDate(loan.date_maturity)}</td>
-                          <td>
-                            <span className={`npm-profile-loan-status npm-profile-loan-status--${(loan.status || '').toLowerCase()}`}>
-                              {loan.status}
-                            </span>
-                          </td>
+                  <div className="npm-profile-table-wrap">
+                    <table className="npm-profile-table">
+                      <thead>
+                        <tr>
+                          <th>Loan Code</th>
+                          <th>Type</th>
+                          <th>Principal</th>
+                          <th>Interest</th>
+                          <th>Total Loan</th>
+                          <th>Balance</th>
+                          <th>Amortization</th>
+                          <th>Released</th>
+                          <th>Maturity</th>
+                          <th>Status</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {data.loans.slice(0, 1).map(loan => {
+                          const interestAmt = Number(loan.interest_amount || (Number(loan.total_amortization || 0) - Number(loan.principal || 0)) || 0);
+                          const totalLoanAmt = Number(loan.total_amortization || (Number(loan.principal || 0) + interestAmt) || 0);
+
+                          return (
+                            <tr key={loan.id}>
+                              <td><strong className="npm-profile-loan-code">{loan.loan_code}</strong></td>
+                              <td>{loan.loan_type || '—'}</td>
+                              <td>₱{fmtAmt(loan.principal)}</td>
+                              <td>₱{fmtAmt(interestAmt)}</td>
+                              <td><strong>₱{fmtAmt(totalLoanAmt)}</strong></td>
+                              <td>
+                                <strong className={Number(loan.balance) > 0 ? 'npm-profile-bal-active' : 'npm-profile-bal-paid'}>
+                                  ₱{fmtAmt(loan.balance)}
+                                </strong>
+                              </td>
+                              <td>₱{fmtAmt(loan.amortization)}</td>
+                              <td>{fmtDate(loan.date_released)}</td>
+                              <td>{fmtDate(loan.date_maturity)}</td>
+                              <td>
+                                <span className={`npm-profile-loan-status npm-profile-loan-status--${(loan.status || '').toLowerCase()}`}>
+                                  {loan.status}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
-            )}
 
-            {/* Payments section */}
-            {activeSection === 'payments' && (
-              <div className="npm-profile-section">
+              {/* Payment History Section */}
+              <div className="npm-profile-block">
+                <div className="npm-profile-block-title">
+                  <Receipt size={16} />
+                  <span>Payment History ({latestLoanPayments.length})</span>
+                </div>
                 {latestLoanPayments.length === 0 ? (
                   <div className="npm-profile-empty">No payment history found for this loan.</div>
                 ) : (
-                  <table className="npm-profile-table">
-                    <thead>
-                      <tr>
-                        <th>Loan Code</th>
-                        <th>Date Paid</th>
-                        <th>Amount</th>
-                        <th>Type</th>
-                        <th>OR No.</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {latestLoanPayments.map(p => (
-                        <tr key={p.id} className={p.status !== 'active' ? 'npm-profile-row-voided' : ''}>
-                          <td><strong>{p.loan_code}</strong></td>
-                          <td>{fmtDate(p.date_paid)}</td>
-                          <td>
-                            <strong className="npm-profile-pay-amount">
-                              <Banknote size={13} style={{ verticalAlign: 'middle', marginRight: 3 }} />
-                              ₱{fmtAmt(p.amount_paid)}
-                            </strong>
-                          </td>
-                          <td>{p.payment_type || p.or_type || '—'}</td>
-                          <td>{p.or_number || '—'}</td>
-                          <td>
-                            <span className={`npm-profile-pay-status ${p.status !== 'active' ? 'voided' : 'active'}`}>
-                              {p.status}
-                            </span>
-                          </td>
+                  <div className="npm-profile-table-wrap npm-profile-scroll-wrap">
+                    <table className="npm-profile-table">
+                      <thead>
+                        <tr>
+                          <th>Loan Code</th>
+                          <th>Date Paid</th>
+                          <th>Amount</th>
+                          <th>Running Balance</th>
+                          <th>Type</th>
+                          <th>OR No.</th>
+                          <th>Status</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {latestLoanPayments.map(p => (
+                          <tr key={p.id} className={p.status !== 'active' ? 'npm-profile-row-voided' : ''}>
+                            <td><strong>{p.loan_code}</strong></td>
+                            <td>{fmtDate(p.date_paid)}</td>
+                            <td>
+                              <strong className="npm-profile-pay-amount">
+                                <Banknote size={13} style={{ verticalAlign: 'middle', marginRight: 3 }} />
+                                ₱{fmtAmt(p.amount_paid)}
+                              </strong>
+                            </td>
+                            <td>
+                              <strong style={{ color: '#0f172a' }}>
+                                ₱{fmtAmt(p.balance_after ?? 0)}
+                              </strong>
+                            </td>
+                            <td>{p.payment_type || p.or_type || '—'}</td>
+                            <td>{p.or_number || '—'}</td>
+                            <td>
+                              <span className={`npm-profile-pay-status ${p.status !== 'active' ? 'voided' : 'active'}`}>
+                                {p.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
-            )}
-          </>
+            </div>
+          </div>
         )}
 
         {loading && (

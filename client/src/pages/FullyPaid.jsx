@@ -44,6 +44,8 @@ export default function FullyPaid({ search = '' }) {
   useEffect(() => { load(); }, []);
 
   const filteredRows = rows.filter(r => {
+    const custStatus = String(r.status || '').toUpperCase();
+    if (['RELAX', 'HOLD', 'RECON', 'HOLD/PASTDUE'].includes(custStatus)) return false;
     const nameMatch = (
       (r.client_name || '').toLowerCase().includes(search.toLowerCase()) ||
       (r.customer_code || '').toLowerCase().includes(search.toLowerCase()) ||

@@ -32,10 +32,14 @@ function isEligibleForNoPaymentMonitoring(loan, todayStr = dayjs().format('YYYY-
   const customerStatus = String(loan.customer_status || '').toLowerCase();
   const loanStatus = String(loan.status || '').toLowerCase();
 
+  const isPastDueCustomer = customerStatus.includes('pastdue') || customerStatus.includes('past due');
+  const isPastDueLoan = loanStatus.includes('pastdue') || loanStatus.includes('past due') || isPastMaturity(loan, todayStr);
+
   return ACTIVE_MONITORING_CUSTOMER_STATUSES.has(customerStatus)
+    && !isPastDueCustomer
     && loanStatus === 'active'
-    && Number(loan.balance || 0) > 0
-    && (isReconLoan(loan) || !isPastMaturity(loan, todayStr));
+    && !isPastDueLoan
+    && Number(loan.balance || 0) > 0;
 }
 
 // Evaluate a single loan
@@ -172,18 +176,21 @@ async function runDailyMonitoring() {
     WHERE m.status = 'Active'
       AND NOT (
         LOWER(c.status) IN ('active', 'recon')
+        AND LOWER(c.status) NOT LIKE '%pastdue%'
+        AND LOWER(c.status) NOT LIKE '%past due%'
         AND LOWER(l.status) = 'active'
+        AND LOWER(l.status) NOT LIKE '%pastdue%'
+        AND LOWER(l.status) NOT LIKE '%past due%'
         AND COALESCE(l.balance, 0) > 0
         AND (
-          LOWER(COALESCE(l.loan_type, '')) LIKE '%recon%'
-          OR l.date_maturity IS NULL
+          l.date_maturity IS NULL
           OR date(l.date_maturity) >= date(?)
         )
       )
   `, [todayStr]);
 
   for (const alert of ineligibleActiveAlerts) {
-    await resolveAlert(alert.loan_id, 'Resolved by Monitoring Eligibility Change');
+    await resolveAlert(alert.loan_id, 'Resolved by Monitoring Eligibility Change (Pastdue Excluded)');
   }
 
   const activeLoans = await dbAll(`
@@ -191,11 +198,14 @@ async function runDailyMonitoring() {
     FROM tblLoan l
     JOIN tblCustomer c ON l.customer_id = c.id
     WHERE LOWER(l.status) = 'active'
+      AND LOWER(l.status) NOT LIKE '%pastdue%'
+      AND LOWER(l.status) NOT LIKE '%past due%'
       AND COALESCE(l.balance, 0) > 0
       AND LOWER(c.status) IN ('active', 'recon')
+      AND LOWER(c.status) NOT LIKE '%pastdue%'
+      AND LOWER(c.status) NOT LIKE '%past due%'
       AND (
-        LOWER(COALESCE(l.loan_type, '')) LIKE '%recon%'
-        OR l.date_maturity IS NULL
+        l.date_maturity IS NULL
         OR date(l.date_maturity) >= date(?)
       )
   `, [todayStr]);

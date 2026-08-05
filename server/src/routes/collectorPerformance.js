@@ -76,7 +76,11 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
         WHERE p.loan_id = l.id
           AND date(p.date_paid) = date(?)
           AND p.status = 'active'
-          AND LOWER(COALESCE(p.remarks, '')) LIKE '%old balance%'
+          AND (
+            LOWER(COALESCE(p.remarks, '')) LIKE '%old balance%'
+            OR LOWER(COALESCE(p.remarks, '')) LIKE '%recon balance%'
+            OR LOWER(COALESCE(p.payment_type, '')) IN ('balance', 'recon', 'old_balance')
+          )
           AND ${sqlNotSunday('p.date_paid')}
       ), 0) as balance_collected_today,
       COALESCE((
@@ -137,12 +141,15 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
     const priorCollections = customerLoans
       .filter(loan => loan.id !== activeTransferLoan.id && String(loan.status || '').toLowerCase() === 'fullpaid')
       .reduce((totals, loan) => {
+        totals.collected += toAmount(loan.collected_today);
+        totals.payment_count += toAmount(loan.payment_count_today);
         totals.balance += toAmount(loan.balance_collected_today);
         totals.penalty += toAmount(loan.penalty_collected_today);
         return totals;
-      }, { balance: 0, penalty: 0 });
+      }, { collected: 0, payment_count: 0, balance: 0, penalty: 0 });
 
-    activeTransferLoan.collected_today = toAmount(activeTransferLoan.collected_today) + priorCollections.balance + priorCollections.penalty;
+    activeTransferLoan.collected_today = toAmount(activeTransferLoan.collected_today) + priorCollections.collected;
+    activeTransferLoan.payment_count_today = toAmount(activeTransferLoan.payment_count_today) + priorCollections.payment_count;
     collectionLoans.push(activeTransferLoan);
     collectionLoans.push(...customerLoans.filter(loan =>
       loan.id !== activeTransferLoan.id &&
@@ -251,8 +258,6 @@ router.get('/summary', authenticateToken, async (req, res) => {
       collectorRows.push(row);
     }
 
-    collectorRows.sort((a, b) => b.collected - a.collected || a.name.localeCompare(b.name));
-
     const trend = Array.from(trendMap.entries()).map(([date, collected]) => ({ date, collected }));
 
     const totals = collectorRows.reduce((acc, row) => {
@@ -282,7 +287,22 @@ router.get('/summary', authenticateToken, async (req, res) => {
       payment_count: 0
     });
 
-    const topCollector = collectorRows[0] || null;
+    const targetOrder = [
+      'torreta',
+      'domingono',
+      'caballes',
+      'jugar',
+      'rosal',
+      'laude'
+    ];
+    const getSortOrder = (name) => {
+      const lowerName = String(name || '').toLowerCase().trim();
+      const index = targetOrder.findIndex(target => lowerName.includes(target));
+      return index !== -1 ? index : targetOrder.length;
+    };
+
+    const topCollector = [...collectorRows].sort((a, b) => b.collected - a.collected)[0] || null;
+    collectorRows.sort((a, b) => getSortOrder(a.name) - getSortOrder(b.name) || String(a.name || '').localeCompare(String(b.name || '')));
 
     res.json({
       date_from: from,

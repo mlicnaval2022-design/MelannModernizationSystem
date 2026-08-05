@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { logAudit, createNotification, runDailyMonitoring } = require('../services/noPaymentMonitoring');
@@ -8,11 +8,14 @@ const router = express.Router();
 function buildMonitoringEligibilityCondition() {
   return `
     LOWER(c.status) IN ('active', 'recon')
+    AND LOWER(c.status) NOT LIKE '%pastdue%'
+    AND LOWER(c.status) NOT LIKE '%past due%'
     AND LOWER(l.status) = 'active'
+    AND LOWER(l.status) NOT LIKE '%pastdue%'
+    AND LOWER(l.status) NOT LIKE '%past due%'
     AND COALESCE(l.balance, 0) > 0
     AND (
-      LOWER(COALESCE(l.loan_type, '')) LIKE '%recon%'
-      OR l.date_maturity IS NULL
+      l.date_maturity IS NULL
       OR date(l.date_maturity) >= date(?)
     )
   `;

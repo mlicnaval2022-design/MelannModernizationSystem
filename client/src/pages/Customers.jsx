@@ -226,7 +226,14 @@ export default function Customers() {
       } catch {
         cicStatus = null;
       }
-      setSoaData({ ...r.data, cicStatus });
+      let creditEval = null;
+      try {
+        const evalReq = await API.get(`/customers/${id}/credit-eval`);
+        creditEval = evalReq.data;
+      } catch {
+        creditEval = null;
+      }
+      setSoaData({ ...r.data, cicStatus, creditEval });
     } catch {
       alert('Failed to load SOA data');
       setSoaModal(false);
@@ -1136,6 +1143,30 @@ export default function Customers() {
                   { title: 'Business Information', fields: [['Business Type', soaData.business_type], ['Occupation', soaData.occupation], ['Business Name', soaData.business_name], ['Monthly Income', soaData.income_per_month ? formatPhp(soaData.income_per_month) : ''], ['Monthly Expense', soaData.expenses_per_month ? formatPhp(soaData.expenses_per_month) : ''], ['Loan Purpose', soaData.loan_purpose], ['Collateral', soaData.collateral], ['Branch', soaData.branch_name], ['Collector', soaData.collector_name]] },
                   { title: 'ID Information', fields: [['ID Type', soaData.id_type], ['ID Number', soaData.id_number], ['Issue Date', soaData.id_issue_date], ['Expiry Date', soaData.id_expiry_date], ['Issued By', soaData.id_issued_by], ['Place of Issue', soaData.id_place_of_issue]] },
                 ];
+                const cCreditEval = soaData.creditEval;
+                const cLoans = soaData.loans || [];
+                const cPastDue = cLoans.filter(l => String(l.status || '').toLowerCase() === 'pastdue').length;
+                let cScore = cCreditEval && typeof cCreditEval.credit_score === 'number' ? cCreditEval.credit_score : 100 - (cPastDue * 20);
+                if (!cCreditEval) {
+                  const sStr = String(soaData.status || '').toLowerCase();
+                  if (sStr.includes('pastdue')) cScore -= 30;
+                  if (sStr.includes('recon')) cScore -= 15;
+                  if (sStr.includes('relax')) cScore -= 10;
+                }
+                cScore = Math.max(0, Math.min(100, cScore));
+                const cRating = cScore >= 90 ? 'EXCELLENT' : cScore >= 80 ? 'GOOD' : cScore >= 70 ? 'FAIR' : cScore >= 60 ? 'RISKY' : 'POOR';
+
+                profileSections.push({
+                  title: 'Credit Scoring & Evaluation',
+                  fields: [
+                    ['Credit Score', `${cScore} / 100 (${cRating})`],
+                    ['Total Loans Availed', cCreditEval ? (cCreditEval.total_loans ?? 0) : cLoans.length],
+                    ['On-Time Payments', cCreditEval ? (cCreditEval.on_time_payments ?? 0) : (soaData.payments || []).filter(p => p.status === 'active').length],
+                    ['Late Payments', cCreditEval ? (cCreditEval.late_payments ?? 0) : 0],
+                    ['Past Due Occurrences', cCreditEval ? (cCreditEval.past_due_occurrences ?? 0) : cPastDue],
+                    ['Recon History', cCreditEval ? (cCreditEval.recon_history ?? 0) : 0],
+                  ]
+                });
                 
                 const initials = (soaData.first_name?.[0] || '') + (soaData.last_name?.[0] || '');
                 const cleanInitials = initials || soaData.full_name?.substring(0, 2).toUpperCase() || 'AJ';
@@ -1262,6 +1293,85 @@ export default function Customers() {
                             </div>
                           </div>
                         </div>
+
+                        {(() => {
+                          const creditEval = soaData.creditEval;
+                          const loans = soaData.loans || [];
+                          const payments = soaData.payments || [];
+                          const activePaymentsCount = payments.filter(p => p.status === 'active').length;
+                          const pastDueCount = loans.filter(l => String(l.status || '').toLowerCase() === 'pastdue').length;
+
+                          const latestL = loans[0];
+                          const releaseDate = latestL ? (latestL.date_released || (latestL.created_at ? String(latestL.created_at).split('T')[0] : null)) : null;
+                          const todayStr = new Date().toISOString().split('T')[0];
+                          const daysSinceRel = releaseDate ? Math.max(0, Math.floor((new Date(todayStr) - new Date(releaseDate)) / 86400000)) : 0;
+
+                          const isUnrated = creditEval ? creditEval.is_unrated : (activePaymentsCount === 0 && daysSinceRel <= 1);
+
+                          let score = 100;
+                          if (creditEval && typeof creditEval.credit_score === 'number') {
+                            score = creditEval.credit_score;
+                          } else if (activePaymentsCount === 0) {
+                            if (daysSinceRel <= 1) {
+                              score = 100;
+                            } else {
+                              score = Math.max(0, 100 - (daysSinceRel * 15) - (pastDueCount * 20));
+                            }
+                          } else {
+                            score = Math.max(0, Math.min(100, 100 - (pastDueCount * 20)));
+                          }
+
+                          let meta = { label: 'EXCELLENT', color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', icon: '⭐' };
+
+                          if (isUnrated) {
+                            meta = { label: 'NEW CLIENT (UNRATED)', color: '#64748b', bg: '#f1f5f9', border: '#cbd5e1', icon: '🆕' };
+                          } else if (score >= 90) {
+                            meta = { label: 'EXCELLENT', color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', icon: '⭐' };
+                          } else if (score >= 80) {
+                            meta = { label: 'GOOD', color: '#0284c7', bg: '#f0f9ff', border: '#bae6fd', icon: '👍' };
+                          } else if (score >= 70) {
+                            meta = { label: 'FAIR', color: '#ca8a04', bg: '#fef9c3', border: '#fef08a', icon: '⚖️' };
+                          } else if (score >= 60) {
+                            meta = { label: 'RISKY', color: '#ea580c', bg: '#fff7ed', border: '#ffedd5', icon: '⚠️' };
+                          } else {
+                            meta = { label: 'POOR', color: '#dc2626', bg: '#fef2f2', border: '#fecaca', icon: '🚨' };
+                          }
+
+                          const onTime = creditEval ? (creditEval.on_time_payments || 0) : activePaymentsCount;
+                          const late = creditEval ? (creditEval.late_payments || 0) : 0;
+                          const pdCount = creditEval ? (creditEval.past_due_occurrences || 0) : pastDueCount;
+                          const totalL = creditEval ? (creditEval.total_loans || 0) : loans.length;
+
+                          return (
+                            <div className="soa-card-v2 print-card" style={{ marginTop: 16, background: meta.bg, border: `1px solid ${meta.border}`, borderRadius: 12, padding: '16px 20px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                  <div style={{ width: 46, height: 46, borderRadius: '50%', background: meta.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 16, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                                    {isUnrated ? 'NEW' : score}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.5, color: meta.color }}>
+                                      CREDIT SCORING EVALUATION
+                                    </div>
+                                    <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                                      Rating: <span style={{ color: meta.color }}>{meta.label}</span> {isUnrated ? '(No Payments Yet)' : `(${score}/100 Pts)`}
+                                    </div>
+                                    <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>
+                                      {isUnrated ? (
+                                        <span>New account &bull; Total Loans: <strong>{totalL}</strong> &bull; Payments Received: <strong>0</strong></span>
+                                      ) : (
+                                        <span>On-Time: <strong>{onTime}</strong> &bull; Late: <strong>{late}</strong> &bull; Past Due: <strong>{pdCount}</strong> &bull; Total Loans: <strong>{totalL}</strong></span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div style={{ background: '#ffffff', padding: '6px 14px', borderRadius: 999, border: `1px solid ${meta.border}`, fontWeight: 800, fontSize: 13, color: meta.color, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span>{meta.icon}</span> Score: {isUnrated ? 'UNRATED' : `${score} Pts`}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         <div className="soa-due-card-v2 print-card">
                           <div className="soa-due-icon-v2"><CalendarClock size={24} /></div>
@@ -1557,13 +1667,94 @@ export default function Customers() {
                     })()}
 
                     {soaTab === 'history' && (
-                      <div className="soa-card">
-                        <div className="soa-list-card-header"><div className="soa-list-title">Loans & Payments History</div></div>
-                        {loans.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Cycle Count</th><th>Loan Code</th><th>Type</th><th>Date Released</th><th>Maturity</th><th>Period</th><th>Principal</th><th>Interest Rate</th><th>Interest Amount</th><th>Total Loan</th><th>Amortization</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead><tbody>{loans.map(l => (<tr key={l.id} onClick={() => setSelectedLoanForPayments(l)} style={{ cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><td><span className="badge badge-cycle">Cycle {loanCycleMap.get(l.id) || '-'}</span></td><td className="mono" style={{color: '#2563eb', fontWeight: '600'}} title="View payment history for this loan">{l.loan_code}</td><td>
-  {l.loan_type || '-'}
-  {String(l.status).toLowerCase() === 'reversed' && <span style={{ color: '#ef4444', marginLeft: '6px', fontWeight: 'bold', fontSize: '11px' }}>(REVERSED)</span>}
-</td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td><td><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><button className="action-btn" style={{ borderColor: '#bfdbfe', color: '#2563eb', background: '#eff6ff' }} onClick={(e) => { e.stopPropagation(); setEditLoanError(null); setEditLoanModal({ ...l, __original: { ...l } }); }}><i className="bi bi-pencil"></i> Edit</button><button className="action-btn" onClick={(e) => { e.stopPropagation(); setPrintModeLoan(l); }}><i className="bi bi-printer"></i> Print</button><button className="action-btn" style={{ borderColor: '#fecaca', color: '#dc2626', background: '#fff5f5' }} onClick={(e) => { e.stopPropagation(); setLoanDeleteTarget(l); }}><i className="bi bi-trash"></i> Delete</button></div></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
-                      </div>
+                      <>
+                        {(() => {
+                          const creditEval = soaData.creditEval;
+                          const loansList = soaData.loans || [];
+                          const paymentsList = soaData.payments || [];
+                          const activePaymentsCount = paymentsList.filter(p => p.status === 'active').length;
+                          const pastDueCount = loansList.filter(l => String(l.status || '').toLowerCase() === 'pastdue').length;
+
+                          const latestL = loansList[0];
+                          const releaseDate = latestL ? (latestL.date_released || (latestL.created_at ? String(latestL.created_at).split('T')[0] : null)) : null;
+                          const todayStr = new Date().toISOString().split('T')[0];
+                          const daysSinceRel = releaseDate ? Math.max(0, Math.floor((new Date(todayStr) - new Date(releaseDate)) / 86400000)) : 0;
+
+                          const isUnrated = creditEval ? creditEval.is_unrated : (activePaymentsCount === 0 && daysSinceRel <= 1);
+
+                          let score = 100;
+                          if (creditEval && typeof creditEval.credit_score === 'number') {
+                            score = creditEval.credit_score;
+                          } else if (activePaymentsCount === 0) {
+                            if (daysSinceRel <= 1) {
+                              score = 100;
+                            } else {
+                              score = Math.max(0, 100 - (daysSinceRel * 15) - (pastDueCount * 20));
+                            }
+                          } else {
+                            score = Math.max(0, Math.min(100, 100 - (pastDueCount * 20)));
+                          }
+
+                          let meta = { label: 'EXCELLENT', color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', icon: '⭐' };
+
+                          if (isUnrated) {
+                            meta = { label: 'NEW CLIENT (UNRATED)', color: '#64748b', bg: '#f1f5f9', border: '#cbd5e1', icon: '🆕' };
+                          } else if (score >= 90) {
+                            meta = { label: 'EXCELLENT', color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', icon: '⭐' };
+                          } else if (score >= 80) {
+                            meta = { label: 'GOOD', color: '#0284c7', bg: '#f0f9ff', border: '#bae6fd', icon: '👍' };
+                          } else if (score >= 70) {
+                            meta = { label: 'FAIR', color: '#ca8a04', bg: '#fef9c3', border: '#fef08a', icon: '⚖️' };
+                          } else if (score >= 60) {
+                            meta = { label: 'RISKY', color: '#ea580c', bg: '#fff7ed', border: '#ffedd5', icon: '⚠️' };
+                          } else {
+                            meta = { label: 'POOR', color: '#dc2626', bg: '#fef2f2', border: '#fecaca', icon: '🚨' };
+                          }
+
+                          const onTime = creditEval ? (creditEval.on_time_payments || 0) : activePaymentsCount;
+                          const late = creditEval ? (creditEval.late_payments || 0) : 0;
+                          const pdCount = creditEval ? (creditEval.past_due_occurrences || 0) : pastDueCount;
+                          const totalL = creditEval ? (creditEval.total_loans || 0) : loansList.length;
+
+                          return (
+                            <div className="soa-card-v2 print-card" style={{ marginBottom: 16, background: meta.bg, border: `1px solid ${meta.border}`, borderRadius: 12, padding: '16px 20px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                  <div style={{ width: 46, height: 46, borderRadius: '50%', background: meta.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 16, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                                    {isUnrated ? 'NEW' : score}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.5, color: meta.color }}>
+                                      CREDIT SCORING EVALUATION
+                                    </div>
+                                    <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                                      Rating: <span style={{ color: meta.color }}>{meta.label}</span> {isUnrated ? '(No Payments Yet)' : `(${score}/100 Pts)`}
+                                    </div>
+                                    <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>
+                                      {isUnrated ? (
+                                        <span>New account &bull; Total Loans: <strong>{totalL}</strong> &bull; Payments Received: <strong>0</strong></span>
+                                      ) : (
+                                        <span>On-Time Payments: <strong>{onTime}</strong> &bull; Late Payments: <strong>{late}</strong> &bull; Past Due: <strong>{pdCount}</strong> &bull; Total Loans: <strong>{totalL}</strong></span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div style={{ background: '#ffffff', padding: '6px 14px', borderRadius: 999, border: `1px solid ${meta.border}`, fontWeight: 800, fontSize: 13, color: meta.color, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span>{meta.icon}</span> Score: {isUnrated ? 'UNRATED' : `${score} Pts`}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        <div className="soa-card">
+                          <div className="soa-list-card-header"><div className="soa-list-title">Loans & Payments History</div></div>
+                          {loans.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Cycle Count</th><th>Loan Code</th><th>Type</th><th>Date Released</th><th>Maturity</th><th>Period</th><th>Principal</th><th>Interest Rate</th><th>Interest Amount</th><th>Total Loan</th><th>Amortization</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead><tbody>{loans.map(l => (<tr key={l.id} onClick={() => setSelectedLoanForPayments(l)} style={{ cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><td><span className="badge badge-cycle">Cycle {loanCycleMap.get(l.id) || '-'}</span></td><td className="mono" style={{color: '#2563eb', fontWeight: '600'}} title="View payment history for this loan">{l.loan_code}</td><td>
+    {l.loan_type || '-'}
+    {String(l.status).toLowerCase() === 'reversed' && <span style={{ color: '#ef4444', marginLeft: '6px', fontWeight: 'bold', fontSize: '11px' }}>(REVERSED)</span>}
+  </td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td><td><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><button className="action-btn" style={{ borderColor: '#bfdbfe', color: '#2563eb', background: '#eff6ff' }} onClick={(e) => { e.stopPropagation(); setEditLoanError(null); setEditLoanModal({ ...l, __original: { ...l } }); }}><i className="bi bi-pencil"></i> Edit</button><button className="action-btn" onClick={(e) => { e.stopPropagation(); setPrintModeLoan(l); }}><i className="bi bi-printer"></i> Print</button><button className="action-btn" style={{ borderColor: '#fecaca', color: '#dc2626', background: '#fff5f5' }} onClick={(e) => { e.stopPropagation(); setLoanDeleteTarget(l); }}><i className="bi bi-trash"></i> Delete</button></div></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
+                        </div>
+                      </>
                     )}
 
                     <div className="print-footer print-only"><div className="print-footer-col"><p>We are committed to provide reliable and responsible lending solutions for your financial growth.</p></div><div className="print-footer-col center-col"><div>09171131000</div><div>melann.lic2016@gmail.com</div><div>facebook.com/MelannLendingInvestorCorp</div></div><div className="print-footer-col right-col"><div style={{ color: '#1e3a8a', fontStyle: 'italic', fontSize: 16 }}>Thank you for choosing</div><div className="print-footer-brand">MELANN LENDING!</div></div><div className="print-footer-wave"></div></div>
@@ -1797,6 +1988,55 @@ export default function Customers() {
                         </div>
                       </div>
                     )}
+
+                    {(() => {
+                      const cCreditEval = soaData.creditEval;
+                      const cLoans = soaData.loans || [];
+                      const cPastDue = cLoans.filter(l => String(l.status || '').toLowerCase() === 'pastdue').length;
+                      let score = cCreditEval && typeof cCreditEval.credit_score === 'number' ? cCreditEval.credit_score : 100 - (cPastDue * 20);
+                      if (!cCreditEval) {
+                        const sStr = String(soaData.status || '').toLowerCase();
+                        if (sStr.includes('pastdue')) score -= 30;
+                        if (sStr.includes('recon')) score -= 15;
+                        if (sStr.includes('relax')) score -= 10;
+                      }
+                      score = Math.max(0, Math.min(100, score));
+                      const rating = score >= 90 ? 'EXCELLENT' : score >= 80 ? 'GOOD' : score >= 70 ? 'FAIR' : score >= 60 ? 'RISKY' : 'POOR';
+                      const onTime = cCreditEval ? (cCreditEval.on_time_payments || 0) : (soaData.payments || []).filter(p => p.status === 'active').length;
+                      const late = cCreditEval ? (cCreditEval.late_payments || 0) : 0;
+                      const pdCount = cCreditEval ? (cCreditEval.past_due_occurrences || 0) : cPastDue;
+                      const totalL = cCreditEval ? (cCreditEval.total_loans || 0) : cLoans.length;
+
+                      return (
+                        <div className="f-soa-section">
+                          <div className="f-soa-sec-header">
+                            <i className="bi bi-shield-check"></i> CREDIT SCORING & EVALUATION
+                          </div>
+                          <div className="f-soa-sec-body">
+                            <div className="f-soa-grid-3">
+                              <table>
+                                <tbody>
+                                  <tr><td>Credit Score</td><td>:</td><td className="fw-bold">{score} / 100</td></tr>
+                                  <tr><td>Credit Rating</td><td>:</td><td className="fw-bold">{rating}</td></tr>
+                                </tbody>
+                              </table>
+                              <table>
+                                <tbody>
+                                  <tr><td>On-Time Payments</td><td>:</td><td className="fw-bold">{onTime}</td></tr>
+                                  <tr><td>Late Payments</td><td>:</td><td>{late}</td></tr>
+                                </tbody>
+                              </table>
+                              <table className="f-soa-no-border">
+                                <tbody>
+                                  <tr><td>Past Due Occurrences</td><td>:</td><td>{pdCount}</td></tr>
+                                  <tr><td>Total Loans Availed</td><td>:</td><td>{totalL}</td></tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     <div className="f-soa-section">
                       <div className="f-soa-sec-header">

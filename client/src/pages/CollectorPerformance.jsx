@@ -46,6 +46,21 @@ const shortCollectorName = name => {
   return `${last}, ${first.charAt(0)}.`.toUpperCase()
 }
 
+const targetOrder = [
+  'torreta',
+  'domingono',
+  'caballes',
+  'jugar',
+  'rosal',
+  'laude'
+]
+
+const getSortOrder = name => {
+  const lowerName = String(name || '').toLowerCase().trim()
+  const index = targetOrder.findIndex(target => lowerName.includes(target))
+  return index !== -1 ? index : targetOrder.length
+}
+
 export default function CollectorPerformance() {
   const defaultRange = useMemo(getDefaultRange, [])
   const [filters, setFilters] = useState(defaultRange)
@@ -110,14 +125,16 @@ export default function CollectorPerformance() {
       trendMap.set(date, (trendMap.get(date) || 0) + Number(payment.amount_paid || 0))
     })
 
-    const collectors = Array.from(byCollector.values())
+    const rawCollectors = Array.from(byCollector.values())
       .map(row => ({
         ...row,
         paying_clients: row.paying_clients_set.size,
         achievement_rate: row.target > 0 ? Math.round((row.collected / row.target) * 100) : 0
       }))
-      .sort((a, b) => b.collected - a.collected || a.name.localeCompare(b.name))
       .map(({ paying_clients_set, ...row }) => row)
+
+    const top_collector = [...rawCollectors].sort((a, b) => b.collected - a.collected)[0] || null
+    const collectors = rawCollectors.sort((a, b) => getSortOrder(a.name) - getSortOrder(b.name) || String(a.name || '').localeCompare(String(b.name || '')))
 
     const totals = collectors.reduce((acc, row) => {
       acc.target += Number(row.target || 0)
@@ -137,7 +154,7 @@ export default function CollectorPerformance() {
       actual_date: filters.date_to,
       pastdue_cutoff: filters.pastdue_cutoff,
       totals,
-      top_collector: collectors[0] || null,
+      top_collector,
       collectors,
       trend: Array.from(trendMap.entries())
         .map(([date, collected]) => ({ date, collected }))
@@ -176,21 +193,6 @@ export default function CollectorPerformance() {
   useEffect(() => {
     loadData()
   }, [])
-
-  const targetOrder = [
-    'TORRETA, ANGELITO',
-    'DOMINGONO, RENATO',
-    'CABALLES, EDDIE JR.',
-    'JUGAR, NOEL',
-    'ROSAL, ALDIE',
-    'LAUDE, REYNALDO'
-  ].map(n => n.toLowerCase());
-
-  const getSortOrder = (name) => {
-    const lowerName = String(name || '').toLowerCase().trim();
-    const index = targetOrder.findIndex(target => lowerName.includes(target));
-    return index !== -1 ? index : targetOrder.length;
-  };
 
   const collectors = (data?.collectors || [])
     .filter(collector => !String(collector.name || '').toLowerCase().includes('melann office'))
