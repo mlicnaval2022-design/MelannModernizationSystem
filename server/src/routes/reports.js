@@ -38,6 +38,32 @@ const buildClientAddress = (loan) => [
   loan.customer_zip_code
 ].map(part => String(part || '').trim()).filter(Boolean).join(', ');
 
+const normalizeLoanTypeKey = type => String(type || '').toUpperCase().replace(/[-\s]/g, '');
+
+const resolvePrintablePreviousBalance = async (loan, findPriorBalancePayment = ({ customerId, dateReleased }) => dbGet(`
+  SELECT amount_paid
+  FROM tblPayment
+  WHERE customer_id = ?
+    AND date_paid = ?
+    AND status = 'active'
+    AND LOWER(COALESCE(remarks, '')) LIKE '%old balance during%'
+  ORDER BY id DESC
+  LIMIT 1
+`, [customerId, dateReleased])) => {
+  const normalizedLoanType = normalizeLoanTypeKey(loan.loan_type);
+  if (!['RECON', 'RELOAN'].includes(normalizedLoanType) || Number(loan.previous_balance || 0) > 0) {
+    return loan.previous_balance;
+  }
+
+  const priorBalancePayment = await findPriorBalancePayment({
+    customerId: loan.customer_id,
+    dateReleased: loan.date_released,
+  });
+
+  if (priorBalancePayment) loan.previous_balance = Number(priorBalancePayment.amount_paid || 0);
+  return loan.previous_balance;
+};
+
 const ensureCollectionFieldReleaseTable = () => dbRun(`
   CREATE TABLE IF NOT EXISTS tblCollectionFieldRelease (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -660,21 +686,7 @@ router.get('/disclosure-statement', authenticateToken, async (req, res) => {
     }
 
     const loan = loans[0];
-    const normalizedLoanType = String(loan.loan_type || '').toUpperCase().replace(/[-\s]/g, '');
-    if (['RECON', 'RELOAN'].includes(normalizedLoanType) && Number(loan.previous_balance || 0) <= 0) {
-      const priorBalancePayment = await dbGet(`
-        SELECT amount_paid
-        FROM tblPayment
-        WHERE customer_id = ?
-          AND date_paid = ?
-          AND status = 'active'
-          AND LOWER(COALESCE(remarks, '')) LIKE '%old balance during%'
-        ORDER BY id DESC
-        LIMIT 1
-      `, [loan.customer_id, loan.date_released]);
-      if (priorBalancePayment) loan.previous_balance = Number(priorBalancePayment.amount_paid || 0);
-      else if (normalizedLoanType === 'RECON') loan.previous_balance = Number(loan.balance || 0);
-    }
+    await resolvePrintablePreviousBalance(loan);
     const clientAddress = buildClientAddress(loan);
     loan.address = clientAddress || loan.address;
     loan.customer_address = loan.address;
@@ -742,5 +754,10 @@ router.get('/monitoring-summary', authenticateToken, async (req, res) => {
     });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
+
+router.__private = {
+  normalizeLoanTypeKey,
+  resolvePrintablePreviousBalance,
+};
 
 module.exports = router;
