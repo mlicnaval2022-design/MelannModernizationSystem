@@ -55,7 +55,6 @@ const findLatestLoan = loans => [...(loans || [])].sort((a, b) => {
 })[0] || null;
 
 const activeStatuses = ['active', 'pastdue', 'pending', 'approved', 'for_approval', 'reloan_pending'];
-const hasPositiveAmount = value => Number(value || 0) > 0;
 
 export default function ReloanModal({ isOpen, onClose, customerId, customer, loanType = 'RELOAN', onReloanSubmitted, onViewSoa }) {
   const { user, hasRole } = useAuth();
@@ -76,7 +75,7 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
     principal: '',
     days: '45',
     interestRate: '15',
-    balance: '0',
+    balance: '',
     penalty: '0',
     passbook: '0',
     paymentFrequency: 'Daily',
@@ -96,12 +95,10 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
         API.get(`/customers/${activeCustomerId}/reloan-eval`)
       ]);
       setAccount({ ...profile.data, eval: evalRes.data });
-      const latest = findLatestLoan(profile.data?.loans);
-      const transferBalance = evalRes.data.active_balance || latest?.balance || 0;
       setForm(current => ({
         ...current,
         principal: current.principal || '',
-        balance: normalizeLoanType(current.loanType) === 'NEW' || hasPositiveAmount(current.balance) ? current.balance : String(transferBalance || 0),
+        balance: current.balance || '',
         passbook: normalizeLoanType(current.loanType) === 'NEW' ? '50' : current.passbook
       }));
     } catch (err) {
@@ -207,13 +204,11 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
     setPreview(false);
     setForm(current => {
       if (key !== 'loanType') return { ...current, [key]: value };
-      const normalizedType = normalizeLoanType(value);
-      const transferBalance = account?.eval?.active_balance || latestLoan?.balance || 0;
       return {
         ...current,
         loanType: value,
-        balance: normalizedType === 'NEW' ? '0' : (hasPositiveAmount(current.balance) ? current.balance : String(transferBalance || 0)),
-        passbook: normalizedType === 'NEW' ? '50' : current.passbook
+        balance: current.balance || '',
+        passbook: normalizeLoanType(value) === 'NEW' ? '50' : current.passbook
       };
     });
   };
@@ -237,18 +232,21 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
     setSubmitting(true);
     setError('');
     try {
-      const res = await API.post(`/customers/${activeCustomerId}/reloan`, {
+      const payload = {
         principal: computed.principal,
         loan_period: Number(form.days),
         interest_rate: Number(form.interestRate || 0),
         date_released: form.loanDate,
         loan_type: form.loanType,
         source_loan_id: latestLoan?.id || activeCustomer?.source_loan_id || null,
-        previous_balance: normalizeLoanType(form.loanType) === 'NEW' ? 0 : computed.balance,
         penalty: computed.penalty,
         passbook: computed.passbook,
         remarks: form.remarks
-      });
+      };
+      if (normalizeLoanType(form.loanType) !== 'NEW' && String(form.balance).trim() !== '') {
+        payload.previous_balance = computed.balance;
+      }
+      const res = await API.post(`/customers/${activeCustomerId}/reloan`, payload);
       setSuccess(res.data);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save loan.');

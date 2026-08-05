@@ -906,12 +906,18 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
     const workingDays = getWorkingDays(period);
     const amortization = amount > 0 && workingDays > 0 ? Math.ceil(totalAmortization / workingDays) : 0;
     const dateMaturity = computeMaturityDate(releaseDate, period);
-    const balanceAmount = Number(previous_balance || 0);
+    const hasPreviousBalanceInput = Object.prototype.hasOwnProperty.call(req.body, 'previous_balance')
+      && previous_balance !== null
+      && String(previous_balance).trim() !== '';
+    const balanceAmount = hasPreviousBalanceInput ? Number(previous_balance) : 0;
+    if (hasPreviousBalanceInput && (!Number.isFinite(balanceAmount) || balanceAmount < 0)) {
+      return res.status(400).json({ error: 'Balance must be a valid non-negative amount.' });
+    }
     const penaltyAmount = Number(penalty || 0);
     const passbookAmount = passbook === undefined || passbook === null || passbook === ''
       ? (normalizedLoanType === 'NEW' ? 50 : 0)
       : Number(passbook || 0);
-    const shouldPostPriorBalance = ['RECON', 'RELOAN'].includes(normalizedLoanType);
+    const shouldPostPriorBalance = ['RECON', 'RELOAN'].includes(normalizedLoanType) && hasPreviousBalanceInput && balanceAmount > 0;
     const newLoanPreviousBalance = shouldPostPriorBalance ? balanceAmount : 0;
     const totalCharges = balanceAmount + penaltyAmount + passbookAmount;
     const netProceeds = amount;
@@ -950,11 +956,6 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
       }
       if (customerStatus === 'HOLD') {
         const err = new Error(`This client is not eligible for RELOAN. Client is on ${customerStatus} status.`);
-        err.statusCode = 400;
-        throw err;
-      }
-      if (Number(activeLoan?.balance || 0) > 0 && balanceAmount <= 0) {
-        const err = new Error('This client is not eligible for RELOAN. Existing unpaid balance must be reviewed through SOA.');
         err.statusCode = 400;
         throw err;
       }
