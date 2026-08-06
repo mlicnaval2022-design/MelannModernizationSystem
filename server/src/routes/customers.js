@@ -76,7 +76,7 @@ const todayDateOnly = () => {
   return now.toISOString().slice(0, 10);
 };
 
-async function postPriorLoanBalancePayment({ customerId, sourceLoanId, amount, user, date_released, loanType }) {
+async function postPriorLoanBalancePayment({ customerId, sourceLoanId, amount, user, date_released, loanType, collectorId }) {
   const paymentAmount = Number(amount || 0);
   if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) return null;
   const loanTypeLabel = String(loanType || '').toUpperCase() === 'RELOAN'
@@ -118,13 +118,15 @@ async function postPriorLoanBalancePayment({ customerId, sourceLoanId, amount, u
   const nextCode = (maxCodeRes?.max_code || 0) + 1;
   const paymentCode = String(nextCode).padStart(4, '0');
 
+  const assignedCollectorId = collectorId || sourceLoan.collector_id || null;
+
   const payment = await dbRun(
     `INSERT INTO tblPayment (loan_id, customer_id, collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, status, remarks, encoded_by, payment_code)
      VALUES (?,?,?,?,?,?,?,?,'active',?,?,?)`,
     [
       sourceLoan.id,
       customerId,
-      sourceLoan.collector_id,
+      assignedCollectorId,
       'N/A',
       datePaid,
       paymentAmount,
@@ -989,7 +991,8 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
         amount: balanceAmount,
         user: req.user,
         date_released: releaseDate,
-        loanType: normalizedLoanType
+        loanType: normalizedLoanType,
+        collectorId: customer.collector_id
       })
       : null;
     

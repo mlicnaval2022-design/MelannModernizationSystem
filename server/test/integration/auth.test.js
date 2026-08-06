@@ -343,3 +343,124 @@ test('reloan penalty posts to new loan on release date without reducing balance'
   assert.equal(penaltyPayment.payment_type, 'penalty');
   assert.match(penaltyPayment.remarks, /Penalty charge posted during loan release/);
 });
+
+test('demand letter creation and deletion endpoint', async () => {
+  const login = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: 'admin123' }),
+  });
+  const { token } = await login.json();
+
+  const createRes = await fetch(`${baseUrl}/api/demand-letters`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      demand_type: 'first',
+      client_name: 'TEST DELETE CLIENT',
+      courier: 'Field Personnel',
+    }),
+  });
+  const created = await createRes.json();
+  assert.equal(createRes.status, 201, created.error);
+  assert.ok(created.id);
+
+  const deleteRes = await fetch(`${baseUrl}/api/demand-letters/${created.id}`, {
+    method: 'DELETE',
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const deleteBody = await deleteRes.json();
+  assert.equal(deleteRes.status, 200, deleteBody.error);
+  assert.equal(String(deleteBody.id), String(created.id));
+
+  const checkDb = await dbGet(`SELECT * FROM tblDemandLetter WHERE id = ?`, [created.id]);
+  assert.equal(checkDb, undefined);
+});
+
+test('collector performance summary excludes Recon loans released on target date from Actual Collection', async () => {
+  const login = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: 'admin123' }),
+  });
+  const { token } = await login.json();
+
+  const branch = await dbGet(`SELECT id FROM tblBranch LIMIT 1`);
+  const user = await dbGet(`SELECT id FROM tblUser WHERE username = 'admin'`);
+  const collector = await dbRun(`
+    INSERT INTO tblCollector (collector_code, first_name, last_name, is_active)
+    VALUES (?, ?, ?, 1)
+  `, ['COL-RELEASE-TEST', 'TestRelease', 'Collector']);
+
+  const testDate = '2026-08-06';
+
+  const cust1 = await dbRun(`
+    INSERT INTO tblCustomer (customer_code, first_name, last_name, full_name, branch_id, collector_id, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `, ['C-REL-ACT', 'Active', 'Client', 'Active Client', branch.id, collector.lastID, 'active']);
+
+  const cust2 = await dbRun(`
+    INSERT INTO tblCustomer (customer_code, first_name, last_name, full_name, branch_id, collector_id, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `, ['C-REL-REC-TODAY', 'ReconToday', 'Client', 'Recon Today Client', branch.id, collector.lastID, 'recon']);
+
+  const cust3 = await dbRun(`
+    INSERT INTO tblCustomer (customer_code, first_name, last_name, full_name, branch_id, collector_id, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `, ['C-REL-REC-OLD', 'ReconOld', 'Client', 'Recon Old Client', branch.id, collector.lastID, 'recon']);
+
+  const activeLoan = await dbRun(`
+    INSERT INTO tblLoan (
+      loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate,
+      loan_period, date_released, date_maturity, amortization, total_amortization,
+      net_proceeds, balance, status, created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, ['LN-REL-ACT', cust1.lastID, collector.lastID, branch.id, 'New', 1000, 0, 45, '2026-07-01', '2026-08-30', 25, 1000, 1000, 1000, 'active', user.id]);
+
+  const reconLoanToday = await dbRun(`
+    INSERT INTO tblLoan (
+      loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate,
+      loan_period, date_released, date_maturity, amortization, total_amortization,
+      net_proceeds, balance, status, created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, ['LN-REC-TODAY', cust2.lastID, collector.lastID, branch.id, 'Recon', 3900, 0, 45, testDate, '2026-09-20', 87, 3900, 3900, 3900, 'active', user.id]);
+
+  const reconLoanOld = await dbRun(`
+    INSERT INTO tblLoan (
+      loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate,
+      loan_period, date_released, date_maturity, amortization, total_amortization,
+      net_proceeds, balance, status, created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, ['LN-REC-OLD', cust3.lastID, collector.lastID, branch.id, 'Recon', 2000, 0, 45, '2026-07-15', '2026-09-01', 45, 2000, 2000, 1500, 'active', user.id]);
+
+  await dbRun(`
+    INSERT INTO tblPayment (
+      loan_id, customer_id, collector_id, or_number, date_paid, amount_paid,
+      balance_before, balance_after, payment_type, status, encoded_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [activeLoan.lastID, cust1.lastID, collector.lastID, 'OR-REL-1', testDate, 500, 1000, 500, 'regular', 'active', user.id]);
+
+  await dbRun(`
+    INSERT INTO tblPayment (
+      loan_id, customer_id, collector_id, or_number, date_paid, amount_paid,
+      balance_before, balance_after, payment_type, remarks, status, encoded_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [reconLoanToday.lastID, cust2.lastID, collector.lastID, 'OR-REL-2', testDate, 48, 48, 0, 'balance', 'Auto-posted old balance during RECON', 'active', user.id]);
+
+  await dbRun(`
+    INSERT INTO tblPayment (
+      loan_id, customer_id, collector_id, or_number, date_paid, amount_paid,
+      balance_before, balance_after, payment_type, status, encoded_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [reconLoanOld.lastID, cust3.lastID, collector.lastID, 'OR-REL-3', testDate, 300, 1500, 1200, 'regular', 'active', user.id]);
+
+  const res = await fetch(`${baseUrl}/api/collector-performance/summary?date_to=${testDate}`, {
+    headers: { authorization: `Bearer ${token}` }
+  });
+  const data = await res.json();
+  const foundCollector = data.collectors.find(c => c.id === collector.lastID);
+
+  assert.equal(res.status, 200);
+  assert.ok(foundCollector);
+  assert.equal(foundCollector.actual_collection, 848);
+});

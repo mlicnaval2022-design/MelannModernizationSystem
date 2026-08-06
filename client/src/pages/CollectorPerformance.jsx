@@ -104,6 +104,9 @@ export default function CollectorPerformance() {
     payments.forEach(payment => {
       const name = payment.collector_name || 'Unassigned'
       if (String(name).toLowerCase().includes('melann office')) return
+      const isOldBalancePayment = String(payment.remarks || '').toLowerCase().includes('old balance') || ['balance', 'recon', 'old_balance'].includes(String(payment.payment_type || '').toLowerCase())
+      const isReconReleaseToday = String(payment.loan_type || '').toLowerCase().includes('recon') && payment.date_released === filters.date_to
+      if (isReconReleaseToday && !isOldBalancePayment) return
       const row = byCollector.get(name) || {
         id: `fallback-${name}`,
         name,
@@ -121,6 +124,9 @@ export default function CollectorPerformance() {
 
     const trendMap = new Map()
     collectionRes.data?.payments?.forEach(payment => {
+      const isOldBalancePayment = String(payment.remarks || '').toLowerCase().includes('old balance') || ['balance', 'recon', 'old_balance'].includes(String(payment.payment_type || '').toLowerCase())
+      const isReconReleaseToday = String(payment.loan_type || '').toLowerCase().includes('recon') && payment.date_released === filters.date_to
+      if (isReconReleaseToday && !isOldBalancePayment) return
       const date = payment.date_paid
       trendMap.set(date, (trendMap.get(date) || 0) + Number(payment.amount_paid || 0))
     })

@@ -283,4 +283,22 @@ router.put('/:id', authenticateToken, async (req, res) => {
   }
 });
 
+router.delete('/:id', authenticateToken, async (req, res) => {
+  try {
+    const existing = await dbGet(`SELECT * FROM tblDemandLetter WHERE id = ?`, [req.params.id]);
+    if (!existing) return res.status(404).json({ error: 'Demand letter record not found' });
+
+    await dbRun(`DELETE FROM tblDemandLetter WHERE id = ?`, [req.params.id]);
+
+    await dbRun(
+      `INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
+      [req.user.id, req.user.username, 'DELETE', 'DEMAND_LETTER', req.params.id, `${existing.demand_type} demand deleted for ${existing.client_name}`]
+    );
+
+    res.json({ message: 'Demand letter record deleted successfully', id: req.params.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

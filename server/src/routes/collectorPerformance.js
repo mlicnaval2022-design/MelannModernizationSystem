@@ -138,6 +138,8 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
       return;
     }
 
+    const isReconReleaseToday = String(activeTransferLoan.loan_type || '').toLowerCase().includes('recon');
+
     const priorCollections = customerLoans
       .filter(loan => loan.id !== activeTransferLoan.id && String(loan.status || '').toLowerCase() === 'fullpaid')
       .reduce((totals, loan) => {
@@ -148,8 +150,16 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
         return totals;
       }, { collected: 0, payment_count: 0, balance: 0, penalty: 0 });
 
-    activeTransferLoan.collected_today = toAmount(activeTransferLoan.collected_today) + priorCollections.collected;
-    activeTransferLoan.payment_count_today = toAmount(activeTransferLoan.payment_count_today) + priorCollections.payment_count;
+    if (!isReconReleaseToday) {
+      activeTransferLoan.collected_today = toAmount(activeTransferLoan.collected_today) + priorCollections.collected;
+      activeTransferLoan.payment_count_today = toAmount(activeTransferLoan.payment_count_today) + priorCollections.payment_count;
+    } else {
+      activeTransferLoan.collected_today = toAmount(activeTransferLoan.collected_today) + priorCollections.balance;
+      if (priorCollections.balance > 0) {
+        activeTransferLoan.payment_count_today = toAmount(activeTransferLoan.payment_count_today) + 1;
+      }
+    }
+
     collectionLoans.push(activeTransferLoan);
     collectionLoans.push(...customerLoans.filter(loan =>
       loan.id !== activeTransferLoan.id &&
@@ -180,7 +190,9 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
       (!maturityDate || !maturityDate.isAfter(dayjs(pastdueCutoff), 'day'));
 
     stats.gross_collected += collectedToday;
-    if (shouldDeductFromActual) stats.pastdue_deducted += collectedToday;
+    if (shouldDeductFromActual) {
+      stats.pastdue_deducted += collectedToday;
+    }
     stats.payment_count += toAmount(loan.payment_count_today);
     if (collectedToday > 0) stats.paying_clients += 1;
 

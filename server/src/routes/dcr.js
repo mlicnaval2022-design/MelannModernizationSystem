@@ -101,11 +101,18 @@ router.get('/summary', authenticateToken, async (req, res) => {
     const collections = await dbAll(`
       SELECT p.id, p.or_number, p.amount_paid, p.payment_type, p.status, p.remarks, p.date_paid, p.created_at, p.dcr_id,
              c.customer_code, c.first_name, c.last_name, u.full_name as encoded_by,
-             co.first_name || ' ' || co.last_name as collector_name
+             COALESCE(
+               co.first_name || ' ' || co.last_name,
+               rco.first_name || ' ' || rco.last_name,
+               cco.first_name || ' ' || cco.last_name
+             ) as collector_name
       FROM tblPayment p
       JOIN tblCustomer c ON p.customer_id = c.id
       LEFT JOIN tblUser u ON p.encoded_by = u.id
       LEFT JOIN tblCollector co ON p.collector_id = co.id
+      LEFT JOIN tblLoan rl ON (rl.customer_id = p.customer_id AND rl.date_released = p.date_paid AND rl.status != 'reversed')
+      LEFT JOIN tblCollector rco ON rl.collector_id = rco.id
+      LEFT JOIN tblCollector cco ON c.collector_id = cco.id
       WHERE ${pCond}
     `, pParams);
 
