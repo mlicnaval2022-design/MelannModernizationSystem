@@ -22,10 +22,12 @@ import {
   Settings,
   ShieldCheck,
   UserRound,
+  FileText,
   X,
   XCircle
 } from 'lucide-react';
 import './NoPaymentMonitoring.css';
+import SoaModal from '../components/SoaModal';
 
 function fmtDate(d) {
   if (!d) return '-';
@@ -67,6 +69,7 @@ export default function NoPaymentMonitoring() {
   const [escalateModal, setEscalateModal] = useState({ show: false, alert: null });
   const [clientProfileModal, setClientProfileModal] = useState({ show: false, data: null, loading: false });
   const [toastModal, setToastModal] = useState({ show: false, type: 'success', title: '', message: '', meta: null });
+  const [soaCustomerId, setSoaCustomerId] = useState(null);
 
   const showToast = (type, title, message, meta = null) => {
     setToastModal({ show: true, type, title, message, meta });
@@ -306,17 +309,18 @@ export default function NoPaymentMonitoring() {
                   </td>
                   <td>
                     <div className="npm-actions">
-                      <button className="npm-action npm-action-light" onClick={() => openTimeline(item)}><Clock3 size={14} /> Timeline</button>
+                      <button className="npm-action npm-action-light" onClick={() => openTimeline(item)}><Clock3 size={12} /> Timeline</button>
                       {activeTab !== 'resolved' && (
                         <>
-                          <button className="npm-action npm-action-dark" onClick={() => setFollowUpModal({ show: true, alert: item })}><Phone size={14} /> Log</button>
-                          <button className="npm-action npm-action-ptp" onClick={() => setPtpModal({ show: true, alert: item })}><Handshake size={14} /> PTP</button>
-                          <button className="npm-action npm-action-resolve" onClick={() => setResolveModal({ show: true, alert: item })}><Check size={14} /> Resolve</button>
+                          <button className="npm-action npm-action-dark" onClick={() => setFollowUpModal({ show: true, alert: item })}><Phone size={12} /> Log</button>
+                          <button className="npm-action npm-action-ptp" onClick={() => setPtpModal({ show: true, alert: item })}><Handshake size={12} /> PTP</button>
+                          <button className="npm-action npm-action-resolve" onClick={() => setResolveModal({ show: true, alert: item })}><Check size={12} /> Resolve</button>
                           {item.alert_level !== 'Day 4+' && (
-                            <button className="npm-action npm-action-escalate" onClick={() => setEscalateModal({ show: true, alert: item })}><Flame size={14} /> Escalate</button>
+                            <button className="npm-action npm-action-escalate" onClick={() => setEscalateModal({ show: true, alert: item })}><Flame size={12} /> Escalate</button>
                           )}
                         </>
                       )}
+                      <button className="npm-action npm-action-soa" onClick={() => setSoaCustomerId(item.customer_id)}><FileText size={12} /> SOA</button>
                     </div>
                   </td>
                 </tr>
@@ -509,6 +513,14 @@ export default function NoPaymentMonitoring() {
           data={clientProfileModal.data}
           loading={clientProfileModal.loading}
           onClose={() => setClientProfileModal({ show: false, data: null, loading: false })}
+        />
+      )}
+
+      {soaCustomerId && (
+        <SoaModal
+          customerId={soaCustomerId}
+          onClose={() => setSoaCustomerId(null)}
+          onRefresh={fetchAlerts}
         />
       )}
 
