@@ -63,8 +63,7 @@ export default function Login() {
         </form>
         <div className="login-creds">
           <strong>Demo Credentials</strong>
-          admin / admin123 &nbsp;|&nbsp; teller / teller123<br />
-          manager / manager123 &nbsp;|&nbsp; accounting / accounting123
+          admin / admin123 &nbsp;|&nbsp; user / user123
         </div>
       </div>
     </div>

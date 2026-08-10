@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
-
-const ROLES = ['admin', 'manager', 'teller', 'accounting']
+import { ROLE_OPTIONS, normalizeManagedRole } from '../access'
 
 export default function Users() {
   const { hasRole } = useAuth()
@@ -11,14 +10,14 @@ export default function Users() {
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ username: '', password: '', full_name: '', role: 'teller', branch_id: '', is_active: 1 })
+  const [form, setForm] = useState({ username: '', password: '', full_name: '', role: 'user', branch_id: '', is_active: 1 })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const load = () => { setLoading(true); API.get('/users').then(r => setRows(r.data)).finally(() => setLoading(false)) }
   useEffect(() => { load(); API.get('/branches').then(r => setBranches(r.data)) }, [])
 
-  const openNew = () => { setEditing(null); setForm({ username: '', password: '', full_name: '', role: 'teller', branch_id: '', is_active: 1 }); setError(''); setModal(true) }
-  const openEdit = (r) => { setEditing(r); setForm({ username: r.username, password: '', full_name: r.full_name, role: r.role, branch_id: r.branch_id || '', is_active: r.is_active }); setError(''); setModal(true) }
+  const openNew = () => { setEditing(null); setForm({ username: '', password: '', full_name: '', role: 'user', branch_id: '', is_active: 1 }); setError(''); setModal(true) }
+  const openEdit = (r) => { setEditing(r); setForm({ username: r.username, password: '', full_name: r.full_name, role: normalizeManagedRole(r.role), branch_id: r.branch_id || '', is_active: r.is_active }); setError(''); setModal(true) }
 
   const handleSave = async (e) => {
     e.preventDefault(); setError(''); setSaving(true)
@@ -69,7 +68,7 @@ export default function Users() {
                   <div className="form-group"><label className="form-label">{editing ? 'New Password (leave blank to keep)' : 'Password *'}</label><input type="password" className="form-control" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required={!editing} /></div>
                   <div className="form-group"><label className="form-label">Role</label>
                     <select className="form-control" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
-                      {ROLES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
+                      {ROLE_OPTIONS.map(role => <option key={role.value} value={role.value}>{role.label}</option>)}
                     </select>
                   </div>
                   <div className="form-group"><label className="form-label">Branch</label>

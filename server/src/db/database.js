@@ -72,7 +72,7 @@ async function initializeDatabase() {
       username TEXT NOT NULL UNIQUE,
       password TEXT NOT NULL,
       full_name TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'teller',
+      role TEXT NOT NULL DEFAULT 'user',
       branch_id INTEGER,
       is_active INTEGER DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now')),
@@ -664,11 +664,9 @@ async function initializeDatabase() {
   const userCount = await dbGet('SELECT COUNT(*) as count FROM tblUser');
   if (userCount.count === 0) {
     const adminPw = bcrypt.hashSync('admin123', 10);
-    const tellerPw = bcrypt.hashSync('teller123', 10);
+    const userPw = bcrypt.hashSync('user123', 10);
     await dbRun(`INSERT INTO tblUser (username, password, full_name, role) VALUES (?,?,?,?)`, ['admin', adminPw, 'System Administrator', 'admin']);
-    await dbRun(`INSERT INTO tblUser (username, password, full_name, role) VALUES (?,?,?,?)`, ['teller', tellerPw, 'Demo Teller', 'teller']);
-    await dbRun(`INSERT INTO tblUser (username, password, full_name, role) VALUES (?,?,?,?)`, ['manager', bcrypt.hashSync('manager123', 10), 'Branch Manager', 'manager']);
-    await dbRun(`INSERT INTO tblUser (username, password, full_name, role) VALUES (?,?,?,?)`, ['accounting', bcrypt.hashSync('accounting123', 10), 'Accounting Staff', 'accounting']);
+    await dbRun(`INSERT INTO tblUser (username, password, full_name, role) VALUES (?,?,?,?)`, ['user', userPw, 'Demo User', 'user']);
     console.log('✅ Default users seeded');
   }
 
@@ -682,4 +680,4 @@ async function initializeDatabase() {
   console.log('✅ Database initialized');
 }
 
-module.exports = { getDb, closeDb, initializeDatabase, dbRun, dbGet, dbAll };
+module.exports = { DB_PATH, getDb, closeDb, initializeDatabase, dbRun, dbGet, dbAll, dbExec };

@@ -1,7 +1,8 @@
 import { useEffect } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 // Force Vite HMR invalidation
 import { useAuth } from './context/AuthContext'
+import { canAccessPath } from './access'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -27,7 +28,10 @@ import CollectorPerformance from './pages/CollectorPerformance'
 
 function PrivateRoute({ children }) {
   const { user } = useAuth()
-  return user ? children : <Navigate to="/login" replace />
+  const location = useLocation()
+  if (!user) return <Navigate to="/login" replace />
+  if (!canAccessPath(user, location.pathname)) return <Navigate to="/" replace />
+  return children
 }
 
 export default function App() {
