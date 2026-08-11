@@ -5,6 +5,7 @@ import html2pdf from 'html2pdf.js'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import SoaModal from '../components/SoaModal'
 import {
   AlertTriangle,
   BarChart3,
@@ -385,7 +386,12 @@ const getReleaseCollectorRows = loans => Object.entries(loans.reduce((acc, l) =>
   acc[name].loans.push(l)
   return acc
 }, {}))
-  .map(([, row]) => ({ ...row, loans: row.loans.sort((a, b) => String(a.date_released || '').localeCompare(String(b.date_released || '')) || String(a.customer_name || '').localeCompare(String(b.customer_name || ''))) }))
+  .map(([, row]) => ({
+    ...row,
+    total_without_recon_count: row.new_count + row.reloan_count,
+    total_without_recon_amount: row.new_amount + row.reloan_amount,
+    loans: row.loans.sort((a, b) => String(a.date_released || '').localeCompare(String(b.date_released || '')) || String(a.customer_name || '').localeCompare(String(b.customer_name || '')))
+  }))
   .sort((a, b) => a.collector.localeCompare(b.collector))
 
 const loanPrincipal = loan => Number(loan?.principal || 0)
@@ -523,12 +529,14 @@ export default function Reports() {
   const [releaseSubTab, setReleaseSubTab] = useState('daily')
   const [monthlySubTab, setMonthlySubTab] = useState('by-collector')
   const [releaseMonthlySubTab, setReleaseMonthlySubTab] = useState('by-collector')
+  const [releaseChartMetric, setReleaseChartMetric] = useState('overall')
   const [params, setParams] = useState({ date_from: yesterday(), date_to: yesterday(), year: new Date().getFullYear(), month: new Date().getMonth() + 1, collection_month: 'all', collection_cycle_type: '30', collection_cycle: 'all', release_cycle_type: '30', release_cycle: 'all', days_ahead: 30, collector_id: '', disclosure_search: '', disclosure_loan_id: '', monitoring_tab: 'new' })
   const [collectors, setCollectors] = useState([])
   const [collectorsLoaded, setCollectorsLoaded] = useState(false)
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [selectedCollector, setSelectedCollector] = useState(null)
+  const [soaCustomerId, setSoaCustomerId] = useState(null)
   const [modalSortConfig, setModalSortConfig] = useState({ key: null, direction: 'asc' })
   const [modalTypeFilter, setModalTypeFilter] = useState([])
   const [typeFilterMenuOpen, setTypeFilterMenuOpen] = useState(false)
@@ -1240,9 +1248,9 @@ export default function Reports() {
 
       const collectorRows = getReleaseCollectorRows(loans)
       const rows = [
-        ['Collector', 'No. of Loans', 'New Count', 'New Amount', 'Reloan Count', 'Reloan Amount', 'Recon Count', 'Recon Amount', 'Total Principal'],
-        ...collectorRows.map(row => [row.collector, row.loan_count, row.new_count, rawMoney(row.new_amount), row.reloan_count, rawMoney(row.reloan_amount), row.recon_count, rawMoney(row.recon_amount), rawMoney(row.total_principal)]),
-        ['GRAND TOTAL', collectorRows.reduce((sum, row) => sum + Number(row.loan_count || 0), 0), '', '', '', '', '', '', rawMoney(data.total_principal || collectorRows.reduce((sum, row) => sum + Number(row.total_principal || 0), 0))],
+        ['Collector', 'No. of Loans', 'New Count', 'New Amount', 'Reloan Count', 'Reloan Amount', 'Recon Count', 'Recon Amount', 'Non-Recon Release', 'Overall Total'],
+        ...collectorRows.map(row => [row.collector, row.loan_count, row.new_count, rawMoney(row.new_amount), row.reloan_count, rawMoney(row.reloan_amount), row.recon_count, rawMoney(row.recon_amount), rawMoney(row.total_without_recon_amount), rawMoney(row.total_principal)]),
+        ['GRAND TOTAL', collectorRows.reduce((sum, row) => sum + Number(row.loan_count || 0), 0), '', '', '', '', '', '', rawMoney(collectorRows.reduce((sum, row) => sum + Number(row.total_without_recon_amount || 0), 0)), rawMoney(data.total_principal || collectorRows.reduce((sum, row) => sum + Number(row.total_principal || 0), 0))],
         [],
         ['Details'],
         ['Client Code', 'Client', 'Loan Number', 'Loan Type', 'Principal', 'Date Released', 'Maturity Date', 'Collector'],
@@ -2411,6 +2419,7 @@ export default function Reports() {
               .reports-screen-only { display: flex !important; flex-direction: column !important; }
               .reports-screen-only > div:first-child { order: 2; }
               .reports-screen-only > div:last-child { order: 1; margin-bottom: 30px; }
+              .reports-chart-toggle { display: none !important; }
               `}
             }
           `}</style>
@@ -2889,14 +2898,16 @@ export default function Reports() {
         ? `Release Date: ${displayDate(reportFrom)}`
         : `Release Period: ${displayDate(reportFrom)} to ${displayDate(reportTo)}`
       
-      const collectorTotals = loans.reduce((acc, l) => {
-        const name = (l.collector_name || '').trim() || 'Unassigned';
-        if (!acc[name]) acc[name] = 0;
-        acc[name] += Number(l.principal || 0);
-        return acc;
-      }, {});
       const collectorRows = getReleaseCollectorRows(loans)
-      const chartData = Object.entries(collectorTotals).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount);
+      const releaseChartLabel = releaseChartMetric === 'non-recon' ? 'Non-Recon Release' : 'Overall Total'
+      const releaseChartColor = releaseChartMetric === 'non-recon' ? '#dc2626' : '#2563eb'
+      const releaseChartSoftColor = releaseChartMetric === 'non-recon' ? '#fecaca' : '#bfdbfe'
+      const chartData = collectorRows
+        .map(row => ({
+          name: row.collector,
+          amount: releaseChartMetric === 'non-recon' ? row.total_without_recon_amount : row.total_principal
+        }))
+        .sort((a, b) => b.amount - a.amount);
 
       return (
         <>
@@ -2921,17 +2932,18 @@ export default function Reports() {
               <thead>
                 <tr>
                   <th style={{ verticalAlign: 'middle', borderBottom: '1px solid var(--border)' }}>Collector</th>
-                  <th className="text-right" style={{ borderBottom: '1px solid var(--border)' }}>New</th>
-                  <th className="text-right" style={{ borderBottom: '1px solid var(--border)' }}>Reloan</th>
-                  <th className="text-right" style={{ borderBottom: '1px solid var(--border)' }}>Recon</th>
-                  <th className="text-right" style={{ borderBottom: '1px solid var(--border)' }}>Total</th>
+                  <th className="text-center" style={{ borderBottom: '1px solid var(--border)' }}>New</th>
+                  <th className="text-center" style={{ borderBottom: '1px solid var(--border)' }}>Reloan</th>
+                  <th className="text-center" style={{ borderBottom: '1px solid var(--border)' }}>Recon</th>
+                  <th className="text-center" style={{ borderBottom: '1px solid var(--border)', width: 112, maxWidth: 112, whiteSpace: 'normal', lineHeight: 1.15, color: '#dc2626' }}>Non-Recon Release</th>
+                  <th className="text-center" style={{ borderBottom: '1px solid var(--border)', width: 112, maxWidth: 112, whiteSpace: 'normal', lineHeight: 1.15, color: '#2563eb' }}>Overall Total</th>
                 </tr>
               </thead>
               <tbody>
-                {collectorRows.length === 0 ? <tr><td colSpan={5} className="empty-state">No records</td></tr> : collectorRows.map(row => (
+                {collectorRows.length === 0 ? <tr><td colSpan={6} className="empty-state">No records</td></tr> : collectorRows.map(row => (
                   <tr key={row.collector} onClick={() => setSelectedCollector(row)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedCollector(row) }} tabIndex={0} title="View release details" style={{ cursor: 'pointer', transition: 'background 0.2s' }} className="clickable-row">
                     <td className="fw-600" style={{ verticalAlign: 'middle' }}>{row.collector}</td>
-                    <td className="text-right">
+                    <td className="text-center">
                       {row.new_amount > 0 ? (
                         <>
                           <div className="fw-600">PHP {fmt(row.new_amount)}</div>
@@ -2939,7 +2951,7 @@ export default function Reports() {
                         </>
                       ) : '-'}
                     </td>
-                    <td className="text-right">
+                    <td className="text-center">
                       {row.reloan_amount > 0 ? (
                         <>
                           <div className="fw-600">PHP {fmt(row.reloan_amount)}</div>
@@ -2947,7 +2959,7 @@ export default function Reports() {
                         </>
                       ) : '-'}
                     </td>
-                    <td className="text-right">
+                    <td className="text-center">
                       {row.recon_amount > 0 ? (
                         <>
                           <div className="fw-600">PHP {fmt(row.recon_amount)}</div>
@@ -2955,11 +2967,19 @@ export default function Reports() {
                         </>
                       ) : '-'}
                     </td>
-                    <td className="text-right" style={{ background: 'var(--bg-soft, #f8fafc)' }}>
+                    <td className="text-center" style={{ background: 'rgba(220, 38, 38, 0.05)', color: '#dc2626', width: 112, maxWidth: 112 }}>
+                      {row.total_without_recon_amount > 0 ? (
+                        <>
+                          <div className="fw-bold" style={{ fontSize: '13px', color: '#dc2626' }}>PHP {fmt(row.total_without_recon_amount)}</div>
+                          <div style={{ fontSize: 11, color: '#dc2626' }}>{row.total_without_recon_count} {row.total_without_recon_count > 1 ? 'Releases' : 'Release'}</div>
+                        </>
+                      ) : '-'}
+                    </td>
+                    <td className="text-center" style={{ background: 'rgba(37, 99, 235, 0.06)', color: '#2563eb', width: 112, maxWidth: 112 }}>
                       {row.total_principal > 0 ? (
                         <>
-                          <div className="fw-bold text-accent" style={{ fontSize: '13px' }}>PHP {fmt(row.total_principal)}</div>
-                          <div style={{ fontSize: 11, color: '#64748b' }}>{row.loan_count} {row.loan_count > 1 ? 'Releases' : 'Release'}</div>
+                          <div className="fw-bold" style={{ fontSize: '13px', color: '#2563eb' }}>PHP {fmt(row.total_principal)}</div>
+                          <div style={{ fontSize: 11, color: '#2563eb' }}>{row.loan_count} {row.loan_count > 1 ? 'Releases' : 'Release'}</div>
                         </>
                       ) : '-'}
                     </td>
@@ -2970,21 +2990,25 @@ export default function Reports() {
                 <tfoot>
                   <tr style={{ background: 'rgba(18,58,99,0.03)', borderTop: '2px solid var(--border)' }}>
                     <td className="fw-bold" style={{ color: 'var(--blue-dark)', verticalAlign: 'middle' }}>GRAND TOTAL</td>
-                    <td className="text-right">
+                    <td className="text-center">
                       <div className="fw-bold">PHP {fmt(collectorRows.reduce((sum, r) => sum + r.new_amount, 0))}</div>
                       <div style={{ fontSize: 11, color: '#64748b' }}>{collectorRows.reduce((sum, r) => sum + r.new_count, 0)} Clients</div>
                     </td>
-                    <td className="text-right">
+                    <td className="text-center">
                       <div className="fw-bold">PHP {fmt(collectorRows.reduce((sum, r) => sum + r.reloan_amount, 0))}</div>
                       <div style={{ fontSize: 11, color: '#64748b' }}>{collectorRows.reduce((sum, r) => sum + r.reloan_count, 0)} Clients</div>
                     </td>
-                    <td className="text-right">
+                    <td className="text-center">
                       <div className="fw-bold">PHP {fmt(collectorRows.reduce((sum, r) => sum + r.recon_amount, 0))}</div>
                       <div style={{ fontSize: 11, color: '#64748b' }}>{collectorRows.reduce((sum, r) => sum + r.recon_count, 0)} Clients</div>
                     </td>
-                    <td className="text-right text-accent">
-                      <div className="fw-bold" style={{ fontSize: '14px' }}>PHP {fmt(total_principal)}</div>
-                      <div style={{ fontSize: 11, color: '#64748b' }}>{collectorRows.reduce((sum, r) => sum + r.loan_count, 0)} Releases</div>
+                    <td className="text-center" style={{ color: '#dc2626' }}>
+                      <div className="fw-bold" style={{ color: '#dc2626' }}>PHP {fmt(collectorRows.reduce((sum, r) => sum + r.total_without_recon_amount, 0))}</div>
+                      <div style={{ fontSize: 11, color: '#dc2626' }}>{collectorRows.reduce((sum, r) => sum + r.total_without_recon_count, 0)} Releases</div>
+                    </td>
+                    <td className="text-center" style={{ color: '#2563eb' }}>
+                      <div className="fw-bold" style={{ fontSize: '14px', color: '#2563eb' }}>PHP {fmt(total_principal)}</div>
+                      <div style={{ fontSize: 11, color: '#2563eb' }}>{collectorRows.reduce((sum, r) => sum + r.loan_count, 0)} Releases</div>
                     </td>
                   </tr>
                 </tfoot>
@@ -2992,7 +3016,13 @@ export default function Reports() {
             </table>
           </div>
           <div>
-            <div style={{ marginBottom: 12 }} className="fw-bold">Releases per Collector</div>
+            <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div className="fw-bold">Releases per Collector ({releaseChartLabel})</div>
+              <div className="reports-chart-toggle" style={{ display: 'inline-flex', border: '1px solid var(--border-color)', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
+                <button type="button" onClick={() => setReleaseChartMetric('overall')} style={{ border: 0, padding: '8px 12px', cursor: 'pointer', fontWeight: 700, fontSize: 12, background: releaseChartMetric === 'overall' ? '#2563eb' : 'transparent', color: releaseChartMetric === 'overall' ? '#fff' : '#475569' }}>Overall Total</button>
+                <button type="button" onClick={() => setReleaseChartMetric('non-recon')} style={{ border: 0, borderLeft: '1px solid var(--border-color)', padding: '8px 12px', cursor: 'pointer', fontWeight: 700, fontSize: 12, background: releaseChartMetric === 'non-recon' ? '#dc2626' : 'transparent', color: releaseChartMetric === 'non-recon' ? '#fff' : '#475569' }}>Non-Recon Release</button>
+              </div>
+            </div>
             <div style={{ height: 400, background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 16 }}>
               {chartData.length > 0 ? (
                 printMode === 'summary' ? (
@@ -3000,8 +3030,8 @@ export default function Reports() {
                     <BarChart width={1000} height={400} data={chartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
                       <defs>
                         <linearGradient id="barGradientRelease" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#8b5cf6" stopOpacity={1}/>
-                          <stop offset="100%" stopColor="#c4b5fd" stopOpacity={0.6}/>
+                          <stop offset="0%" stopColor={releaseChartColor} stopOpacity={1}/>
+                          <stop offset="100%" stopColor={releaseChartSoftColor} stopOpacity={0.6}/>
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -3015,17 +3045,17 @@ export default function Reports() {
                     <BarChart data={chartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
                       <defs>
                         <linearGradient id="barGradientRelease" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#8b5cf6" stopOpacity={1}/>
-                          <stop offset="100%" stopColor="#c4b5fd" stopOpacity={0.6}/>
+                          <stop offset="0%" stopColor={releaseChartColor} stopOpacity={1}/>
+                          <stop offset="100%" stopColor={releaseChartSoftColor} stopOpacity={0.6}/>
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `PHP ${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
                       <Tooltip
-                        cursor={{ fill: 'rgba(139, 92, 246, 0.08)' }}
+                        cursor={{ fill: releaseChartMetric === 'non-recon' ? 'rgba(220, 38, 38, 0.08)' : 'rgba(37, 99, 235, 0.08)' }}
                         contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }}
-                        formatter={(val) => [`PHP ${fmt(val)}`, 'Total Released']}
+                        formatter={(val) => [`PHP ${fmt(val)}`, releaseChartLabel]}
                         labelStyle={{ color: '#0f172a', fontWeight: 700, marginBottom: 6, fontSize: 13 }}
                       />
                       <Bar dataKey="amount" fill="url(#barGradientRelease)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={1000} />
@@ -3077,7 +3107,7 @@ export default function Reports() {
             {collectorRows.length > 0 && (
               <div style={{ marginTop: 40, borderTop: '3px double var(--blue-dark)', paddingTop: 16, pageBreakInside: 'avoid' }}>
                 <h3 style={{ margin: '0 0 16px 0', color: 'var(--blue-dark)' }}>GRAND TOTALS</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 16 }}>
                   <div style={{ padding: 16, background: 'rgba(18,58,99,0.05)', borderRadius: 8, border: '1px solid rgba(18,58,99,0.1)' }}>
                     <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: 600 }}>Total Releases</div>
                     <div style={{ fontSize: 20, fontWeight: 'bold' }}>{collectorRows.reduce((sum, r) => sum + r.loan_count, 0)}</div>
@@ -3094,9 +3124,13 @@ export default function Reports() {
                     <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: 600 }}>Recon</div>
                     <div style={{ fontSize: 16, fontWeight: 'bold' }}>PHP {fmt(collectorRows.reduce((sum, r) => sum + r.recon_amount, 0))}</div>
                   </div>
-                  <div style={{ padding: 16, background: 'rgba(139,92,246,0.1)', borderRadius: 8, border: '1px solid rgba(139,92,246,0.2)' }}>
-                    <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: 600 }}>Grand Total Released</div>
-                    <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--accent-2)' }}>PHP {fmt(total_principal)}</div>
+                  <div style={{ padding: 16, background: 'rgba(220,38,38,0.06)', borderRadius: 8, border: '1px solid rgba(220,38,38,0.18)' }}>
+                    <div style={{ fontSize: 12, color: '#dc2626', marginBottom: 4, fontWeight: 600 }}>Non-Recon Release</div>
+                    <div style={{ fontSize: 16, fontWeight: 'bold', color: '#dc2626' }}>PHP {fmt(collectorRows.reduce((sum, r) => sum + r.total_without_recon_amount, 0))}</div>
+                  </div>
+                  <div style={{ padding: 16, background: 'rgba(37,99,235,0.06)', borderRadius: 8, border: '1px solid rgba(37,99,235,0.18)' }}>
+                    <div style={{ fontSize: 12, color: '#2563eb', marginBottom: 4, fontWeight: 600 }}>Overall Total</div>
+                    <div style={{ fontSize: 24, fontWeight: 'bold', color: '#2563eb' }}>PHP {fmt(total_principal)}</div>
                   </div>
                 </div>
               </div>
@@ -3115,40 +3149,85 @@ export default function Reports() {
       const totalLoanAmount = rows.reduce((sum, r) => sum + r.total_loan_amount, 0)
       const reportFrom = data.date_from || params.date_from
       const reportTo = data.date_to || params.date_to
-      const chartData = rows.map(r => ({ name: (r.collector || '').trim() || 'Unassigned', amount: r.total_loan_amount })).sort((a, b) => b.amount - a.amount)
       return (
         <>
           <style>{`
-            .maturity-report-grid {
+            .maturity-report-modern {
+              display: flex;
+              flex-direction: column;
+              gap: 18px;
+              color: #172033;
+            }
+            .maturity-hero {
               display: grid;
-              grid-template-columns: minmax(560px, 0.98fr) minmax(460px, 0.9fr);
-              gap: 16px;
-              align-items: start;
-              max-width: 100%;
-              overflow-x: hidden;
+              grid-template-columns: minmax(260px, 1fr) repeat(4, minmax(140px, 180px));
+              gap: 12px;
+              align-items: stretch;
+              padding: 18px;
+              border: 1px solid rgba(203, 213, 225, 0.75);
+              border-radius: 8px;
+              background:
+                linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(5, 150, 105, 0.08)),
+                #ffffff;
+              box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+            }
+            .maturity-hero-title {
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
+              gap: 4px;
+            }
+            .maturity-hero-title strong {
+              color: #172033;
+              font-size: 17px;
+              font-weight: 900;
+            }
+            .maturity-hero-title span {
+              color: #64748b;
+              font-size: 12px;
+              font-weight: 650;
+            }
+            .maturity-kpi {
+              min-height: 82px;
+              padding: 14px;
+              border: 1px solid rgba(219, 228, 240, 0.9);
+              border-radius: 8px;
+              background: rgba(255, 255, 255, 0.82);
+              box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+            }
+            .maturity-kpi span {
+              display: block;
+              color: #64748b;
+              font-size: 10.5px;
+              font-weight: 850;
+              letter-spacing: 0.35px;
+              text-transform: uppercase;
+              margin-bottom: 8px;
+            }
+            .maturity-kpi strong {
+              display: block;
+              color: #172033;
+              font-size: 18px;
+              font-weight: 900;
+              line-height: 1.15;
+            }
+            .maturity-kpi.accent strong {
+              color: #2563eb;
             }
             .maturity-summary-wrap,
-            .maturity-chart-panel {
-              min-width: 0;
-              overflow-x: hidden;
-            }
-            .maturity-chart-box {
-              height: 390px;
+            .maturity-collector-section {
               min-width: 0;
               overflow: hidden;
-              background: var(--bg-card, #fff);
-              border: 1px solid var(--border-color);
+              border: 1px solid rgba(203, 213, 225, 0.75);
               border-radius: 8px;
-              padding: 12px 8px 6px 4px;
-            }
-            .maturity-chart-box > div,
-            .maturity-chart-box svg {
-              max-width: 100%;
+              background: #ffffff;
+              box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
             }
             .maturity-summary-table {
               width: 100%;
               table-layout: fixed;
-              border-collapse: collapse;
+              border-collapse: separate;
+              border-spacing: 0;
             }
             .maturity-summary-table th,
             .maturity-summary-table td {
@@ -3159,8 +3238,11 @@ export default function Reports() {
               vertical-align: middle;
             }
             .maturity-summary-table th {
+              background: #f8fbff !important;
+              color: #2f72ff !important;
+              border-bottom: 1px solid #dbe4f0 !important;
               font-size: 10.5px;
-              letter-spacing: 0;
+              letter-spacing: 0.35px;
               white-space: normal;
               overflow-wrap: anywhere;
             }
@@ -3178,12 +3260,142 @@ export default function Reports() {
               text-align: left !important;
               padding-left: 12px;
             }
-            @media (max-width: 1280px) {
-              .maturity-report-grid {
-                grid-template-columns: 1fr;
+            .maturity-collector-stack {
+              display: grid;
+              gap: 14px;
+            }
+            .maturity-collector-header {
+              display: grid;
+              grid-template-columns: minmax(220px, 1fr) repeat(4, minmax(120px, auto));
+              gap: 12px;
+              align-items: center;
+              padding: 16px 18px;
+              background: linear-gradient(135deg, #ffffff, #f8fbff);
+              border-bottom: 1px solid #dbe4f0;
+            }
+            .maturity-collector-name {
+              color: #172033;
+              font-size: 15px;
+              font-weight: 900;
+            }
+            .maturity-collector-meta {
+              text-align: right;
+            }
+            .maturity-collector-meta span {
+              display: block;
+              color: #64748b;
+              font-size: 10px;
+              font-weight: 850;
+              letter-spacing: 0.35px;
+              text-transform: uppercase;
+            }
+            .maturity-collector-meta strong {
+              color: #172033;
+              font-size: 13px;
+              font-weight: 900;
+            }
+            .maturity-detail-table {
+              width: 100%;
+              min-width: 1320px;
+              border-collapse: separate;
+              border-spacing: 0;
+            }
+            .maturity-detail-table th {
+              padding: 12px 14px;
+              background: #f8fbff !important;
+              border-bottom: 1px solid #dbe4f0 !important;
+              color: #2f72ff !important;
+              font-size: 10.5px;
+              font-weight: 900;
+              letter-spacing: 0.35px;
+              text-transform: uppercase;
+              white-space: nowrap;
+            }
+            .maturity-detail-table td {
+              padding: 13px 14px;
+              border-bottom: 1px solid #edf2f7;
+              color: #263449;
+              font-size: 13px;
+              vertical-align: middle;
+            }
+            .maturity-detail-table tbody tr:hover td {
+              background: #f9fcff;
+            }
+            .maturity-loan-code {
+              display: inline-flex;
+              align-items: center;
+              padding: 4px 8px;
+              border-radius: 999px;
+              background: #eef6ff;
+              color: #1d4ed8;
+              font-size: 12px;
+              font-weight: 850;
+            }
+            .maturity-code-pill {
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              min-width: 58px;
+              padding: 5px 10px;
+              border-radius: 8px;
+              background: linear-gradient(180deg, #ffffff, #eff6ff);
+              border: 1px solid #cfe1ff;
+              color: #245bd6;
+              font-size: 12px;
+              font-weight: 900;
+              box-shadow: 0 7px 16px rgba(37, 99, 235, 0.08);
+            }
+            .maturity-soa-btn {
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              gap: 6px;
+              min-width: 74px;
+              min-height: 34px;
+              padding: 7px 12px;
+              border: 1px solid #bcd7ff;
+              border-radius: 8px;
+              background: linear-gradient(180deg, #ffffff 0%, #eef6ff 100%);
+              color: #1d4ed8;
+              font-size: 12px;
+              font-weight: 900;
+              cursor: pointer;
+              box-shadow: 0 10px 20px rgba(37, 99, 235, 0.12);
+              transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+              white-space: nowrap;
+            }
+            .maturity-soa-btn:hover:not(:disabled) {
+              transform: translateY(-1px);
+              border-color: #60a5fa;
+              box-shadow: 0 14px 26px rgba(37, 99, 235, 0.18);
+            }
+            .maturity-soa-btn:disabled {
+              opacity: 0.5;
+              cursor: not-allowed;
+              box-shadow: none;
+            }
+            .maturity-status-pill {
+              display: inline-flex;
+              align-items: center;
+              min-height: 28px;
+              padding: 5px 10px;
+              border-radius: 999px;
+              background: #fff7ed;
+              color: #c2410c;
+              border: 1px solid #fed7aa;
+              font-size: 12px;
+              font-weight: 850;
+              white-space: nowrap;
+            }
+            @media (max-width: 1320px) {
+              .maturity-hero {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
               }
-              .maturity-chart-box {
-                height: 330px;
+              .maturity-collector-header {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+              }
+              .maturity-collector-meta {
+                text-align: left;
               }
             }
             @media print {
@@ -3192,21 +3404,22 @@ export default function Reports() {
               .reports-print-only { display: block !important; }
               ` : `
               .reports-print-only { display: none !important; }
-              .reports-screen-only { display: flex !important; flex-direction: column !important; }
-              .reports-screen-only > div:first-child { order: 2; }
-              .reports-screen-only > div:last-child { order: 1; margin-bottom: 30px; }
+              .reports-screen-only { display: block !important; }
               `}
             }
           `}</style>
-          <div id={(!selectedCollector && printMode === 'summary') ? "printable-area" : undefined} className="reports-screen-only maturity-report-grid">
-            <div className="maturity-summary-wrap">
-            <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-              <div>
-                <div style={{ color: 'var(--blue-dark)', fontWeight: 700 }}>Loans Maturity Checker</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>Maturity Date: {displayDate(reportFrom)} to {displayDate(reportTo)}</div>
+          <div id={(!selectedCollector && printMode === 'summary') ? "printable-area" : undefined} className="reports-screen-only maturity-report-modern">
+            <section className="maturity-hero">
+              <div className="maturity-hero-title">
+                <strong>Loans Maturity Checker</strong>
+                <span>Maturity Date: {displayDate(reportFrom)} to {displayDate(reportTo)}</span>
               </div>
-              <div className="fw-bold text-accent">Total Loan Amount: PHP {fmt(totalLoanAmount)}</div>
-            </div>
+              <div className="maturity-kpi"><span>Collectors</span><strong>{rows.length}</strong></div>
+              <div className="maturity-kpi"><span>Clients</span><strong>{totalClients}</strong></div>
+              <div className="maturity-kpi"><span>Running Balance</span><strong>PHP {fmt(totalBalance)}</strong></div>
+              <div className="maturity-kpi accent"><span>Total Loan Amount</span><strong>PHP {fmt(totalLoanAmount)}</strong></div>
+            </section>
+            <div className="maturity-summary-wrap">
             <table className="data-table maturity-summary-table">
               <colgroup>
                 <col style={{ width: '18%' }} />
@@ -3228,7 +3441,7 @@ export default function Reports() {
               </thead>
               <tbody>
                 {rows.length === 0 ? <tr><td colSpan={6} className="empty-state">No loans found for the selected maturity date range</td></tr> : rows.map(row => (
-                  <tr key={row.collector} onClick={() => setSelectedCollector(row)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedCollector(row) }} tabIndex={0} title="View collector clients" style={{ cursor: 'pointer' }}>
+                  <tr key={row.collector}>
                     <td className="fw-600 collector-cell">{row.collector}</td>
                     <td className="text-right fw-bold">{row.client_count}</td>
                     <td className="text-right money-cell">PHP {fmt(row.total_principal)}</td>
@@ -3252,52 +3465,65 @@ export default function Reports() {
               )}
             </table>
           </div>
-          <div className="maturity-chart-panel">
-            <div style={{ marginBottom: 12 }} className="fw-bold">Total Loan Amount per Collector</div>
-            <div className="maturity-chart-box">
-              {chartData.length > 0 ? (
-                false ? (
-                  <div style={{ width: 1000, height: 400, margin: '0 auto' }}>
-                    <BarChart width={1000} height={400} data={chartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="barGradientMaturity" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#f59e0b" stopOpacity={1}/>
-                          <stop offset="100%" stopColor="#fcd34d" stopOpacity={0.6}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `PHP ${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
-                      <Bar dataKey="amount" fill="url(#barGradientMaturity)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={0} />
-                    </BarChart>
+            <div className="maturity-collector-stack">
+              {rows.length === 0 ? (
+                <div className="empty-state">No loans found for the selected maturity date range</div>
+              ) : rows.map(row => (
+                <section className="maturity-collector-section" key={row.collector}>
+                  <div className="maturity-collector-header">
+                    <div className="maturity-collector-name">{row.collector}</div>
+                    <div className="maturity-collector-meta"><span>Clients</span><strong>{row.client_count}</strong></div>
+                    <div className="maturity-collector-meta"><span>Principal</span><strong>PHP {fmt(row.total_principal)}</strong></div>
+                    <div className="maturity-collector-meta"><span>Total Loan</span><strong>PHP {fmt(row.total_loan_amount)}</strong></div>
+                    <div className="maturity-collector-meta"><span>Running Bal.</span><strong>PHP {fmt(row.total_balance)}</strong></div>
                   </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 20, right: 4, left: 0, bottom: 64 }}>
-                      <defs>
-                        <linearGradient id="barGradientMaturity" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#f59e0b" stopOpacity={1}/>
-                          <stop offset="100%" stopColor="#fcd34d" stopOpacity={0.6}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 500 }} tickFormatter={compactChartLabel} angle={-35} textAnchor="end" height={70} interval={0} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `PHP ${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
-                      <Tooltip 
-                        cursor={{ fill: 'rgba(245, 158, 11, 0.08)' }} 
-                        contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }} 
-                        formatter={(val) => [`PHP ${fmt(val)}`, 'Total Loan Amount']}
-                        labelStyle={{ color: '#0f172a', fontWeight: 700, marginBottom: 6, fontSize: 13 }} 
-                      />
-                      <Bar dataKey="amount" fill="url(#barGradientMaturity)" radius={[6, 6, 0, 0]} barSize={40} animationDuration={1000} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )
-              ) : (
-                <div className="empty-state">No data for chart</div>
-              )}
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="maturity-detail-table">
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: 'left' }}>Code</th>
+                          <th style={{ textAlign: 'left' }}>Client</th>
+                          <th style={{ textAlign: 'left' }}>Loan Account</th>
+                          <th className="text-right">Principal</th>
+                          <th className="text-right">Interest</th>
+                          <th className="text-right">Total Loan Amount</th>
+                          <th className="text-right">Running Balance</th>
+                          <th style={{ textAlign: 'left' }}>Maturity Date</th>
+                          <th style={{ textAlign: 'left' }}>Status</th>
+                          <th style={{ textAlign: 'left' }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {row.loans?.length === 0 ? <tr><td colSpan={10} className="empty-state">No maturity details</td></tr> : row.loans?.map(l => (
+                          <tr key={l.id}>
+                            <td><span className="maturity-code-pill">{l.customer_code || '-'}</span></td>
+                            <td className="fw-600">{l.customer_name || '-'}</td>
+                            <td><span className="maturity-loan-code">{l.loan_code || '-'}</span></td>
+                            <td className="text-right">PHP {fmt(l.principal)}</td>
+                            <td className="text-right">PHP {fmt(l.interest_amount)}</td>
+                            <td className="text-right fw-bold text-accent">PHP {fmt(Number(l.principal || 0) + Number(l.interest_amount || 0))}</td>
+                            <td className="text-right fw-bold">PHP {fmt(l.balance)}</td>
+                            <td>{displayDate(l.date_maturity)}</td>
+                            <td><span className="maturity-status-pill">{l.status === 'pastdue' && l.days_overdue > 0 ? `Pastdue (${l.days_overdue} days)` : l.status || '-'}</span></td>
+                            <td>
+                              <button
+                                type="button"
+                                className="maturity-soa-btn"
+                                onClick={() => setSoaCustomerId(l.customer_id)}
+                                disabled={!l.customer_id}
+                                title="View SOA"
+                              >
+                                <FileText size={13} /> SOA
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              ))}
             </div>
-          </div>
           </div>
           <div id={(!selectedCollector && printMode === 'detailed') ? "printable-area" : undefined} className="reports-print-only" style={{ display: 'none', padding: 20, background: '#fff' }}>
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
@@ -4384,6 +4610,12 @@ export default function Reports() {
             </div>
           </div>
         </div>
+      )}
+      {soaCustomerId && (
+        <SoaModal
+          customerId={soaCustomerId}
+          onClose={() => setSoaCustomerId(null)}
+        />
       )}
       {selectedCollector && (
         <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setSelectedCollector(null)}>

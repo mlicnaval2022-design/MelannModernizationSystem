@@ -73,6 +73,8 @@ const computeDemandAmounts = (loan, payments = []) => {
   const interestAmount = Number(loan.interest_amount || 0);
   const totalLoan = principal + interestAmount;
   const registeredOutstanding = Number(loan.total_amortization || 0) || totalLoan || Number(loan.balance || 0);
+  const hasRunningBalance = loan.balance !== undefined && loan.balance !== null && String(loan.balance).trim() !== '';
+  const runningBalance = hasRunningBalance ? Number(loan.balance || 0) : null;
   const loanPayments = payments
     .filter(isGoodPayment)
     .map(payment => ({
@@ -85,10 +87,10 @@ const computeDemandAmounts = (loan, payments = []) => {
   if (!dueDate) {
     return {
       total_loan: totalLoan,
-      running_balance: Number(loan.balance || 0),
+      running_balance: runningBalance ?? registeredOutstanding,
       beginning_overdue: registeredOutstanding,
       penalty_charges: 0,
-      total_amount_due: registeredOutstanding
+      total_amount_due: runningBalance ?? registeredOutstanding
     };
   }
 
@@ -133,10 +135,10 @@ const computeDemandAmounts = (loan, payments = []) => {
 
   return {
     total_loan: totalLoan,
-    running_balance: Number(loan.balance || 0),
+    running_balance: runningBalance ?? beginningBalance,
     beginning_overdue: beginningOverdue,
     penalty_charges: totalPenalty,
-    total_amount_due: beginningBalance + totalPenalty
+    total_amount_due: (runningBalance ?? beginningBalance) + totalPenalty
   };
 };
 

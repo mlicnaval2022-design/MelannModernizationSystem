@@ -25,6 +25,7 @@ import NoPaymentMonitoring from './pages/NoPaymentMonitoring'
 import MonitoringSettings from './pages/MonitoringSettings'
 import PromissoryDisclosure from './pages/PromissoryDisclosure'
 import CollectorPerformance from './pages/CollectorPerformance'
+import JcashMigration from './pages/JcashMigration'
 
 function PrivateRoute({ children }) {
   const { user } = useAuth()
@@ -65,6 +66,7 @@ export default function App() {
         <Route path="cash" element={<CashPosition />} />
         <Route path="reports" element={<Reports />} />
         <Route path="collector-performance" element={<CollectorPerformance />} />
+        <Route path="jcash-migration" element={<JcashMigration />} />
         <Route path="government-compliance" element={<GovernmentCompliance />} />
         <Route path="branches" element={<Branches />} />
         <Route path="users" element={<Users />} />

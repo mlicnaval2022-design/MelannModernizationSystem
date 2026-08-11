@@ -23,6 +23,7 @@ const settingsRoutes = require('./routes/settings');
 const collectorPerformanceRoutes = require('./routes/collectorPerformance');
 const demandLetterRoutes = require('./routes/demandLetters');
 const systemRoutes = require('./routes/system');
+const jcashMigrationRoutes = require('./routes/jcashMigration');
 const errorHandler = require('./middleware/errorHandler');
 
 function createApp() {
@@ -63,6 +64,7 @@ function createApp() {
   app.use('/api/collector-performance', collectorPerformanceRoutes);
   app.use('/api/demand-letters', demandLetterRoutes);
   app.use('/api/system', systemRoutes);
+  app.use('/api/jcash-migration', jcashMigrationRoutes);
 
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', system: 'Melann Lending System V2', timestamp: new Date().toISOString() });

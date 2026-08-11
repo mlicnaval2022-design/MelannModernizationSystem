@@ -134,17 +134,20 @@ const getPenaltyComputation = (loan, payments) => {
   const principal = Number(loan?.principal || 0)
   const interestAmount = Number(loan?.interest_amount || 0)
   const registeredOutstanding = Number(loan?.total_amortization || 0) || principal + interestAmount || Number(loan?.balance || 0)
+  const hasRegisteredRunningBalance = loan?.balance !== undefined && loan?.balance !== null && String(loan.balance).trim() !== ''
+  const registeredRunningBalance = hasRegisteredRunningBalance ? Number(loan.balance || 0) : null
   const loanPayments = getLoanPayments(loan, payments)
 
   if (!dueDate) {
     return {
       datePrepared,
       registeredOutstanding,
+      runningBalance: registeredRunningBalance ?? registeredOutstanding,
       paymentsBeforeDue: 0,
       beginningOverdueBalance: registeredOutstanding,
-      remainingOverdueBalance: registeredOutstanding,
+      remainingOverdueBalance: registeredRunningBalance ?? registeredOutstanding,
       totalPenalty: 0,
-      updatedAmountDue: registeredOutstanding,
+      updatedAmountDue: registeredRunningBalance ?? registeredOutstanding,
     }
   }
 
@@ -189,11 +192,12 @@ const getPenaltyComputation = (loan, payments) => {
   return {
     datePrepared,
     registeredOutstanding,
+    runningBalance: registeredRunningBalance ?? beginningBalance,
     paymentsBeforeDue,
     beginningOverdueBalance: Math.max(0, registeredOutstanding - paymentsBeforeDue),
     remainingOverdueBalance: beginningBalance,
     totalPenalty,
-    updatedAmountDue: beginningBalance + totalPenalty,
+    updatedAmountDue: (registeredRunningBalance ?? beginningBalance) + totalPenalty,
   }
 }
 
@@ -235,7 +239,7 @@ function DemandLetterSheet({ type, customer, loan, computation }) {
   const addressParts = buildAddressParts(customer)
   const today = computation?.datePrepared || new Date()
   const salutation = `${customer?.sex === 'Male' ? 'MR.' : 'MR./MS.'} ${getLastName(customer)}`.trim()
-  const principalBalance = computation?.beginningOverdueBalance || 0
+  const runningBalance = computation?.runningBalance || 0
   const penaltyCharges = computation?.totalPenalty || 0
   const totalDue = computation?.updatedAmountDue || 0
 
@@ -295,10 +299,10 @@ function DemandLetterSheet({ type, customer, loan, computation }) {
         <table className="dl-breakdown">
           <tbody>
             <tr>
-              <th>Beginning Overdue</th>
+              <th>Running Balance</th>
               <td>:</td>
               <td>PHP</td>
-              <td>{formatPhpNumber(principalBalance)}</td>
+              <td>{formatPhpNumber(runningBalance)}</td>
             </tr>
             <tr>
               <th>Penalty Charges</th>
@@ -494,11 +498,6 @@ export default function DemandLetter() {
     return () => clearTimeout(timer)
   }, [search])
 
-  useEffect(() => {
-    document.body.classList.add('demand-letter-printing')
-    return () => document.body.classList.remove('demand-letter-printing')
-  }, [])
-
   const computation = useMemo(() => getPenaltyComputation(selectedLoan, payments), [selectedLoan, payments])
 
   const loadDemandUpdates = async () => {
@@ -568,6 +567,11 @@ export default function DemandLetter() {
       loan_code: selectedLoan.loan_code || '',
       collector_name: selectedLoan.collector_name || selectedCustomer.collector_name || '',
       client_name: formatClientName(selectedCustomer),
+      total_loan: computation.registeredOutstanding,
+      running_balance: computation.runningBalance,
+      beginning_overdue: computation.beginningOverdueBalance,
+      penalty_charges: computation.totalPenalty,
+      total_amount_due: computation.updatedAmountDue,
       courier,
       status: 'Pending',
     })
@@ -597,9 +601,31 @@ export default function DemandLetter() {
   const handlePrint = async () => {
     if (!type || !selectedCustomer || !selectedLoan) return
     setError('')
+    const printableArea = document.getElementById('printable-area')
+    if (!printableArea) {
+      setError('Printable demand letter is not ready yet.')
+      return
+    }
+
+    const printRoot = document.createElement('div')
+    printRoot.className = 'demand-print-root'
+    printRoot.appendChild(printableArea.cloneNode(true))
+
+    const cleanupPrintMode = () => {
+      document.body.classList.remove('demand-letter-printing')
+      printRoot.remove()
+    }
+
     try {
-      setTimeout(() => window.print(), 100)
+      document.body.appendChild(printRoot)
+      document.body.classList.add('demand-letter-printing')
+      window.addEventListener('afterprint', cleanupPrintMode, { once: true })
+      setTimeout(() => {
+        window.print()
+        setTimeout(cleanupPrintMode, 500)
+      }, 100)
     } catch (err) {
+      cleanupPrintMode()
       setError(err.response?.data?.error || 'Failed to print demand letter')
     }
   }
@@ -870,7 +896,7 @@ export default function DemandLetter() {
                     <div className="demand-detail-item"><span>Loan Account No.</span><strong>{selectedLoan?.loan_code || '-'}</strong></div>
                     <div className="demand-detail-item"><span>Maturity Date</span><strong>{formatDateLong(selectedLoan?.date_maturity)}</strong></div>
                     <div className="demand-detail-item"><span>As of Date</span><strong>{formatDateLong(computation.datePrepared)}</strong></div>
-                    <div className="demand-detail-item"><span>Beginning Overdue</span><strong>{formatPhp(computation.beginningOverdueBalance)}</strong></div>
+                    <div className="demand-detail-item"><span>Running Balance</span><strong>{formatPhp(computation.runningBalance)}</strong></div>
                     <div className="demand-detail-item"><span>Penalty Charges</span><strong>{formatPhp(computation.totalPenalty)}</strong></div>
                     <div className="demand-detail-item"><span>Total Amount Due</span><strong>{formatPhp(computation.updatedAmountDue)}</strong></div>
                     <div className="demand-detail-item demand-courier-field">

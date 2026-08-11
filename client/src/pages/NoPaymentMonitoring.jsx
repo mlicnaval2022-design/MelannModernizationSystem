@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import dayjs from 'dayjs';
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +17,7 @@ import {
   History,
   Loader2,
   Phone,
+  Printer,
   Receipt,
   RefreshCw,
   Settings,
@@ -36,6 +37,33 @@ function fmtDate(d) {
 
 function fmtAmt(n) {
   return Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 });
+}
+
+const COLLECTOR_GROUP_TABS = new Set(['new', 'monitoring', 'escalated']);
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function getCollectorName(item) {
+  return String(item?.collector_name || '').trim() || 'Unassigned Collector';
+}
+
+function groupByCollector(records) {
+  const groups = new Map();
+  records.forEach(item => {
+    const collectorName = getCollectorName(item);
+    if (!groups.has(collectorName)) groups.set(collectorName, []);
+    groups.get(collectorName).push(item);
+  });
+  return Array.from(groups.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([collectorName, items]) => ({ collectorName, items }));
 }
 
 export default function NoPaymentMonitoring() {
@@ -112,6 +140,20 @@ export default function NoPaymentMonitoring() {
     { id: 'history', label: 'History', Icon: History, tone: 'slate' }
   ];
 
+  const activeTabLabel = tabs.find(tab => tab.id === activeTab)?.label || 'Monitoring';
+  const shouldGroupByCollector = COLLECTOR_GROUP_TABS.has(activeTab);
+  const filteredRecords = useMemo(() => {
+    return data.filter(item => {
+      const cStatus = String(item.customer_status || '').toLowerCase();
+      const lStatus = String(item.status || item.loan_status || item.loan_type || '').toLowerCase();
+      if (cStatus.includes('pastdue') || cStatus.includes('past due')) return false;
+      if (lStatus.includes('pastdue') || lStatus.includes('past due')) return false;
+      if (item.date_maturity && dayjs(item.date_maturity).isBefore(dayjs(), 'day')) return false;
+      return true;
+    });
+  }, [data]);
+  const collectorGroups = useMemo(() => groupByCollector(filteredRecords), [filteredRecords]);
+
   const handleAction = async (action, payload) => {
     try {
       if (action === 'follow-up') await API.post('/monitoring/follow-up', payload);
@@ -138,6 +180,145 @@ export default function NoPaymentMonitoring() {
 
   const canFilter = user.role === 'admin' || user.role === 'manager' || user.role === 'teller' || user.role === 'accounting';
 
+  const handlePrint = () => {
+    const printGroups = shouldGroupByCollector ? collectorGroups : groupByCollector(filteredRecords);
+    const today = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
+    const rowsHtml = printGroups.map(group => `
+      <tr class="npm-print-group-row">
+        <td colspan="7">${escapeHtml(group.collectorName)} <span>${group.items.length} client${group.items.length === 1 ? '' : 's'}</span></td>
+      </tr>
+      ${group.items.map(item => `
+        <tr>
+          <td>
+            <strong>${escapeHtml(item.customer_name)}</strong>
+            <small>${escapeHtml(item.customer_code)}${item.contact ? ` | ${escapeHtml(item.contact)}` : ''}</small>
+          </td>
+          <td>
+            <strong>${escapeHtml(item.loan_code)}</strong>
+            <small>Bal: PHP ${escapeHtml(fmtAmt(item.balance))} | Amort: PHP ${escapeHtml(fmtAmt(item.amortization))}</small>
+          </td>
+          <td>${escapeHtml(item.alert_level)}</td>
+          <td>${escapeHtml(item.consecutive_days)}</td>
+          <td>${escapeHtml(fmtDate(item.first_missed_date))}</td>
+          <td>${escapeHtml(item.repeat_risk)} (Seq: ${escapeHtml(item.sequence_number)})</td>
+          <td></td>
+        </tr>
+      `).join('')}
+    `).join('');
+
+    const printRoot = document.createElement('div');
+    printRoot.className = 'npm-print-root';
+    printRoot.innerHTML = `
+      <section class="npm-print-sheet">
+        <header class="npm-print-header">
+          <div>
+            <h1>3-Day No-Payment Monitoring</h1>
+            <p>${escapeHtml(activeTabLabel)} | ${escapeHtml(today)}</p>
+          </div>
+          <strong>${filteredRecords.length} record${filteredRecords.length === 1 ? '' : 's'}</strong>
+        </header>
+        <table class="npm-print-table">
+          <thead>
+            <tr>
+              <th>Client</th>
+              <th>Loan Info</th>
+              <th>Alert Level</th>
+              <th>Consecutive Days</th>
+              <th>First Missed</th>
+              <th>Repeat Risk</th>
+              <th>Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="7" class="npm-print-empty">No records found.</td></tr>'}
+          </tbody>
+        </table>
+      </section>
+    `;
+
+    const cleanupPrintMode = () => {
+      document.body.classList.remove('npm-printing');
+      printRoot.remove();
+    };
+
+    document.body.appendChild(printRoot);
+    document.body.classList.add('npm-printing');
+    window.addEventListener('afterprint', cleanupPrintMode, { once: true });
+    setTimeout(() => {
+      window.print();
+      setTimeout(cleanupPrintMode, 500);
+    }, 100);
+  };
+
+  const renderAlertRow = (item, showCollector = true) => (
+    <tr key={item.id} className={item.repeat_risk === 'High Risk' ? 'npm-row-high-risk' : ''}>
+      <td>
+        <div className="npm-client">
+          <div className="npm-avatar"><UserRound size={15} /></div>
+          <div>
+            <button
+              type="button"
+              className="npm-client-name-btn"
+              onClick={() => openClientProfile(item.customer_id)}
+              title="Click to view loans & payment history"
+            >
+              {item.customer_name}
+            </button>
+            <span>{item.customer_code} | {item.contact}</span>
+          </div>
+        </div>
+      </td>
+      <td>
+        <div className="npm-loan-code">{item.loan_code}</div>
+        <div className="npm-loan-meta">Bal: PHP {fmtAmt(item.balance)} | Amort: PHP {fmtAmt(item.amortization)}</div>
+      </td>
+      {showCollector && <td>{item.collector_name}</td>}
+      <td>
+        <span className={`npm-alert-badge ${item.alert_level === 'Day 4+' ? 'danger' : 'warning'}`}>
+          {item.alert_level}
+        </span>
+      </td>
+      <td>
+        <strong className="npm-days">{item.consecutive_days}</strong>
+      </td>
+      <td>{fmtDate(item.first_missed_date)}</td>
+      <td>
+        <span className={`npm-risk ${item.repeat_risk === 'High Risk' ? 'high' : item.repeat_risk === 'Moderate Risk' ? 'moderate' : 'low'}`}>
+          {item.repeat_risk} (Seq: {item.sequence_number})
+        </span>
+      </td>
+      {activeTab === 'ptp' && <td><strong>{fmtDate(item.ptp_date)}</strong></td>}
+      {activeTab === 'ptp' && <td><strong className="npm-money">PHP {fmtAmt(item.ptp_amount)}</strong></td>}
+      <td>
+        {item.last_follow_up_date ? (
+          <div className="npm-followup">
+            <Clock3 size={14} />
+            <div>
+              <div>{fmtDate(item.last_follow_up_date)}</div>
+              <span>{item.last_follow_up_result}</span>
+            </div>
+          </div>
+        ) : <span className="npm-muted">None</span>}
+      </td>
+      <td>
+        <div className="npm-actions">
+          <button className="npm-action npm-action-light" onClick={() => openTimeline(item)}><Clock3 size={12} /> Timeline</button>
+          {activeTab !== 'resolved' && (
+            <>
+              <button className="npm-action npm-action-dark" onClick={() => setFollowUpModal({ show: true, alert: item })}><Phone size={12} /> Log</button>
+              <button className="npm-action npm-action-ptp" onClick={() => setPtpModal({ show: true, alert: item })}><Handshake size={12} /> PTP</button>
+              <button className="npm-action npm-action-resolve" onClick={() => setResolveModal({ show: true, alert: item })}><Check size={12} /> Resolve</button>
+              {item.alert_level !== 'Day 4+' && (
+                <button className="npm-action npm-action-escalate" onClick={() => setEscalateModal({ show: true, alert: item })}><Flame size={12} /> Escalate</button>
+              )}
+            </>
+          )}
+          <button className="npm-action npm-action-soa" onClick={() => setSoaCustomerId(item.customer_id)}><FileText size={12} /> SOA</button>
+        </div>
+      </td>
+    </tr>
+  );
+
   return (
     <div className="card npm-monitoring">
       <div className="npm-hero">
@@ -147,10 +328,14 @@ export default function NoPaymentMonitoring() {
           </div>
           <div>
             <h2>3-Day No-Payment Monitoring</h2>
-            <p>{data.length} record{data.length === 1 ? '' : 's'} in current view</p>
+            <p>{filteredRecords.length} record{filteredRecords.length === 1 ? '' : 's'} in current view</p>
           </div>
         </div>
         <div className="npm-toolbar">
+          <button className="npm-button npm-button-secondary" onClick={handlePrint} disabled={loading}>
+            <Printer size={16} />
+            Print {activeTabLabel}
+          </button>
           {user.role === 'admin' && (
             <button className="npm-button npm-button-danger" disabled={scanning} onClick={async () => {
               setScanning(true);
@@ -214,122 +399,58 @@ export default function NoPaymentMonitoring() {
         </div>
       )}
 
-      {(() => {
-        const filteredRecords = data.filter(item => {
-          const cStatus = String(item.customer_status || '').toLowerCase();
-          const lStatus = String(item.status || item.loan_status || item.loan_type || '').toLowerCase();
-          if (cStatus.includes('pastdue') || cStatus.includes('past due')) return false;
-          if (lStatus.includes('pastdue') || lStatus.includes('past due')) return false;
-          if (item.date_maturity && dayjs(item.date_maturity).isBefore(dayjs(), 'day')) return false;
-          return true;
-        });
-
-        return loading ? (
-          <div className="npm-state"><Loader2 size={22} className="npm-spin" /> Loading monitoring records...</div>
-        ) : error ? (
-          <div className="npm-error">{error}</div>
-        ) : (
-          <div className="npm-table-wrap">
-            <table className="data-table npm-table">
-              <thead>
+      {loading ? (
+        <div className="npm-state"><Loader2 size={22} className="npm-spin" /> Loading monitoring records...</div>
+      ) : error ? (
+        <div className="npm-error">{error}</div>
+      ) : (
+        <div className="npm-table-wrap">
+          <table className={`data-table npm-table ${shouldGroupByCollector ? 'npm-table-grouped' : ''}`}>
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Loan Info</th>
+                {!shouldGroupByCollector && <th>Collector</th>}
+                <th>Alert Level</th>
+                <th>Consecutive Days</th>
+                <th>First Missed</th>
+                <th>Repeat Risk</th>
+                {activeTab === 'ptp' && <th>PTP Date</th>}
+                {activeTab === 'ptp' && <th>PTP Amount</th>}
+                <th>Last Follow-up</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRecords.length === 0 ? (
                 <tr>
-                  <th>Client</th>
-                  <th>Loan Info</th>
-                  <th>Collector</th>
-                  <th>Alert Level</th>
-                  <th>Consecutive Days</th>
-                  <th>First Missed</th>
-                  <th>Repeat Risk</th>
-                  {activeTab === 'ptp' && <th>PTP Date</th>}
-                  {activeTab === 'ptp' && <th>PTP Amount</th>}
-                  <th>Last Follow-up</th>
-                  <th>Actions</th>
+                  <td colSpan={shouldGroupByCollector ? 8 : activeTab === 'ptp' ? 11 : 9}>
+                    <div className="npm-empty">
+                      <CheckCircle2 size={28} />
+                      <strong>No alerts found</strong>
+                      <span>There are no records for this tab and filter.</span>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {filteredRecords.length === 0 ? (
-                  <tr>
-                    <td colSpan="11">
-                      <div className="npm-empty">
-                        <CheckCircle2 size={28} />
-                        <strong>No alerts found</strong>
-                        <span>There are no records for this tab and filter.</span>
+              ) : shouldGroupByCollector ? (
+                collectorGroups.flatMap(group => [
+                  <tr key={`group-${group.collectorName}`} className="npm-collector-group-row">
+                    <td colSpan={8}>
+                      <div className="npm-collector-group">
+                        <strong>{group.collectorName}</strong>
+                        <span>{group.items.length} client{group.items.length === 1 ? '' : 's'}</span>
                       </div>
                     </td>
-                  </tr>
-                ) : filteredRecords.map(item => (
-                  <tr key={item.id} className={item.repeat_risk === 'High Risk' ? 'npm-row-high-risk' : ''}>
-                  <td>
-                    <div className="npm-client">
-                      <div className="npm-avatar"><UserRound size={15} /></div>
-                      <div>
-                        <button
-                          type="button"
-                          className="npm-client-name-btn"
-                          onClick={() => openClientProfile(item.customer_id)}
-                          title="Click to view loans & payment history"
-                        >
-                          {item.customer_name}
-                        </button>
-                        <span>{item.customer_code} | {item.contact}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="npm-loan-code">{item.loan_code}</div>
-                    <div className="npm-loan-meta">Bal: PHP {fmtAmt(item.balance)} | Amort: PHP {fmtAmt(item.amortization)}</div>
-                  </td>
-                  <td>{item.collector_name}</td>
-                  <td>
-                    <span className={`npm-alert-badge ${item.alert_level === 'Day 4+' ? 'danger' : 'warning'}`}>
-                      {item.alert_level}
-                    </span>
-                  </td>
-                  <td>
-                    <strong className="npm-days">{item.consecutive_days}</strong>
-                  </td>
-                  <td>{fmtDate(item.first_missed_date)}</td>
-                  <td>
-                    <span className={`npm-risk ${item.repeat_risk === 'High Risk' ? 'high' : item.repeat_risk === 'Moderate Risk' ? 'moderate' : 'low'}`}>
-                      {item.repeat_risk} (Seq: {item.sequence_number})
-                    </span>
-                  </td>
-                  {activeTab === 'ptp' && <td><strong>{fmtDate(item.ptp_date)}</strong></td>}
-                  {activeTab === 'ptp' && <td><strong className="npm-money">PHP {fmtAmt(item.ptp_amount)}</strong></td>}
-                  <td>
-                    {item.last_follow_up_date ? (
-                      <div className="npm-followup">
-                        <Clock3 size={14} />
-                        <div>
-                          <div>{fmtDate(item.last_follow_up_date)}</div>
-                          <span>{item.last_follow_up_result}</span>
-                        </div>
-                      </div>
-                    ) : <span className="npm-muted">None</span>}
-                  </td>
-                  <td>
-                    <div className="npm-actions">
-                      <button className="npm-action npm-action-light" onClick={() => openTimeline(item)}><Clock3 size={12} /> Timeline</button>
-                      {activeTab !== 'resolved' && (
-                        <>
-                          <button className="npm-action npm-action-dark" onClick={() => setFollowUpModal({ show: true, alert: item })}><Phone size={12} /> Log</button>
-                          <button className="npm-action npm-action-ptp" onClick={() => setPtpModal({ show: true, alert: item })}><Handshake size={12} /> PTP</button>
-                          <button className="npm-action npm-action-resolve" onClick={() => setResolveModal({ show: true, alert: item })}><Check size={12} /> Resolve</button>
-                          {item.alert_level !== 'Day 4+' && (
-                            <button className="npm-action npm-action-escalate" onClick={() => setEscalateModal({ show: true, alert: item })}><Flame size={12} /> Escalate</button>
-                          )}
-                        </>
-                      )}
-                      <button className="npm-action npm-action-soa" onClick={() => setSoaCustomerId(item.customer_id)}><FileText size={12} /> SOA</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                  </tr>,
+                  ...group.items.map(item => renderAlertRow(item, false))
+                ])
+              ) : (
+                filteredRecords.map(item => renderAlertRow(item, true))
+              )}
             </tbody>
           </table>
         </div>
-      );
-    })()}
+      )}
 
       {followUpModal.show && (
         <Modal title="Log Follow-up" onClose={() => setFollowUpModal({ show: false, alert: null })}>
