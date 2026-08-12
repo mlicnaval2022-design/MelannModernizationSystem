@@ -116,8 +116,25 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
     active_clients: 0,
     recon_clients: 0,
     overdue_clients: 0,
-    pastdue_clients: 0
+    pastdue_clients: 0,
+    new_clients: 0,
+    new_client_principal: 0
   };
+
+  const newClientStats = await dbAll(`
+    SELECT
+      COUNT(DISTINCT l.customer_id) as new_clients,
+      COALESCE(SUM(l.principal), 0) as new_client_principal
+    FROM tblLoan l
+    WHERE l.collector_id = ?
+      AND date(l.date_released) = date(?)
+      AND LOWER(COALESCE(l.loan_type, 'new')) LIKE '%new%'
+      AND LOWER(COALESCE(l.status, '')) != 'reversed'
+      AND ${sqlNotSunday('l.date_released')}
+  `, [collectorId, targetDate]);
+
+  stats.new_clients = toAmount(newClientStats[0]?.new_clients);
+  stats.new_client_principal = toAmount(newClientStats[0]?.new_client_principal);
 
   const loansByCustomer = loans.reduce((acc, loan) => {
     if (!acc.has(loan.customer_id)) acc.set(loan.customer_id, []);
@@ -252,6 +269,8 @@ router.get('/summary', authenticateToken, async (req, res) => {
         recon_clients: sheetStats.recon_clients,
         overdue_clients: sheetStats.overdue_clients,
         pastdue_clients: sheetStats.pastdue_clients,
+        new_clients: 0,
+        new_client_principal: 0,
         active_loans: sheetStats.active_clients + sheetStats.overdue_clients
       };
 
@@ -263,6 +282,8 @@ router.get('/summary', authenticateToken, async (req, res) => {
         row.pastdue_deducted += dailyStats.pastdue_deducted;
         row.paying_clients += dailyStats.paying_clients;
         row.payment_count += dailyStats.payment_count;
+        row.new_clients += dailyStats.new_clients;
+        row.new_client_principal += dailyStats.new_client_principal;
         trendMap.set(date, (trendMap.get(date) || 0) + dailyStats.collected);
       }
 
@@ -284,6 +305,8 @@ router.get('/summary', authenticateToken, async (req, res) => {
       acc.overdue_clients += toAmount(row.overdue_clients);
       acc.pastdue_clients += toAmount(row.pastdue_clients);
       acc.payment_count += toAmount(row.payment_count);
+      acc.new_clients += toAmount(row.new_clients);
+      acc.new_client_principal += toAmount(row.new_client_principal);
       return acc;
     }, {
       target: 0,
@@ -296,7 +319,9 @@ router.get('/summary', authenticateToken, async (req, res) => {
       recon_clients: 0,
       overdue_clients: 0,
       pastdue_clients: 0,
-      payment_count: 0
+      payment_count: 0,
+      new_clients: 0,
+      new_client_principal: 0
     });
 
     const targetOrder = [
@@ -340,6 +365,8 @@ router.get('/summary', authenticateToken, async (req, res) => {
         recon_clients: toAmount(row.recon_clients),
         overdue_clients: toAmount(row.overdue_clients),
         pastdue_clients: toAmount(row.pastdue_clients),
+        new_clients: toAmount(row.new_clients),
+        new_client_principal: toAmount(row.new_client_principal),
         payment_count: toAmount(row.payment_count),
         achievement_rate: toAmount(row.target) > 0 ? Math.round((toAmount(row.collected) / toAmount(row.target)) * 100) : 0
       })),

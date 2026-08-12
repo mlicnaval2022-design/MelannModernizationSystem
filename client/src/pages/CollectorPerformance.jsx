@@ -161,6 +161,7 @@ export default function CollectorPerformance() {
   const [activeTab, setActiveTab] = useState('targets')
   const [collectionRows, setCollectionRows] = useState([])
   const [selectedCollectionId, setSelectedCollectionId] = useState(null)
+  const [collectorEdits, setCollectorEdits] = useState({})
   const [collectionsLoading, setCollectionsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
@@ -313,6 +314,7 @@ export default function CollectorPerformance() {
             id: key,
             name: collector.name,
             collectorCode: collector.collector_code,
+            photo: '',
             rows: []
           })
         }
@@ -327,6 +329,8 @@ export default function CollectorPerformance() {
           reconClients: Number(collector.recon_clients || 0),
           overdueClients: Number(collector.overdue_clients || 0),
           pastdueClients: Number(collector.pastdue_clients || 0),
+          newClients: Number(collector.new_clients || 0),
+          newClientPrincipal: Number(collector.new_client_principal || 0),
           rate,
           remark: getCollectionRemark(rate)
         })
@@ -364,6 +368,23 @@ export default function CollectorPerformance() {
   const applyFilters = async () => {
     await loadData()
     if (activeTab === 'collections') await loadCollections()
+  }
+
+  const updateCollectorEdit = (collectorId, field, value) => {
+    setCollectorEdits(current => ({
+      ...current,
+      [collectorId]: {
+        ...(current[collectorId] || {}),
+        [field]: value
+      }
+    }))
+  }
+
+  const updateCollectorPhoto = (collectorId, file) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = event => updateCollectorEdit(collectorId, 'photo', event.target?.result || '')
+    reader.readAsDataURL(file)
   }
 
   useEffect(() => {
@@ -418,11 +439,13 @@ export default function CollectorPerformance() {
   const selectedCollection = collectionRows.find(collector => collector.id === selectedCollectionId)
   const selectedSummary = selectedCollection ? getCollectorCollectionTotals(selectedCollection.rows) : null
   const selectedLatestRow = selectedCollection?.rows.find(row => row.date === filters.date_to) || selectedCollection?.rows[selectedCollection?.rows.length - 1]
-  const selectedActiveTarget = selectedLatestRow
-    ? Number(selectedLatestRow.activeClients || 0) + Number(selectedLatestRow.overdueClients || 0)
-    : 0
+  const selectedEdit = selectedCollection ? collectorEdits[selectedCollection.id] || {} : {}
+  const selectedActiveTarget = 100
+  const selectedNewClients = selectedCollection?.rows.reduce((sum, row) => sum + Number(row.newClients || 0), 0) || 0
+  const selectedNewClientPrincipal = selectedCollection?.rows.reduce((sum, row) => sum + Number(row.newClientPrincipal || 0), 0) || 0
+  const selectedReconClients = selectedCollection?.rows.reduce((sum, row) => sum + Number(row.reconClients || 0), 0) || 0
   const selectedEndingBalance = selectedLatestRow
-    ? Math.max(0, selectedActiveTarget + Number(selectedLatestRow.reconClients || 0) - Number(selectedLatestRow.pastdueClients || 0))
+    ? Math.max(0, selectedActiveTarget + selectedNewClients - selectedReconClients)
     : 0
   const selectedInsight = selectedCollection && selectedSummary
     ? getGeneratedCollectionInsight(selectedCollection.name, selectedCollection.rows, selectedSummary)
@@ -747,24 +770,32 @@ export default function CollectorPerformance() {
                         <div className="card-v2-title">Profile Information</div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 24, padding: 24, background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 10, marginBottom: 28 }}>
-                        <div style={{ width: 90, height: 90, borderRadius: '50%', background: 'linear-gradient(135deg, #e2e8f0, #fff)', display: 'grid', placeItems: 'center', boxShadow: '0 14px 28px rgba(15, 23, 42, 0.14)', fontSize: 24, fontWeight: 900 }}>
-                          {getCollectorInitials(selectedCollection.name)}
-                        </div>
+                        <label style={{ width: 90, height: 90, borderRadius: '50%', background: 'linear-gradient(135deg, #e2e8f0, #fff)', display: 'grid', placeItems: 'center', boxShadow: '0 14px 28px rgba(15, 23, 42, 0.14)', fontSize: 24, fontWeight: 900, cursor: 'pointer', overflow: 'hidden' }}>
+                          {selectedEdit.photo ? (
+                            <img src={selectedEdit.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : getCollectorInitials(selectedEdit.fullName || selectedCollection.name)}
+                          <input type="file" accept="image/*" onChange={e => updateCollectorPhoto(selectedCollection.id, e.target.files?.[0])} style={{ display: 'none' }} />
+                        </label>
                         <div>
                           <div style={{ fontSize: 16, fontWeight: 900, textTransform: 'uppercase' }}>Collector Identity</div>
-                          <div style={{ marginTop: 8, color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase' }}>Actual collector record from collection performance data.</div>
+                          <div style={{ marginTop: 8, color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase' }}>Click photo to upload/edit collector image.</div>
                         </div>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 24 }}>
                         {[
-                          ['Full Name', selectedCollection.name],
-                          ['Team Name', selectedCollection.collectorCode || 'COLLECTION'],
-                          ['Area of Assignment', getCollectorArea(selectedCollection.name)],
-                          ['Supervisor Name', 'Not encoded']
-                        ].map(([label, value]) => (
+                          ['fullName', 'Full Name', selectedCollection.name],
+                          ['teamName', 'Team Name', selectedCollection.collectorCode || 'COLLECTION'],
+                          ['area', 'Area of Assignment', getCollectorArea(selectedCollection.name)],
+                          ['supervisor', 'Supervisor Name', 'Not encoded']
+                        ].map(([field, label, value]) => (
                           <div key={label}>
                             <div style={{ color: '#94a3b8', fontSize: 10, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>{label}</div>
-                            <div style={{ border: '1px solid var(--border)', background: '#f8fafc', borderRadius: 8, padding: '14px 18px', fontWeight: 900, color: '#17345b' }}>{value}</div>
+                            <input
+                              className="form-control"
+                              value={selectedEdit[field] ?? value}
+                              onChange={e => updateCollectorEdit(selectedCollection.id, field, e.target.value)}
+                              style={{ fontWeight: 900, color: '#17345b' }}
+                            />
                           </div>
                         ))}
                       </div>
@@ -778,7 +809,7 @@ export default function CollectorPerformance() {
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 24, marginBottom: 28 }}>
                         <div style={{ border: '1px solid var(--border)', background: '#f8fafc', borderRadius: 10, padding: 24 }}>
                           <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase' }}>Target of Active Clients</div>
-                          <div style={{ marginTop: 14, border: '1px solid var(--border)', background: '#fff', borderRadius: 8, padding: '14px 18px', fontWeight: 900 }}>{countFmt(selectedActiveTarget)}</div>
+                          <input className="form-control" value={selectedActiveTarget} readOnly style={{ marginTop: 14, fontWeight: 900 }} />
                         </div>
                         <div style={{ border: '1px solid var(--border)', background: '#f8fafc', borderRadius: 10, padding: 24 }}>
                           <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase' }}>Daily Collection Target</div>
@@ -795,10 +826,10 @@ export default function CollectorPerformance() {
                           </thead>
                           <tbody>
                             <tr>
-                              <td style={{ textAlign: 'center', fontWeight: 900 }}>{countFmt(selectedActiveTarget)}</td>
-                              <td style={{ textAlign: 'center', color: '#2563eb', fontWeight: 900 }}>0</td>
+                              <td style={{ textAlign: 'center', fontWeight: 900 }}>{countFmt(selectedLatestRow.activeClients + selectedLatestRow.overdueClients)}</td>
+                              <td style={{ textAlign: 'center', color: '#2563eb', fontWeight: 900 }}>{countFmt(selectedNewClients)}</td>
                               <td style={{ textAlign: 'center', fontWeight: 900 }}>0</td>
-                              <td style={{ textAlign: 'center', fontWeight: 900 }}>{countFmt(selectedLatestRow.reconClients)}</td>
+                              <td style={{ textAlign: 'center', fontWeight: 900 }}>{countFmt(selectedReconClients)}</td>
                               <td style={{ textAlign: 'center', color: '#059669', fontWeight: 900 }}>{countFmt(selectedEndingBalance)}</td>
                               <td style={{ textAlign: 'center', color: '#e11d48', fontWeight: 900 }}>{countFmt(Math.max(0, selectedActiveTarget - selectedEndingBalance))}</td>
                             </tr>
@@ -806,14 +837,14 @@ export default function CollectorPerformance() {
                         </table>
                         <table className="data-table" style={{ margin: 0, border: '1px solid var(--border)' }}>
                           <thead>
-                            <tr><th colSpan={3} style={{ textAlign: 'center' }}>Total Amount of Collection</th></tr>
+                            <tr><th colSpan={3} style={{ textAlign: 'center' }}>Total Amount of Release From New Clients</th></tr>
                             <tr><th>Beg. Bal.</th><th>This Week</th><th>Ending Balance</th></tr>
                           </thead>
                           <tbody>
                             <tr>
                               <td style={{ textAlign: 'center', fontWeight: 900 }}>PHP {fmt(selectedSummary.dailyTarget)}</td>
-                              <td style={{ textAlign: 'center', color: '#2563eb', fontWeight: 900 }}>PHP {fmt(selectedSummary.actual)}</td>
-                              <td style={{ textAlign: 'center', color: '#2563eb', fontWeight: 900 }}>PHP {fmt(Math.max(0, selectedSummary.dailyTarget - selectedSummary.actual))}</td>
+                              <td style={{ textAlign: 'center', color: '#2563eb', fontWeight: 900 }}>PHP {fmt(selectedNewClientPrincipal)}</td>
+                              <td style={{ textAlign: 'center', color: '#2563eb', fontWeight: 900 }}>PHP {fmt(Math.max(0, selectedSummary.dailyTarget - selectedNewClientPrincipal))}</td>
                             </tr>
                           </tbody>
                         </table>
@@ -867,11 +898,21 @@ export default function CollectorPerformance() {
                       <div style={{ display: 'grid', gap: 18 }}>
                         <div>
                           <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>Supervisor Comments</div>
-                          <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: '#f8fafc', padding: 20, fontWeight: 800, lineHeight: 1.6 }}>{selectedInsight.comment}</div>
+                          <textarea
+                            className="form-control"
+                            value={selectedEdit.comment ?? selectedInsight.comment}
+                            onChange={e => updateCollectorEdit(selectedCollection.id, 'comment', e.target.value)}
+                            style={{ minHeight: 92, fontWeight: 800, lineHeight: 1.6 }}
+                          />
                         </div>
                         <div>
                           <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>Strategic Recommendation</div>
-                          <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: '#f8fafc', padding: 20, fontWeight: 800, lineHeight: 1.6 }}>{selectedInsight.recommendation}</div>
+                          <textarea
+                            className="form-control"
+                            value={selectedEdit.recommendation ?? selectedInsight.recommendation}
+                            onChange={e => updateCollectorEdit(selectedCollection.id, 'recommendation', e.target.value)}
+                            style={{ minHeight: 92, fontWeight: 800, lineHeight: 1.6 }}
+                          />
                         </div>
                       </div>
                     </div>
