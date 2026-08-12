@@ -966,15 +966,25 @@ export default function CollectorPerformance() {
                     const latestRow = collector.rows.find(row => row.date === filters.date_to) || collector.rows[collector.rows.length - 1] || {}
                     const weeklyTarget = Number(latestRow.weeklyTarget || summary.dailyTarget || 0)
                     const remarkStyle = getRemarkStyle(summary.remark)
+                    const cardEdit = collectorEdits[collector.id] || {}
 
                     return (
-                      <div key={`collector-collection-${collector.id}`} style={{
+                      <div
+                        key={`collector-collection-${collector.id}`}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSelectedCollectionId(collector.id)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') setSelectedCollectionId(collector.id)
+                        }}
+                        style={{
                         border: '1px solid var(--border)',
                         borderRadius: 14,
                         overflow: 'hidden',
                         background: '#fff',
                         boxShadow: '0 12px 26px rgba(15, 23, 42, 0.08)',
-                        padding: 24
+                        padding: 24,
+                        cursor: 'pointer'
                       }}>
                         <div style={{
                           display: 'flex',
@@ -997,12 +1007,14 @@ export default function CollectorPerformance() {
                               fontWeight: 900,
                               flex: '0 0 auto'
                             }}>
-                              {getCollectorInitials(collector.name)}
+                              {cardEdit.photo ? (
+                                <img src={cardEdit.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                              ) : getCollectorInitials(cardEdit.fullName || collector.name)}
                             </div>
                             <div style={{ minWidth: 0 }}>
-                              <div style={{ fontSize: 20, lineHeight: 1.15, fontWeight: 900, textTransform: 'uppercase', color: '#0f172a' }}>{collector.name}</div>
+                              <div style={{ fontSize: 20, lineHeight: 1.15, fontWeight: 900, textTransform: 'uppercase', color: '#0f172a' }}>{cardEdit.fullName || collector.name}</div>
                               <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 4, color: '#475569', fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>
-                                <MapPin size={14} /> {getCollectorArea(collector.name)}
+                                <MapPin size={14} /> {cardEdit.area || getCollectorArea(collector.name)}
                               </div>
                             </div>
                           </div>
@@ -1015,7 +1027,7 @@ export default function CollectorPerformance() {
                           <label className="form-label">Date</label>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 68px', gap: 10 }}>
                             <input className="form-control" type="date" value={filters.date_to} readOnly />
-                            <button className="btn btn-primary" type="button" onClick={loadCollections} disabled={collectionsLoading}>Load</button>
+                            <button className="btn btn-primary" type="button" onClick={e => { e.stopPropagation(); loadCollections() }} disabled={collectionsLoading}>Load</button>
                           </div>
                         </div>
 
@@ -1048,7 +1060,7 @@ export default function CollectorPerformance() {
                           </div>
                         </div>
 
-                        <button className="btn btn-primary" type="button" onClick={() => setSelectedCollectionId(collector.id)} disabled={collectionsLoading} style={{ width: '100%', marginTop: 24, justifyContent: 'center' }}>
+                        <button className="btn btn-primary" type="button" onClick={e => { e.stopPropagation(); setSelectedCollectionId(collector.id) }} disabled={collectionsLoading} style={{ width: '100%', marginTop: 24, justifyContent: 'center' }}>
                           <Edit3 size={16} /> Input Daily Data
                         </button>
                       </div>
