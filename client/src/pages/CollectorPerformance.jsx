@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, Edit3, FileText, MapPin, Plus, Printer, RefreshCw, Users } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Edit3, FileText, MapPin, Plus, Printer, RefreshCw, TrendingUp, User, Users } from 'lucide-react'
 import API from '../services/api'
 import '../dashboard.css'
 
@@ -160,6 +160,7 @@ export default function CollectorPerformance() {
   const [data, setData] = useState(null)
   const [activeTab, setActiveTab] = useState('targets')
   const [collectionRows, setCollectionRows] = useState([])
+  const [selectedCollectionId, setSelectedCollectionId] = useState(null)
   const [collectionsLoading, setCollectionsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
@@ -311,6 +312,7 @@ export default function CollectorPerformance() {
           collectorMap.set(key, {
             id: key,
             name: collector.name,
+            collectorCode: collector.collector_code,
             rows: []
           })
         }
@@ -321,6 +323,10 @@ export default function CollectorPerformance() {
           weeklyTarget: dailyTarget * 6,
           actual,
           paymentCount: Number(collector.payment_count || 0),
+          activeClients: Number(collector.active_clients || 0),
+          reconClients: Number(collector.recon_clients || 0),
+          overdueClients: Number(collector.overdue_clients || 0),
+          pastdueClients: Number(collector.pastdue_clients || 0),
           rate,
           remark: getCollectionRemark(rate)
         })
@@ -345,7 +351,9 @@ export default function CollectorPerformance() {
           pastdue_cutoff: filters.pastdue_cutoff
         }
       })))
-      setCollectionRows(buildCollectionsByCollector(responses.map(response => response.data)))
+      const builtCollections = buildCollectionsByCollector(responses.map(response => response.data))
+      setCollectionRows(builtCollections)
+      setSelectedCollectionId(current => current && !builtCollections.some(collector => collector.id === current) ? null : current)
     } catch (err) {
       setErrorMsg(err.response?.data?.error || err.message || 'Could not load collections')
     } finally {
@@ -407,6 +415,18 @@ export default function CollectorPerformance() {
     totals.remark = getCollectionRemark(totals.rate)
     return totals
   }
+  const selectedCollection = collectionRows.find(collector => collector.id === selectedCollectionId)
+  const selectedSummary = selectedCollection ? getCollectorCollectionTotals(selectedCollection.rows) : null
+  const selectedLatestRow = selectedCollection?.rows.find(row => row.date === filters.date_to) || selectedCollection?.rows[selectedCollection?.rows.length - 1]
+  const selectedActiveTarget = selectedLatestRow
+    ? Number(selectedLatestRow.activeClients || 0) + Number(selectedLatestRow.overdueClients || 0)
+    : 0
+  const selectedEndingBalance = selectedLatestRow
+    ? Math.max(0, selectedActiveTarget + Number(selectedLatestRow.reconClients || 0) - Number(selectedLatestRow.pastdueClients || 0))
+    : 0
+  const selectedInsight = selectedCollection && selectedSummary
+    ? getGeneratedCollectionInsight(selectedCollection.name, selectedCollection.rows, selectedSummary)
+    : null
 
   return (
     <div className="dashboard-v2">
@@ -715,6 +735,148 @@ export default function CollectorPerformance() {
                   </div>
                 </div>
 
+                {selectedCollection && selectedSummary && selectedLatestRow ? (
+                  <div style={{ padding: 24 }}>
+                    <button className="btn btn-secondary" type="button" onClick={() => setSelectedCollectionId(null)} style={{ marginBottom: 18 }}>
+                      <ArrowLeft size={16} /> Back to Collectors
+                    </button>
+
+                    <div className="card-v2" style={{ marginBottom: 24 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
+                        <User size={19} color="#2563eb" />
+                        <div className="card-v2-title">Profile Information</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 24, padding: 24, background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 10, marginBottom: 28 }}>
+                        <div style={{ width: 90, height: 90, borderRadius: '50%', background: 'linear-gradient(135deg, #e2e8f0, #fff)', display: 'grid', placeItems: 'center', boxShadow: '0 14px 28px rgba(15, 23, 42, 0.14)', fontSize: 24, fontWeight: 900 }}>
+                          {getCollectorInitials(selectedCollection.name)}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 16, fontWeight: 900, textTransform: 'uppercase' }}>Collector Identity</div>
+                          <div style={{ marginTop: 8, color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase' }}>Actual collector record from collection performance data.</div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 24 }}>
+                        {[
+                          ['Full Name', selectedCollection.name],
+                          ['Team Name', selectedCollection.collectorCode || 'COLLECTION'],
+                          ['Area of Assignment', getCollectorArea(selectedCollection.name)],
+                          ['Supervisor Name', 'Not encoded']
+                        ].map(([label, value]) => (
+                          <div key={label}>
+                            <div style={{ color: '#94a3b8', fontSize: 10, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>{label}</div>
+                            <div style={{ border: '1px solid var(--border)', background: '#f8fafc', borderRadius: 8, padding: '14px 18px', fontWeight: 900, color: '#17345b' }}>{value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="card-v2" style={{ marginBottom: 24 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
+                        <TrendingUp size={20} color="#059669" />
+                        <div className="card-v2-title">Marketing Performance</div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 24, marginBottom: 28 }}>
+                        <div style={{ border: '1px solid var(--border)', background: '#f8fafc', borderRadius: 10, padding: 24 }}>
+                          <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase' }}>Target of Active Clients</div>
+                          <div style={{ marginTop: 14, border: '1px solid var(--border)', background: '#fff', borderRadius: 8, padding: '14px 18px', fontWeight: 900 }}>{countFmt(selectedActiveTarget)}</div>
+                        </div>
+                        <div style={{ border: '1px solid var(--border)', background: '#f8fafc', borderRadius: 10, padding: 24 }}>
+                          <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase' }}>Daily Collection Target</div>
+                          <div style={{ marginTop: 14, border: '1px solid var(--border)', background: '#fff', borderRadius: 8, padding: '14px 18px', fontWeight: 900 }}>{printAmount(selectedLatestRow.dailyTarget)}</div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                        <table className="data-table" style={{ margin: 0, border: '1px solid var(--border)' }}>
+                          <thead>
+                            <tr><th colSpan={6} style={{ textAlign: 'center' }}>Target of Active Clients ({countFmt(selectedActiveTarget)})</th></tr>
+                            <tr>
+                              <th>Beginning Active</th><th>New Client</th><th>Return Client</th><th>Relax / On Hold / Recon</th><th>Ending Balance</th><th>Lacking No of Clients</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td style={{ textAlign: 'center', fontWeight: 900 }}>{countFmt(selectedActiveTarget)}</td>
+                              <td style={{ textAlign: 'center', color: '#2563eb', fontWeight: 900 }}>0</td>
+                              <td style={{ textAlign: 'center', fontWeight: 900 }}>0</td>
+                              <td style={{ textAlign: 'center', fontWeight: 900 }}>{countFmt(selectedLatestRow.reconClients)}</td>
+                              <td style={{ textAlign: 'center', color: '#059669', fontWeight: 900 }}>{countFmt(selectedEndingBalance)}</td>
+                              <td style={{ textAlign: 'center', color: '#e11d48', fontWeight: 900 }}>{countFmt(Math.max(0, selectedActiveTarget - selectedEndingBalance))}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                        <table className="data-table" style={{ margin: 0, border: '1px solid var(--border)' }}>
+                          <thead>
+                            <tr><th colSpan={3} style={{ textAlign: 'center' }}>Total Amount of Collection</th></tr>
+                            <tr><th>Beg. Bal.</th><th>This Week</th><th>Ending Balance</th></tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td style={{ textAlign: 'center', fontWeight: 900 }}>PHP {fmt(selectedSummary.dailyTarget)}</td>
+                              <td style={{ textAlign: 'center', color: '#2563eb', fontWeight: 900 }}>PHP {fmt(selectedSummary.actual)}</td>
+                              <td style={{ textAlign: 'center', color: '#2563eb', fontWeight: 900 }}>PHP {fmt(Math.max(0, selectedSummary.dailyTarget - selectedSummary.actual))}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div className="card-v2" style={{ padding: 0, overflow: 'hidden', marginBottom: 24 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 28px', borderBottom: '1px solid var(--border)' }}>
+                        <div>
+                          <div className="card-v2-title" style={{ textTransform: 'uppercase' }}>Collection Performance</div>
+                          <div style={{ marginTop: 6, color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase' }}>Daily audit & metric tracking</div>
+                        </div>
+                      </div>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table className="data-table" style={{ margin: 0, border: 'none', minWidth: 980 }}>
+                          <thead>
+                            <tr><th rowSpan={2}>Rating Period</th><th colSpan={2} style={{ textAlign: 'center' }}>Target</th><th rowSpan={2} style={{ textAlign: 'right' }}>Actual</th><th rowSpan={2} style={{ textAlign: 'center' }}>Percentage of Accomplishment</th><th rowSpan={2} style={{ textAlign: 'center' }}>Remarks</th></tr>
+                            <tr><th style={{ textAlign: 'right' }}>Daily</th><th style={{ textAlign: 'right' }}>Weekly</th></tr>
+                          </thead>
+                          <tbody>
+                            {selectedCollection.rows.map(row => {
+                              const rowRemarkStyle = getRemarkStyle(row.remark)
+                              return (
+                                <tr key={`selected-${row.date}`}>
+                                  <td><div style={{ fontWeight: 900, fontSize: 16 }}>{shortDisplayDate(row.date)}</div><div style={{ marginTop: 6, color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.3, textTransform: 'uppercase' }}>Operational Day</div></td>
+                                  <td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(row.dailyTarget)}</td>
+                                  <td style={{ textAlign: 'right', color: '#334155', fontWeight: 900 }}>PHP {fmt(row.weeklyTarget)}</td>
+                                  <td style={{ textAlign: 'right', color: row.actual > 0 ? '#0ea5e9' : '#64748b', fontWeight: 900 }}>PHP {fmt(row.actual)}</td>
+                                  <td style={{ textAlign: 'center' }}><div style={{ color: row.rate >= 85 ? '#059669' : '#e11d48', fontWeight: 900, fontSize: 18 }}>{row.rate.toFixed(2)}%</div><div style={{ width: 84, height: 5, borderRadius: 999, background: '#e8edf4', margin: '8px auto 0', overflow: 'hidden' }}><div style={{ width: `${Math.min(row.rate, 100)}%`, height: '100%', background: row.rate >= 85 ? '#10b981' : '#e11d48' }} /></div></td>
+                                  <td style={{ textAlign: 'center' }}><span style={{ display: 'inline-flex', justifyContent: 'center', minWidth: 118, padding: '9px 13px', border: `1px solid ${rowRemarkStyle.borderColor}`, borderRadius: 8, fontSize: 11, fontWeight: 900, letterSpacing: 1.1, textTransform: 'uppercase', ...rowRemarkStyle }}>{row.remark}</span></td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                          <tfoot>
+                            <tr style={{ background: '#0f172a', color: '#fff' }}>
+                              <td style={{ padding: '20px 24px' }}><div style={{ color: '#93c5fd', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase' }}>Weekly Summary</div><div style={{ marginTop: 6, fontWeight: 900 }}>CONSOLIDATED</div></td>
+                              <td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(selectedSummary.dailyTarget)}</td>
+                              <td style={{ textAlign: 'right', color: '#94a3b8', fontWeight: 900 }}>-</td>
+                              <td style={{ textAlign: 'right', color: '#38bdf8', fontWeight: 900 }}>PHP {fmt(selectedSummary.actual)}</td>
+                              <td style={{ textAlign: 'center', fontWeight: 900, fontSize: 18 }}>{selectedSummary.rate.toFixed(2)}%</td>
+                              <td style={{ textAlign: 'center' }}><span style={{ display: 'inline-flex', justifyContent: 'center', minWidth: 118, padding: '9px 13px', borderRadius: 8, background: selectedSummary.remark === 'ACHIEVED' ? '#10b981' : selectedSummary.remark === 'ON TRACK' ? '#2563eb' : '#f43f5e', color: '#fff', fontSize: 11, fontWeight: 900, letterSpacing: 1.1, textTransform: 'uppercase' }}>{selectedSummary.remark}</span></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div className="card-v2">
+                      <div className="card-v2-title" style={{ marginBottom: 20 }}>AI Generated Comment and Recommendation</div>
+                      <div style={{ display: 'grid', gap: 18 }}>
+                        <div>
+                          <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>Supervisor Comments</div>
+                          <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: '#f8fafc', padding: 20, fontWeight: 800, lineHeight: 1.6 }}>{selectedInsight.comment}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>Strategic Recommendation</div>
+                          <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: '#f8fafc', padding: 20, fontWeight: 800, lineHeight: 1.6 }}>{selectedInsight.recommendation}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: 24, padding: 24 }}>
                   {collectionsLoading ? (
                     <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>Loading collections...</div>
@@ -723,7 +885,6 @@ export default function CollectorPerformance() {
                     const latestRow = collector.rows.find(row => row.date === filters.date_to) || collector.rows[collector.rows.length - 1] || {}
                     const weeklyTarget = Number(latestRow.weeklyTarget || summary.dailyTarget || 0)
                     const remarkStyle = getRemarkStyle(summary.remark)
-                    const insight = getGeneratedCollectionInsight(collector.name, collector.rows, summary)
 
                     return (
                       <div key={`collector-collection-${collector.id}`} style={{
@@ -806,39 +967,7 @@ export default function CollectorPerformance() {
                           </div>
                         </div>
 
-                        <div style={{ display: 'grid', gap: 8, marginTop: 18 }}>
-                          {collector.rows.map(row => (
-                            <div key={`collection-chip-${collector.id}-${row.date}`} style={{
-                              display: 'grid',
-                              gridTemplateColumns: '88px 1fr auto',
-                              alignItems: 'center',
-                              gap: 10,
-                              padding: '9px 10px',
-                              border: '1px solid #e2e8f0',
-                              borderRadius: 8,
-                              background: '#fbfdff'
-                            }}>
-                              <div style={{ color: '#64748b', fontSize: 12, fontWeight: 900 }}>{shortDisplayDate(row.date).replace(', 2026', '')}</div>
-                              <div style={{ color: '#0f172a', fontSize: 12, fontWeight: 800 }}>PHP {fmt(row.dailyTarget)} / PHP {fmt(row.actual)}</div>
-                              <div style={{ color: row.rate >= 85 ? '#059669' : '#e11d48', fontSize: 12, fontWeight: 900 }}>{row.rate.toFixed(0)}%</div>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div style={{
-                          marginTop: 20,
-                          border: '1px solid #dbeafe',
-                          background: '#eff6ff',
-                          borderRadius: 8,
-                          padding: 16
-                        }}>
-                          <div style={{ color: '#1d4ed8', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase' }}>AI Generated Comment</div>
-                          <div style={{ marginTop: 8, color: '#0f172a', fontSize: 14, lineHeight: 1.5, fontWeight: 700 }}>{insight.comment}</div>
-                          <div style={{ marginTop: 14, color: '#1d4ed8', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase' }}>Recommendation</div>
-                          <div style={{ marginTop: 8, color: '#17345b', fontSize: 14, lineHeight: 1.5, fontWeight: 700 }}>{insight.recommendation}</div>
-                        </div>
-
-                        <button className="btn btn-primary" type="button" onClick={loadCollections} disabled={collectionsLoading} style={{ width: '100%', marginTop: 24, justifyContent: 'center' }}>
+                        <button className="btn btn-primary" type="button" onClick={() => setSelectedCollectionId(collector.id)} disabled={collectionsLoading} style={{ width: '100%', marginTop: 24, justifyContent: 'center' }}>
                           <Edit3 size={16} /> Input Daily Data
                         </button>
                       </div>
@@ -847,6 +976,7 @@ export default function CollectorPerformance() {
                     <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>No collection dates loaded.</div>
                   )}
                 </div>
+                )}
               </div>
             )}
           </div>
