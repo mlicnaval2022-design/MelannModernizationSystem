@@ -162,6 +162,7 @@ export default function CollectorPerformance() {
   const [collectionRows, setCollectionRows] = useState([])
   const [selectedCollectionId, setSelectedCollectionId] = useState(null)
   const [collectorEdits, setCollectorEdits] = useState({})
+  const [savedMessage, setSavedMessage] = useState('')
   const [collectionsLoading, setCollectionsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
@@ -378,6 +379,7 @@ export default function CollectorPerformance() {
         [field]: value
       }
     }))
+    setSavedMessage('')
   }
 
   const updateCollectorPhoto = (collectorId, file) => {
@@ -387,8 +389,22 @@ export default function CollectorPerformance() {
     reader.readAsDataURL(file)
   }
 
+  const saveCollectorEdits = () => {
+    localStorage.setItem('collectorPerformanceEdits', JSON.stringify(collectorEdits))
+    setSavedMessage('Saved')
+  }
+
   useEffect(() => {
     loadData()
+  }, [])
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('collectorPerformanceEdits') || '{}')
+      setCollectorEdits(saved && typeof saved === 'object' ? saved : {})
+    } catch {
+      setCollectorEdits({})
+    }
   }, [])
 
   useEffect(() => {
@@ -443,7 +459,8 @@ export default function CollectorPerformance() {
   const selectedActiveTarget = 100
   const selectedNewClients = selectedCollection?.rows.reduce((sum, row) => sum + Number(row.newClients || 0), 0) || 0
   const selectedNewClientPrincipal = selectedCollection?.rows.reduce((sum, row) => sum + Number(row.newClientPrincipal || 0), 0) || 0
-  const selectedReconClients = selectedCollection?.rows.reduce((sum, row) => sum + Number(row.reconClients || 0), 0) || 0
+  const selectedReturnClients = Number(selectedEdit.returnClients ?? 0)
+  const selectedReconClients = Number(selectedEdit.reconClients ?? selectedCollection?.rows.reduce((sum, row) => sum + Number(row.reconClients || 0), 0) ?? 0)
   const selectedEndingBalance = selectedLatestRow
     ? Math.max(0, selectedActiveTarget + selectedNewClients - selectedReconClients)
     : 0
@@ -763,6 +780,12 @@ export default function CollectorPerformance() {
                     <button className="btn btn-secondary" type="button" onClick={() => setSelectedCollectionId(null)} style={{ marginBottom: 18 }}>
                       <ArrowLeft size={16} /> Back to Collectors
                     </button>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+                      {savedMessage && <span style={{ color: '#059669', fontSize: 12, fontWeight: 900, textTransform: 'uppercase' }}>{savedMessage}</span>}
+                      <button className="btn btn-primary" type="button" onClick={saveCollectorEdits}>
+                        Save
+                      </button>
+                    </div>
 
                     <div className="card-v2" style={{ marginBottom: 24 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
@@ -828,8 +851,26 @@ export default function CollectorPerformance() {
                             <tr>
                               <td style={{ textAlign: 'center', fontWeight: 900 }}>{countFmt(selectedLatestRow.activeClients + selectedLatestRow.overdueClients)}</td>
                               <td style={{ textAlign: 'center', color: '#2563eb', fontWeight: 900 }}>{countFmt(selectedNewClients)}</td>
-                              <td style={{ textAlign: 'center', fontWeight: 900 }}>0</td>
-                              <td style={{ textAlign: 'center', fontWeight: 900 }}>{countFmt(selectedReconClients)}</td>
+                              <td style={{ textAlign: 'center', fontWeight: 900 }}>
+                                <input
+                                  className="form-control"
+                                  type="number"
+                                  min="0"
+                                  value={selectedReturnClients}
+                                  onChange={e => updateCollectorEdit(selectedCollection.id, 'returnClients', e.target.value)}
+                                  style={{ maxWidth: 90, margin: '0 auto', textAlign: 'center', fontWeight: 900 }}
+                                />
+                              </td>
+                              <td style={{ textAlign: 'center', fontWeight: 900 }}>
+                                <input
+                                  className="form-control"
+                                  type="number"
+                                  min="0"
+                                  value={selectedReconClients}
+                                  onChange={e => updateCollectorEdit(selectedCollection.id, 'reconClients', e.target.value)}
+                                  style={{ maxWidth: 90, margin: '0 auto', textAlign: 'center', fontWeight: 900 }}
+                                />
+                              </td>
                               <td style={{ textAlign: 'center', color: '#059669', fontWeight: 900 }}>{countFmt(selectedEndingBalance)}</td>
                               <td style={{ textAlign: 'center', color: '#e11d48', fontWeight: 900 }}>{countFmt(Math.max(0, selectedActiveTarget - selectedEndingBalance))}</td>
                             </tr>
