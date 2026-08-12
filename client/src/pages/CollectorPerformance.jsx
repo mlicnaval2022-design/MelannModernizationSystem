@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, CalendarDays, CheckCircle2, Edit3, FileText, MapPin, Plus, Printer, RefreshCw, TrendingUp, User, Users, X } from 'lucide-react'
 import API from '../services/api'
+import logo from '../assets/logo.png'
 import '../dashboard.css'
 
 const fmt = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
@@ -64,6 +65,24 @@ const getCollectionRemark = rate => {
   if (rate >= 90) return 'PASSED'
   if (rate >= 85) return 'WARNING'
   return 'NEEDS IMPROVEMENT'
+}
+
+const printDate = value => {
+  if (!value) return ''
+  return new Date(`${value}T00:00:00`).toLocaleDateString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric'
+  })
+}
+
+const ratingPeriod = dates => {
+  if (!dates.length) return ''
+  const first = new Date(`${dates[0]}T00:00:00`)
+  const last = new Date(`${dates[dates.length - 1]}T00:00:00`)
+  const firstLabel = first.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+  const lastLabel = last.toLocaleDateString('en-US', { day: 'numeric', year: 'numeric' })
+  return `${firstLabel} - ${lastLabel}`
 }
 
 const getRemarkStyle = remark => {
@@ -162,6 +181,7 @@ export default function CollectorPerformance() {
   const [collectionRows, setCollectionRows] = useState([])
   const [selectedCollectionId, setSelectedCollectionId] = useState(null)
   const [collectorEdits, setCollectorEdits] = useState({})
+  const [lockedCollections, setLockedCollections] = useState(null)
   const [showSavedModal, setShowSavedModal] = useState(false)
   const [collectionsLoading, setCollectionsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -394,6 +414,29 @@ export default function CollectorPerformance() {
     setShowSavedModal(true)
   }
 
+  const lockWeekForPrinting = () => {
+    const dates = getOperationWeek(filters.date_to)
+    setLockedCollections({
+      dateFrom: dates[0],
+      dateTo: dates[dates.length - 1],
+      collectors: collectionRows
+    })
+  }
+
+  const printLockedPerformance = () => {
+    const dates = getOperationWeek(filters.date_to)
+    if (!lockedCollections) {
+      setLockedCollections({
+        dateFrom: dates[0],
+        dateTo: dates[dates.length - 1],
+        collectors: collectionRows
+      })
+    }
+    document.body.classList.add('print-performance-report')
+    window.print()
+    document.body.classList.remove('print-performance-report')
+  }
+
   useEffect(() => {
     loadData()
   }, [])
@@ -472,6 +515,7 @@ export default function CollectorPerformance() {
     <div className="dashboard-v2">
       <style>{`
         .collector-print-layout { display: none; }
+        .performance-print-layout { display: none; }
         .collector-print-table {
           width: 100%;
           border-collapse: collapse;
@@ -532,8 +576,96 @@ export default function CollectorPerformance() {
           body.print-target .print-actual-only * { display: none !important; visibility: hidden !important; }
           body.print-actual .print-target-only,
           body.print-actual .print-target-only * { display: none !important; visibility: hidden !important; }
+          body.print-performance-report * { visibility: hidden !important; }
+          body.print-performance-report .performance-print-layout,
+          body.print-performance-report .performance-print-layout * { visibility: visible !important; }
+          body.print-performance-report .collector-print-layout { display: none !important; }
+          body.print-performance-report .performance-print-layout {
+            display: block !important;
+            position: absolute !important;
+            left: 0;
+            top: 0;
+            width: 100%;
+            background: #fff;
+            color: #000;
+            font-family: Arial, Helvetica, sans-serif;
+          }
+          .performance-print-page {
+            page-break-after: always;
+            padding: 0.25in 0.35in;
+          }
+          .performance-print-page:last-child { page-break-after: auto; }
         }
       `}</style>
+
+      <div className="performance-print-layout">
+        {(lockedCollections?.collectors || collectionRows).map(collector => {
+          const summary = getCollectorCollectionTotals(collector.rows)
+          const edit = collectorEdits[collector.id] || {}
+          const weekDates = collector.rows.map(row => row.date)
+          const firstRow = collector.rows[0] || {}
+          const newClients = collector.rows.reduce((sum, row) => sum + Number(row.newClients || 0), 0)
+          const newPrincipal = collector.rows.reduce((sum, row) => sum + Number(row.newClientPrincipal || 0), 0)
+          const returnClients = Number(edit.returnClients ?? 0)
+          const reconClients = Number(edit.reconClients ?? collector.rows.reduce((sum, row) => sum + Number(row.reconClients || 0), 0))
+          const activeTarget = 100
+          const beginningActive = Number(firstRow.activeClients || 0) + Number(firstRow.overdueClients || 0)
+          const endingBalance = Math.max(0, activeTarget + newClients + returnClients - reconClients)
+          const lacking = Math.max(0, activeTarget - endingBalance)
+          const insight = getGeneratedCollectionInsight(edit.fullName || collector.name, collector.rows, summary)
+          return (
+            <div className="performance-print-page" key={`print-performance-${collector.id}`}>
+              <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', alignItems: 'center', gap: 16, marginBottom: 18 }}>
+                <img src={logo} alt="" style={{ width: 145, justifySelf: 'end' }} />
+                <div style={{ fontSize: 13, lineHeight: 1.35 }}>
+                  <div style={{ fontSize: 24, fontWeight: 800 }}>Melann Lending Investor Corporation</div>
+                  <div>Lot 3 Blk 2, Brgy. San Isidro, Ormoc City</div>
+                  <div>(053) 520-1138,0917-113-1000,0919-0085182</div>
+                  <div>melann.lic2016@gmail.com</div>
+                  <div>https://www.facebook.com/MelannInvestorCorp</div>
+                </div>
+              </div>
+              <div style={{ textAlign: 'center', color: '#2563eb', fontWeight: 900, letterSpacing: 2, textDecoration: 'underline', margin: '10px 0 16px' }}>WEEKLY PERFORMANCE RATING</div>
+              <div style={{ fontSize: 12, marginBottom: 10 }}>Rating Period: <span style={{ color: '#ef4444', textDecoration: 'underline' }}>{ratingPeriod(weekDates)}</span></div>
+
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 16 }}>
+                <tbody>
+                  <tr><td style={{ border: '1px solid #000', padding: 8 }}>Name of Collector</td><td style={{ border: '1px solid #000', padding: 8, fontWeight: 800 }}>{String(edit.fullName || collector.name).toUpperCase()}</td><td style={{ border: '1px solid #000', padding: 8 }}>Area of Assignment</td><td style={{ border: '1px solid #000', padding: 8, fontWeight: 800 }}>{String(edit.area || getCollectorArea(collector.name)).toUpperCase()}</td></tr>
+                  <tr><td style={{ border: '1px solid #000', padding: 8 }}>Team Name</td><td style={{ border: '1px solid #000', padding: 8, fontWeight: 800 }}>{String(edit.teamName || collector.collectorCode || 'COLLECTION').toUpperCase()}</td><td style={{ border: '1px solid #000', padding: 8 }}>Name of Supervisor</td><td style={{ border: '1px solid #000', padding: 8, fontWeight: 800 }}>{edit.supervisor || 'Not encoded'}</td></tr>
+                </tbody>
+              </table>
+
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, marginBottom: 16, textAlign: 'center' }}>
+                <tbody>
+                  <tr><th colSpan={11} style={{ border: '1px solid #000', padding: 8, textDecoration: 'underline' }}>MARKETING PERFORMANCE</th></tr>
+                  <tr><td colSpan={6} style={{ border: '1px solid #000', padding: 8 }}>Target of Active Clients (<span style={{ color: '#ef4444' }}>{activeTarget}</span>)</td><td colSpan={5} style={{ border: '1px solid #000', padding: 8 }}>Total Amount of Release (from New Clients)</td></tr>
+                  <tr><td style={{ border: '1px solid #000', padding: 8 }}>Beginning<br />Active</td><td style={{ border: '1px solid #000', padding: 8 }}>New Client/<br />Return client</td><td style={{ border: '1px solid #000', padding: 8 }}>Relax/On<br />Hold/Recon</td><td style={{ border: '1px solid #000', padding: 8 }}>Ending<br />Balance</td><td style={{ border: '1px solid #000', padding: 8 }}>Lacking No of<br />Clients</td><td style={{ border: '1px solid #000', padding: 8 }}></td><td style={{ border: '1px solid #000', padding: 8 }}>Beg. Bal.</td><td style={{ border: '1px solid #000', padding: 8 }}>This Week</td><td style={{ border: '1px solid #000', padding: 8 }}>Ending Balance</td></tr>
+                  <tr><td style={{ border: '1px solid #000', padding: 8, fontWeight: 800 }}>{countFmt(beginningActive)}</td><td style={{ border: '1px solid #000', padding: 8, fontWeight: 800 }}>{countFmt(newClients + returnClients)}</td><td style={{ border: '1px solid #000', padding: 8, fontWeight: 800 }}>{countFmt(reconClients)}</td><td style={{ border: '1px solid #000', padding: 8, fontWeight: 800 }}>{countFmt(endingBalance)}</td><td style={{ border: '1px solid #000', padding: 8, fontWeight: 800, color: '#ef4444' }}>{countFmt(lacking)}</td><td style={{ border: '1px solid #000' }}></td><td style={{ border: '1px solid #000', padding: 8 }}>{printAmount(summary.dailyTarget)}</td><td style={{ border: '1px solid #000', padding: 8 }}>{printAmount(newPrincipal)}</td><td style={{ border: '1px solid #000', padding: 8 }}>{printAmount(Math.max(0, summary.dailyTarget - newPrincipal))}</td></tr>
+                </tbody>
+              </table>
+
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, marginBottom: 16, textAlign: 'center' }}>
+                <thead>
+                  <tr><th colSpan={6} style={{ border: '1px solid #000', padding: 8, textDecoration: 'underline' }}>COLLECTION PERFORMANCE</th></tr>
+                  <tr><th rowSpan={2} style={{ border: '1px solid #000', padding: 8 }}>Rating Period</th><th colSpan={2} style={{ border: '1px solid #000', padding: 8 }}>Target</th><th rowSpan={2} style={{ border: '1px solid #000', padding: 8 }}>Actual</th><th rowSpan={2} style={{ border: '1px solid #000', padding: 8 }}>Percentage of<br />Accomplishment</th><th rowSpan={2} style={{ border: '1px solid #000', padding: 8 }}>Remark</th></tr>
+                  <tr><th style={{ border: '1px solid #000', padding: 8 }}>Daily</th><th style={{ border: '1px solid #000', padding: 8 }}>Weekly</th></tr>
+                </thead>
+                <tbody>
+                  {collector.rows.map(row => <tr key={`print-row-${collector.id}-${row.date}`}><td style={{ border: '1px solid #000', padding: 6 }}>{printDate(row.date)}</td><td style={{ border: '1px solid #000', padding: 6 }}>{printAmount(row.dailyTarget)}</td><td style={{ border: '1px solid #000', padding: 6 }}>{printAmount(row.weeklyTarget)}</td><td style={{ border: '1px solid #000', padding: 6 }}>{printAmount(row.actual)}</td><td style={{ border: '1px solid #000', padding: 6 }}>{row.rate.toFixed(2)}%</td><td style={{ border: '1px solid #000', padding: 6 }}>{row.remark}</td></tr>)}
+                  <tr><td style={{ border: '1px solid #000', padding: 7, fontWeight: 800 }}>Total</td><td style={{ border: '1px solid #000', padding: 7, fontWeight: 800 }}>{printAmount(summary.dailyTarget)}</td><td style={{ border: '1px solid #000', padding: 7 }}></td><td style={{ border: '1px solid #000', padding: 7, fontWeight: 800 }}>{printAmount(summary.actual)}</td><td style={{ border: '1px solid #000', padding: 7, background: summary.rate >= 90 ? '#bbf7d0' : summary.rate >= 85 ? '#fde68a' : '#ef4444', color: summary.rate < 85 ? '#fff' : '#000', fontWeight: 800 }}>{summary.rate.toFixed(2)}%</td><td style={{ border: '1px solid #000', padding: 7, fontWeight: 800 }}>{summary.remark}</td></tr>
+                </tbody>
+              </table>
+
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, marginBottom: 0 }}>
+                <tbody>
+                  <tr><td style={{ border: '1px solid #000', padding: 8, width: '15%' }}><b>Legend:</b><br /><span style={{ display: 'inline-block', width: 95, background: '#bbf7d0', border: '1px solid #000', textAlign: 'center' }}>Passed</span><br /><span style={{ display: 'inline-block', width: 95, background: '#fde68a', border: '1px solid #000', textAlign: 'center' }}>Warning</span><br /><span style={{ display: 'inline-block', width: 95, background: '#fecaca', border: '1px solid #000', textAlign: 'center' }}>Needs Improvement</span></td><td style={{ border: '1px solid #000', padding: 8, width: '45%' }}>90.00% and above<br />85% - 89.99%<br />84.99% and below</td><td style={{ border: '1px solid #000', padding: 8, textAlign: 'center' }}><u>Coaching Details:</u><br /><br />Date<br /><br />Name and Signature of Coach<br /><br /><b>VICTORIO L. RELOBA, JR.</b><br />Position of Coach<br /><br />Collector<br /><br /><b>{String(edit.fullName || collector.name).toUpperCase()}</b><br />Name of Collector</td></tr>
+                  <tr><td colSpan={3} style={{ border: '1px solid #000', padding: 10 }}><b><u>Recommendation:</u></b><br /><br /><i>{edit.recommendation || insight.recommendation}</i><br /><br /><b><u>Comment/Suggestions:</u></b><br /><br /><i>{edit.comment || insight.comment}</i></td></tr>
+                </tbody>
+              </table>
+            </div>
+          )
+        })}
+      </div>
 
       <div id="printable-area" className="collector-print-layout">
         <div className="collector-print-panel print-target-only">
@@ -815,6 +947,12 @@ export default function CollectorPerformance() {
                     <button className="btn btn-secondary" type="button" onClick={loadCollections} disabled={collectionsLoading}>
                       <RefreshCw size={16} /> {collectionsLoading ? 'Syncing...' : 'Sync Dates'}
                     </button>
+                    <button className="btn btn-secondary" type="button" onClick={lockWeekForPrinting} disabled={collectionsLoading || !collectionRows.length}>
+                      Lock Week
+                    </button>
+                    <button className="btn btn-primary" type="button" onClick={printLockedPerformance} disabled={collectionsLoading || !collectionRows.length}>
+                      <Printer size={16} /> Print Performance
+                    </button>
                     <button className="btn btn-success" type="button" onClick={loadCollections} disabled={collectionsLoading}>
                       <Plus size={16} /> Add Date
                     </button>
@@ -1033,12 +1171,12 @@ export default function CollectorPerformance() {
                         cursor: 'pointer'
                       }}>
                         <div style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
+                          display: 'grid',
+                          gridTemplateColumns: 'minmax(0, 1fr) auto',
                           alignItems: 'flex-start',
-                          gap: 18
+                          gap: 12
                         }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, overflow: 'hidden' }}>
                             <div style={{
                               width: 58,
                               height: 58,
@@ -1057,14 +1195,14 @@ export default function CollectorPerformance() {
                                 <img src={cardEdit.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                               ) : getCollectorInitials(cardEdit.fullName || collector.name)}
                             </div>
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ fontSize: 20, lineHeight: 1.15, fontWeight: 900, textTransform: 'uppercase', color: '#0f172a' }}>{cardEdit.fullName || collector.name}</div>
-                              <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 4, color: '#475569', fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>
+                            <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                              <div style={{ fontSize: 20, lineHeight: 1.15, fontWeight: 900, textTransform: 'uppercase', color: '#0f172a', overflowWrap: 'anywhere' }}>{cardEdit.fullName || collector.name}</div>
+                              <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 4, color: '#475569', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', overflowWrap: 'anywhere' }}>
                                 <MapPin size={14} /> {cardEdit.area || getCollectorArea(collector.name)}
                               </div>
                             </div>
                           </div>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 124, padding: '11px 13px', border: `1px solid ${remarkStyle.borderColor}`, borderRadius: 6, fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase', ...remarkStyle }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 124, minHeight: 46, padding: '8px 10px', border: `1px solid ${remarkStyle.borderColor}`, borderRadius: 6, fontSize: 11, lineHeight: 1.35, fontWeight: 900, letterSpacing: 1.1, textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'normal', ...remarkStyle }}>
                             {summary.remark}
                           </span>
                         </div>
