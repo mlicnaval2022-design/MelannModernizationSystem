@@ -1382,6 +1382,9 @@ export default function Reports() {
     if (active === 'aging-report') {
       const overall = data.buckets || []
       const collectorsRows = (data.collectors || []).flatMap(group => (group.buckets || []).map((row, index) => ({ ...row, collector: index === 0 ? group.collector : '' })))
+      const agingFrom = dateOnly(data.date_from || params.date_from)
+      const agingTo = dateOnly(data.date_to || data.as_of || params.date_to || toDateInputValue(new Date()))
+      const agingPeriodLabel = agingFrom ? `${agingFrom} to ${agingTo}` : `Up to ${agingTo}`
       const agingHeaders = ['Period', 'Total Client', 'Total Principal', 'Total Interest', 'Total Loan Amount', 'Total Collectibles']
       const collectorHeaders = ['Collector', ...agingHeaders]
       const exportRows = [
@@ -1408,7 +1411,7 @@ export default function Reports() {
           rawMoney(row.total_collectibles),
         ]),
       ]
-      write('aging-report', addMeta(exportRows, 'Aging Report', [['As of', dateOnly(data.as_of || new Date().toISOString())]]))
+      write(`aging-report-${agingFrom || 'all'}-to-${agingTo}`, addMeta(exportRows, 'Aging Report', [['Maturity Period', agingPeriodLabel], ['As of', agingTo]]))
       return
     }
 
@@ -1439,7 +1442,11 @@ export default function Reports() {
     }
     if (key === 'collection-sheet' || key === 'daily-target') { loadCollectors(); setParams(p => ({ ...p, date: toDateInputValue(new Date()) })) }
     if (key === 'disclosure-statement') { setParams(p => ({ ...p, disclosure_loan_id: '' })) }
-    if (key === 'aging-report') run(key, params)
+    if (key === 'aging-report') {
+      const nextParams = { ...params, date_from: '', date_to: toDateInputValue(new Date()) }
+      setParams(nextParams)
+      run(key, nextParams)
+    }
   }
 
   const run = async (reportKey = active, reportParams = params, subTab = collectionSubTab) => {
@@ -1567,6 +1574,12 @@ export default function Reports() {
       <>
         <div className="form-group"><label className="form-label">Date From</label><input type="date" className="form-control" value={params.date_from} onChange={e => setParams(p => ({ ...p, date_from: e.target.value }))} /></div>
         <div className="form-group"><label className="form-label">Date To</label><input type="date" className="form-control" value={params.date_to} onChange={e => setParams(p => ({ ...p, date_to: e.target.value }))} /></div>
+      </>
+    )
+    if (active === 'aging-report') return (
+      <>
+        <div className="form-group"><label className="form-label">Date From</label><input type="date" className="form-control" value={params.date_from || ''} onChange={e => setParams(p => ({ ...p, date_from: e.target.value }))} /></div>
+        <div className="form-group"><label className="form-label">Date To</label><input type="date" className="form-control" value={params.date_to || toDateInputValue(new Date())} onChange={e => setParams(p => ({ ...p, date_to: e.target.value }))} /></div>
       </>
     )
     if (active === 'monthly-releases') return (
@@ -2498,7 +2511,10 @@ export default function Reports() {
       }
       const overallRows = data.buckets || []
       const collectorGroups = data.collectors || []
-      const todayLabel = displayDate(data.as_of || toDateInputValue(new Date()))
+      const agingFrom = dateOnly(data.date_from || params.date_from)
+      const agingTo = dateOnly(data.date_to || data.as_of || params.date_to || toDateInputValue(new Date()))
+      const periodLabel = agingFrom ? `${displayDate(agingFrom)} to ${displayDate(agingTo)}` : `Up to ${displayDate(agingTo)}`
+      const todayLabel = displayDate(data.as_of || agingTo)
       const sumRows = rows => rows.reduce((total, row) => ({
         total_clients: total.total_clients + Number(row.total_clients || 0),
         total_principal: total.total_principal + Number(row.total_principal || 0),
@@ -2545,6 +2561,7 @@ export default function Reports() {
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
             <div className="aging-print-title">
               <h3 style={{ margin: 0 }}>Aging Report</h3>
+              <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>Maturity Period: {periodLabel}</div>
               <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>As of {todayLabel}</div>
               <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>Total Collectibles: <b>PHP {fmt(overallTotals.total_collectibles)}</b></div>
             </div>

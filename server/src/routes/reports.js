@@ -716,7 +716,18 @@ router.get('/disclosure-statement', authenticateToken, async (req, res) => {
 
 router.get('/aging-report', authenticateToken, async (req, res) => {
   try {
-    const asOf = toLocalDateString();
+    const dateFrom = req.query.date_from ? toDateKey(req.query.date_from) : '';
+    const dateTo = req.query.date_to ? toDateKey(req.query.date_to) : toLocalDateString();
+    if (dateFrom && !/^\d{4}-\d{2}-\d{2}$/.test(dateFrom)) {
+      return res.status(400).json({ error: 'Invalid Date From. Use YYYY-MM-DD format.' });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
+      return res.status(400).json({ error: 'Invalid Date To. Use YYYY-MM-DD format.' });
+    }
+    if (dateFrom && dateFrom > dateTo) {
+      return res.status(400).json({ error: 'Date From cannot be later than Date To.' });
+    }
+    const asOf = dateTo;
     const buckets = [
       { key: '1-30', label: '1-30 Days', min: 1, max: 30 },
       { key: '31-60', label: '31-60 Days', min: 31, max: 60 },
@@ -735,6 +746,7 @@ router.get('/aging-report', authenticateToken, async (req, res) => {
       total_collectibles: 0,
     });
 
+    const maturityDateFilter = dateFrom ? 'AND date(l.date_maturity) >= date(?)' : '';
     const agingLoans = await dbAll(`
       SELECT
         l.id,
@@ -754,10 +766,11 @@ router.get('/aging-report', authenticateToken, async (req, res) => {
       LEFT JOIN tblCollector co ON l.collector_id = co.id
       WHERE COALESCE(l.balance, 0) > 0
         AND l.date_maturity IS NOT NULL
+        ${maturityDateFilter}
         AND date(l.date_maturity) < date(?)
         AND LOWER(REPLACE(COALESCE(l.status, ''), '_', ' ')) IN ('active', 'pastdue', 'past due', 'recon', 'reconstruct')
       ORDER BY co.first_name, co.last_name, l.date_maturity ASC
-    `, [asOf, asOf]);
+    `, dateFrom ? [asOf, dateFrom, asOf] : [asOf, asOf]);
 
     const overallMap = Object.fromEntries(buckets.map(bucket => [bucket.key, {
       ...makeBucketRow(bucket),
@@ -807,6 +820,8 @@ router.get('/aging-report', authenticateToken, async (req, res) => {
 
     res.json({
       as_of: asOf,
+      date_from: dateFrom,
+      date_to: dateTo,
       buckets: overall,
       collectors: byCollector,
       loans: agingLoans,
