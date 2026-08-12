@@ -534,6 +534,7 @@ export default function CollectorPerformance() {
           overflow: auto;
           background: rgba(15, 23, 42, 0.72);
           padding: 72px 24px 24px;
+          text-align: center;
         }
         .performance-preview-controls {
           position: fixed;
@@ -544,11 +545,20 @@ export default function CollectorPerformance() {
           gap: 10px;
         }
         .performance-print-layout.performance-preview-visible .performance-print-page {
-          width: 8.5in;
-          min-height: 13in;
+          width: 8in;
+          min-height: 12.5in;
           margin: 0 auto 24px;
           background: #fff;
           box-shadow: 0 20px 60px rgba(0,0,0,.35);
+          text-align: left;
+          transform-origin: top center;
+          zoom: .78;
+        }
+        @media (max-width: 1100px) {
+          .performance-print-layout.performance-preview-visible .performance-print-page { zoom: .66; }
+        }
+        @media (max-width: 820px) {
+          .performance-print-layout.performance-preview-visible .performance-print-page { zoom: .52; }
         }
         .collector-print-table {
           width: 100%;
