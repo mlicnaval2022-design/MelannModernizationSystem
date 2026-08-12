@@ -39,9 +39,7 @@ Then open your browser at: **http://localhost:5173**
 | Username    | Password       | Role        | Access                          |
 |-------------|----------------|-------------|----------------------------------|
 | admin       | admin123       | Admin       | Full access including user mgmt |
-| manager     | manager123     | Manager     | Operations + reports + reversals|
-| teller      | teller123      | Teller      | Customers, loans, payments      |
-| accounting  | accounting123  | Accounting  | Finance, deposits, expenses     |
+| user        | user123        | User        | Limited access                  |
 
 ---
 

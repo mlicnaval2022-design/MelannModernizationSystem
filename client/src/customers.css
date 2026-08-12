@@ -143,21 +143,21 @@
 
 /* Print CSS for Export to PDF */
 @media print {
-  body:not(.soa-print-mode) * {
+  body:not(.soa-print-mode):not(.npm-printing) * {
     visibility: hidden;
   }
-  body:not(.soa-print-mode) .customers-table-container,
-  body:not(.soa-print-mode) .customers-table-container * {
+  body:not(.soa-print-mode):not(.npm-printing) .customers-table-container,
+  body:not(.soa-print-mode):not(.npm-printing) .customers-table-container * {
     visibility: visible;
   }
-  body:not(.soa-print-mode) .customers-table-container {
+  body:not(.soa-print-mode):not(.npm-printing) .customers-table-container {
     position: absolute;
     left: 0;
     top: 0;
     width: 100%;
     box-shadow: none;
   }
-  body:not(.soa-print-mode) .table-actions {
+  body:not(.soa-print-mode):not(.npm-printing) .table-actions {
     display: none !important;
   }
 }

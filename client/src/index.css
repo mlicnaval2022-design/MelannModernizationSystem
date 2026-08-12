@@ -345,6 +345,7 @@ select.form-control option { background: var(--bg-secondary); }
 .badge-reversed  { background: rgba(230,147,10,0.10); color: var(--accent-warning); }
 .badge-inactive  { background: rgba(122,141,164,0.12); color: var(--text-muted); }
 .badge-admin     { background: rgba(18,58,99,0.10); color: var(--blue-dark); }
+.badge-user      { background: rgba(71,85,105,0.10); color: #475569; }
 .badge-manager   { background: rgba(230,147,10,0.10); color: var(--accent-warning); }
 .badge-teller    { background: rgba(14,165,114,0.10); color: var(--accent-success); }
 .badge-accounting{ background: rgba(10,179,156,0.10); color: var(--accent-2); }
@@ -480,7 +481,7 @@ select.form-control option { background: var(--bg-secondary); }
 
 /* ===================== PRINT ===================== */
 @media print {
-  body * { visibility: hidden; }
+  body:not(.npm-printing) * { visibility: hidden; }
   body, html { height: auto !important; overflow: visible !important; }
   #printable-area, #printable-area * { visibility: visible; }
   #printable-area { 

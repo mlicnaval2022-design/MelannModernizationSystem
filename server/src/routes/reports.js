@@ -38,6 +38,32 @@ const buildClientAddress = (loan) => [
   loan.customer_zip_code
 ].map(part => String(part || '').trim()).filter(Boolean).join(', ');
 
+const normalizeLoanTypeKey = type => String(type || '').toUpperCase().replace(/[-\s]/g, '');
+
+const resolvePrintablePreviousBalance = async (loan, findPriorBalancePayment = ({ customerId, dateReleased }) => dbGet(`
+  SELECT amount_paid
+  FROM tblPayment
+  WHERE customer_id = ?
+    AND date_paid = ?
+    AND status = 'active'
+    AND LOWER(COALESCE(remarks, '')) LIKE '%old balance during%'
+  ORDER BY id DESC
+  LIMIT 1
+`, [customerId, dateReleased])) => {
+  const normalizedLoanType = normalizeLoanTypeKey(loan.loan_type);
+  if (!['RECON', 'RELOAN'].includes(normalizedLoanType) || Number(loan.previous_balance || 0) > 0) {
+    return loan.previous_balance;
+  }
+
+  const priorBalancePayment = await findPriorBalancePayment({
+    customerId: loan.customer_id,
+    dateReleased: loan.date_released,
+  });
+
+  if (priorBalancePayment) loan.previous_balance = Number(priorBalancePayment.amount_paid || 0);
+  return loan.previous_balance;
+};
+
 const ensureCollectionFieldReleaseTable = () => dbRun(`
   CREATE TABLE IF NOT EXISTS tblCollectionFieldRelease (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -660,21 +686,7 @@ router.get('/disclosure-statement', authenticateToken, async (req, res) => {
     }
 
     const loan = loans[0];
-    const normalizedLoanType = String(loan.loan_type || '').toUpperCase().replace(/[-\s]/g, '');
-    if (['RECON', 'RELOAN'].includes(normalizedLoanType) && Number(loan.previous_balance || 0) <= 0) {
-      const priorBalancePayment = await dbGet(`
-        SELECT amount_paid
-        FROM tblPayment
-        WHERE customer_id = ?
-          AND date_paid = ?
-          AND status = 'active'
-          AND LOWER(COALESCE(remarks, '')) LIKE '%old balance during%'
-        ORDER BY id DESC
-        LIMIT 1
-      `, [loan.customer_id, loan.date_released]);
-      if (priorBalancePayment) loan.previous_balance = Number(priorBalancePayment.amount_paid || 0);
-      else if (normalizedLoanType === 'RECON') loan.previous_balance = Number(loan.balance || 0);
-    }
+    await resolvePrintablePreviousBalance(loan);
     const clientAddress = buildClientAddress(loan);
     loan.address = clientAddress || loan.address;
     loan.customer_address = loan.address;
@@ -702,45 +714,109 @@ router.get('/disclosure-statement', authenticateToken, async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 
-router.get('/monitoring-summary', authenticateToken, async (req, res) => {
+router.get('/aging-report', authenticateToken, async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
-    
-    // 10 Reports required
-    const activeClientsMonitoredToday = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id JOIN tblLoan l ON a.loan_id = l.id WHERE a.status='Active' AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`)).c;
-    const escalatedAccounts = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id JOIN tblLoan l ON a.loan_id = l.id WHERE a.alert_level='Day 4+' AND a.status='Active' AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`)).c;
-    const resolvedAccounts = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id JOIN tblLoan l ON a.loan_id = l.id WHERE a.status='Resolved' AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`)).c;
-    
-    // Follow-up success rate
-    const totalFollowUps = (await dbGet(`SELECT COUNT(*) as c FROM tblFollowUp`)).c;
-    const successfulFollowUps = (await dbGet(`SELECT COUNT(*) as c FROM tblFollowUp WHERE contact_result='Promised to Pay'`)).c;
-    const collectorPerformance = totalFollowUps > 0 ? Math.round((successfulFollowUps / totalFollowUps) * 100) + '%' : '0%';
-    
-    const summaryPTP = (await dbGet(`SELECT COUNT(*) as c, COALESCE(SUM(promised_amount),0) as total FROM tblPromiseToPay WHERE status='Pending'`));
-    
-    const followUpLogs = await dbAll(`SELECT f.*, a.loan_id FROM tblFollowUp f JOIN tblMonitoringAlert a ON f.alert_id = a.id JOIN tblCustomer c ON a.customer_id = c.id JOIN tblLoan l ON a.loan_id = l.id WHERE LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct') ORDER BY f.created_at DESC LIMIT 5`);
-    
-    const alertsByBranch = await dbAll(`SELECT u.branch_id, COUNT(*) as count FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id JOIN tblLoan l ON a.loan_id = l.id JOIN tblUser u ON c.encoded_by = u.id WHERE a.status='Active' AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct') GROUP BY u.branch_id`);
-    
-    const clientsApproachingDay3 = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id JOIN tblLoan l ON a.loan_id = l.id WHERE a.status='Active' AND a.consecutive_days = 2 AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`)).c;
-    
-    const chronicMissedPayments = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id JOIN tblLoan l ON a.loan_id = l.id WHERE a.sequence_number >= 3 AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`)).c;
-    
-    const unresolvedOver7Days = (await dbGet(`SELECT COUNT(*) as c FROM tblMonitoringAlert a JOIN tblCustomer c ON a.customer_id = c.id JOIN tblLoan l ON a.loan_id = l.id WHERE a.status='Active' AND a.consecutive_days >= 7 AND LOWER(c.status) IN ('active', 'recon') AND LOWER(l.status) IN ('active', 'recon', 'reconstruct')`)).c;
-    
+    const asOf = toLocalDateString();
+    const buckets = [
+      { key: '1-30', label: '1-30 Days', min: 1, max: 30 },
+      { key: '31-60', label: '31-60 Days', min: 31, max: 60 },
+      { key: '61-90', label: '61-90 Days', min: 61, max: 90 },
+      { key: '91-120', label: '91-120 Days', min: 91, max: 120 },
+      { key: '121+', label: '121+ Days', min: 121, max: Infinity },
+    ];
+
+    const makeBucketRow = bucket => ({
+      bucket_key: bucket.key,
+      bucket_label: bucket.label,
+      total_clients: 0,
+      total_principal: 0,
+      total_interest: 0,
+      total_loan_amount: 0,
+      total_collectibles: 0,
+    });
+
+    const agingLoans = await dbAll(`
+      SELECT
+        l.id,
+        l.customer_id,
+        l.loan_code,
+        l.principal,
+        l.interest_amount,
+        COALESCE(l.principal, 0) + COALESCE(l.interest_amount, 0) as total_loan_amount,
+        l.balance,
+        l.date_maturity,
+        c.customer_code,
+        c.full_name as customer_name,
+        COALESCE(NULLIF(TRIM(co.first_name || ' ' || co.last_name), ''), 'Unassigned') as collector_name,
+        CAST(julianday(date(?)) - julianday(date(l.date_maturity)) AS INTEGER) as aging_days
+      FROM tblLoan l
+      LEFT JOIN tblCustomer c ON l.customer_id = c.id
+      LEFT JOIN tblCollector co ON l.collector_id = co.id
+      WHERE COALESCE(l.balance, 0) > 0
+        AND l.date_maturity IS NOT NULL
+        AND date(l.date_maturity) < date(?)
+        AND LOWER(REPLACE(COALESCE(l.status, ''), '_', ' ')) IN ('active', 'pastdue', 'past due', 'recon', 'reconstruct')
+      ORDER BY co.first_name, co.last_name, l.date_maturity ASC
+    `, [asOf, asOf]);
+
+    const overallMap = Object.fromEntries(buckets.map(bucket => [bucket.key, {
+      ...makeBucketRow(bucket),
+      client_ids: new Set(),
+    }]));
+    const collectorMaps = {};
+
+    agingLoans.forEach(loan => {
+      const days = Number(loan.aging_days || 0);
+      const bucket = buckets.find(item => days >= item.min && days <= item.max);
+      if (!bucket) return;
+
+      const collector = loan.collector_name || 'Unassigned';
+      if (!collectorMaps[collector]) {
+        collectorMaps[collector] = Object.fromEntries(buckets.map(item => [item.key, {
+          collector,
+          ...makeBucketRow(item),
+          client_ids: new Set(),
+        }]));
+      }
+
+      const rows = [overallMap[bucket.key], collectorMaps[collector][bucket.key]];
+      rows.forEach(row => {
+        if (loan.customer_id) row.client_ids.add(loan.customer_id);
+        row.total_principal += Number(loan.principal || 0);
+        row.total_interest += Number(loan.interest_amount || 0);
+        row.total_loan_amount += Number(loan.total_loan_amount || 0);
+        row.total_collectibles += Number(loan.balance || 0);
+      });
+    });
+
+    const finalizeRow = row => {
+      const { client_ids, ...rest } = row;
+      return {
+        ...rest,
+        total_clients: client_ids.size,
+      };
+    };
+
+    const overall = buckets.map(bucket => finalizeRow(overallMap[bucket.key]));
+    const byCollector = Object.keys(collectorMaps)
+      .sort((a, b) => a.localeCompare(b))
+      .map(collector => ({
+        collector,
+        buckets: buckets.map(bucket => finalizeRow(collectorMaps[collector][bucket.key])),
+      }));
+
     res.json({
-      activeClientsMonitoredToday,
-      escalatedAccounts,
-      resolvedAccounts,
-      collectorPerformance,
-      summaryPTP,
-      followUpLogs,
-      alertsByBranch,
-      clientsApproachingDay3,
-      chronicMissedPayments,
-      unresolvedOver7Days
+      as_of: asOf,
+      buckets: overall,
+      collectors: byCollector,
+      loans: agingLoans,
     });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
+
+router.__private = {
+  normalizeLoanTypeKey,
+  resolvePrintablePreviousBalance,
+};
 
 module.exports = router;

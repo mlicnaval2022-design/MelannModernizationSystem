@@ -396,6 +396,16 @@ export default function Customers() {
     const statusText = String(payment.status || payment.payment_status || 'active').toLowerCase();
     return !['cancelled', 'canceled', 'void', 'reversed', 'bad', 'bounced', 'penalty'].includes(statusText);
   };
+  const formatAccountabilityUser = (value) => {
+    const name = String(value || '').trim();
+    if (!name) return '-';
+    return name
+      .replace(/[._-]+/g, ' ')
+      .toLowerCase()
+      .replace(/\b[a-z]/g, letter => letter.toUpperCase());
+  };
+  const getLoanUserName = (loan) => formatAccountabilityUser(loan?.created_by_username || loan?.created_by_name);
+  const getPaymentUserName = (payment) => formatAccountabilityUser(payment?.encoded_by_username || payment?.encoded_by_name);
   const getLoanPayments = (loan) => (soaData?.payments || [])
     .filter(p => p.loan_code === loan?.loan_code && isGoodPayment(p))
     .map(p => ({ ...p, paidDate: parseLocalDate(p.date_paid), amount: Number(p.amount_paid || 0) }))
@@ -1749,10 +1759,10 @@ export default function Customers() {
 
                         <div className="soa-card">
                           <div className="soa-list-card-header"><div className="soa-list-title">Loans & Payments History</div></div>
-                          {loans.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Cycle Count</th><th>Loan Code</th><th>Type</th><th>Date Released</th><th>Maturity</th><th>Period</th><th>Principal</th><th>Interest Rate</th><th>Interest Amount</th><th>Total Loan</th><th>Amortization</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead><tbody>{loans.map(l => (<tr key={l.id} onClick={() => setSelectedLoanForPayments(l)} style={{ cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><td><span className="badge badge-cycle">Cycle {loanCycleMap.get(l.id) || '-'}</span></td><td className="mono" style={{color: '#2563eb', fontWeight: '600'}} title="View payment history for this loan">{l.loan_code}</td><td>
+                          {loans.length > 0 ? (<table className="data-table" style={{ fontSize: 13 }}><thead><tr><th>Cycle Count</th><th>Loan Code</th><th>Type</th><th>Date Released</th><th>Maturity</th><th>Period</th><th>Principal</th><th>Interest Rate</th><th>Interest Amount</th><th>Total Loan</th><th>Amortization</th><th>Balance</th><th>Status</th><th>User</th><th>Actions</th></tr></thead><tbody>{loans.map(l => (<tr key={l.id} onClick={() => setSelectedLoanForPayments(l)} style={{ cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><td><span className="badge badge-cycle">Cycle {loanCycleMap.get(l.id) || '-'}</span></td><td className="mono" style={{color: '#2563eb', fontWeight: '600'}} title="View payment history for this loan">{l.loan_code}</td><td>
     {l.loan_type || '-'}
     {String(l.status).toLowerCase() === 'reversed' && <span style={{ color: '#ef4444', marginLeft: '6px', fontWeight: 'bold', fontSize: '11px' }}>(REVERSED)</span>}
-  </td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td><td><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><button className="action-btn" style={{ borderColor: '#bfdbfe', color: '#2563eb', background: '#eff6ff' }} onClick={(e) => { e.stopPropagation(); setEditLoanError(null); setEditLoanModal({ ...l, __original: { ...l } }); }}><i className="bi bi-pencil"></i> Edit</button><button className="action-btn" onClick={(e) => { e.stopPropagation(); setPrintModeLoan(l); }}><i className="bi bi-printer"></i> Print</button><button className="action-btn" style={{ borderColor: '#fecaca', color: '#dc2626', background: '#fff5f5' }} onClick={(e) => { e.stopPropagation(); setLoanDeleteTarget(l); }}><i className="bi bi-trash"></i> Delete</button></div></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
+  </td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td><td style={{ fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>{getLoanUserName(l)}</td><td><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><button className="action-btn" style={{ borderColor: '#bfdbfe', color: '#2563eb', background: '#eff6ff' }} onClick={(e) => { e.stopPropagation(); setEditLoanError(null); setEditLoanModal({ ...l, __original: { ...l } }); }}><i className="bi bi-pencil"></i> Edit</button><button className="action-btn" onClick={(e) => { e.stopPropagation(); setPrintModeLoan(l); }}><i className="bi bi-printer"></i> Print</button><button className="action-btn" style={{ borderColor: '#fecaca', color: '#dc2626', background: '#fff5f5' }} onClick={(e) => { e.stopPropagation(); setLoanDeleteTarget(l); }}><i className="bi bi-trash"></i> Delete</button></div></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
                         </div>
                       </>
                     )}
@@ -2050,6 +2060,7 @@ export default function Customers() {
                               <th><i className="bi bi-tags-fill"></i> PAYMENT CODE</th>
                               <th><i className="bi bi-coin"></i> PAYMENTS</th>
                               <th><i className="bi bi-scales"></i> RUNNING BALANCE</th>
+                              <th><i className="bi bi-person-fill"></i> USER</th>
                               <th><i className="bi bi-flag-fill"></i> STATUS</th>
                             </tr>
                           </thead>
@@ -2060,10 +2071,11 @@ export default function Customers() {
                                 <td>{formatPaymentCode(p)}</td>
                                 <td className="fw-bold">{formatMoney(p.amount_paid)}</td>
                                 <td>{formatMoney(p.balance_after)}</td>
+                                <td>{getPaymentUserName(p)}</td>
                                 <td><span className="f-soa-status-badge"><i className="bi bi-check2"></i> Active</span></td>
                               </tr>
                             )) : (
-                              <tr><td colSpan="5" className="f-soa-empty">No payments found.</td></tr>
+                              <tr><td colSpan="6" className="f-soa-empty">No payments found.</td></tr>
                             )}
                           </tbody>
                           <tfoot>
@@ -2078,6 +2090,7 @@ export default function Customers() {
                                 <div className="f-soa-footer-text">TOTAL RUNNING BALANCE</div>
                                 <div className="f-soa-footer-amount">{formatMoney(totalRunningBalance)}</div>
                               </td>
+                              <td></td>
                               <td></td>
                             </tr>
                           </tfoot>
@@ -2498,6 +2511,7 @@ export default function Customers() {
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENT CODE</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENTS</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>RUNNING BALANCE</th>
+                              <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>USER</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>STATUS</th>
                             </tr>
                           </thead>
@@ -2533,6 +2547,7 @@ export default function Customers() {
                                   </td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: isReversed ? '#94a3b8' : '#0f172a', textDecoration: isReversed ? 'line-through' : 'none' }}>{formatPhp(p.amount_paid)}</td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: isReversed ? '#94a3b8' : '#0f172a', textDecoration: isReversed ? 'line-through' : 'none' }}>{formatPhp(p.balance_after)}</td>
+                                  <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '600', color: isReversed ? '#94a3b8' : '#475569', textDecoration: isReversed ? 'line-through' : 'none', whiteSpace: 'nowrap' }}>{getPaymentUserName(p)}</td>
                                   <td style={{ padding: '16px 24px', textAlign: 'center' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '9999px', backgroundColor: pillBg, color: pillColor, fontSize: '12px', fontWeight: '600' }}>

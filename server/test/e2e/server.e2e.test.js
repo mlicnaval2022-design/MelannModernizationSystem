@@ -45,13 +45,13 @@ test('server boots, initializes an isolated database, and serves login flow', as
     const login = await fetch(`http://127.0.0.1:${port}/api/auth/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ username: 'teller', password: 'teller123' }),
+      body: JSON.stringify({ username: 'user', password: 'user123' }),
     });
     const body = await login.json();
 
     assert.equal(login.status, 200);
-    assert.equal(body.user.username, 'teller');
-    assert.equal(body.user.role, 'teller');
+    assert.equal(body.user.username, 'user');
+    assert.equal(body.user.role, 'user');
   } finally {
     child.kill();
     await new Promise((resolve) => child.once('exit', resolve));

@@ -101,11 +101,18 @@ router.get('/summary', authenticateToken, async (req, res) => {
     const collections = await dbAll(`
       SELECT p.id, p.or_number, p.amount_paid, p.payment_type, p.status, p.remarks, p.date_paid, p.created_at, p.dcr_id,
              c.customer_code, c.first_name, c.last_name, u.full_name as encoded_by,
-             co.first_name || ' ' || co.last_name as collector_name
+             COALESCE(
+               co.first_name || ' ' || co.last_name,
+               rco.first_name || ' ' || rco.last_name,
+               cco.first_name || ' ' || cco.last_name
+             ) as collector_name
       FROM tblPayment p
       JOIN tblCustomer c ON p.customer_id = c.id
       LEFT JOIN tblUser u ON p.encoded_by = u.id
       LEFT JOIN tblCollector co ON p.collector_id = co.id
+      LEFT JOIN tblLoan rl ON (rl.customer_id = p.customer_id AND rl.date_released = p.date_paid AND rl.status != 'reversed')
+      LEFT JOIN tblCollector rco ON rl.collector_id = rco.id
+      LEFT JOIN tblCollector cco ON c.collector_id = cco.id
       WHERE ${pCond}
     `, pParams);
 
@@ -115,6 +122,18 @@ router.get('/summary', authenticateToken, async (req, res) => {
              c.customer_code, c.first_name, c.last_name, u.full_name as encoded_by,
              co.first_name || ' ' || co.last_name as collector_name,
              (SELECT COUNT(*) FROM tblPayment pp WHERE pp.loan_id = l.id AND pp.status = 'penalty') as penalty_payment_count,
+             COALESCE((
+               SELECT SUM(pp.amount_paid)
+               FROM tblPayment pp
+               WHERE pp.customer_id = l.customer_id
+                 AND pp.date_paid = l.date_released
+                 AND pp.status = 'active'
+                 AND (
+                   LOWER(COALESCE(pp.remarks, '')) LIKE '%old balance%'
+                   OR LOWER(COALESCE(pp.remarks, '')) LIKE '%recon balance%'
+                   OR LOWER(COALESCE(pp.payment_type, '')) IN ('balance', 'recon', 'old_balance')
+                 )
+             ), 0) as old_balance_paid_today,
              COALESCE(l.penalty, 0) + COALESCE((SELECT SUM(amount) FROM tblTransaction WHERE category = CAST(l.customer_id AS TEXT) AND transaction_type = 'Penalty' AND transaction_date = l.date_released AND status = 'active'), 0) as today_penalty,
              COALESCE(l.passbook, 0) + COALESCE((SELECT SUM(amount) FROM tblTransaction WHERE category = CAST(l.customer_id AS TEXT) AND transaction_type = 'Passbook' AND transaction_date = l.date_released AND status = 'active'), 0) as today_passbook
       FROM tblLoan l

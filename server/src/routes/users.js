@@ -3,6 +3,11 @@ const bcrypt = require('bcryptjs');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const router = express.Router();
+const MANAGED_ROLES = new Set(['admin', 'user']);
+
+function normalizeManagedRole(role) {
+  return MANAGED_ROLES.has(role) ? role : 'user';
+}
 
 // Change own password — must be before /:id
 router.put('/me/password', authenticateToken, async (req, res) => {
@@ -28,7 +33,7 @@ router.post('/', authenticateToken, requireRole('admin'), async (req, res) => {
     const { username, password, full_name, role, branch_id } = req.body;
     if (!username || !password || !full_name) return res.status(400).json({ error: 'username, password, full_name required' });
     const hashed = bcrypt.hashSync(password, 10);
-    const result = await dbRun(`INSERT INTO tblUser (username, password, full_name, role, branch_id) VALUES (?,?,?,?,?)`, [username, hashed, full_name, role || 'teller', branch_id || null]);
+    const result = await dbRun(`INSERT INTO tblUser (username, password, full_name, role, branch_id) VALUES (?,?,?,?,?)`, [username, hashed, full_name, normalizeManagedRole(role), branch_id || null]);
     res.status(201).json({ id: result.lastID });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -38,9 +43,9 @@ router.put('/:id', authenticateToken, requireRole('admin'), async (req, res) => 
     const { full_name, role, branch_id, is_active, password } = req.body;
     if (password) {
       const hashed = bcrypt.hashSync(password, 10);
-      await dbRun(`UPDATE tblUser SET full_name=?, role=?, branch_id=?, is_active=?, password=?, updated_at=datetime('now') WHERE id=?`, [full_name, role, branch_id || null, is_active ?? 1, hashed, req.params.id]);
+      await dbRun(`UPDATE tblUser SET full_name=?, role=?, branch_id=?, is_active=?, password=?, updated_at=datetime('now') WHERE id=?`, [full_name, normalizeManagedRole(role), branch_id || null, is_active ?? 1, hashed, req.params.id]);
     } else {
-      await dbRun(`UPDATE tblUser SET full_name=?, role=?, branch_id=?, is_active=?, updated_at=datetime('now') WHERE id=?`, [full_name, role, branch_id || null, is_active ?? 1, req.params.id]);
+      await dbRun(`UPDATE tblUser SET full_name=?, role=?, branch_id=?, is_active=?, updated_at=datetime('now') WHERE id=?`, [full_name, normalizeManagedRole(role), branch_id || null, is_active ?? 1, req.params.id]);
     }
     res.json({ message: 'User updated' });
   } catch (err) { res.status(500).json({ error: err.message }); }

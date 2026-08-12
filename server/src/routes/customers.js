@@ -76,7 +76,7 @@ const todayDateOnly = () => {
   return now.toISOString().slice(0, 10);
 };
 
-async function postPriorLoanBalancePayment({ customerId, sourceLoanId, amount, user, date_released, loanType }) {
+async function postPriorLoanBalancePayment({ customerId, sourceLoanId, amount, user, date_released, loanType, collectorId }) {
   const paymentAmount = Number(amount || 0);
   if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) return null;
   const loanTypeLabel = String(loanType || '').toUpperCase() === 'RELOAN'
@@ -118,13 +118,15 @@ async function postPriorLoanBalancePayment({ customerId, sourceLoanId, amount, u
   const nextCode = (maxCodeRes?.max_code || 0) + 1;
   const paymentCode = String(nextCode).padStart(4, '0');
 
+  const assignedCollectorId = collectorId || sourceLoan.collector_id || null;
+
   const payment = await dbRun(
     `INSERT INTO tblPayment (loan_id, customer_id, collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, status, remarks, encoded_by, payment_code)
      VALUES (?,?,?,?,?,?,?,?,'active',?,?,?)`,
     [
       sourceLoan.id,
       customerId,
-      sourceLoan.collector_id,
+      assignedCollectorId,
       'N/A',
       datePaid,
       paymentAmount,
@@ -559,7 +561,9 @@ router.get('/:id', authenticateToken, async (req, res) => {
       WHERE c.id = ?`, [req.params.id]);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
     const loans = await dbAll(`
-      SELECT * FROM tblLoan l
+      SELECT l.*, u.full_name as created_by_name, u.username as created_by_username
+      FROM tblLoan l
+      LEFT JOIN tblUser u ON l.created_by = u.id
       WHERE l.customer_id = ?
         AND NOT EXISTS (
           SELECT 1 FROM tblLoan dup
@@ -572,7 +576,14 @@ router.get('/:id', authenticateToken, async (req, res) => {
         )
       ORDER BY l.created_at DESC
     `, [req.params.id]);
-    const payments = await dbAll(`SELECT p.*, l.loan_code FROM tblPayment p JOIN tblLoan l ON p.loan_id = l.id WHERE p.customer_id = ? ORDER BY p.date_paid DESC, p.created_at DESC`, [req.params.id]);
+    const payments = await dbAll(`
+      SELECT p.*, l.loan_code, u.full_name as encoded_by_name, u.username as encoded_by_username
+      FROM tblPayment p
+      JOIN tblLoan l ON p.loan_id = l.id
+      LEFT JOIN tblUser u ON p.encoded_by = u.id
+      WHERE p.customer_id = ?
+      ORDER BY p.date_paid DESC, p.created_at DESC
+    `, [req.params.id]);
     res.json({ ...customer, loans, payments });
   } catch (err) { console.error(err); sendRouteError(res, err); }
 });
@@ -594,21 +605,72 @@ router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
       WHERE customer_id = ?
       ORDER BY COALESCE(date_released, created_at) DESC, id DESC
       LIMIT 1`, [id]);
-      
+
+    let totalPaymentCount = 0;
     const sched = await dbGet(`
       SELECT 
-        COUNT(*) as total_payments,
-        SUM(CASE WHEN s.status='paid' AND date_paid <= due_date THEN 1 ELSE 0 END) as on_time,
-        SUM(CASE WHEN s.status='paid' AND date_paid > due_date THEN 1 ELSE 0 END) as late
-      FROM tblAmortizationSchedule s JOIN tblLoan l ON s.loan_id=l.id WHERE l.customer_id = ?`, [id]);
+        COUNT(*) as total,
+        SUM(CASE WHEN status='paid' AND date_paid <= due_date THEN 1 ELSE 0 END) as on_time,
+        SUM(CASE WHEN status='paid' AND date_paid > due_date THEN 1 ELSE 0 END) as late
+      FROM tblAmortizationSchedule 
+      WHERE loan_id IN (SELECT id FROM tblLoan WHERE customer_id = ?)`, [id]);
+
+    if (sched && sched.total) totalPaymentCount = sched.total;
 
     const pd = await dbGet(`SELECT COUNT(*) as past_due_occurrences FROM tblLoan WHERE customer_id = ? AND status='pastdue'`, [id]);
     const recon = await dbGet(`SELECT COUNT(*) as recon_history FROM tblCustomerStatusHistory WHERE customer_id = ? AND new_status='RECON'`, [id]);
+
+    let payments = [];
+    let consistency = { score: 100, on_time_rate: 0, days_between_payments: 0, score_adjustment: 0 };
+    if (lastLoan) {
+      payments = await dbAll(`SELECT * FROM tblPayment WHERE loan_id = ? ORDER BY date_paid ASC`, [lastLoan.id]);
+      if (payments && payments.length > 0) {
+        let onTimeCount = 0;
+        let totalDays = 0;
+        for (let i = 0; i < payments.length; i++) {
+          if (payments[i].penalty_amount <= 0) onTimeCount++;
+          if (i > 0) {
+            const d1 = new Date(payments[i - 1].date_paid);
+            const d2 = new Date(payments[i].date_paid);
+            totalDays += (d2 - d1) / (1000 * 60 * 60 * 24);
+          }
+        }
+        consistency.on_time_rate = (onTimeCount / payments.length) * 100;
+        consistency.days_between_payments = payments.length > 1 ? (totalDays / (payments.length - 1)) : 0;
+        if (consistency.days_between_payments <= 2 && consistency.on_time_rate > 90) {
+          consistency.score_adjustment = 10;
+        } else if (consistency.days_between_payments > 7) {
+          consistency.score_adjustment = -20;
+        }
+      }
+    }
 
     const releaseDate = lastLoan ? (lastLoan.date_released || (lastLoan.created_at ? String(lastLoan.created_at).split('T')[0] : null)) : null;
     const daysSinceRelease = (releaseDate && String(lastLoan.status || '').toLowerCase() === 'active')
       ? Math.max(0, daysBetween(releaseDate, today))
       : 0;
+
+    let daysOverdue = 0;
+    if (lastLoan && (String(lastLoan.status).toLowerCase() === 'active' || String(lastLoan.status).toLowerCase() === 'pastdue')) {
+      if (lastLoan.date_maturity) {
+        const maturityDate = new Date(lastLoan.date_maturity);
+        const currentDate = new Date(today);
+        const diffTime = currentDate - maturityDate;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays > 0) daysOverdue = diffDays;
+      }
+    }
+
+    let penaltyRate = 0;
+    if (daysOverdue > 30) penaltyRate = 5;
+    else if (daysOverdue > 15) penaltyRate = 3;
+    else if (daysOverdue > 7) penaltyRate = 1;
+
+    const penaltyBase = lastLoan ? Number(lastLoan.balance || 0) : 0;
+    const recommendedPenalty = Math.round((penaltyBase * (penaltyRate / 100)) * 100) / 100;
+    const overdueStatus = daysOverdue > 0
+      ? (String(lastLoan.status).toLowerCase() === 'pastdue' ? 'past due' : 'overdue')
+      : 'current';
 
     let isUnrated = false;
     let score = 100;
@@ -618,7 +680,6 @@ router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
         isUnrated = true;
         score = 100;
       } else {
-        // Active loan for 2+ days with ZERO payments
         score = Math.max(0, 100 - (daysSinceRelease * 15) - ((pd ? pd.past_due_occurrences : 0) * 20));
       }
     } else {
@@ -707,12 +768,9 @@ router.get('/:id/reloan-eval', authenticateToken, async (req, res) => {
     const has_loan_history = Number(stats?.total_loans || 0) > 0;
     const is_good_standing = (is_fully_paid || (is_relax && has_loan_history)) && no_active_loan && no_outstanding_balance;
 
-    // Allow new loan if there's no outstanding balance, even if customer status isn't 'FULLY PAID'
     const can_proceed = no_outstanding_balance;
-
     const last_loan = stats && stats.last_loan_amount ? stats.last_loan_amount : 0;
-    
-    // Recommendations logic
+
     const conservative = last_loan;
     const standard = Math.round(last_loan * 1.2);
     const progressive = Math.round(last_loan * 1.5);
@@ -989,7 +1047,8 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
         amount: balanceAmount,
         user: req.user,
         date_released: releaseDate,
-        loanType: normalizedLoanType
+        loanType: normalizedLoanType,
+        collectorId: customer.collector_id
       })
       : null;
     
@@ -1085,197 +1144,6 @@ router.put('/:id/status-note', authenticateToken, requireRole('admin', 'manager'
       );
       res.json({ message: 'Note created' });
     }
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
-  try {
-    const id = req.params.id;
-    const today = new Date().toISOString().split('T')[0];
-    const stats = await dbGet(`
-      SELECT 
-        COUNT(l.id) as total_loans,
-        SUM(COALESCE(NULLIF(l.total_amortization, 0), l.principal + COALESCE(l.interest_amount, 0), l.principal)) as total_amount_borrowed,
-        MAX(l.principal) as last_loan_amount
-      FROM tblLoan l WHERE l.customer_id = ?`, [id]);
-
-    const lastLoan = await dbGet(`
-      SELECT *
-      FROM tblLoan
-      WHERE customer_id = ?
-      ORDER BY date_released DESC LIMIT 1`, [id]);
-
-    let totalPaymentCount = 0;
-    const sched = await dbGet(`
-      SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN status='paid' AND date_paid <= due_date THEN 1 ELSE 0 END) as on_time,
-        SUM(CASE WHEN status='paid' AND date_paid > due_date THEN 1 ELSE 0 END) as late
-      FROM tblAmortizationSchedule 
-      WHERE loan_id IN (SELECT id FROM tblLoan WHERE customer_id = ?)`, [id]);
-
-    if (sched && sched.total) totalPaymentCount = sched.total;
-
-    const pd = await dbGet(`SELECT COUNT(*) as past_due_occurrences FROM tblLoan WHERE customer_id = ? AND status='pastdue'`, [id]);
-    const recon = await dbGet(`SELECT COUNT(*) as recon_history FROM tblCustomerStatusHistory WHERE customer_id = ? AND new_status='RECON'`, [id]);
-
-    let payments = [];
-    let consistency = { score: 100, on_time_rate: 0, days_between_payments: 0, score_adjustment: 0 };
-    if (lastLoan) {
-      payments = await dbAll(`SELECT * FROM tblPayment WHERE loan_id = ? ORDER BY date_paid ASC`, [lastLoan.id]);
-      if (payments && payments.length > 0) {
-        let onTimeCount = 0;
-        let totalDays = 0;
-        for (let i=0; i<payments.length; i++) {
-          if (payments[i].penalty_amount <= 0) onTimeCount++;
-          if (i > 0) {
-            const d1 = new Date(payments[i-1].date_paid);
-            const d2 = new Date(payments[i].date_paid);
-            totalDays += (d2-d1) / (1000*60*60*24);
-          }
-        }
-        consistency.on_time_rate = (onTimeCount / payments.length) * 100;
-        consistency.days_between_payments = payments.length > 1 ? (totalDays / (payments.length-1)) : 0;
-        if (consistency.days_between_payments <= 2 && consistency.on_time_rate > 90) {
-           consistency.score_adjustment = 10;
-        } else if (consistency.days_between_payments > 7) {
-           consistency.score_adjustment = -20;
-        }
-      }
-    }
-
-    let daysOverdue = 0;
-    if (lastLoan && (String(lastLoan.status).toLowerCase() === 'active' || String(lastLoan.status).toLowerCase() === 'pastdue')) {
-       if (lastLoan.date_maturity) {
-          const maturityDate = new Date(lastLoan.date_maturity);
-          const currentDate = new Date(today);
-          const diffTime = currentDate - maturityDate;
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          if (diffDays > 0) daysOverdue = diffDays;
-       }
-    }
-
-    let penaltyRate = 0;
-    if (daysOverdue > 30) penaltyRate = 5;
-    else if (daysOverdue > 15) penaltyRate = 3;
-    else if (daysOverdue > 7) penaltyRate = 1;
-    
-    const penaltyBase = lastLoan ? Number(lastLoan.balance || 0) : 0;
-    const recommendedPenalty = Math.round((penaltyBase * (penaltyRate / 100)) * 100) / 100;
-    const overdueStatus = daysOverdue > 0
-      ? (String(lastLoan.status).toLowerCase() === 'pastdue' ? 'past due' : 'overdue')
-      : 'current';
-
-    let score = 100 - ((sched ? sched.late : 0) * 2) - ((pd ? pd.past_due_occurrences : 0) * 20) + consistency.score_adjustment;
-    if (daysOverdue > 0) score -= Math.min(40, daysOverdue * 2);
-    score = Math.max(0, score);
-
-    res.json({
-      total_loans: stats ? stats.total_loans : 0,
-      total_amount_borrowed: stats ? stats.total_amount_borrowed : 0,
-      last_loan_amount: stats ? stats.last_loan_amount : 0,
-      on_time_payments: sched ? sched.on_time : 0,
-      late_payments: sched ? sched.late : 0,
-      total_payment_count: totalPaymentCount,
-      past_due_occurrences: pd ? pd.past_due_occurrences : 0,
-      recon_history: recon ? recon.recon_history : 0,
-      credit_score: score,
-      payment_consistency: consistency,
-      last_loan: lastLoan ? {
-        id: lastLoan.id,
-        loan_code: lastLoan.loan_code,
-        status: lastLoan.status,
-        balance: Number(lastLoan.balance || 0),
-        date_maturity: lastLoan.date_maturity,
-        total_amortization: Number(lastLoan.total_amortization || lastLoan.principal || 0)
-      } : null,
-      overdue: {
-        status: overdueStatus,
-        days: daysOverdue,
-        penalty_rate: penaltyRate,
-        recommended_penalty: recommendedPenalty,
-        requires_manager_approval: recommendedPenalty > 0
-      },
-      payments: payments
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.get('/:id/reloan-eval', authenticateToken, async (req, res) => {
-  try {
-    const id = req.params.id;
-    const customer = await dbGet('SELECT * FROM tblCustomer WHERE id = ?', [id]);
-    if (!customer) return res.status(404).json({ error: 'Customer not found' });
-
-    const stats = await dbGet(`
-      SELECT 
-        COUNT(l.id) as total_loans,
-        SUM(l.principal) as total_amount_borrowed,
-        MAX(l.principal) as last_loan_amount,
-        MAX(l.date_released) as last_loan_date,
-        SUM(CASE WHEN l.status='fullpaid' THEN 1 ELSE 0 END) as successful_loans
-      FROM tblLoan l WHERE l.customer_id = ?`, [id]);
-
-    const lastPaid = await dbGet(`
-      SELECT p.date_paid as last_fully_paid_date 
-      FROM tblPayment p JOIN tblLoan l ON p.loan_id = l.id 
-      WHERE l.customer_id = ? AND l.status='fullpaid' 
-      ORDER BY p.date_paid DESC LIMIT 1`, [id]);
-
-    const sched = await dbGet(`
-      SELECT 
-        COUNT(*) as total_payments,
-        SUM(CASE WHEN s.status='paid' AND date_paid <= due_date THEN 1 ELSE 0 END) as on_time
-      FROM tblAmortizationSchedule s JOIN tblLoan l ON s.loan_id=l.id WHERE l.customer_id = ?`, [id]);
-
-    const pd = await dbGet(`SELECT COUNT(*) as past_due_occurrences FROM tblLoan WHERE customer_id = ? AND status='pastdue'`, [id]);
-    const recon = await dbGet(`SELECT COUNT(*) as recon_history FROM tblCustomerStatusHistory WHERE customer_id = ? AND new_status='RECON'`, [id]);
-
-    const activeOrPastDueLoans = await dbGet(`SELECT COUNT(*) as count, SUM(balance) as total_balance FROM tblLoan WHERE customer_id = ? AND status IN ('active', 'pastdue')`, [id]);
-
-    let collection_efficiency = 0;
-    if (sched && sched.total_payments > 0) {
-      collection_efficiency = Math.round((sched.on_time / sched.total_payments) * 100);
-    }
-
-    const is_fully_paid = customer.status === 'FULLY PAID';
-    const no_active_loan = !activeOrPastDueLoans || activeOrPastDueLoans.count === 0;
-    const no_outstanding_balance = !activeOrPastDueLoans || !activeOrPastDueLoans.total_balance || activeOrPastDueLoans.total_balance <= 0;
-    const is_good_standing = is_fully_paid && no_active_loan && no_outstanding_balance;
-
-    // Allow new loan if there's no outstanding balance, even if customer status isn't 'FULLY PAID'
-    const can_proceed = no_outstanding_balance;
-
-    const last_loan = stats && stats.last_loan_amount ? stats.last_loan_amount : 0;
-    
-    // Recommendations logic
-    const conservative = last_loan;
-    const standard = Math.round(last_loan * 1.2);
-    const progressive = Math.round(last_loan * 1.5);
-
-    res.json({
-      last_loan_amount: last_loan,
-      last_loan_date: stats ? stats.last_loan_date : null,
-      last_fully_paid_date: lastPaid ? lastPaid.last_fully_paid_date : null,
-      total_loans: stats ? stats.total_loans : 0,
-      successful_loans: stats ? stats.successful_loans : 0,
-      past_due_occurrences: pd ? pd.past_due_occurrences : 0,
-      recon_history: recon ? recon.recon_history : 0,
-      total_amount_borrowed: stats ? stats.total_amount_borrowed : 0,
-      collection_efficiency: collection_efficiency,
-      active_balance: activeOrPastDueLoans ? activeOrPastDueLoans.total_balance : 0,
-      is_eligible: is_good_standing,
-      can_proceed: can_proceed,
-      recommendations: {
-        conservative: conservative,
-        standard: standard,
-        progressive: progressive
-      }
-    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -1,7 +1,8 @@
 import { useEffect } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 // Force Vite HMR invalidation
 import { useAuth } from './context/AuthContext'
+import { canAccessPath } from './access'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -24,10 +25,14 @@ import NoPaymentMonitoring from './pages/NoPaymentMonitoring'
 import MonitoringSettings from './pages/MonitoringSettings'
 import PromissoryDisclosure from './pages/PromissoryDisclosure'
 import CollectorPerformance from './pages/CollectorPerformance'
+import JcashMigration from './pages/JcashMigration'
 
 function PrivateRoute({ children }) {
   const { user } = useAuth()
-  return user ? children : <Navigate to="/login" replace />
+  const location = useLocation()
+  if (!user) return <Navigate to="/login" replace />
+  if (!canAccessPath(user, location.pathname)) return <Navigate to="/" replace />
+  return children
 }
 
 export default function App() {
@@ -61,6 +66,7 @@ export default function App() {
         <Route path="cash" element={<CashPosition />} />
         <Route path="reports" element={<Reports />} />
         <Route path="collector-performance" element={<CollectorPerformance />} />
+        <Route path="jcash-migration" element={<JcashMigration />} />
         <Route path="government-compliance" element={<GovernmentCompliance />} />
         <Route path="branches" element={<Branches />} />
         <Route path="users" element={<Users />} />

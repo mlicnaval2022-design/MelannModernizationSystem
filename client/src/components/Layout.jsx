@@ -3,6 +3,7 @@ import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import API from '../services/api'
 import logoImg from '../assets/logo.png'
+import { canAccessNavItem } from '../access'
 import {
   BarChart3,
   Bell,
@@ -11,6 +12,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   CreditCard,
+  Database,
   FileBarChart,
   FileText,
   KeyRound,
@@ -43,6 +45,7 @@ const NAV = [
   { path: '/cash', label: 'Cash Position', Icon: PiggyBank, section: 'Finance', color: '#84cc16', bg: 'rgba(132, 204, 22, 0.16)' },
   { path: '/reports', label: 'Reports', Icon: FileBarChart, section: 'Reports', color: '#2563eb', bg: 'rgba(37, 99, 235, 0.18)' },
   { path: '/collector-performance', label: 'Collector Performance', Icon: BarChart3, section: 'Reports', color: '#f97316', bg: 'rgba(249, 115, 22, 0.18)' },
+  { path: '/jcash-migration', label: 'JCash Migration', Icon: Database, section: 'Admin', color: '#0f766e', bg: 'rgba(15, 118, 110, 0.16)', roles: ['admin', 'manager'] },
   { path: '/government-compliance', label: 'Government Compliance', Icon: ShieldCheck, section: 'Reports', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.16)', roles: ['admin', 'compliance', 'compliance_officer', 'accounting', 'corporate_secretary', 'management', 'manager', 'it'] },
   { path: '/branches', label: 'Branches', Icon: Building2, section: 'Admin', color: '#64748b', bg: 'rgba(148, 163, 184, 0.18)', roles: ['admin', 'manager'] },
   { path: '/users', label: 'User Management', Icon: UserCog, section: 'Admin', color: '#a855f7', bg: 'rgba(168, 85, 247, 0.18)', roles: ['admin'] },
@@ -51,7 +54,7 @@ const NAV = [
 ]
 
 export default function Layout() {
-  const { user, logout, hasRole } = useAuth()
+  const { user, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [changePwModal, setChangePwModal] = useState(false)
@@ -59,6 +62,10 @@ export default function Layout() {
   const [pwSaving, setPwSaving] = useState(false)
   const [pwError, setPwError] = useState('')
   const [pwSuccess, setPwSuccess] = useState('')
+  const [backupModal, setBackupModal] = useState(false)
+  const [backupSaving, setBackupSaving] = useState(false)
+  const [backupError, setBackupError] = useState('')
+  const [backupSuccess, setBackupSuccess] = useState('')
   const [logoFailed, setLogoFailed] = useState(false)
   const [showNotif, setShowNotif] = useState(false)
   const [demandLetterBadgeCount, setDemandLetterBadgeCount] = useState(0)
@@ -109,7 +116,7 @@ export default function Layout() {
   }, [])
 
   const today = new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-  const visibleNav = NAV.filter(n => !n.roles || hasRole(...n.roles))
+  const visibleNav = NAV.filter(n => canAccessNavItem(user, n))
   const sections = [...new Set(visibleNav.map(n => n.section))]
   const pageTitle = visibleNav.find(n => location.pathname === n.path || (n.path !== '/' && location.pathname.startsWith(n.path)))?.label || 'Dashboard'
 
@@ -126,6 +133,27 @@ export default function Layout() {
       setTimeout(() => { setChangePwModal(false); setPwSuccess('') }, 1500)
     } catch (err) { setPwError(err.response?.data?.error || 'Error changing password') }
     finally { setPwSaving(false) }
+  }
+
+  const openBackupBeforeLogout = () => {
+    setBackupError('')
+    setBackupSuccess('')
+    setBackupModal(true)
+  }
+
+  const handleBackupAndLogout = async () => {
+    setBackupSaving(true)
+    setBackupError('')
+    setBackupSuccess('')
+    try {
+      const { data } = await API.post('/system/backup')
+      setBackupSuccess(`Backup complete. Saved to: ${data.backup_dir}`)
+      setTimeout(() => logout(), 700)
+    } catch (err) {
+      setBackupError(err.response?.data?.error || 'Backup failed. Please try again before signing out.')
+    } finally {
+      setBackupSaving(false)
+    }
   }
 
   return (
@@ -186,7 +214,7 @@ export default function Layout() {
           >
             <KeyRound size={15} /> Change Password
           </button>
-          <button id="btn-sign-out" className="btn-logout" onClick={logout}><LogOut size={15} /> Sign Out</button>
+          <button id="btn-sign-out" className="btn-logout" onClick={openBackupBeforeLogout}><LogOut size={15} /> Sign Out</button>
         </div>
       </aside>
 
@@ -280,6 +308,35 @@ export default function Layout() {
           <Outlet />
         </div>
       </div>
+
+      {/* Backup Before Logout Modal */}
+      {backupModal && (
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && !backupSaving && setBackupModal(false)}>
+          <div className="modal" style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <span className="modal-title"><LogOut size={18} /> Let's Back up first</span>
+              <button className="modal-close" disabled={backupSaving} onClick={() => setBackupModal(false)}><X size={18} /></button>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginTop: 0, color: '#475569', fontSize: 14, lineHeight: 1.5 }}>
+                The system will create a fresh database backup before signing you out.
+              </p>
+              {backupError && <div className="login-error" style={{ marginBottom: 14 }}>{backupError}</div>}
+              {backupSuccess && (
+                <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 6, padding: '10px 12px', marginBottom: 14, fontSize: 13, color: 'var(--accent-success)' }}>
+                  {backupSuccess}
+                </div>
+              )}
+              <div className="form-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => setBackupModal(false)} disabled={backupSaving}>Cancel</button>
+                <button type="button" className="btn btn-primary" onClick={handleBackupAndLogout} disabled={backupSaving || !!backupSuccess}>
+                  {backupSaving ? 'Backing up...' : 'Proceed'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Change Password Modal */}
       {changePwModal && (
