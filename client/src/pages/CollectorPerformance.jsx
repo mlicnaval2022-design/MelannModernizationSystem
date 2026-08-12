@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, FileText, Plus, Printer, RefreshCw, Users } from 'lucide-react'
+import { CalendarDays, Edit3, FileText, MapPin, Plus, Printer, RefreshCw, Users } from 'lucide-react'
 import API from '../services/api'
 import '../dashboard.css'
 
@@ -70,6 +70,64 @@ const getRemarkStyle = remark => {
   if (remark === 'ACHIEVED') return { background: '#dcfce7', color: '#047857', borderColor: '#bbf7d0' }
   if (remark === 'ON TRACK') return { background: '#eff6ff', color: '#1d4ed8', borderColor: '#bfdbfe' }
   return { background: '#fff1f2', color: '#e11d48', borderColor: '#fecdd3' }
+}
+
+const getCollectorArea = name => {
+  const lowerName = String(name || '').toLowerCase()
+  if (lowerName.includes('torreta')) return 'ISABEL'
+  if (lowerName.includes('domingono')) return 'BAYBAY/HILONGOS/BATO'
+  if (lowerName.includes('caballes')) return 'CARIGARA'
+  return 'AREA OF ASSIGNMENT'
+}
+
+const getCollectorInitials = name => String(name || '')
+  .split(/\s+/)
+  .filter(Boolean)
+  .slice(0, 2)
+  .map(part => part.charAt(0).toUpperCase())
+  .join('') || 'CP'
+
+const getGeneratedCollectionInsight = (collectorName, rows, summary) => {
+  const collector = String(collectorName || 'This collector').toUpperCase()
+  const paidRows = rows.filter(row => Number(row.actual || 0) > 0)
+  const zeroRows = rows.filter(row => Number(row.actual || 0) === 0)
+  const bestRow = [...rows].sort((a, b) => Number(b.rate || 0) - Number(a.rate || 0))[0]
+  const latestRow = rows[rows.length - 1]
+
+  if (summary.rate >= 100) {
+    return {
+      comment: `${collector} exceeded the weekly collection target with ${summary.rate.toFixed(2)}% accomplishment. Best collection day was ${shortDisplayDate(bestRow?.date)} at ${Number(bestRow?.rate || 0).toFixed(2)}%.`,
+      recommendation: 'Maintain the current route discipline and use the same follow-up timing for accounts with upcoming dues.'
+    }
+  }
+
+  if (summary.rate >= 85) {
+    return {
+      comment: `${collector} is on track at ${summary.rate.toFixed(2)}% accomplishment, but there is still a small gap against the weekly target.`,
+      recommendation: 'Prioritize accounts with missed or partial payments and close the remaining gap before the week ends.'
+    }
+  }
+
+  if (paidRows.length === 0) {
+    return {
+      comment: `${collector} has no posted actual collection for the selected week, so accomplishment remains at 0.00%.`,
+      recommendation: 'Validate collection posting first, then schedule immediate follow-ups for all active accounts assigned to this collector.'
+    }
+  }
+
+  if (zeroRows.length >= 3) {
+    return {
+      comment: `${collector} has collections on ${paidRows.length} day(s), but ${zeroRows.length} operational day(s) have zero actual collection. Weekly accomplishment is ${summary.rate.toFixed(2)}%.`,
+      recommendation: 'Review the zero-collection dates, confirm field activity, and require a focused recovery plan for unpaid active accounts.'
+    }
+  }
+
+  return {
+    comment: `${collector} recorded PHP ${fmt(summary.actual)} actual collection against PHP ${fmt(summary.dailyTarget)} total target for ${summary.rate.toFixed(2)}% accomplishment.`,
+    recommendation: Number(latestRow?.actual || 0) === 0
+      ? 'Follow up immediately on the latest operational day with no collection and prioritize high-probability paying clients.'
+      : 'Continue daily monitoring and focus on accounts needed to lift accomplishment above 85%.'
+  }
 }
 
 const shortCollectorName = name => {
@@ -657,111 +715,132 @@ export default function CollectorPerformance() {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gap: 18, padding: 24 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: 24, padding: 24 }}>
                   {collectionsLoading ? (
                     <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>Loading collections...</div>
                   ) : collectionRows.length ? collectionRows.map(collector => {
                     const summary = getCollectorCollectionTotals(collector.rows)
+                    const latestRow = collector.rows.find(row => row.date === filters.date_to) || collector.rows[collector.rows.length - 1] || {}
+                    const weeklyTarget = Number(latestRow.weeklyTarget || summary.dailyTarget || 0)
+                    const remarkStyle = getRemarkStyle(summary.remark)
+                    const insight = getGeneratedCollectionInsight(collector.name, collector.rows, summary)
 
                     return (
                       <div key={`collector-collection-${collector.id}`} style={{
                         border: '1px solid var(--border)',
-                        borderRadius: 8,
+                        borderRadius: 14,
                         overflow: 'hidden',
                         background: '#fff',
-                        boxShadow: '0 10px 24px rgba(15, 23, 42, 0.05)'
+                        boxShadow: '0 12px 26px rgba(15, 23, 42, 0.08)',
+                        padding: 24
                       }}>
                         <div style={{
                           display: 'flex',
                           justifyContent: 'space-between',
-                          alignItems: 'center',
-                          gap: 14,
-                          padding: '18px 20px',
-                          background: '#f8fafc',
-                          borderBottom: '1px solid var(--border)',
-                          flexWrap: 'wrap'
+                          alignItems: 'flex-start',
+                          gap: 18
                         }}>
-                          <div>
-                            <div style={{ fontSize: 18, fontWeight: 900, textTransform: 'uppercase', color: '#0f172a' }}>{collector.name}</div>
-                            <div style={{ marginTop: 4, fontSize: 11, fontWeight: 900, color: '#94a3b8', letterSpacing: 1.2, textTransform: 'uppercase' }}>Collection Performance</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+                            <div style={{
+                              width: 58,
+                              height: 58,
+                              borderRadius: '50%',
+                              background: 'linear-gradient(135deg, #e2e8f0, #f8fafc)',
+                              border: '4px solid #fff',
+                              boxShadow: '0 8px 18px rgba(15, 23, 42, 0.14)',
+                              color: '#0f172a',
+                              display: 'grid',
+                              placeItems: 'center',
+                              fontSize: 15,
+                              fontWeight: 900,
+                              flex: '0 0 auto'
+                            }}>
+                              {getCollectorInitials(collector.name)}
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: 20, lineHeight: 1.15, fontWeight: 900, textTransform: 'uppercase', color: '#0f172a' }}>{collector.name}</div>
+                              <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 4, color: '#475569', fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>
+                                <MapPin size={14} /> {getCollectorArea(collector.name)}
+                              </div>
+                            </div>
                           </div>
-                          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                            <div style={{ minWidth: 130, padding: '10px 12px', background: '#fff', border: '1px solid var(--border)', borderRadius: 8 }}>
-                              <div style={{ fontSize: 10, fontWeight: 900, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase' }}>Total Target</div>
-                              <div style={{ marginTop: 4, fontWeight: 900 }}>PHP {fmt(summary.dailyTarget)}</div>
-                            </div>
-                            <div style={{ minWidth: 130, padding: '10px 12px', background: '#fff', border: '1px solid var(--border)', borderRadius: 8 }}>
-                              <div style={{ fontSize: 10, fontWeight: 900, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase' }}>Total Actual</div>
-                              <div style={{ marginTop: 4, color: '#0ea5e9', fontWeight: 900 }}>PHP {fmt(summary.actual)}</div>
-                            </div>
-                            <div style={{ minWidth: 120, padding: '10px 12px', background: '#fff', border: '1px solid var(--border)', borderRadius: 8 }}>
-                              <div style={{ fontSize: 10, fontWeight: 900, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase' }}>Accomplishment</div>
-                              <div style={{ marginTop: 4, color: summary.rate >= 85 ? '#059669' : '#e11d48', fontWeight: 900 }}>{summary.rate.toFixed(2)}%</div>
-                            </div>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 124, padding: '11px 13px', border: `1px solid ${remarkStyle.borderColor}`, borderRadius: 6, fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase', ...remarkStyle }}>
+                            {summary.remark}
+                          </span>
+                        </div>
+
+                        <div style={{ marginTop: 26 }}>
+                          <label className="form-label">Date</label>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 68px', gap: 10 }}>
+                            <input className="form-control" type="date" value={filters.date_to} readOnly />
+                            <button className="btn btn-primary" type="button" onClick={loadCollections} disabled={collectionsLoading}>Load</button>
                           </div>
                         </div>
 
-                        <div style={{ overflowX: 'auto' }}>
-                          <table className="data-table" style={{ margin: 0, border: 'none', minWidth: 980 }}>
-                            <thead>
-                              <tr>
-                                <th rowSpan={2}>Rating Period</th>
-                                <th colSpan={2} style={{ textAlign: 'center' }}>Target</th>
-                                <th rowSpan={2} style={{ textAlign: 'right' }}>Actual</th>
-                                <th rowSpan={2} style={{ textAlign: 'center' }}>Percentage of Accomplishment</th>
-                                <th rowSpan={2} style={{ textAlign: 'center' }}>Remarks</th>
-                              </tr>
-                              <tr>
-                                <th style={{ textAlign: 'right' }}>Daily</th>
-                                <th style={{ textAlign: 'right' }}>Weekly</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {collector.rows.map(row => {
-                                const remarkStyle = getRemarkStyle(row.remark)
-                                return (
-                                  <tr key={`collection-${collector.id}-${row.date}`}>
-                                    <td>
-                                      <div style={{ fontWeight: 900, fontSize: 16 }}>{shortDisplayDate(row.date)}</div>
-                                      <div style={{ marginTop: 6, color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.3, textTransform: 'uppercase' }}>Operational Day</div>
-                                    </td>
-                                    <td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(row.dailyTarget)}</td>
-                                    <td style={{ textAlign: 'right', color: '#334155', fontWeight: 900 }}>PHP {fmt(row.weeklyTarget)}</td>
-                                    <td style={{ textAlign: 'right', color: row.actual > 0 ? '#0ea5e9' : '#64748b', fontWeight: 900 }}>PHP {fmt(row.actual)}</td>
-                                    <td style={{ textAlign: 'center' }}>
-                                      <div style={{ color: row.rate >= 85 ? '#059669' : '#e11d48', fontWeight: 900, fontSize: 18 }}>{row.rate.toFixed(2)}%</div>
-                                      <div style={{ width: 84, height: 5, borderRadius: 999, background: '#e8edf4', margin: '8px auto 0', overflow: 'hidden' }}>
-                                        <div style={{ width: `${Math.min(row.rate, 100)}%`, height: '100%', background: row.rate >= 85 ? '#10b981' : '#e11d48' }} />
-                                      </div>
-                                    </td>
-                                    <td style={{ textAlign: 'center' }}>
-                                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 118, padding: '9px 13px', border: `1px solid ${remarkStyle.borderColor}`, borderRadius: 8, fontSize: 11, fontWeight: 900, letterSpacing: 1.1, textTransform: 'uppercase', ...remarkStyle }}>
-                                        {row.remark}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                )
-                              })}
-                            </tbody>
-                            <tfoot>
-                              <tr style={{ background: '#0f172a', color: '#fff' }}>
-                                <td style={{ padding: '18px 20px' }}>
-                                  <div style={{ color: '#93c5fd', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase' }}>Weekly Summary</div>
-                                  <div style={{ marginTop: 6, fontWeight: 900 }}>CONSOLIDATED</div>
-                                </td>
-                                <td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(summary.dailyTarget)}</td>
-                                <td style={{ textAlign: 'right', color: '#94a3b8', fontWeight: 900 }}>-</td>
-                                <td style={{ textAlign: 'right', color: '#38bdf8', fontWeight: 900 }}>PHP {fmt(summary.actual)}</td>
-                                <td style={{ textAlign: 'center', fontWeight: 900, fontSize: 18 }}>{summary.rate.toFixed(2)}%</td>
-                                <td style={{ textAlign: 'center' }}>
-                                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 118, padding: '9px 13px', borderRadius: 8, color: '#fff', fontSize: 11, fontWeight: 900, letterSpacing: 1.1, textTransform: 'uppercase', background: summary.remark === 'ACHIEVED' ? '#10b981' : summary.remark === 'ON TRACK' ? '#2563eb' : '#f43f5e' }}>
-                                    {summary.remark}
-                                  </span>
-                                </td>
-                              </tr>
-                            </tfoot>
-                          </table>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16, marginTop: 24 }}>
+                          <div style={{ background: '#f1f5f9', borderRadius: 8, padding: '17px 18px' }}>
+                            <div style={{ color: '#334155', fontSize: 11, fontWeight: 800 }}>Daily Target</div>
+                            <div style={{ marginTop: 7, color: '#0f172a', fontSize: 20, fontWeight: 900 }}>PHP {fmt(Number(latestRow.dailyTarget || 0))}</div>
+                          </div>
+                          <div style={{ background: '#f1f5f9', borderRadius: 8, padding: '17px 18px' }}>
+                            <div style={{ color: '#334155', fontSize: 11, fontWeight: 800 }}>Daily Actual</div>
+                            <div style={{ marginTop: 7, color: '#e11d48', fontSize: 20, fontWeight: 900 }}>PHP {fmt(Number(latestRow.actual || 0))}</div>
+                          </div>
+                          <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 8, padding: '17px 18px' }}>
+                            <div style={{ color: '#64748b', fontSize: 11, fontWeight: 800 }}>Total Target</div>
+                            <div style={{ marginTop: 7, color: '#17345b', fontSize: 20, fontWeight: 900 }}>PHP {fmt(weeklyTarget)}</div>
+                          </div>
+                          <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 8, padding: '17px 18px' }}>
+                            <div style={{ color: '#64748b', fontSize: 11, fontWeight: 800 }}>Total Actual</div>
+                            <div style={{ marginTop: 7, color: '#e11d48', fontSize: 20, fontWeight: 900 }}>PHP {fmt(summary.actual)}</div>
+                          </div>
                         </div>
+
+                        <div style={{ marginTop: 28 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 9 }}>
+                            <div style={{ color: '#17345b', fontSize: 13, fontWeight: 900 }}>Collection Progress</div>
+                            <div style={{ color: summary.rate >= 85 ? '#059669' : '#e11d48', fontSize: 20, fontWeight: 900 }}>{summary.rate.toFixed(0)}%</div>
+                          </div>
+                          <div style={{ height: 10, borderRadius: 999, background: '#e2e8f0', overflow: 'hidden' }}>
+                            <div style={{ width: `${Math.min(summary.rate, 100)}%`, height: '100%', background: summary.rate >= 85 ? '#10b981' : '#e11d48' }} />
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gap: 8, marginTop: 18 }}>
+                          {collector.rows.map(row => (
+                            <div key={`collection-chip-${collector.id}-${row.date}`} style={{
+                              display: 'grid',
+                              gridTemplateColumns: '88px 1fr auto',
+                              alignItems: 'center',
+                              gap: 10,
+                              padding: '9px 10px',
+                              border: '1px solid #e2e8f0',
+                              borderRadius: 8,
+                              background: '#fbfdff'
+                            }}>
+                              <div style={{ color: '#64748b', fontSize: 12, fontWeight: 900 }}>{shortDisplayDate(row.date).replace(', 2026', '')}</div>
+                              <div style={{ color: '#0f172a', fontSize: 12, fontWeight: 800 }}>PHP {fmt(row.dailyTarget)} / PHP {fmt(row.actual)}</div>
+                              <div style={{ color: row.rate >= 85 ? '#059669' : '#e11d48', fontSize: 12, fontWeight: 900 }}>{row.rate.toFixed(0)}%</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div style={{
+                          marginTop: 20,
+                          border: '1px solid #dbeafe',
+                          background: '#eff6ff',
+                          borderRadius: 8,
+                          padding: 16
+                        }}>
+                          <div style={{ color: '#1d4ed8', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase' }}>AI Generated Comment</div>
+                          <div style={{ marginTop: 8, color: '#0f172a', fontSize: 14, lineHeight: 1.5, fontWeight: 700 }}>{insight.comment}</div>
+                          <div style={{ marginTop: 14, color: '#1d4ed8', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase' }}>Recommendation</div>
+                          <div style={{ marginTop: 8, color: '#17345b', fontSize: 14, lineHeight: 1.5, fontWeight: 700 }}>{insight.recommendation}</div>
+                        </div>
+
+                        <button className="btn btn-primary" type="button" onClick={loadCollections} disabled={collectionsLoading} style={{ width: '100%', marginTop: 24, justifyContent: 'center' }}>
+                          <Edit3 size={16} /> Input Daily Data
+                        </button>
                       </div>
                     )
                   }) : (
