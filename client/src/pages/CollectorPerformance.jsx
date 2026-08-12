@@ -545,7 +545,7 @@ export default function CollectorPerformance() {
         }
         .performance-print-layout.performance-preview-visible .performance-print-page {
           width: 8.5in;
-          min-height: 11in;
+          min-height: 13in;
           margin: 0 auto 24px;
           background: #fff;
           box-shadow: 0 20px 60px rgba(0,0,0,.35);
@@ -589,7 +589,7 @@ export default function CollectorPerformance() {
         .collector-print-money { text-align: right; font-weight: 700; }
         .collector-print-total td { font-weight: 900; }
         @media print {
-          @page { size: portrait; margin: 0.35in; }
+          @page { size: 8.5in 13in; margin: 0.25in; }
           body { background: #fff !important; }
           body * { visibility: hidden !important; }
           body.print-target #printable-area.collector-print-layout,
@@ -629,7 +629,9 @@ export default function CollectorPerformance() {
           }
           .performance-print-page {
             page-break-after: always;
-            padding: 0.25in 0.35in;
+            width: 8in;
+            min-height: 12.5in;
+            padding: 0;
           }
           .performance-print-page:last-child { page-break-after: auto; }
           .performance-preview-controls { display: none !important; }
@@ -663,44 +665,44 @@ export default function CollectorPerformance() {
           const insight = getGeneratedCollectionInsight(edit.fullName || collector.name, collector.rows, summary)
           return (
             <div className="performance-print-page" key={`print-performance-${collector.id}`}>
-              <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', alignItems: 'center', gap: 16, marginBottom: 18 }}>
-                <img src={logo} alt="" style={{ width: 145, justifySelf: 'end' }} />
-                <div style={{ fontSize: 13, lineHeight: 1.35 }}>
-                  <div style={{ fontSize: 24, fontWeight: 800 }}>Melann Lending Investor Corporation</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '155px 1fr', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                <img src={logo} alt="" style={{ width: 122, justifySelf: 'end' }} />
+                <div style={{ fontSize: 12, lineHeight: 1.25 }}>
+                  <div style={{ fontSize: 22, fontWeight: 800 }}>Melann Lending Investor Corporation</div>
                   <div>Lot 3 Blk 2, Brgy. San Isidro, Ormoc City</div>
                   <div>(053) 520-1138,0917-113-1000,0919-0085182</div>
                   <div>melann.lic2016@gmail.com</div>
                   <div>https://www.facebook.com/MelannInvestorCorp</div>
                 </div>
               </div>
-              <div style={{ textAlign: 'center', color: '#2563eb', fontWeight: 900, letterSpacing: 2, textDecoration: 'underline', margin: '10px 0 16px' }}>WEEKLY PERFORMANCE RATING</div>
-              <div style={{ fontSize: 12, marginBottom: 10 }}>Rating Period: <span style={{ color: '#ef4444', textDecoration: 'underline' }}>{ratingPeriod(weekDates)}</span></div>
+              <div style={{ textAlign: 'center', color: '#2563eb', fontWeight: 900, letterSpacing: 2, textDecoration: 'underline', margin: '6px 0 10px' }}>WEEKLY PERFORMANCE RATING</div>
+              <div style={{ fontSize: 12, marginBottom: 8 }}>Rating Period: <span style={{ color: '#ef4444', textDecoration: 'underline' }}>{ratingPeriod(weekDates)}</span></div>
 
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 16 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, marginBottom: 10 }}>
                 <tbody>
-                  <tr><td style={{ border: '1px solid #000', padding: 8 }}>Name of Collector</td><td style={{ border: '1px solid #000', padding: 8, fontWeight: 800 }}>{String(edit.fullName || collector.name).toUpperCase()}</td><td style={{ border: '1px solid #000', padding: 8 }}>Area of Assignment</td><td style={{ border: '1px solid #000', padding: 8, fontWeight: 800 }}>{String(edit.area || getCollectorArea(collector.name)).toUpperCase()}</td></tr>
-                  <tr><td style={{ border: '1px solid #000', padding: 8 }}>Team Name</td><td style={{ border: '1px solid #000', padding: 8, fontWeight: 800 }}>{String(edit.teamName || collector.collectorCode || 'COLLECTION').toUpperCase()}</td><td style={{ border: '1px solid #000', padding: 8 }}>Name of Supervisor</td><td style={{ border: '1px solid #000', padding: 8, fontWeight: 800 }}>{edit.supervisor || 'Not encoded'}</td></tr>
+                  <tr><td style={{ border: '1px solid #000', padding: 6 }}>Name of Collector</td><td style={{ border: '1px solid #000', padding: 6, fontWeight: 800 }}>{String(edit.fullName || collector.name).toUpperCase()}</td><td style={{ border: '1px solid #000', padding: 6 }}>Area of Assignment</td><td style={{ border: '1px solid #000', padding: 6, fontWeight: 800 }}>{String(edit.area || getCollectorArea(collector.name)).toUpperCase()}</td></tr>
+                  <tr><td style={{ border: '1px solid #000', padding: 6 }}>Team Name</td><td style={{ border: '1px solid #000', padding: 6, fontWeight: 800 }}>{String(edit.teamName || collector.collectorCode || 'COLLECTION').toUpperCase()}</td><td style={{ border: '1px solid #000', padding: 6 }}>Name of Supervisor</td><td style={{ border: '1px solid #000', padding: 6, fontWeight: 800 }}>{edit.supervisor || 'Not encoded'}</td></tr>
                 </tbody>
               </table>
 
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, marginBottom: 16, textAlign: 'center' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, marginBottom: 10, textAlign: 'center' }}>
                 <tbody>
-                  <tr><th colSpan={11} style={{ border: '1px solid #000', padding: 8, textDecoration: 'underline' }}>MARKETING PERFORMANCE</th></tr>
-                  <tr><td colSpan={6} style={{ border: '1px solid #000', padding: 8 }}>Target of Active Clients (<span style={{ color: '#ef4444' }}>{activeTarget}</span>)</td><td colSpan={5} style={{ border: '1px solid #000', padding: 8 }}>Total Amount of Release (from New Clients)</td></tr>
-                  <tr><td style={{ border: '1px solid #000', padding: 8 }}>Beginning<br />Active</td><td style={{ border: '1px solid #000', padding: 8 }}>New Client/<br />Return client</td><td style={{ border: '1px solid #000', padding: 8 }}>Relax/On<br />Hold/Recon</td><td style={{ border: '1px solid #000', padding: 8 }}>Ending<br />Balance</td><td style={{ border: '1px solid #000', padding: 8 }}>Lacking No of<br />Clients</td><td style={{ border: '1px solid #000', padding: 8 }}></td><td style={{ border: '1px solid #000', padding: 8 }}>Beg. Bal.</td><td style={{ border: '1px solid #000', padding: 8 }}>This Week</td><td style={{ border: '1px solid #000', padding: 8 }}>Ending Balance</td></tr>
-                  <tr><td style={{ border: '1px solid #000', padding: 8, fontWeight: 800 }}>{countFmt(beginningActive)}</td><td style={{ border: '1px solid #000', padding: 8, fontWeight: 800 }}>{countFmt(newClients + returnClients)}</td><td style={{ border: '1px solid #000', padding: 8, fontWeight: 800 }}>{countFmt(reconClients)}</td><td style={{ border: '1px solid #000', padding: 8, fontWeight: 800 }}>{countFmt(endingBalance)}</td><td style={{ border: '1px solid #000', padding: 8, fontWeight: 800, color: '#ef4444' }}>{countFmt(lacking)}</td><td style={{ border: '1px solid #000' }}></td><td style={{ border: '1px solid #000', padding: 8 }}>{printAmount(summary.dailyTarget)}</td><td style={{ border: '1px solid #000', padding: 8 }}>{printAmount(newPrincipal)}</td><td style={{ border: '1px solid #000', padding: 8 }}>{printAmount(Math.max(0, summary.dailyTarget - newPrincipal))}</td></tr>
+                  <tr><th colSpan={11} style={{ border: '1px solid #000', padding: 5, textDecoration: 'underline' }}>MARKETING PERFORMANCE</th></tr>
+                  <tr><td colSpan={6} style={{ border: '1px solid #000', padding: 5 }}>Target of Active Clients (<span style={{ color: '#ef4444' }}>{activeTarget}</span>)</td><td colSpan={5} style={{ border: '1px solid #000', padding: 5 }}>Total Amount of Release (from New Clients)</td></tr>
+                  <tr><td style={{ border: '1px solid #000', padding: 5 }}>Beginning<br />Active</td><td style={{ border: '1px solid #000', padding: 5 }}>New Client/<br />Return client</td><td style={{ border: '1px solid #000', padding: 5 }}>Relax/On<br />Hold/Recon</td><td style={{ border: '1px solid #000', padding: 5 }}>Ending<br />Balance</td><td style={{ border: '1px solid #000', padding: 5 }}>Lacking No of<br />Clients</td><td style={{ border: '1px solid #000', padding: 5 }}></td><td style={{ border: '1px solid #000', padding: 5 }}>Beg. Bal.</td><td style={{ border: '1px solid #000', padding: 5 }}>This Week</td><td style={{ border: '1px solid #000', padding: 5 }}>Ending Balance</td></tr>
+                  <tr><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>{countFmt(beginningActive)}</td><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>{countFmt(newClients + returnClients)}</td><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>{countFmt(reconClients)}</td><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>{countFmt(endingBalance)}</td><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800, color: '#ef4444' }}>{countFmt(lacking)}</td><td style={{ border: '1px solid #000' }}></td><td style={{ border: '1px solid #000', padding: 5 }}>{printAmount(summary.dailyTarget)}</td><td style={{ border: '1px solid #000', padding: 5 }}>{printAmount(newPrincipal)}</td><td style={{ border: '1px solid #000', padding: 5 }}>{printAmount(Math.max(0, summary.dailyTarget - newPrincipal))}</td></tr>
                 </tbody>
               </table>
 
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, marginBottom: 16, textAlign: 'center' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, marginBottom: 10, textAlign: 'center' }}>
                 <thead>
-                  <tr><th colSpan={6} style={{ border: '1px solid #000', padding: 8, textDecoration: 'underline' }}>COLLECTION PERFORMANCE</th></tr>
-                  <tr><th rowSpan={2} style={{ border: '1px solid #000', padding: 8 }}>Rating Period</th><th colSpan={2} style={{ border: '1px solid #000', padding: 8 }}>Target</th><th rowSpan={2} style={{ border: '1px solid #000', padding: 8 }}>Actual</th><th rowSpan={2} style={{ border: '1px solid #000', padding: 8 }}>Percentage of<br />Accomplishment</th><th rowSpan={2} style={{ border: '1px solid #000', padding: 8 }}>Remark</th></tr>
-                  <tr><th style={{ border: '1px solid #000', padding: 8 }}>Daily</th><th style={{ border: '1px solid #000', padding: 8 }}>Weekly</th></tr>
+                  <tr><th colSpan={6} style={{ border: '1px solid #000', padding: 5, textDecoration: 'underline' }}>COLLECTION PERFORMANCE</th></tr>
+                  <tr><th rowSpan={2} style={{ border: '1px solid #000', padding: 5 }}>Rating Period</th><th colSpan={2} style={{ border: '1px solid #000', padding: 5 }}>Target</th><th rowSpan={2} style={{ border: '1px solid #000', padding: 5 }}>Actual</th><th rowSpan={2} style={{ border: '1px solid #000', padding: 5 }}>Percentage of<br />Accomplishment</th><th rowSpan={2} style={{ border: '1px solid #000', padding: 5 }}>Remark</th></tr>
+                  <tr><th style={{ border: '1px solid #000', padding: 5 }}>Daily</th><th style={{ border: '1px solid #000', padding: 5 }}>Weekly</th></tr>
                 </thead>
                 <tbody>
-                  {collector.rows.map(row => <tr key={`print-row-${collector.id}-${row.date}`}><td style={{ border: '1px solid #000', padding: 6 }}>{printDate(row.date)}</td><td style={{ border: '1px solid #000', padding: 6 }}>{printAmount(row.dailyTarget)}</td><td style={{ border: '1px solid #000', padding: 6 }}>{printAmount(row.weeklyTarget)}</td><td style={{ border: '1px solid #000', padding: 6 }}>{printAmount(row.actual)}</td><td style={{ border: '1px solid #000', padding: 6 }}>{row.rate.toFixed(2)}%</td><td style={{ border: '1px solid #000', padding: 6 }}>{row.remark}</td></tr>)}
-                  <tr><td style={{ border: '1px solid #000', padding: 7, fontWeight: 800 }}>Total</td><td style={{ border: '1px solid #000', padding: 7, fontWeight: 800 }}>{printAmount(summary.dailyTarget)}</td><td style={{ border: '1px solid #000', padding: 7 }}></td><td style={{ border: '1px solid #000', padding: 7, fontWeight: 800 }}>{printAmount(summary.actual)}</td><td style={{ border: '1px solid #000', padding: 7, background: summary.rate >= 90 ? '#bbf7d0' : summary.rate >= 85 ? '#fde68a' : '#ef4444', color: summary.rate < 85 ? '#fff' : '#000', fontWeight: 800 }}>{summary.rate.toFixed(2)}%</td><td style={{ border: '1px solid #000', padding: 7, fontWeight: 800 }}>{summary.remark}</td></tr>
+                  {collector.rows.map(row => <tr key={`print-row-${collector.id}-${row.date}`}><td style={{ border: '1px solid #000', padding: 4 }}>{printDate(row.date)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{printAmount(row.dailyTarget)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{printAmount(row.weeklyTarget)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{printAmount(row.actual)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{row.rate.toFixed(2)}%</td><td style={{ border: '1px solid #000', padding: 4 }}>{row.remark}</td></tr>)}
+                  <tr><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>Total</td><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>{printAmount(summary.dailyTarget)}</td><td style={{ border: '1px solid #000', padding: 5 }}></td><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>{printAmount(summary.actual)}</td><td style={{ border: '1px solid #000', padding: 5, background: summary.rate >= 90 ? '#bbf7d0' : summary.rate >= 85 ? '#fde68a' : '#ef4444', color: summary.rate < 85 ? '#fff' : '#000', fontWeight: 800 }}>{summary.rate.toFixed(2)}%</td><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>{summary.remark}</td></tr>
                 </tbody>
               </table>
 
@@ -723,22 +725,22 @@ export default function CollectorPerformance() {
                         <tbody>
                           <tr><td colSpan={2} style={{ borderBottom: '1px solid #000', padding: 6, textAlign: 'center' }}><u>Coaching Details:</u></td></tr>
                           <tr><td style={{ borderRight: '1px dotted #000', borderBottom: '1px solid #000', padding: 6, width: '32%' }}>Date</td><td style={{ borderBottom: '1px solid #000', padding: 6 }}></td></tr>
-                          <tr><td style={{ borderRight: '1px dotted #000', borderBottom: '1px solid #000', padding: 6, height: 70 }}>Name and<br />Signature of<br />Coach</td><td style={{ borderBottom: '1px solid #000', padding: 6, textAlign: 'center', verticalAlign: 'bottom' }}><b>VICTORIO L. RELOBA, JR.</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 145, paddingTop: 2 }}>Position of Coach</span></td></tr>
-                          <tr><td style={{ borderRight: '1px dotted #000', padding: 6, height: 70 }}>Collector</td><td style={{ padding: 6, textAlign: 'center', verticalAlign: 'bottom' }}><b>{String(edit.fullName || collector.name).toUpperCase()}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 145, paddingTop: 2 }}>Name of Collector</span></td></tr>
+                          <tr><td style={{ borderRight: '1px dotted #000', borderBottom: '1px solid #000', padding: 5, height: 56 }}>Name and<br />Signature of<br />Coach</td><td style={{ borderBottom: '1px solid #000', padding: 5, textAlign: 'center', verticalAlign: 'bottom' }}><b>VICTORIO L. RELOBA, JR.</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 145, paddingTop: 2 }}>Position of Coach</span></td></tr>
+                          <tr><td style={{ borderRight: '1px dotted #000', padding: 5, height: 56 }}>Collector</td><td style={{ padding: 5, textAlign: 'center', verticalAlign: 'bottom' }}><b>{String(edit.fullName || collector.name).toUpperCase()}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 145, paddingTop: 2 }}>Name of Collector</span></td></tr>
                         </tbody>
                       </table>
                     </td>
                   </tr>
                   <tr>
-                    <td style={{ border: '1px solid #000', padding: 10, height: 70, verticalAlign: 'bottom', width: '31.5%' }}><i>Prepared by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>MIA S. YBAÑEZ</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>IT/ Acctg. Clerk</span></div></td>
-                    <td style={{ border: '1px solid #000', padding: 10, height: 70, verticalAlign: 'bottom', width: '31.5%' }}><i>Acknowledged by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>{String(edit.fullName || collector.name).toUpperCase()}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>CI/Collector</span></div></td>
+                    <td style={{ border: '1px solid #000', padding: 8, height: 54, verticalAlign: 'bottom', width: '31.5%' }}><i>Prepared by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>MIA S. YBAÑEZ</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>IT/ Acctg. Clerk</span></div></td>
+                    <td style={{ border: '1px solid #000', padding: 8, height: 54, verticalAlign: 'bottom', width: '31.5%' }}><i>Acknowledged by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>{String(edit.fullName || collector.name).toUpperCase()}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>CI/Collector</span></div></td>
                   </tr>
                   <tr>
-                    <td style={{ border: '1px solid #000', padding: 10, height: 70, verticalAlign: 'bottom' }}><i>Reviewed by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>MARILYN O. RELOBA</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>Branch Manager</span></div></td>
-                    <td style={{ border: '1px solid #000', padding: 10, height: 70, verticalAlign: 'bottom' }}><i>Approved by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>VICTORIO L. RELOBA, JR.</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>Operations Manager</span></div></td>
+                    <td style={{ border: '1px solid #000', padding: 8, height: 54, verticalAlign: 'bottom' }}><i>Reviewed by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>MARILYN O. RELOBA</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>Branch Manager</span></div></td>
+                    <td style={{ border: '1px solid #000', padding: 8, height: 54, verticalAlign: 'bottom' }}><i>Approved by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>VICTORIO L. RELOBA, JR.</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>Operations Manager</span></div></td>
                   </tr>
                   <tr>
-                    <td colSpan={3} style={{ border: '1px solid #000', padding: 10, height: 105, verticalAlign: 'top' }}>
+                    <td colSpan={3} style={{ border: '1px solid #000', padding: 8, height: 88, verticalAlign: 'top' }}>
                       <b><u>Recommendation:</u></b><br /><br /><i>{edit.recommendation || insight.recommendation}</i><br /><br />
                       <b><u>Comments/Suggestions:</u></b><br /><br /><i>{edit.comment || insight.comment}</i>
                     </td>
