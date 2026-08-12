@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FileText, Printer, Users } from 'lucide-react'
+import { CalendarDays, FileText, Plus, Printer, RefreshCw, Users } from 'lucide-react'
 import API from '../services/api'
 import '../dashboard.css'
 
@@ -37,6 +37,41 @@ const displayWeekday = value => {
   }).toUpperCase()
 }
 
+const shortDisplayDate = value => {
+  if (!value) return ''
+  return new Date(`${value}T00:00:00`).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  })
+}
+
+const getOperationWeek = dateKey => {
+  const selected = new Date(`${dateKey}T00:00:00`)
+  const day = selected.getDay()
+  const mondayOffset = day === 0 ? -6 : 1 - day
+  const start = new Date(selected)
+  start.setDate(selected.getDate() + mondayOffset)
+
+  return Array.from({ length: 6 }, (_, index) => {
+    const next = new Date(start)
+    next.setDate(start.getDate() + index)
+    return toDateKey(next)
+  })
+}
+
+const getCollectionRemark = rate => {
+  if (rate >= 100) return 'ACHIEVED'
+  if (rate >= 85) return 'ON TRACK'
+  return 'NEEDS IMPROVEMENT'
+}
+
+const getRemarkStyle = remark => {
+  if (remark === 'ACHIEVED') return { background: '#dcfce7', color: '#047857', borderColor: '#bbf7d0' }
+  if (remark === 'ON TRACK') return { background: '#eff6ff', color: '#1d4ed8', borderColor: '#bfdbfe' }
+  return { background: '#fff1f2', color: '#e11d48', borderColor: '#fecdd3' }
+}
+
 const shortCollectorName = name => {
   const raw = String(name || '').trim()
   const parts = raw.split(/\s+/).filter(Boolean)
@@ -65,6 +100,9 @@ export default function CollectorPerformance() {
   const defaultRange = useMemo(getDefaultRange, [])
   const [filters, setFilters] = useState(defaultRange)
   const [data, setData] = useState(null)
+  const [activeTab, setActiveTab] = useState('targets')
+  const [collectionRows, setCollectionRows] = useState([])
+  const [collectionsLoading, setCollectionsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
 
@@ -190,9 +228,56 @@ export default function CollectorPerformance() {
     }
   }
 
+  const buildCollectionsSummary = summary => {
+    const collectors = (summary?.collectors || [])
+      .filter(collector => !String(collector.name || '').toLowerCase().includes('melann office'))
+    const target = collectors.reduce((sum, collector) => sum + Number(collector.target || 0), 0)
+    const actual = collectors.reduce((sum, collector) => sum + Number(collector.actual_collection ?? collector.collected ?? 0), 0)
+    const paymentCount = collectors.reduce((sum, collector) => sum + Number(collector.payment_count || 0), 0)
+    const rate = target > 0 ? (actual / target) * 100 : 0
+    const remark = getCollectionRemark(rate)
+
+    return {
+      date: summary?.target_date || summary?.date_to,
+      dailyTarget: target,
+      weeklyTarget: target * 6,
+      actual,
+      paymentCount,
+      rate,
+      remark
+    }
+  }
+
+  const loadCollections = async () => {
+    setCollectionsLoading(true)
+    try {
+      const weekDates = getOperationWeek(filters.date_to)
+      const responses = await Promise.all(weekDates.map(date => API.get('/collector-performance/summary', {
+        params: {
+          date_to: date,
+          pastdue_cutoff: filters.pastdue_cutoff
+        }
+      })))
+      setCollectionRows(responses.map(response => buildCollectionsSummary(response.data)))
+    } catch (err) {
+      setErrorMsg(err.response?.data?.error || err.message || 'Could not load collections')
+    } finally {
+      setCollectionsLoading(false)
+    }
+  }
+
+  const applyFilters = async () => {
+    await loadData()
+    if (activeTab === 'collections') await loadCollections()
+  }
+
   useEffect(() => {
     loadData()
   }, [])
+
+  useEffect(() => {
+    if (activeTab === 'collections') loadCollections()
+  }, [activeTab])
 
   const collectors = (data?.collectors || [])
     .filter(collector => !String(collector.name || '').toLowerCase().includes('melann office'))
@@ -224,6 +309,14 @@ export default function CollectorPerformance() {
   const pastdueTotal = Number(totals.pastdue_clients || 0)
   const reportDate = data?.target_date || filters.date_to
   const pastdueCutoff = data?.pastdue_cutoff || filters.pastdue_cutoff
+  const collectionTotals = collectionRows.reduce((acc, row) => {
+    acc.dailyTarget += Number(row.dailyTarget || 0)
+    acc.actual += Number(row.actual || 0)
+    acc.paymentCount += Number(row.paymentCount || 0)
+    return acc
+  }, { dailyTarget: 0, actual: 0, paymentCount: 0 })
+  collectionTotals.rate = collectionTotals.dailyTarget > 0 ? (collectionTotals.actual / collectionTotals.dailyTarget) * 100 : 0
+  const collectionFooterRemark = getCollectionRemark(collectionTotals.rate)
 
   return (
     <div className="dashboard-v2">
@@ -413,8 +506,8 @@ export default function CollectorPerformance() {
                   <label className="form-label">Pastdue Cutoff</label>
                   <input className="form-control" type="date" value={filters.pastdue_cutoff || ''} onChange={e => setFilters(current => ({ ...current, pastdue_cutoff: e.target.value }))} />
                 </div>
-                <button className="btn btn-primary" type="button" onClick={loadData} disabled={loading}>
-                  {loading ? 'Loading...' : 'Apply'}
+                <button className="btn btn-primary" type="button" onClick={applyFilters} disabled={loading || collectionsLoading}>
+                  {loading || collectionsLoading ? 'Loading...' : 'Apply'}
                 </button>
                 <button className="btn btn-secondary" type="button" onClick={() => {
                   document.body.classList.add('print-actual');
@@ -436,7 +529,30 @@ export default function CollectorPerformance() {
               </div>
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
+            <div style={{
+              display: 'flex',
+              gap: 8,
+              padding: '14px 24px',
+              borderBottom: '1px solid var(--border)',
+              background: '#f8fafc'
+            }}>
+              <button
+                className={`btn ${activeTab === 'targets' ? 'btn-primary' : 'btn-secondary'}`}
+                type="button"
+                onClick={() => setActiveTab('targets')}
+              >
+                Daily Target
+              </button>
+              <button
+                className={`btn ${activeTab === 'collections' ? 'btn-primary' : 'btn-secondary'}`}
+                type="button"
+                onClick={() => setActiveTab('collections')}
+              >
+                <CalendarDays size={16} /> Collections
+              </button>
+            </div>
+
+            {activeTab === 'targets' && <div style={{ overflowX: 'auto' }}>
               <table className="data-table" style={{ margin: 0, border: 'none', minWidth: 900 }}>
                 <thead>
                   <tr>
@@ -482,10 +598,105 @@ export default function CollectorPerformance() {
                   </tfoot>
                 )}
               </table>
-            </div>
+            </div>}
+
+            {activeTab === 'collections' && (
+              <div>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  padding: '22px 24px',
+                  borderBottom: '1px solid var(--border)',
+                  flexWrap: 'wrap'
+                }}>
+                  <div>
+                    <div className="card-v2-title" style={{ marginBottom: 4, textTransform: 'uppercase' }}>Collection Performance</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase' }}>Daily audit & metric tracking</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button className="btn btn-secondary" type="button" onClick={loadCollections} disabled={collectionsLoading}>
+                      <RefreshCw size={16} /> {collectionsLoading ? 'Syncing...' : 'Sync Dates'}
+                    </button>
+                    <button className="btn btn-success" type="button" onClick={loadCollections} disabled={collectionsLoading}>
+                      <Plus size={16} /> Add Date
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="data-table" style={{ margin: 0, border: 'none', minWidth: 1060 }}>
+                    <thead>
+                      <tr>
+                        <th rowSpan={2}>Rating Period</th>
+                        <th colSpan={2} style={{ textAlign: 'center' }}>Target</th>
+                        <th rowSpan={2} style={{ textAlign: 'right' }}>Actual</th>
+                        <th rowSpan={2} style={{ textAlign: 'center' }}>Percentage of Accomplishment</th>
+                        <th rowSpan={2} style={{ textAlign: 'center' }}>Remarks</th>
+                      </tr>
+                      <tr>
+                        <th style={{ textAlign: 'right' }}>Daily</th>
+                        <th style={{ textAlign: 'right' }}>Weekly</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {collectionsLoading ? (
+                        <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>Loading collections...</td></tr>
+                      ) : collectionRows.length ? collectionRows.map(row => {
+                        const remarkStyle = getRemarkStyle(row.remark)
+                        return (
+                          <tr key={`collection-${row.date}`}>
+                            <td>
+                              <div style={{ fontWeight: 900, fontSize: 16 }}>{shortDisplayDate(row.date)}</div>
+                              <div style={{ marginTop: 6, color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.3, textTransform: 'uppercase' }}>Operational Day</div>
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(row.dailyTarget)}</td>
+                            <td style={{ textAlign: 'right', color: '#334155', fontWeight: 900 }}>PHP {fmt(row.weeklyTarget)}</td>
+                            <td style={{ textAlign: 'right', color: row.actual > 0 ? '#0ea5e9' : '#64748b', fontWeight: 900 }}>PHP {fmt(row.actual)}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <div style={{ color: row.rate >= 85 ? '#059669' : '#e11d48', fontWeight: 900, fontSize: 18 }}>{row.rate.toFixed(2)}%</div>
+                              <div style={{ width: 84, height: 5, borderRadius: 999, background: '#e8edf4', margin: '8px auto 0', overflow: 'hidden' }}>
+                                <div style={{ width: `${Math.min(row.rate, 100)}%`, height: '100%', background: row.rate >= 85 ? '#10b981' : '#e11d48' }} />
+                              </div>
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 118, padding: '9px 13px', border: `1px solid ${remarkStyle.borderColor}`, borderRadius: 8, fontSize: 11, fontWeight: 900, letterSpacing: 1.1, textTransform: 'uppercase', ...remarkStyle }}>
+                                {row.remark}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      }) : (
+                        <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>No collection dates loaded.</td></tr>
+                      )}
+                    </tbody>
+                    {!collectionsLoading && collectionRows.length > 0 && (
+                      <tfoot>
+                        <tr style={{ background: '#0f172a', color: '#fff' }}>
+                          <td style={{ padding: '20px 24px' }}>
+                            <div style={{ color: '#93c5fd', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase' }}>Weekly Summary</div>
+                            <div style={{ marginTop: 6, fontWeight: 900 }}>CONSOLIDATED</div>
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(collectionTotals.dailyTarget)}</td>
+                          <td style={{ textAlign: 'right', color: '#94a3b8', fontWeight: 900 }}>-</td>
+                          <td style={{ textAlign: 'right', color: '#38bdf8', fontWeight: 900 }}>PHP {fmt(collectionTotals.actual)}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 900, fontSize: 18 }}>{collectionTotals.rate.toFixed(2)}%</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 118, padding: '9px 13px', borderRadius: 8, background: collectionFooterRemark === 'ACHIEVED' ? '#10b981' : '#f43f5e', color: '#fff', fontSize: 11, fontWeight: 900, letterSpacing: 1.1, textTransform: 'uppercase' }}>
+                              {collectionFooterRemark}
+                            </span>
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="card-v2" style={{ padding: 0, overflow: 'hidden', marginTop: 24 }}>
+          {activeTab === 'targets' && <div className="card-v2" style={{ padding: 0, overflow: 'hidden', marginTop: 24 }}>
             <div style={{
               display: 'grid',
               gridTemplateColumns: '1fr',
@@ -554,7 +765,7 @@ export default function CollectorPerformance() {
                 )}
               </table>
             </div>
-          </div>
+          </div>}
         </>
       )}
     </div>
