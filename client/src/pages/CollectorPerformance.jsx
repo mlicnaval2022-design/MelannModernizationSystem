@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, CalendarDays, Edit3, FileText, MapPin, Plus, Printer, RefreshCw, TrendingUp, User, Users } from 'lucide-react'
+import { ArrowLeft, CalendarDays, CheckCircle2, Edit3, FileText, MapPin, Plus, Printer, RefreshCw, TrendingUp, User, Users, X } from 'lucide-react'
 import API from '../services/api'
 import '../dashboard.css'
 
@@ -162,7 +162,7 @@ export default function CollectorPerformance() {
   const [collectionRows, setCollectionRows] = useState([])
   const [selectedCollectionId, setSelectedCollectionId] = useState(null)
   const [collectorEdits, setCollectorEdits] = useState({})
-  const [savedMessage, setSavedMessage] = useState('')
+  const [showSavedModal, setShowSavedModal] = useState(false)
   const [collectionsLoading, setCollectionsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
@@ -379,7 +379,7 @@ export default function CollectorPerformance() {
         [field]: value
       }
     }))
-    setSavedMessage('')
+    setShowSavedModal(false)
   }
 
   const updateCollectorPhoto = (collectorId, file) => {
@@ -391,7 +391,7 @@ export default function CollectorPerformance() {
 
   const saveCollectorEdits = () => {
     localStorage.setItem('collectorPerformanceEdits', JSON.stringify(collectorEdits))
-    setSavedMessage('Saved')
+    setShowSavedModal(true)
   }
 
   useEffect(() => {
@@ -781,7 +781,6 @@ export default function CollectorPerformance() {
                       <ArrowLeft size={16} /> Back to Collectors
                     </button>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginBottom: 18 }}>
-                      {savedMessage && <span style={{ color: '#059669', fontSize: 12, fontWeight: 900, textTransform: 'uppercase' }}>{savedMessage}</span>}
                       <button className="btn btn-primary" type="button" onClick={saveCollectorEdits}>
                         Save
                       </button>
@@ -1134,6 +1133,74 @@ export default function CollectorPerformance() {
             </div>
           </div>}
         </>
+      )}
+
+      {showSavedModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 1000,
+          display: 'grid',
+          placeItems: 'center',
+          padding: 20,
+          background: 'rgba(15, 23, 42, 0.42)',
+          backdropFilter: 'blur(4px)'
+        }}>
+          <div style={{
+            width: 'min(430px, 100%)',
+            background: '#fff',
+            borderRadius: 14,
+            border: '1px solid #dbeafe',
+            boxShadow: '0 24px 70px rgba(15, 23, 42, 0.28)',
+            overflow: 'hidden'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '14px 14px 0' }}>
+              <button
+                type="button"
+                onClick={() => setShowSavedModal(false)}
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 8,
+                  border: '1px solid #e2e8f0',
+                  background: '#fff',
+                  display: 'grid',
+                  placeItems: 'center',
+                  cursor: 'pointer'
+                }}
+                aria-label="Close saved confirmation"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div style={{ padding: '8px 34px 34px', textAlign: 'center' }}>
+              <div style={{
+                width: 72,
+                height: 72,
+                borderRadius: '50%',
+                margin: '0 auto 18px',
+                background: '#dcfce7',
+                color: '#059669',
+                display: 'grid',
+                placeItems: 'center'
+              }}>
+                <CheckCircle2 size={42} />
+              </div>
+              <div style={{ color: '#0f172a', fontSize: 22, fontWeight: 900 }}>Information Saved</div>
+              <div style={{ marginTop: 10, color: '#64748b', fontSize: 14, lineHeight: 1.5, fontWeight: 700 }}>
+                The collector profile, photo, editable fields, comments, and recommendation were saved successfully.
+              </div>
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={() => setShowSavedModal(false)}
+                style={{ marginTop: 24, minWidth: 140, justifyContent: 'center' }}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
