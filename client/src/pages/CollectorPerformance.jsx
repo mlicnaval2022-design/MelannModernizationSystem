@@ -234,24 +234,47 @@ export default function CollectorPerformance() {
     }
   }
 
-  const buildCollectionsSummary = summary => {
-    const collectors = (summary?.collectors || [])
-      .filter(collector => !String(collector.name || '').toLowerCase().includes('melann office'))
-    const target = collectors.reduce((sum, collector) => sum + Number(collector.target || 0), 0)
-    const actual = collectors.reduce((sum, collector) => sum + Number(collector.actual_collection ?? collector.collected ?? 0), 0)
-    const paymentCount = collectors.reduce((sum, collector) => sum + Number(collector.payment_count || 0), 0)
-    const rate = target > 0 ? (actual / target) * 100 : 0
-    const remark = getCollectionRemark(rate)
+  const buildCollectionsByCollector = summaries => {
+    const collectorMap = new Map()
 
-    return {
-      date: summary?.target_date || summary?.date_to,
-      dailyTarget: target,
-      weeklyTarget: target * 6,
-      actual,
-      paymentCount,
-      rate,
-      remark
-    }
+    summaries.forEach(summary => {
+      const date = summary?.target_date || summary?.date_to
+      const dailyCollectors = (summary?.collectors || [])
+        .filter(collector => !String(collector.name || '').toLowerCase().includes('melann office'))
+        .sort((a, b) => getSortOrder(a.name) - getSortOrder(b.name) || String(a.name || '').localeCompare(String(b.name || '')))
+
+      dailyCollectors.forEach(collector => {
+        const key = collector.id || collector.name
+        const dailyTarget = Number(collector.target || 0)
+        const actual = Number(collector.actual_collection ?? collector.collected ?? 0)
+        const rate = dailyTarget > 0 ? (actual / dailyTarget) * 100 : 0
+
+        if (!collectorMap.has(key)) {
+          collectorMap.set(key, {
+            id: key,
+            name: collector.name,
+            rows: []
+          })
+        }
+
+        collectorMap.get(key).rows.push({
+          date,
+          dailyTarget,
+          weeklyTarget: dailyTarget * 6,
+          actual,
+          paymentCount: Number(collector.payment_count || 0),
+          rate,
+          remark: getCollectionRemark(rate)
+        })
+      })
+    })
+
+    return Array.from(collectorMap.values())
+      .sort((a, b) => getSortOrder(a.name) - getSortOrder(b.name) || String(a.name || '').localeCompare(String(b.name || '')))
+      .map(collector => ({
+        ...collector,
+        rows: collector.rows.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
+      }))
   }
 
   const loadCollections = async () => {
@@ -264,7 +287,7 @@ export default function CollectorPerformance() {
           pastdue_cutoff: filters.pastdue_cutoff
         }
       })))
-      setCollectionRows(responses.map(response => buildCollectionsSummary(response.data)))
+      setCollectionRows(buildCollectionsByCollector(responses.map(response => response.data)))
     } catch (err) {
       setErrorMsg(err.response?.data?.error || err.message || 'Could not load collections')
     } finally {
@@ -315,14 +338,17 @@ export default function CollectorPerformance() {
   const pastdueTotal = Number(totals.pastdue_clients || 0)
   const reportDate = data?.target_date || filters.date_to
   const pastdueCutoff = data?.pastdue_cutoff || filters.pastdue_cutoff
-  const collectionTotals = collectionRows.reduce((acc, row) => {
-    acc.dailyTarget += Number(row.dailyTarget || 0)
-    acc.actual += Number(row.actual || 0)
-    acc.paymentCount += Number(row.paymentCount || 0)
-    return acc
-  }, { dailyTarget: 0, actual: 0, paymentCount: 0 })
-  collectionTotals.rate = collectionTotals.dailyTarget > 0 ? (collectionTotals.actual / collectionTotals.dailyTarget) * 100 : 0
-  const collectionFooterRemark = getCollectionRemark(collectionTotals.rate)
+  const getCollectorCollectionTotals = rows => {
+    const totals = rows.reduce((acc, row) => {
+      acc.dailyTarget += Number(row.dailyTarget || 0)
+      acc.actual += Number(row.actual || 0)
+      acc.paymentCount += Number(row.paymentCount || 0)
+      return acc
+    }, { dailyTarget: 0, actual: 0, paymentCount: 0 })
+    totals.rate = totals.dailyTarget > 0 ? (totals.actual / totals.dailyTarget) * 100 : 0
+    totals.remark = getCollectionRemark(totals.rate)
+    return totals
+  }
 
   return (
     <div className="dashboard-v2">
@@ -631,72 +657,116 @@ export default function CollectorPerformance() {
                   </div>
                 </div>
 
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="data-table" style={{ margin: 0, border: 'none', minWidth: 1060 }}>
-                    <thead>
-                      <tr>
-                        <th rowSpan={2}>Rating Period</th>
-                        <th colSpan={2} style={{ textAlign: 'center' }}>Target</th>
-                        <th rowSpan={2} style={{ textAlign: 'right' }}>Actual</th>
-                        <th rowSpan={2} style={{ textAlign: 'center' }}>Percentage of Accomplishment</th>
-                        <th rowSpan={2} style={{ textAlign: 'center' }}>Remarks</th>
-                      </tr>
-                      <tr>
-                        <th style={{ textAlign: 'right' }}>Daily</th>
-                        <th style={{ textAlign: 'right' }}>Weekly</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {collectionsLoading ? (
-                        <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>Loading collections...</td></tr>
-                      ) : collectionRows.length ? collectionRows.map(row => {
-                        const remarkStyle = getRemarkStyle(row.remark)
-                        return (
-                          <tr key={`collection-${row.date}`}>
-                            <td>
-                              <div style={{ fontWeight: 900, fontSize: 16 }}>{shortDisplayDate(row.date)}</div>
-                              <div style={{ marginTop: 6, color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.3, textTransform: 'uppercase' }}>Operational Day</div>
-                            </td>
-                            <td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(row.dailyTarget)}</td>
-                            <td style={{ textAlign: 'right', color: '#334155', fontWeight: 900 }}>PHP {fmt(row.weeklyTarget)}</td>
-                            <td style={{ textAlign: 'right', color: row.actual > 0 ? '#0ea5e9' : '#64748b', fontWeight: 900 }}>PHP {fmt(row.actual)}</td>
-                            <td style={{ textAlign: 'center' }}>
-                              <div style={{ color: row.rate >= 85 ? '#059669' : '#e11d48', fontWeight: 900, fontSize: 18 }}>{row.rate.toFixed(2)}%</div>
-                              <div style={{ width: 84, height: 5, borderRadius: 999, background: '#e8edf4', margin: '8px auto 0', overflow: 'hidden' }}>
-                                <div style={{ width: `${Math.min(row.rate, 100)}%`, height: '100%', background: row.rate >= 85 ? '#10b981' : '#e11d48' }} />
-                              </div>
-                            </td>
-                            <td style={{ textAlign: 'center' }}>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 118, padding: '9px 13px', border: `1px solid ${remarkStyle.borderColor}`, borderRadius: 8, fontSize: 11, fontWeight: 900, letterSpacing: 1.1, textTransform: 'uppercase', ...remarkStyle }}>
-                                {row.remark}
-                              </span>
-                            </td>
-                          </tr>
-                        )
-                      }) : (
-                        <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>No collection dates loaded.</td></tr>
-                      )}
-                    </tbody>
-                    {!collectionsLoading && collectionRows.length > 0 && (
-                      <tfoot>
-                        <tr style={{ background: '#0f172a', color: '#fff' }}>
-                          <td style={{ padding: '20px 24px' }}>
-                            <div style={{ color: '#93c5fd', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase' }}>Weekly Summary</div>
-                            <div style={{ marginTop: 6, fontWeight: 900 }}>CONSOLIDATED</div>
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(collectionTotals.dailyTarget)}</td>
-                          <td style={{ textAlign: 'right', color: '#94a3b8', fontWeight: 900 }}>-</td>
-                          <td style={{ textAlign: 'right', color: '#38bdf8', fontWeight: 900 }}>PHP {fmt(collectionTotals.actual)}</td>
-                          <td style={{ textAlign: 'center', fontWeight: 900, fontSize: 18 }}>{collectionTotals.rate.toFixed(2)}%</td>
-                          <td style={{ textAlign: 'center' }}>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 118, padding: '9px 13px', borderRadius: 8, background: collectionFooterRemark === 'ACHIEVED' ? '#10b981' : '#f43f5e', color: '#fff', fontSize: 11, fontWeight: 900, letterSpacing: 1.1, textTransform: 'uppercase' }}>
-                              {collectionFooterRemark}
-                            </span>
-                          </td>
-                        </tr>
-                      </tfoot>
-                    )}
-                  </table>
+                <div style={{ display: 'grid', gap: 18, padding: 24 }}>
+                  {collectionsLoading ? (
+                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>Loading collections...</div>
+                  ) : collectionRows.length ? collectionRows.map(collector => {
+                    const summary = getCollectorCollectionTotals(collector.rows)
+
+                    return (
+                      <div key={`collector-collection-${collector.id}`} style={{
+                        border: '1px solid var(--border)',
+                        borderRadius: 8,
+                        overflow: 'hidden',
+                        background: '#fff',
+                        boxShadow: '0 10px 24px rgba(15, 23, 42, 0.05)'
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: 14,
+                          padding: '18px 20px',
+                          background: '#f8fafc',
+                          borderBottom: '1px solid var(--border)',
+                          flexWrap: 'wrap'
+                        }}>
+                          <div>
+                            <div style={{ fontSize: 18, fontWeight: 900, textTransform: 'uppercase', color: '#0f172a' }}>{collector.name}</div>
+                            <div style={{ marginTop: 4, fontSize: 11, fontWeight: 900, color: '#94a3b8', letterSpacing: 1.2, textTransform: 'uppercase' }}>Collection Performance</div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                            <div style={{ minWidth: 130, padding: '10px 12px', background: '#fff', border: '1px solid var(--border)', borderRadius: 8 }}>
+                              <div style={{ fontSize: 10, fontWeight: 900, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase' }}>Total Target</div>
+                              <div style={{ marginTop: 4, fontWeight: 900 }}>PHP {fmt(summary.dailyTarget)}</div>
+                            </div>
+                            <div style={{ minWidth: 130, padding: '10px 12px', background: '#fff', border: '1px solid var(--border)', borderRadius: 8 }}>
+                              <div style={{ fontSize: 10, fontWeight: 900, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase' }}>Total Actual</div>
+                              <div style={{ marginTop: 4, color: '#0ea5e9', fontWeight: 900 }}>PHP {fmt(summary.actual)}</div>
+                            </div>
+                            <div style={{ minWidth: 120, padding: '10px 12px', background: '#fff', border: '1px solid var(--border)', borderRadius: 8 }}>
+                              <div style={{ fontSize: 10, fontWeight: 900, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase' }}>Accomplishment</div>
+                              <div style={{ marginTop: 4, color: summary.rate >= 85 ? '#059669' : '#e11d48', fontWeight: 900 }}>{summary.rate.toFixed(2)}%</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ overflowX: 'auto' }}>
+                          <table className="data-table" style={{ margin: 0, border: 'none', minWidth: 980 }}>
+                            <thead>
+                              <tr>
+                                <th rowSpan={2}>Rating Period</th>
+                                <th colSpan={2} style={{ textAlign: 'center' }}>Target</th>
+                                <th rowSpan={2} style={{ textAlign: 'right' }}>Actual</th>
+                                <th rowSpan={2} style={{ textAlign: 'center' }}>Percentage of Accomplishment</th>
+                                <th rowSpan={2} style={{ textAlign: 'center' }}>Remarks</th>
+                              </tr>
+                              <tr>
+                                <th style={{ textAlign: 'right' }}>Daily</th>
+                                <th style={{ textAlign: 'right' }}>Weekly</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {collector.rows.map(row => {
+                                const remarkStyle = getRemarkStyle(row.remark)
+                                return (
+                                  <tr key={`collection-${collector.id}-${row.date}`}>
+                                    <td>
+                                      <div style={{ fontWeight: 900, fontSize: 16 }}>{shortDisplayDate(row.date)}</div>
+                                      <div style={{ marginTop: 6, color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.3, textTransform: 'uppercase' }}>Operational Day</div>
+                                    </td>
+                                    <td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(row.dailyTarget)}</td>
+                                    <td style={{ textAlign: 'right', color: '#334155', fontWeight: 900 }}>PHP {fmt(row.weeklyTarget)}</td>
+                                    <td style={{ textAlign: 'right', color: row.actual > 0 ? '#0ea5e9' : '#64748b', fontWeight: 900 }}>PHP {fmt(row.actual)}</td>
+                                    <td style={{ textAlign: 'center' }}>
+                                      <div style={{ color: row.rate >= 85 ? '#059669' : '#e11d48', fontWeight: 900, fontSize: 18 }}>{row.rate.toFixed(2)}%</div>
+                                      <div style={{ width: 84, height: 5, borderRadius: 999, background: '#e8edf4', margin: '8px auto 0', overflow: 'hidden' }}>
+                                        <div style={{ width: `${Math.min(row.rate, 100)}%`, height: '100%', background: row.rate >= 85 ? '#10b981' : '#e11d48' }} />
+                                      </div>
+                                    </td>
+                                    <td style={{ textAlign: 'center' }}>
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 118, padding: '9px 13px', border: `1px solid ${remarkStyle.borderColor}`, borderRadius: 8, fontSize: 11, fontWeight: 900, letterSpacing: 1.1, textTransform: 'uppercase', ...remarkStyle }}>
+                                        {row.remark}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                            <tfoot>
+                              <tr style={{ background: '#0f172a', color: '#fff' }}>
+                                <td style={{ padding: '18px 20px' }}>
+                                  <div style={{ color: '#93c5fd', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase' }}>Weekly Summary</div>
+                                  <div style={{ marginTop: 6, fontWeight: 900 }}>CONSOLIDATED</div>
+                                </td>
+                                <td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(summary.dailyTarget)}</td>
+                                <td style={{ textAlign: 'right', color: '#94a3b8', fontWeight: 900 }}>-</td>
+                                <td style={{ textAlign: 'right', color: '#38bdf8', fontWeight: 900 }}>PHP {fmt(summary.actual)}</td>
+                                <td style={{ textAlign: 'center', fontWeight: 900, fontSize: 18 }}>{summary.rate.toFixed(2)}%</td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 118, padding: '9px 13px', borderRadius: 8, color: '#fff', fontSize: 11, fontWeight: 900, letterSpacing: 1.1, textTransform: 'uppercase', background: summary.remark === 'ACHIEVED' ? '#10b981' : summary.remark === 'ON TRACK' ? '#2563eb' : '#f43f5e' }}>
+                                    {summary.remark}
+                                  </span>
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      </div>
+                    )
+                  }) : (
+                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>No collection dates loaded.</div>
+                  )}
                 </div>
               </div>
             )}
