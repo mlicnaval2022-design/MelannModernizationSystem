@@ -504,9 +504,10 @@ export default function CollectorPerformance() {
   const selectedNewClientPrincipal = selectedCollection?.rows.reduce((sum, row) => sum + Number(row.newClientPrincipal || 0), 0) || 0
   const selectedReturnClients = Number(selectedEdit.returnClients ?? 0)
   const selectedReconClients = Number(selectedEdit.reconClients ?? selectedCollection?.rows.reduce((sum, row) => sum + Number(row.reconClients || 0), 0) ?? 0)
-  const selectedEndingBalance = selectedLatestRow
-    ? Math.max(0, selectedActiveTarget + selectedNewClients - selectedReconClients)
+  const selectedBeginningActive = selectedLatestRow
+    ? Number(selectedLatestRow.activeClients || 0) + Number(selectedLatestRow.overdueClients || 0)
     : 0
+  const selectedEndingBalance = selectedBeginningActive
   const selectedInsight = selectedCollection && selectedSummary
     ? getGeneratedCollectionInsight(selectedCollection.name, selectedCollection.rows, selectedSummary)
     : null
@@ -613,7 +614,7 @@ export default function CollectorPerformance() {
           const reconClients = Number(edit.reconClients ?? collector.rows.reduce((sum, row) => sum + Number(row.reconClients || 0), 0))
           const activeTarget = 100
           const beginningActive = Number(firstRow.activeClients || 0) + Number(firstRow.overdueClients || 0)
-          const endingBalance = Math.max(0, activeTarget + newClients + returnClients - reconClients)
+          const endingBalance = beginningActive
           const lacking = Math.max(0, activeTarget - endingBalance)
           const insight = getGeneratedCollectionInsight(edit.fullName || collector.name, collector.rows, summary)
           return (
@@ -1035,7 +1036,7 @@ export default function CollectorPerformance() {
                           </thead>
                           <tbody>
                             <tr>
-                              <td style={{ textAlign: 'center', fontWeight: 900 }}>{countFmt(selectedLatestRow.activeClients + selectedLatestRow.overdueClients)}</td>
+                              <td style={{ textAlign: 'center', fontWeight: 900 }}>{countFmt(selectedBeginningActive)}</td>
                               <td style={{ textAlign: 'center', color: '#2563eb', fontWeight: 900 }}>{countFmt(selectedNewClients)}</td>
                               <td style={{ textAlign: 'center', fontWeight: 900 }}>
                                 <input
