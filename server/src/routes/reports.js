@@ -78,6 +78,40 @@ const ensureCollectionFieldReleaseTable = () => dbRun(`
   )
 `);
 
+const ensureExpensesReportTables = async () => {
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS tblExpensePersonnel (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_name TEXT NOT NULL,
+      position TEXT,
+      status TEXT DEFAULT 'active',
+      created_by INTEGER,
+      updated_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS tblEmployeeExpense (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      personnel_id INTEGER NOT NULL,
+      expense_date TEXT NOT NULL,
+      category TEXT,
+      description TEXT,
+      amount REAL NOT NULL DEFAULT 0,
+      remarks TEXT,
+      status TEXT DEFAULT 'active',
+      created_by INTEGER,
+      updated_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (personnel_id) REFERENCES tblExpensePersonnel(id)
+    )
+  `);
+};
+
+const normalizeExpenseStatus = value => String(value || 'active').toLowerCase() === 'inactive' ? 'inactive' : 'active';
+
 const getPreviousOperationDate = (dateValue) => {
   const date = new Date(`${dateValue}T00:00:00`);
 
@@ -156,6 +190,201 @@ router.post('/collection-sheet/field-releases', authenticateToken, async (req, r
     }
 
     res.json({ message: 'Field release amounts saved', date: targetDate });
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.get('/expenses/personnel', authenticateToken, async (req, res) => {
+  try {
+    await ensureExpensesReportTables();
+    const rows = await dbAll(`
+      SELECT id, employee_name, position, status, created_at, updated_at
+      FROM tblExpensePersonnel
+      ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, employee_name COLLATE NOCASE
+    `);
+    res.json(rows);
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.post('/expenses/personnel', authenticateToken, async (req, res) => {
+  try {
+    await ensureExpensesReportTables();
+    const employeeName = String(req.body.employee_name || '').trim();
+    if (!employeeName) return res.status(400).json({ error: 'Employee name is required' });
+
+    const result = await dbRun(`
+      INSERT INTO tblExpensePersonnel (employee_name, position, status, created_by, updated_by)
+      VALUES (?, ?, ?, ?, ?)
+    `, [employeeName, req.body.position || null, normalizeExpenseStatus(req.body.status), req.user.id, req.user.id]);
+
+    const row = await dbGet(`SELECT * FROM tblExpensePersonnel WHERE id = ?`, [result.lastID]);
+    res.status(201).json(row);
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.put('/expenses/personnel/:id', authenticateToken, async (req, res) => {
+  try {
+    await ensureExpensesReportTables();
+    const employeeName = String(req.body.employee_name || '').trim();
+    if (!employeeName) return res.status(400).json({ error: 'Employee name is required' });
+
+    const result = await dbRun(`
+      UPDATE tblExpensePersonnel
+      SET employee_name = ?, position = ?, status = ?, updated_by = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `, [employeeName, req.body.position || null, normalizeExpenseStatus(req.body.status), req.user.id, req.params.id]);
+    if (!result.changes) return res.status(404).json({ error: 'Personnel not found' });
+
+    const row = await dbGet(`SELECT * FROM tblExpensePersonnel WHERE id = ?`, [req.params.id]);
+    res.json(row);
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.get('/expenses/entries', authenticateToken, async (req, res) => {
+  try {
+    await ensureExpensesReportTables();
+    const dateFrom = req.query.date_from || '';
+    const dateTo = req.query.date_to || '';
+    const params = [];
+    const filters = [`ee.status = 'active'`];
+    if (dateFrom) { filters.push(`date(ee.expense_date) >= date(?)`); params.push(dateFrom); }
+    if (dateTo) { filters.push(`date(ee.expense_date) <= date(?)`); params.push(dateTo); }
+    if (req.query.personnel_id) { filters.push(`ee.personnel_id = ?`); params.push(req.query.personnel_id); }
+
+    const entries = await dbAll(`
+      SELECT ee.*, ep.employee_name, ep.position
+      FROM tblEmployeeExpense ee
+      JOIN tblExpensePersonnel ep ON ep.id = ee.personnel_id
+      WHERE ${filters.join(' AND ')}
+      ORDER BY date(ee.expense_date) DESC, ep.employee_name COLLATE NOCASE, ee.id DESC
+    `, params);
+    res.json(entries);
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.post('/expenses/entries', authenticateToken, async (req, res) => {
+  try {
+    await ensureExpensesReportTables();
+    const personnelId = Number(req.body.personnel_id);
+    const expenseDate = req.body.expense_date || toLocalDateString();
+    const amount = Number(req.body.amount || 0);
+    if (!personnelId) return res.status(400).json({ error: 'Employee is required' });
+    if (!expenseDate) return res.status(400).json({ error: 'Expense date is required' });
+    if (!(amount > 0)) return res.status(400).json({ error: 'Amount must be greater than zero' });
+
+    const personnel = await dbGet(`SELECT id FROM tblExpensePersonnel WHERE id = ?`, [personnelId]);
+    if (!personnel) return res.status(404).json({ error: 'Employee not found' });
+
+    const result = await dbRun(`
+      INSERT INTO tblEmployeeExpense (personnel_id, expense_date, category, description, amount, remarks, created_by, updated_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `, [personnelId, expenseDate, req.body.category || null, req.body.description || null, amount, req.body.remarks || null, req.user.id, req.user.id]);
+
+    const row = await dbGet(`
+      SELECT ee.*, ep.employee_name, ep.position
+      FROM tblEmployeeExpense ee
+      JOIN tblExpensePersonnel ep ON ep.id = ee.personnel_id
+      WHERE ee.id = ?
+    `, [result.lastID]);
+    res.status(201).json(row);
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.put('/expenses/entries/:id', authenticateToken, async (req, res) => {
+  try {
+    await ensureExpensesReportTables();
+    const personnelId = Number(req.body.personnel_id);
+    const expenseDate = req.body.expense_date || toLocalDateString();
+    const amount = Number(req.body.amount || 0);
+    if (!personnelId) return res.status(400).json({ error: 'Employee is required' });
+    if (!(amount > 0)) return res.status(400).json({ error: 'Amount must be greater than zero' });
+
+    const result = await dbRun(`
+      UPDATE tblEmployeeExpense
+      SET personnel_id = ?, expense_date = ?, category = ?, description = ?, amount = ?, remarks = ?, updated_by = ?, updated_at = datetime('now')
+      WHERE id = ? AND status = 'active'
+    `, [personnelId, expenseDate, req.body.category || null, req.body.description || null, amount, req.body.remarks || null, req.user.id, req.params.id]);
+    if (!result.changes) return res.status(404).json({ error: 'Expense entry not found' });
+
+    const row = await dbGet(`
+      SELECT ee.*, ep.employee_name, ep.position
+      FROM tblEmployeeExpense ee
+      JOIN tblExpensePersonnel ep ON ep.id = ee.personnel_id
+      WHERE ee.id = ?
+    `, [req.params.id]);
+    res.json(row);
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.delete('/expenses/entries/:id', authenticateToken, async (req, res) => {
+  try {
+    await ensureExpensesReportTables();
+    const result = await dbRun(`
+      UPDATE tblEmployeeExpense
+      SET status = 'deleted', updated_by = ?, updated_at = datetime('now')
+      WHERE id = ? AND status = 'active'
+    `, [req.user.id, req.params.id]);
+    if (!result.changes) return res.status(404).json({ error: 'Expense entry not found' });
+    res.json({ message: 'Expense entry deleted' });
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.get('/expenses/summary', authenticateToken, async (req, res) => {
+  try {
+    await ensureExpensesReportTables();
+    const dateFrom = req.query.date_from || '';
+    const dateTo = req.query.date_to || '';
+    const params = [];
+    const filters = [`ee.status = 'active'`];
+    if (dateFrom) { filters.push(`date(ee.expense_date) >= date(?)`); params.push(dateFrom); }
+    if (dateTo) { filters.push(`date(ee.expense_date) <= date(?)`); params.push(dateTo); }
+    const whereSql = filters.join(' AND ');
+
+    const [overall, byEmployee, byCategory, recent] = await Promise.all([
+      dbGet(`
+        SELECT COALESCE(SUM(amount), 0) as total_amount, COUNT(*) as expense_count
+        FROM tblEmployeeExpense ee
+        WHERE ${whereSql}
+      `, params),
+      dbAll(`
+        SELECT ep.id as personnel_id, ep.employee_name, ep.position,
+               COALESCE(SUM(ee.amount), 0) as total_amount,
+               COUNT(ee.id) as expense_count
+        FROM tblExpensePersonnel ep
+        LEFT JOIN tblEmployeeExpense ee
+          ON ee.personnel_id = ep.id
+         AND ${whereSql}
+        WHERE ep.status = 'active'
+        GROUP BY ep.id
+        ORDER BY total_amount DESC, ep.employee_name COLLATE NOCASE
+      `, params),
+      dbAll(`
+        SELECT COALESCE(NULLIF(TRIM(category), ''), 'Uncategorized') as category,
+               COALESCE(SUM(amount), 0) as total_amount,
+               COUNT(*) as expense_count
+        FROM tblEmployeeExpense ee
+        WHERE ${whereSql}
+        GROUP BY COALESCE(NULLIF(TRIM(category), ''), 'Uncategorized')
+        ORDER BY total_amount DESC
+      `, params),
+      dbAll(`
+        SELECT ee.*, ep.employee_name, ep.position
+        FROM tblEmployeeExpense ee
+        JOIN tblExpensePersonnel ep ON ep.id = ee.personnel_id
+        WHERE ${whereSql}
+        ORDER BY date(ee.expense_date) DESC, ee.id DESC
+        LIMIT 10
+      `, params),
+    ]);
+
+    res.json({
+      date_from: dateFrom,
+      date_to: dateTo,
+      total_amount: Number(overall?.total_amount || 0),
+      expense_count: Number(overall?.expense_count || 0),
+      by_employee: byEmployee,
+      by_category: byCategory,
+      recent_expenses: recent,
+    });
   } catch (err) { sendRouteError(res, err); }
 });
 
