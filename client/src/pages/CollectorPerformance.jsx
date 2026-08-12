@@ -685,12 +685,49 @@ export default function CollectorPerformance() {
                 </tbody>
               </table>
 
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, marginBottom: 10, textAlign: 'center' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, marginBottom: 10, textAlign: 'center', tableLayout: 'fixed' }}>
                 <tbody>
-                  <tr><th colSpan={11} style={{ border: '1px solid #000', padding: 5, textDecoration: 'underline' }}>MARKETING PERFORMANCE</th></tr>
-                  <tr><td colSpan={6} style={{ border: '1px solid #000', padding: 5 }}>Target of Active Clients (<span style={{ color: '#ef4444' }}>{activeTarget}</span>)</td><td colSpan={5} style={{ border: '1px solid #000', padding: 5 }}>Total Amount of Release (from New Clients)</td></tr>
-                  <tr><td style={{ border: '1px solid #000', padding: 5 }}>Beginning<br />Active</td><td style={{ border: '1px solid #000', padding: 5 }}>New Client/<br />Return client</td><td style={{ border: '1px solid #000', padding: 5 }}>Relax/On<br />Hold/Recon</td><td style={{ border: '1px solid #000', padding: 5 }}>Ending<br />Balance</td><td style={{ border: '1px solid #000', padding: 5 }}>Lacking No of<br />Clients</td><td style={{ border: '1px solid #000', padding: 5 }}></td><td style={{ border: '1px solid #000', padding: 5 }}>Beg. Bal.</td><td style={{ border: '1px solid #000', padding: 5 }}>This Week</td><td style={{ border: '1px solid #000', padding: 5 }}>Ending Balance</td></tr>
-                  <tr><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>{countFmt(beginningActive)}</td><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>{countFmt(newClients + returnClients)}</td><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>{countFmt(reconClients)}</td><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>{countFmt(endingBalance)}</td><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800, color: '#ef4444' }}>{countFmt(lacking)}</td><td style={{ border: '1px solid #000' }}></td><td style={{ border: '1px solid #000', padding: 5 }}>{printAmount(summary.dailyTarget)}</td><td style={{ border: '1px solid #000', padding: 5 }}>{printAmount(newPrincipal)}</td><td style={{ border: '1px solid #000', padding: 5 }}>{printAmount(Math.max(0, summary.dailyTarget - newPrincipal))}</td></tr>
+                  <tr><th colSpan={2} style={{ border: '1px solid #000', padding: 5, textDecoration: 'underline' }}>MARKETING PERFORMANCE</th></tr>
+                  <tr>
+                    <td style={{ border: '1px solid #000', padding: 0, width: '58%', verticalAlign: 'top' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                        <tbody>
+                          <tr><td colSpan={5} style={{ borderBottom: '1px solid #000', padding: 5 }}>Target of Active Clients (<span style={{ color: '#ef4444' }}>{activeTarget}</span>)</td></tr>
+                          <tr>
+                            <td style={{ borderRight: '1px solid #000', borderBottom: '1px solid #000', padding: 5 }}>Beginning<br />Active</td>
+                            <td style={{ borderRight: '1px solid #000', borderBottom: '1px solid #000', padding: 5 }}>New Client/<br />Return client</td>
+                            <td style={{ borderRight: '1px solid #000', borderBottom: '1px solid #000', padding: 5 }}>Relax/On<br />Hold/Recon</td>
+                            <td style={{ borderRight: '1px solid #000', borderBottom: '1px solid #000', padding: 5 }}>Ending<br />Balance</td>
+                            <td style={{ borderBottom: '1px solid #000', padding: 5 }}>Lacking No of<br />Clients</td>
+                          </tr>
+                          <tr>
+                            <td style={{ borderRight: '1px solid #000', padding: 5, fontWeight: 800 }}>{countFmt(beginningActive)}</td>
+                            <td style={{ borderRight: '1px solid #000', padding: 5, fontWeight: 800 }}>{countFmt(newClients + returnClients)}</td>
+                            <td style={{ borderRight: '1px solid #000', padding: 5, fontWeight: 800 }}>{countFmt(reconClients)}</td>
+                            <td style={{ borderRight: '1px solid #000', padding: 5, fontWeight: 800 }}>{countFmt(endingBalance)}</td>
+                            <td style={{ padding: 5, fontWeight: 800, color: '#ef4444' }}>{countFmt(lacking)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </td>
+                    <td style={{ border: '1px solid #000', padding: 0, width: '42%', verticalAlign: 'top' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                        <tbody>
+                          <tr><td colSpan={3} style={{ borderBottom: '1px solid #000', padding: 5 }}>Total Amount of Release (from New Clients)</td></tr>
+                          <tr>
+                            <td style={{ borderRight: '1px solid #000', borderBottom: '1px solid #000', padding: 5 }}>Beg. Bal.</td>
+                            <td style={{ borderRight: '1px solid #000', borderBottom: '1px solid #000', padding: 5 }}>This Week</td>
+                            <td style={{ borderBottom: '1px solid #000', padding: 5 }}>Ending Balance</td>
+                          </tr>
+                          <tr>
+                            <td style={{ borderRight: '1px solid #000', padding: 5 }}>{printAmount(summary.dailyTarget)}</td>
+                            <td style={{ borderRight: '1px solid #000', padding: 5 }}>{printAmount(newPrincipal)}</td>
+                            <td style={{ padding: 5 }}>{printAmount(Math.max(0, summary.dailyTarget - newPrincipal))}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
                 </tbody>
               </table>
 
