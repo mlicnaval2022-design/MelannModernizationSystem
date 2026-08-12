@@ -249,6 +249,17 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
     return !['cancelled', 'canceled', 'void', 'reversed', 'bad', 'bounced', 'penalty'].includes(statusText);
   };
 
+  const formatAccountabilityUser = (value) => {
+    const name = String(value || '').trim();
+    if (!name) return '-';
+    return name
+      .replace(/[._-]+/g, ' ')
+      .toLowerCase()
+      .replace(/\b[a-z]/g, letter => letter.toUpperCase());
+  };
+  const getLoanUserName = (loan) => formatAccountabilityUser(loan?.created_by_username || loan?.created_by_name);
+  const getPaymentUserName = (payment) => formatAccountabilityUser(payment?.encoded_by_username || payment?.encoded_by_name);
+
   const getPaymentHistoryRows = (loan) => {
     const direction = paymentHistoryDateSort === 'asc' ? 1 : -1;
     return (soaData?.payments || [])
@@ -1323,6 +1334,7 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                                   <th>Amortization</th>
                                   <th>Balance</th>
                                   <th>Status</th>
+                                  <th>User</th>
                                   <th>Actions</th>
                                 </tr>
                               </thead>
@@ -1345,6 +1357,7 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                                     <td>{formatPhp(l.amortization)}</td>
                                     <td>{formatPhp(l.balance)}</td>
                                     <td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td>
+                                    <td style={{ fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>{getLoanUserName(l)}</td>
                                     <td>
                                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                         <button className="action-btn" style={{ borderColor: '#bfdbfe', color: '#2563eb', background: '#eff6ff' }} onClick={(e) => { e.stopPropagation(); setEditLoanError(null); setEditLoanModal({ ...l, __original: { ...l } }); }}><i className="bi bi-pencil"></i> Edit</button>
@@ -1646,6 +1659,7 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENT CODE</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENTS</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>RUNNING BALANCE</th>
+                              <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>USER</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>OFFICIAL RECEIPT NO.</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENT TYPE</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>STATUS</th>
@@ -1666,6 +1680,7 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                                   </td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: isReversed ? '#94a3b8' : '#0f172a', textDecoration: isReversed ? 'line-through' : 'none' }}>{formatPhp(p.amount_paid)}</td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: isReversed ? '#94a3b8' : '#0f172a', textDecoration: isReversed ? 'line-through' : 'none' }}>{formatPhp(p.balance_after)}</td>
+                                  <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '600', color: isReversed ? '#94a3b8' : '#475569', textDecoration: isReversed ? 'line-through' : 'none', whiteSpace: 'nowrap' }}>{getPaymentUserName(p)}</td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', color: isReversed ? '#94a3b8' : '#64748b', textDecoration: isReversed ? 'line-through' : 'none' }}>{p.or_number || '-'}</td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', color: isReversed ? '#94a3b8' : '#64748b', textDecoration: isReversed ? 'line-through' : 'none' }}>{p.payment_type || p.or_type || '-'}</td>
                                   <td style={{ padding: '16px 24px' }}>

@@ -70,6 +70,8 @@ const getFollowUpDate = (dateReceived, demandType) => {
 }
 
 const getDemandStatus = (row) => {
+  const storedStatus = String(row?.status || '').trim()
+  if (storedStatus.toLowerCase().startsWith('settled(') || storedStatus === 'Closed') return storedStatus
   if (!row?.date_received) return 'Pending'
   const followUpDate = parseLocalDate(row.follow_up_date)
   const today = parseLocalDate(toDateInputValue(new Date()))
@@ -77,7 +79,66 @@ const getDemandStatus = (row) => {
   return '2nd Demand on Process'
 }
 
-const getStatusClassName = (status) => `status-${String(status || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+const getStatusClassName = (status) => `status-${String(status || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`
+
+function MultiSelectFilter({ label, icon = null, allLabel, options, selectedValues, onChange }) {
+  const [open, setOpen] = useState(false)
+
+  const selectedSet = useMemo(() => new Set(selectedValues), [selectedValues])
+  const selectedLabel = selectedValues.length === 0
+    ? allLabel
+    : selectedValues.length === 1
+      ? selectedValues[0]
+      : `${selectedValues.length} selected`
+
+  const toggleValue = (value) => {
+    onChange(selectedSet.has(value)
+      ? selectedValues.filter(item => item !== value)
+      : [...selectedValues, value])
+  }
+
+  return (
+    <div className="filter-group demand-multiselect-filter">
+      <label>{icon}{label}:</label>
+      <div className="demand-multiselect" onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
+      }}>
+        <button
+          type="button"
+          className={`filter-select demand-multiselect-trigger${open ? ' open' : ''}`}
+          onClick={() => setOpen(prev => !prev)}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+        >
+          <span>{selectedLabel}</span>
+          <ChevronDown size={14} />
+        </button>
+        {open && (
+          <div className="demand-multiselect-menu" role="listbox" aria-multiselectable="true" tabIndex={-1}>
+            <label className="demand-multiselect-option">
+              <input
+                type="checkbox"
+                checked={selectedValues.length === 0}
+                onChange={() => onChange([])}
+              />
+              <span>{allLabel}</span>
+            </label>
+            {options.map(option => (
+              <label className="demand-multiselect-option" key={option}>
+                <input
+                  type="checkbox"
+                  checked={selectedSet.has(option)}
+                  onChange={() => toggleValue(option)}
+                />
+                <span>{option}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 
 const formatDateLong = (value) => {
@@ -128,9 +189,9 @@ const getLoanPayments = (loan, payments) => (payments || [])
   .filter(p => p.paidDate)
   .sort((a, b) => a.paidDate - b.paidDate)
 
-const getPenaltyComputation = (loan, payments) => {
+const getPenaltyComputation = (loan, payments, asOfDate) => {
   const dueDate = parseLocalDate(loan?.date_maturity)
-  const datePrepared = new Date()
+  const datePrepared = parseLocalDate(asOfDate) || new Date()
   const principal = Number(loan?.principal || 0)
   const interestAmount = Number(loan?.interest_amount || 0)
   const registeredOutstanding = Number(loan?.total_amortization || 0) || principal + interestAmount || Number(loan?.balance || 0)
@@ -234,7 +295,7 @@ const formatClientName = (customer) => {
   return fullName.toUpperCase()
 }
 
-function DemandLetterSheet({ type, customer, loan, computation }) {
+function DemandLetterSheet({ type, customer, loan, computation, previousDemand }) {
   const fullName = formatClientName(customer)
   const addressParts = buildAddressParts(customer)
   const today = computation?.datePrepared || new Date()
@@ -242,6 +303,7 @@ function DemandLetterSheet({ type, customer, loan, computation }) {
   const runningBalance = computation?.runningBalance || 0
   const penaltyCharges = computation?.totalPenalty || 0
   const totalDue = computation?.updatedAmountDue || 0
+  const previousDemandReceivedDate = previousDemand?.date_received || ''
 
   return (
     <div id="printable-area" className="demand-letter-sheet">
@@ -285,7 +347,7 @@ function DemandLetterSheet({ type, customer, loan, computation }) {
             <p>
               This letter serves as our Second Demand Letter regarding your overdue loan with Melann Lending Investor
               Corporation under Loan Account No. <u>{loan?.loan_code || '-'}</u>, which remains unsettled despite our first
-              demand letter dated <u>{formatDateLong(today)}</u>.
+              demand letter dated <u>{formatDateLong(previousDemandReceivedDate)}</u>.
             </p>
 
             <p>
@@ -385,11 +447,13 @@ export default function DemandLetter() {
   const [type, setType] = useState(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [courier, setCourier] = useState('Field Personnel')
+  const [asOfDate, setAsOfDate] = useState(toDateInputValue(new Date()))
   const [search, setSearch] = useState('')
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [selectedLoan, setSelectedLoan] = useState(null)
+  const [previousDemand, setPreviousDemand] = useState(null)
   const [payments, setPayments] = useState([])
   const [error, setError] = useState('')
   const [monitoringType, setMonitoringType] = useState('first')
@@ -403,12 +467,14 @@ export default function DemandLetter() {
   const [demandUpdatesError, setDemandUpdatesError] = useState('')
   const [savingRecord, setSavingRecord] = useState(false)
   const [successModal, setSuccessModal] = useState(null)
+  const [errorModal, setErrorModal] = useState(null)
   const [receivedModal, setReceivedModal] = useState(null)
   const [deleteModal, setDeleteModal] = useState(null)
 
-  const [courierFilter, setCourierFilter] = useState('')
-  const [collectorFilter, setCollectorFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [courierFilter, setCourierFilter] = useState([])
+  const [collectorFilter, setCollectorFilter] = useState([])
+  const [statusFilter, setStatusFilter] = useState([])
+  const [monitoringSearch, setMonitoringSearch] = useState('')
   const [sortField, setSortField] = useState('date_generated')
   const [sortOrder, setSortOrder] = useState('desc')
 
@@ -439,14 +505,28 @@ export default function DemandLetter() {
   const filteredAndSortedRows = useMemo(() => {
     let result = [...monitoringRows]
 
-    if (courierFilter) {
-      result = result.filter(r => String(r.courier || '').trim().toLowerCase() === courierFilter.toLowerCase())
+    if (courierFilter.length > 0) {
+      const courierSet = new Set(courierFilter.map(value => value.toLowerCase()))
+      result = result.filter(r => courierSet.has(String(r.courier || '').trim().toLowerCase()))
     }
-    if (collectorFilter) {
-      result = result.filter(r => String(r.collector_name || '').trim().toLowerCase() === collectorFilter.toLowerCase())
+    if (collectorFilter.length > 0) {
+      const collectorSet = new Set(collectorFilter.map(value => value.toLowerCase()))
+      result = result.filter(r => collectorSet.has(String(r.collector_name || '').trim().toLowerCase()))
     }
-    if (statusFilter) {
-      result = result.filter(r => getDemandStatus(r) === statusFilter)
+    if (statusFilter.length > 0) {
+      const statusSet = new Set(statusFilter)
+      result = result.filter(r => statusSet.has(getDemandStatus(r)))
+    }
+    if (monitoringSearch.trim()) {
+      const query = monitoringSearch.trim().toLowerCase()
+      result = result.filter(r => [
+        r.client_name,
+        r.loan_code,
+        r.collector_name,
+        r.courier,
+        r.remarks,
+        getDemandStatus(r),
+      ].some(value => String(value || '').toLowerCase().includes(query)))
     }
 
     if (sortField) {
@@ -475,7 +555,7 @@ export default function DemandLetter() {
     }
 
     return result
-  }, [monitoringRows, courierFilter, collectorFilter, statusFilter, sortField, sortOrder])
+  }, [monitoringRows, courierFilter, collectorFilter, statusFilter, monitoringSearch, sortField, sortOrder])
 
   useEffect(() => {
     const query = search.trim()
@@ -498,16 +578,44 @@ export default function DemandLetter() {
     return () => clearTimeout(timer)
   }, [search])
 
-  const computation = useMemo(() => getPenaltyComputation(selectedLoan, payments), [selectedLoan, payments])
+  const computation = useMemo(() => getPenaltyComputation(selectedLoan, payments, asOfDate), [selectedLoan, payments, asOfDate])
+
+  useEffect(() => {
+    const previousType = type === 'second' ? 'first' : type === 'third' ? 'second' : ''
+    if (!previousType || !selectedCustomer || !selectedLoan) {
+      setPreviousDemand(null)
+      return
+    }
+
+    let cancelled = false
+    API.get('/demand-letters/previous-received', {
+      params: {
+        type: previousType,
+        customer_id: selectedCustomer.id,
+        loan_id: selectedLoan.id,
+        loan_code: selectedLoan.loan_code || '',
+      }
+    })
+      .then(res => {
+        if (!cancelled) setPreviousDemand(res.data || null)
+      })
+      .catch(() => {
+        if (!cancelled) setPreviousDemand(null)
+      })
+
+    return () => { cancelled = true }
+  }, [type, selectedCustomer, selectedLoan])
 
   const loadDemandUpdates = async () => {
     setDemandUpdatesLoading(true)
     setDemandUpdatesError('')
     try {
       const res = await API.get('/demand-letters/notifications')
-      setDemandUpdates(res.data.notifications || [])
-      setDemandUpdateCount(Number(res.data.count || 0))
-      setDemandTodayCount(Number(res.data.today_count || 0))
+      const activeNotifications = (res.data.notifications || [])
+        .filter(row => !String(row.status || '').trim().toLowerCase().startsWith('settled('))
+      setDemandUpdates(activeNotifications)
+      setDemandUpdateCount(activeNotifications.length)
+      setDemandTodayCount(activeNotifications.filter(row => String(row.follow_up_date || '').slice(0, 10) === toDateInputValue(new Date())).length)
     } catch (err) {
       setDemandUpdatesError(err.response?.data?.error || 'Failed to load demand updates')
     } finally {
@@ -544,6 +652,7 @@ export default function DemandLetter() {
     setError('')
     setSelectedCustomer(null)
     setSelectedLoan(null)
+    setPreviousDemand(null)
     setPayments([])
     try {
       const res = await API.get(`/customers/${row.id}`)
@@ -572,6 +681,7 @@ export default function DemandLetter() {
       beginning_overdue: computation.beginningOverdueBalance,
       penalty_charges: computation.totalPenalty,
       total_amount_due: computation.updatedAmountDue,
+      date_generated: asOfDate || toDateInputValue(computation.datePrepared),
       courier,
       status: 'Pending',
     })
@@ -592,7 +702,15 @@ export default function DemandLetter() {
         message: `${DEMAND_TYPES[type].label} for ${saved?.client_name || formatClientName(selectedCustomer)} has been saved to Monitoring.`,
       })
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to save demand letter transaction')
+      const message = err.response?.data?.error || 'Failed to save demand letter transaction'
+      if (err.response?.status === 409 || err.response?.data?.is_ongoing_demand) {
+        setErrorModal({
+          title: 'Cannot Save Demand Letter',
+          message,
+        })
+      } else {
+        setError(message)
+      }
     } finally {
       setSavingRecord(false)
     }
@@ -851,23 +969,28 @@ export default function DemandLetter() {
           {error && <div className="login-error">{error}</div>}
           {loading && <div className="text-muted">Searching clients...</div>}
 
-          {results.length > 0 && (
-            <div className="card demand-letter-results">
-              {results.map(row => (
-                <button
-                  key={row.id}
-                  className={`demand-client-row${selectedCustomer?.id === row.id ? ' active' : ''}`}
-                  onClick={() => handleSelectCustomer(row)}
-                >
-                  <span className="mono">{row.customer_code}</span>
-                  <strong>{row.full_name}</strong>
-                  <span>{row.display_status || row.status || '-'}</span>
-                </button>
-              ))}
-            </div>
-          )}
-
           <div className="demand-letter-stage">
+            <div className="card demand-letter-results demand-letter-generated-list">
+              <div className="demand-generated-title">Generated</div>
+              {results.length > 0 ? (
+                results.map(row => (
+                  <button
+                    key={row.id}
+                    className={`demand-client-row${selectedCustomer?.id === row.id ? ' active' : ''}`}
+                    onClick={() => handleSelectCustomer(row)}
+                  >
+                    <span className="mono">{row.customer_code}</span>
+                    <strong>{row.full_name}</strong>
+                    <span>{row.display_status || row.status || '-'}</span>
+                  </button>
+                ))
+              ) : (
+                <div className="empty-state demand-generated-empty">
+                  {search.trim() ? 'No generated client found.' : 'Search and generate a demand letter.'}
+                </div>
+              )}
+            </div>
+
             <div className="demand-letter-preview-wrap">
               {type ? (
                 <DemandLetterSheet
@@ -875,6 +998,7 @@ export default function DemandLetter() {
                   customer={selectedCustomer}
                   loan={selectedLoan}
                   computation={computation}
+                  previousDemand={previousDemand}
                 />
               ) : (
                 <div className="demand-letter-empty">Click Generate and choose a demand letter format.</div>
@@ -895,7 +1019,15 @@ export default function DemandLetter() {
                     <div className="demand-detail-item"><span>Collector</span><strong>{selectedLoan?.collector_name || selectedCustomer?.collector_name || '-'}</strong></div>
                     <div className="demand-detail-item"><span>Loan Account No.</span><strong>{selectedLoan?.loan_code || '-'}</strong></div>
                     <div className="demand-detail-item"><span>Maturity Date</span><strong>{formatDateLong(selectedLoan?.date_maturity)}</strong></div>
-                    <div className="demand-detail-item"><span>As of Date</span><strong>{formatDateLong(computation.datePrepared)}</strong></div>
+                    <div className="demand-detail-item demand-asof-field">
+                      <span>As of Date</span>
+                      <input
+                        type="date"
+                        className="form-control"
+                        value={asOfDate}
+                        onChange={e => setAsOfDate(e.target.value)}
+                      />
+                    </div>
                     <div className="demand-detail-item"><span>Running Balance</span><strong>{formatPhp(computation.runningBalance)}</strong></div>
                     <div className="demand-detail-item"><span>Penalty Charges</span><strong>{formatPhp(computation.totalPenalty)}</strong></div>
                     <div className="demand-detail-item"><span>Total Amount Due</span><strong>{formatPhp(computation.updatedAmountDue)}</strong></div>
@@ -951,37 +1083,52 @@ export default function DemandLetter() {
 
 
           <div className="demand-monitoring-filter-bar">
-            <div className="filter-group">
-              <label><Filter size={13} style={{ display: 'inline', marginRight: 4 }} /> Courrier:</label>
-              <select className="filter-select" value={courierFilter} onChange={e => setCourierFilter(e.target.value)}>
-                <option value="">All Courriers</option>
-                {uniqueCouriers.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+            <div className="filter-group demand-monitoring-search-group">
+              <label><Search size={13} style={{ display: 'inline', marginRight: 4 }} /> Search:</label>
+              <div className="demand-monitoring-search-wrap">
+                <Search className="search-icon" size={14} />
+                <input
+                  className="form-control demand-monitoring-search-input"
+                  value={monitoringSearch}
+                  onChange={e => setMonitoringSearch(e.target.value)}
+                  placeholder="Client name, loan code, collector..."
+                />
+              </div>
             </div>
 
-            <div className="filter-group">
-              <label>Collector:</label>
-              <select className="filter-select" value={collectorFilter} onChange={e => setCollectorFilter(e.target.value)}>
-                <option value="">All Collectors</option>
-                {uniqueCollectors.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
+            <MultiSelectFilter
+              label="Courrier"
+              icon={<Filter size={13} style={{ display: 'inline', marginRight: 4 }} />}
+              allLabel="All Courriers"
+              options={uniqueCouriers}
+              selectedValues={courierFilter}
+              onChange={setCourierFilter}
+            />
 
-            <div className="filter-group">
-              <label>Status:</label>
-              <select className="filter-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-                <option value="">All Statuses</option>
-                {uniqueStatuses.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
+            <MultiSelectFilter
+              label="Collector"
+              allLabel="All Collectors"
+              options={uniqueCollectors}
+              selectedValues={collectorFilter}
+              onChange={setCollectorFilter}
+            />
 
-            {(courierFilter || collectorFilter || statusFilter) && (
+            <MultiSelectFilter
+              label="Status"
+              allLabel="All Statuses"
+              options={uniqueStatuses}
+              selectedValues={statusFilter}
+              onChange={setStatusFilter}
+            />
+
+            {(monitoringSearch || courierFilter.length > 0 || collectorFilter.length > 0 || statusFilter.length > 0) && (
               <button
                 className="btn btn-secondary clear-filter-btn"
                 onClick={() => {
-                  setCourierFilter('')
-                  setCollectorFilter('')
-                  setStatusFilter('')
+                  setMonitoringSearch('')
+                  setCourierFilter([])
+                  setCollectorFilter([])
+                  setStatusFilter([])
                 }}
               >
                 Clear Filters
@@ -1007,6 +1154,7 @@ export default function DemandLetter() {
                       )}
                     </div>
                   </th>
+                  <th>Loan Code</th>
                   <th className="sortable-th" onClick={() => handleSort('date_generated')} title="Click to sort by Date Generated">
                     <div className="th-sort-content">
                       Date Generated
@@ -1044,9 +1192,9 @@ export default function DemandLetter() {
               </thead>
               <tbody>
                 {monitoringLoading ? (
-                  <tr className="loading-row"><td colSpan={9}>Loading monitoring records...</td></tr>
+                  <tr className="loading-row"><td colSpan={10}>Loading monitoring records...</td></tr>
                 ) : filteredAndSortedRows.length === 0 ? (
-                  <tr><td colSpan={9} className="empty-state">No demand letter transactions found matching the filter.</td></tr>
+                  <tr><td colSpan={10} className="empty-state">No demand letter transactions found matching the filter.</td></tr>
                 ) : filteredAndSortedRows.map(row => (
                   <tr key={row.id}>
                     <td>
@@ -1058,6 +1206,7 @@ export default function DemandLetter() {
                     </td>
                     <td>{row.collector_name || '-'}</td>
                     <td className="fw-600">{row.client_name}</td>
+                    <td><span className="demand-loan-code">{row.loan_code || '-'}</span></td>
                     <td>{formatDateLong(row.date_generated)}</td>
                     <td>{row.date_received ? formatDateLong(row.date_received) : '-'}</td>
                     <td>{row.follow_up_date ? formatDateLong(row.follow_up_date) : '-'}</td>
@@ -1131,6 +1280,23 @@ export default function DemandLetter() {
             <div className="modal-body">
               <div className="demand-success-message">{successModal.message}</div>
               <button className="btn btn-primary demand-modal-primary" onClick={() => setSuccessModal(null)}>
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {errorModal && (
+        <div className="modal-overlay demand-modal-overlay" onMouseDown={e => e.target === e.currentTarget && setErrorModal(null)}>
+          <div className="modal demand-feedback-modal demand-error-modal">
+            <div className="modal-header">
+              <span className="modal-title">{errorModal.title}</span>
+              <button className="modal-close" onClick={() => setErrorModal(null)}>x</button>
+            </div>
+            <div className="modal-body">
+              <div className="demand-error-message">{errorModal.message}</div>
+              <button className="btn btn-primary demand-modal-primary" onClick={() => setErrorModal(null)}>
                 OK
               </button>
             </div>

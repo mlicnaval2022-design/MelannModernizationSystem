@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import API from '../services/api'
 import logoImg from '../assets/logo.png'
 import html2pdf from 'html2pdf.js'
@@ -515,11 +515,10 @@ const REPORT_TYPES = [
   { key: 'past-due', label: 'Loans Maturity Checker', desc: 'Loans by maturity date range', Icon: AlertTriangle, color: '#dc2626', bg: '#fee2e2' },
   { key: 'payments-reversed', label: 'Payments Reversed', desc: 'Reversed payments by date range', Icon: RefreshCcw, color: '#7c3aed', bg: '#ede9fe' },
   { key: 'full-paid', label: 'Fully Paid Loans', desc: 'Fully paid loan accounts', Icon: CheckCircle2, color: '#16a34a', bg: '#dcfce7' },
-  { key: 'loan-type', label: 'Loan Type Summary', desc: 'Summary by loan type and status', Icon: BarChart3, color: '#0891b2', bg: '#cffafe' },
   { key: 'collection-sheet', label: 'Collection Sheet', desc: 'Per-collector active loan list', Icon: ClipboardList, color: '#4f46e5', bg: '#e0e7ff' },
   { key: 'daily-target', label: 'Daily Target', desc: 'Daily target collection', Icon: Target, color: '#be123c', bg: '#ffe4e6' },
   { key: 'disclosure-statement', label: 'Disclosure Statement', desc: 'Client disclosure for every reloan', Icon: FileText, color: '#0f766e', bg: '#ccfbf1' },
-  { key: 'monitoring-summary', label: 'Monitoring Summary', desc: 'Alerts, escalations, PTPs, and resolutions', Icon: Bell, color: '#ca8a04', bg: '#fef3c7' },
+  { key: 'aging-report', label: 'Aging Report', desc: 'Overdue aging by period and collector', Icon: Bell, color: '#ca8a04', bg: '#fef3c7' },
 ]
 
 export default function Reports() {
@@ -530,7 +529,7 @@ export default function Reports() {
   const [monthlySubTab, setMonthlySubTab] = useState('by-collector')
   const [releaseMonthlySubTab, setReleaseMonthlySubTab] = useState('by-collector')
   const [releaseChartMetric, setReleaseChartMetric] = useState('overall')
-  const [params, setParams] = useState({ date_from: yesterday(), date_to: yesterday(), year: new Date().getFullYear(), month: new Date().getMonth() + 1, collection_month: 'all', collection_cycle_type: '30', collection_cycle: 'all', release_cycle_type: '30', release_cycle: 'all', days_ahead: 30, collector_id: '', disclosure_search: '', disclosure_loan_id: '', monitoring_tab: 'new' })
+  const [params, setParams] = useState({ date_from: yesterday(), date_to: yesterday(), year: new Date().getFullYear(), month: new Date().getMonth() + 1, collection_month: 'all', collection_cycle_type: '30', collection_cycle: 'all', release_cycle_type: '30', release_cycle: 'all', days_ahead: 30, collector_id: '', disclosure_search: '', disclosure_loan_id: '' })
   const [collectors, setCollectors] = useState([])
   const [collectorsLoaded, setCollectorsLoaded] = useState(false)
   const [data, setData] = useState(null)
@@ -1380,20 +1379,37 @@ export default function Reports() {
       return
     }
 
-    if (active === 'monitoring-summary') {
-      const rows = data.rows || []
+    if (active === 'aging-report') {
+      const overall = data.buckets || []
+      const collectorsRows = (data.collectors || []).flatMap(group => (group.buckets || []).map((row, index) => ({ ...row, collector: index === 0 ? group.collector : '' })))
+      const agingHeaders = ['Period', 'Total Client', 'Total Principal', 'Total Interest', 'Total Loan Amount', 'Total Collectibles']
+      const collectorHeaders = ['Collector', ...agingHeaders]
       const exportRows = [
-        ['Client Code', 'Client Name', 'Running Balance', 'Last Payment', 'Contact Number', 'Remarks'],
-        ...rows.map(row => [
-          row.customer_code,
-          row.customer_name,
-          rawMoney(row.balance),
-          row.last_payment_date ? `${dateOnly(row.last_payment_date)} - ${rawMoney(row.last_payment_amount)}` : '',
-          row.contact,
-          '',
+        ['Overall Aging Report'],
+        agingHeaders,
+        ...overall.map(row => [
+          row.bucket_label,
+          row.total_clients,
+          rawMoney(row.total_principal),
+          rawMoney(row.total_interest),
+          rawMoney(row.total_loan_amount),
+          rawMoney(row.total_collectibles),
+        ]),
+        [],
+        ['Aging Report By Collector'],
+        collectorHeaders,
+        ...collectorsRows.map(row => [
+          row.collector,
+          row.bucket_label,
+          row.total_clients,
+          rawMoney(row.total_principal),
+          rawMoney(row.total_interest),
+          rawMoney(row.total_loan_amount),
+          rawMoney(row.total_collectibles),
         ]),
       ]
-      write(`monitoring-summary-${data.tab_label || params.monitoring_tab}`, addMeta(exportRows, `Monitoring Summary - ${data.tab_label || ''}`, [['As of', dateOnly(data.as_of || new Date().toISOString())], ['Total Clients', rows.length]]))
+      write('aging-report', addMeta(exportRows, 'Aging Report', [['As of', dateOnly(data.as_of || new Date().toISOString())]]))
+      return
     }
 
   }
@@ -1421,19 +1437,9 @@ export default function Reports() {
       setReleaseSubTab('daily')
       run(key, nextParams, 'daily')
     }
-    if (key === 'loan-type') {
-      const defaultDate = yesterday()
-      const nextParams = { ...params, date_from: defaultDate, date_to: defaultDate }
-      setParams(nextParams)
-      run(key, nextParams)
-    }
     if (key === 'collection-sheet' || key === 'daily-target') { loadCollectors(); setParams(p => ({ ...p, date: toDateInputValue(new Date()) })) }
     if (key === 'disclosure-statement') { setParams(p => ({ ...p, disclosure_loan_id: '' })) }
-    if (key === 'monitoring-summary') {
-      const nextParams = { ...params, monitoring_tab: params.monitoring_tab || 'new' }
-      setParams(nextParams)
-      run(key, nextParams)
-    }
+    if (key === 'aging-report') run(key, params)
   }
 
   const run = async (reportKey = active, reportParams = params, subTab = collectionSubTab) => {
@@ -1460,27 +1466,6 @@ export default function Reports() {
         finalParams = {
           search: finalParams.disclosure_search,
           loan_id: finalParams.disclosure_loan_id,
-        }
-      }
-      if (reportKey === 'monitoring-summary') {
-        const r = await API.get('/monitoring/alerts', { params: { tab: finalParams.monitoring_tab || 'new' } })
-        const labels = {
-          new: 'New (Day 3)',
-          monitoring: 'Under Monitoring',
-          ptp: 'Promise to Pay',
-          escalated: 'Escalated',
-        }
-        setData({
-          as_of: toDateInputValue(new Date()),
-          tab: finalParams.monitoring_tab || 'new',
-          tab_label: labels[finalParams.monitoring_tab || 'new'],
-          rows: Array.isArray(r.data) ? r.data : [],
-        })
-        return {
-          as_of: toDateInputValue(new Date()),
-          tab: finalParams.monitoring_tab || 'new',
-          tab_label: labels[finalParams.monitoring_tab || 'new'],
-          rows: Array.isArray(r.data) ? r.data : [],
         }
       }
       if (reportKey === 'daily-target') {
@@ -1578,32 +1563,7 @@ export default function Reports() {
         )
       }
     }
-    if (active === 'monitoring-summary') {
-      const monitoringTabs = [
-        { id: 'new', label: 'New (Day 3)' },
-        { id: 'monitoring', label: 'Under Monitoring' },
-        { id: 'ptp', label: 'Promise to Pay' },
-        { id: 'escalated', label: 'Escalated' },
-      ]
-      return (
-        <div className="form-group">
-          <label className="form-label">Monitoring Table</label>
-          <select
-            className="form-control"
-            value={params.monitoring_tab || 'new'}
-            onChange={e => {
-              const nextParams = { ...params, monitoring_tab: e.target.value }
-              setParams(nextParams)
-              run('monitoring-summary', nextParams)
-            }}
-            style={{ minWidth: 240 }}
-          >
-            {monitoringTabs.map(tab => <option key={tab.id} value={tab.id}>{tab.label}</option>)}
-          </select>
-        </div>
-      )
-    }
-    if (['past-due', 'payments-encoded', 'payments-reversed', 'full-paid', 'loan-type'].includes(active)) return (
+    if (['past-due', 'payments-encoded', 'payments-reversed', 'full-paid'].includes(active)) return (
       <>
         <div className="form-group"><label className="form-label">Date From</label><input type="date" className="form-control" value={params.date_from} onChange={e => setParams(p => ({ ...p, date_from: e.target.value }))} /></div>
         <div className="form-group"><label className="form-label">Date To</label><input type="date" className="form-control" value={params.date_to} onChange={e => setParams(p => ({ ...p, date_to: e.target.value }))} /></div>
@@ -2527,66 +2487,142 @@ export default function Reports() {
       )
     }
 
-    if (active === 'monitoring-summary') {
+    if (active === 'aging-report') {
       if (data.error) {
         return (
           <div className="empty-state" style={{ color: '#b91c1c' }}>
-            <p>Unable to load Monitoring Summary.</p>
+            <p>Unable to load Aging Report.</p>
             <p style={{ fontSize: 12 }}>{data.error}</p>
           </div>
         )
       }
-      const rows = data.rows || data.alerts || (Array.isArray(data) ? data : [])
-      const tabLabel = data.tab_label || 'Under Monitoring'
+      const overallRows = data.buckets || []
+      const collectorGroups = data.collectors || []
       const todayLabel = displayDate(data.as_of || toDateInputValue(new Date()))
+      const sumRows = rows => rows.reduce((total, row) => ({
+        total_clients: total.total_clients + Number(row.total_clients || 0),
+        total_principal: total.total_principal + Number(row.total_principal || 0),
+        total_interest: total.total_interest + Number(row.total_interest || 0),
+        total_loan_amount: total.total_loan_amount + Number(row.total_loan_amount || 0),
+        total_collectibles: total.total_collectibles + Number(row.total_collectibles || 0),
+      }), { total_clients: 0, total_principal: 0, total_interest: 0, total_loan_amount: 0, total_collectibles: 0 })
+      const overallTotals = sumRows(overallRows)
+      const collectorFlatRows = collectorGroups.flatMap(group => (group.buckets || []).map(row => ({ ...row, collector: group.collector })))
+      const collectorTotals = sumRows(collectorFlatRows)
+      const renderAmount = value => `PHP ${fmt(value || 0)}`
+      const renderMetricCells = row => (
+        <>
+          <td className="text-center fw-bold">{row.total_clients || 0}</td>
+          <td className="text-right fw-bold">{renderAmount(row.total_principal)}</td>
+          <td className="text-right fw-bold">{renderAmount(row.total_interest)}</td>
+          <td className="text-right fw-bold">{renderAmount(row.total_loan_amount)}</td>
+          <td className="text-right fw-bold" style={{ color: '#2563eb' }}>{renderAmount(row.total_collectibles)}</td>
+        </>
+      )
+      const renderAgingHeader = (withCollector = false) => (
+        <tr>
+          {withCollector && <th>Collector</th>}
+          <th>Period</th>
+          <th className="text-center">Total Client</th>
+          <th className="text-right">Total Principal</th>
+          <th className="text-right">Total Interest</th>
+          <th className="text-right">Total Loan Amount</th>
+          <th className="text-right">Total Collectibles</th>
+        </tr>
+      )
       return (
-        <div id="printable-area" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div id="printable-area" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <style>{`${REPORT_PRINT_CLARITY_CSS}
             @media print {
               @page { size: landscape; margin: 9mm; }
-              .monitoring-actions { display: none !important; }
+              .aging-actions { display: none !important; }
               #printable-area table.data-table th,
-              #printable-area table.data-table td { font-size: 10px !important; padding: 6px 7px !important; }
-              .monitoring-print-title { text-align: center !important; }
-              .monitoring-remarks { min-width: 190px !important; height: 28px !important; }
+              #printable-area table.data-table td { font-size: 9px !important; padding: 5px 6px !important; }
+              .aging-print-title { text-align: center !important; }
+              .aging-section { page-break-inside: avoid; }
             }
           `}</style>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
-            <div className="monitoring-print-title">
-              <h3 style={{ margin: 0 }}>3-Day Monitoring - {tabLabel}</h3>
+            <div className="aging-print-title">
+              <h3 style={{ margin: 0 }}>Aging Report</h3>
               <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>As of {todayLabel}</div>
-              <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>Total Clients: <b>{rows.length}</b></div>
+              <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>Total Collectibles: <b>PHP {fmt(overallTotals.total_collectibles)}</b></div>
             </div>
-            <div className="monitoring-actions" style={{ display: 'flex', gap: 8 }}>
+            <div className="aging-actions" style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>Print</button>
             </div>
           </div>
 
-          <div className="card-v2" style={{ padding: 18 }}>
+          <div className="card-v2 aging-section" style={{ padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
+              <h3 style={{ margin: 0, color: 'var(--blue-dark)' }}>Overall Aging Report</h3>
+              <span style={{ color: 'var(--text-muted)', fontWeight: 700, fontSize: 12 }}>{overallTotals.total_clients} Clients</span>
+            </div>
             <div className="table-responsive-print" style={{ overflowX: 'auto' }}>
-              <table className="data-table" style={{ minWidth: 980 }}>
+              <table className="data-table" style={{ minWidth: 860 }}>
                 <thead>
-                  <tr>
-                    <th>Client Code</th>
-                    <th>Client Name</th>
-                    <th className="text-right">Running Balance</th>
-                    <th>Last Payment</th>
-                    <th>Contact Number</th>
-                    <th>Remarks</th>
-                  </tr>
+                  {renderAgingHeader(false)}
                 </thead>
                 <tbody>
-                  {rows.length === 0 ? <tr><td colSpan={6} className="empty-state">No clients found for this monitoring table</td></tr> : rows.map(row => (
-                    <tr key={row.id}>
-                      <td className="mono">{row.customer_code || '-'}</td>
-                      <td className="fw-600">{row.customer_name || '-'}</td>
-                      <td className="text-right fw-bold">PHP {fmt(row.balance || 0)}</td>
-                      <td>{row.last_payment_date ? `${shortDate(row.last_payment_date)} - PHP ${fmt(row.last_payment_amount || 0)}` : '-'}</td>
-                      <td>{row.contact || '-'}</td>
-                      <td className="monitoring-remarks"></td>
+                  {overallRows.length === 0 ? <tr><td colSpan={6} className="empty-state">No overdue loans found</td></tr> : overallRows.map(row => (
+                    <tr key={row.bucket_key}>
+                      <td className="fw-600">{row.bucket_label}</td>
+                      {renderMetricCells(row)}
                     </tr>
                   ))}
                 </tbody>
+                {overallRows.length > 0 && (
+                  <tfoot>
+                    <tr>
+                      <td className="fw-bold">GRAND TOTAL</td>
+                      {renderMetricCells(overallTotals)}
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </div>
+
+          <div className="card-v2 aging-section" style={{ padding: 18 }}>
+            <h3 style={{ margin: '0 0 12px 0', color: 'var(--blue-dark)' }}>Aging Report By Collector</h3>
+            <div className="table-responsive-print" style={{ overflowX: 'auto' }}>
+              <table className="data-table" style={{ minWidth: 860 }}>
+                <thead>
+                  {renderAgingHeader(false)}
+                </thead>
+                <tbody>
+                  {collectorGroups.length === 0 ? <tr><td colSpan={6} className="empty-state">No collector aging records found</td></tr> : collectorGroups.map(group => {
+                    const groupRows = group.buckets || []
+                    const groupTotals = sumRows(groupRows)
+                    return (
+                      <Fragment key={group.collector || 'Unassigned'}>
+                        <tr>
+                          <td colSpan={6} className="fw-bold" style={{ background: '#eef4ff', color: '#1d4ed8', fontSize: 13 }}>
+                            {group.collector || 'Unassigned'} <span style={{ color: '#64748b', fontWeight: 600 }}>- {groupTotals.total_clients} Clients</span>
+                          </td>
+                        </tr>
+                        {groupRows.map(row => (
+                          <tr key={`${group.collector}-${row.bucket_key}`}>
+                            <td style={{ paddingLeft: 24 }}>{row.bucket_label}</td>
+                            {renderMetricCells(row)}
+                          </tr>
+                        ))}
+                        <tr>
+                          <td className="fw-bold" style={{ paddingLeft: 24, background: '#f8fafc' }}>Subtotal</td>
+                          {renderMetricCells(groupTotals)}
+                        </tr>
+                      </Fragment>
+                    )
+                  })}
+                </tbody>
+                {collectorFlatRows.length > 0 && (
+                  <tfoot>
+                    <tr>
+                      <td className="fw-bold">GRAND TOTAL</td>
+                      {renderMetricCells(collectorTotals)}
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </div>
@@ -2912,6 +2948,29 @@ export default function Reports() {
       return (
         <>
           <style>{`
+            .release-daily-layout {
+              display: grid;
+              grid-template-columns: minmax(700px, 0.95fr) minmax(420px, 1.05fr);
+              gap: 20px;
+              align-items: start;
+            }
+            .release-daily-table {
+              min-width: 0;
+              overflow-x: auto;
+            }
+            .release-daily-table table {
+              width: 100%;
+              min-width: 680px;
+            }
+            .release-daily-chart {
+              min-width: 0;
+              overflow: hidden;
+            }
+            @media (max-width: 1280px) {
+              .release-daily-layout {
+                grid-template-columns: 1fr;
+              }
+            }
             @media print {
               ${printMode === 'detailed' ? `
               .reports-screen-only { display: none !important; }
@@ -2924,8 +2983,8 @@ export default function Reports() {
               `}
             }
           `}</style>
-          <div id={(!selectedCollector && printMode === 'summary') ? "printable-area" : undefined} className="reports-screen-only" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-          <div style={{ overflowX: 'auto' }}>
+          <div id={(!selectedCollector && printMode === 'summary') ? "printable-area" : undefined} className="reports-screen-only release-daily-layout">
+          <div className="release-daily-table">
             <div style={{ marginBottom: 6, color: 'var(--blue-dark)', fontWeight: 700 }}>{transactionLabel}</div>
             <div style={{ marginBottom: 12 }} className="fw-bold text-accent">Total Released: PHP {fmt(total_principal)}</div>
             <table className="data-table">
@@ -3015,7 +3074,7 @@ export default function Reports() {
               )}
             </table>
           </div>
-          <div>
+          <div className="release-daily-chart">
             <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <div className="fw-bold">Releases per Collector ({releaseChartLabel})</div>
               <div className="reports-chart-toggle" style={{ display: 'inline-flex', border: '1px solid var(--border-color)', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
@@ -3025,23 +3084,7 @@ export default function Reports() {
             </div>
             <div style={{ height: 400, background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 16 }}>
               {chartData.length > 0 ? (
-                printMode === 'summary' ? (
-                  <div style={{ width: 1000, height: 400, margin: '0 auto' }}>
-                    <BarChart width={1000} height={400} data={chartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="barGradientRelease" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={releaseChartColor} stopOpacity={1}/>
-                          <stop offset="100%" stopColor={releaseChartSoftColor} stopOpacity={0.6}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `PHP ${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
-                      <Bar dataKey="amount" fill="url(#barGradientRelease)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={0} />
-                    </BarChart>
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={350} minWidth={300} minHeight={300}>
+                <ResponsiveContainer width="100%" height={350} minWidth={300} minHeight={300}>
                     <BarChart data={chartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
                       <defs>
                         <linearGradient id="barGradientRelease" x1="0" y1="0" x2="0" y2="1">
@@ -3061,7 +3104,6 @@ export default function Reports() {
                       <Bar dataKey="amount" fill="url(#barGradientRelease)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={1000} />
                     </BarChart>
                   </ResponsiveContainer>
-                )
               ) : (
                 <div className="empty-state">No data for chart</div>
               )}
@@ -3860,151 +3902,6 @@ export default function Reports() {
         </>
       )
     }
-    if (active === 'loan-type') {
-      const { loans = [] } = data || {}
-      const reportFrom = data?.date_from || params.date_from
-      const reportTo = data?.date_to || params.date_to
-      const transactionLabel = reportFrom === reportTo
-        ? `Transaction Date: ${displayDate(reportFrom)}`
-        : `Transaction Period: ${displayDate(reportFrom)} to ${displayDate(reportTo)}`
-      
-      const collectorRows = getReleaseCollectorRows(loans)
-      
-      let grandTotalNew = 0, grandTotalReloan = 0, grandTotalRecon = 0, grandTotal = 0;
-      let grandCountNew = 0, grandCountReloan = 0, grandCountRecon = 0, grandCount = 0;
-
-      collectorRows.forEach(r => {
-        grandTotalNew += r.new_amount;
-        grandTotalReloan += r.reloan_amount;
-        grandTotalRecon += r.recon_amount;
-        grandTotal += r.total_principal;
-        
-        grandCountNew += r.new_count;
-        grandCountReloan += r.reloan_count;
-        grandCountRecon += r.recon_count;
-        grandCount += r.loan_count;
-      })
-
-      const chartData = collectorRows.map(r => ({ name: r.collector, amount: r.total_principal })).sort((a, b) => b.amount - a.amount);
-
-      return (
-        <div className="reports-screen-only" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-          <div style={{ overflowX: 'auto' }}>
-            <div style={{ marginBottom: 6, color: 'var(--blue-dark)', fontWeight: 700 }}>{transactionLabel}</div>
-            <div style={{ marginBottom: 12 }} className="fw-bold text-success">Total Amount: PHP {fmt(grandTotal)}</div>
-            
-            <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th style={{ verticalAlign: 'middle', minWidth: 200, textTransform: 'uppercase' }}>Collector</th>
-                    <th className="text-right" style={{ textTransform: 'uppercase' }}>New</th>
-                    <th className="text-right" style={{ textTransform: 'uppercase' }}>Reloan</th>
-                    <th className="text-right" style={{ textTransform: 'uppercase' }}>Recon</th>
-                    <th className="text-right" style={{ textTransform: 'uppercase' }}>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {collectorRows.length === 0 ? <tr><td colSpan={5} className="empty-state">No records</td></tr> : collectorRows.map(row => (
-                    <tr key={row.collector} onClick={() => setSelectedCollector(row)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedCollector(row) }} tabIndex={0} title="View release details" style={{ cursor: 'pointer', transition: 'background 0.2s' }} className="clickable-row">
-                      <td className="fw-600" style={{ verticalAlign: 'middle' }}>{row.collector}</td>
-                      
-                      <td className="text-right">
-                        {row.new_count > 0 ? (
-                          <>
-                            <div className="fw-bold" style={{ color: 'var(--blue-dark)', fontSize: 14 }}>PHP {fmt(row.new_amount)}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{row.new_count} Client{row.new_count > 1 ? 's' : ''}</div>
-                          </>
-                        ) : '-'}
-                      </td>
-                      
-                      <td className="text-right">
-                        {row.reloan_count > 0 ? (
-                          <>
-                            <div className="fw-bold" style={{ color: 'var(--blue-dark)', fontSize: 14 }}>PHP {fmt(row.reloan_amount)}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{row.reloan_count} Client{row.reloan_count > 1 ? 's' : ''}</div>
-                          </>
-                        ) : '-'}
-                      </td>
-                      
-                      <td className="text-right">
-                        {row.recon_count > 0 ? (
-                          <>
-                            <div className="fw-bold" style={{ color: 'var(--blue-dark)', fontSize: 14 }}>PHP {fmt(row.recon_amount)}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{row.recon_count} Client{row.recon_count > 1 ? 's' : ''}</div>
-                          </>
-                        ) : '-'}
-                      </td>
-                      
-                      <td className="text-right">
-                        {row.loan_count > 0 ? (
-                          <>
-                            <div className="fw-bold" style={{ color: 'var(--blue)', fontSize: 14 }}>PHP {fmt(row.total_principal)}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{row.loan_count} Release{row.loan_count > 1 ? 's' : ''}</div>
-                          </>
-                        ) : '-'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                {collectorRows.length > 0 && (
-                  <tfoot>
-                    <tr style={{ background: 'rgba(18,58,99,0.03)', borderTop: '2px solid var(--border)' }}>
-                      <td className="fw-bold" style={{ color: 'var(--blue-dark)' }}>GRAND TOTAL</td>
-                      <td className="text-right">
-                        <div className="fw-bold" style={{ color: 'var(--blue-dark)', fontSize: 14 }}>PHP {fmt(grandTotalNew)}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{grandCountNew} Client{grandCountNew > 1 ? 's' : ''}</div>
-                      </td>
-                      <td className="text-right">
-                        <div className="fw-bold" style={{ color: 'var(--blue-dark)', fontSize: 14 }}>PHP {fmt(grandTotalReloan)}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{grandCountReloan} Client{grandCountReloan > 1 ? 's' : ''}</div>
-                      </td>
-                      <td className="text-right">
-                        <div className="fw-bold" style={{ color: 'var(--blue-dark)', fontSize: 14 }}>PHP {fmt(grandTotalRecon)}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{grandCountRecon} Client{grandCountRecon > 1 ? 's' : ''}</div>
-                      </td>
-                      <td className="text-right">
-                        <div className="fw-bold" style={{ color: 'var(--blue)', fontSize: 14 }}>PHP {fmt(grandTotal)}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{grandCount} Release{grandCount > 1 ? 's' : ''}</div>
-                      </td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-            </div>
-          </div>
-          <div>
-            <div style={{ marginBottom: 12 }} className="fw-bold">Total Released per Collector</div>
-            <div style={{ height: 400, background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 16 }}>
-              {chartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="barGradientType" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#3b82f6" stopOpacity={1}/>
-                        <stop offset="100%" stopColor="#60a5fa" stopOpacity={0.6}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} dy={10} interval={0} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} tickFormatter={val => `PHP ${val >= 1000 ? (val/1000).toFixed(0)+'k' : val}`} dx={-10} />
-                    <Tooltip 
-                      cursor={{ fill: 'rgba(59, 130, 246, 0.08)' }} 
-                      contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px' }} 
-                      formatter={(val) => [`PHP ${fmt(val)}`, 'Total Released']}
-                      labelStyle={{ color: '#0f172a', fontWeight: 700, marginBottom: 6, fontSize: 13 }} 
-                    />
-                    <Bar dataKey="amount" fill="url(#barGradientType)" radius={[6, 6, 0, 0]} barSize={42} animationDuration={1000} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="empty-state">No data for chart</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )
-    }
     if (active === 'daily-target') {
       if (!data) return null
       const { loans = [] } = data
@@ -4621,9 +4518,9 @@ export default function Reports() {
         <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setSelectedCollector(null)}>
           <div className="modal modal-print-area" id="printable-area" style={{ maxWidth: (active === 'full-paid' || active === 'past-due') ? 1180 : 980 }}>
             <div className="modal-header">
-              <span className="modal-title">{active === 'full-paid' ? 'Fully Paid Details' : active === 'payments-reversed' ? 'Reversed Payment Details' : (active === 'monthly-releases' || active === 'loan-type') ? 'Release Details' : active === 'past-due' ? 'Maturity Details' : 'Collection Details'} - {selectedCollector.collector}</span>
+              <span className="modal-title">{active === 'full-paid' ? 'Fully Paid Details' : active === 'payments-reversed' ? 'Reversed Payment Details' : active === 'monthly-releases' ? 'Release Details' : active === 'past-due' ? 'Maturity Details' : 'Collection Details'} - {selectedCollector.collector}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                {(active === 'monthly-releases' || active === 'loan-type') && (
+                {active === 'monthly-releases' && (
                   <div style={{ position: 'relative' }}>
                     <button className="btn btn-secondary" style={{ padding: '4px 12px', fontSize: 13 }} onClick={() => setTypeFilterMenuOpen(open => !open)}>
                       Filter Type {modalTypeFilter.length > 0 && `(${modalTypeFilter.length})`}
@@ -4659,12 +4556,12 @@ export default function Reports() {
                   <div className="fw-bold">{selectedCollector.collector}</div>
                 </div>
                 <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-soft, #f8fafc)' }}>
-                  <div className="nav-section-label" style={{ marginBottom: 4 }}>{active === 'payments-reversed' ? 'No. of Reversals' : (active === 'monthly-releases' || active === 'loan-type') ? 'No. of Releases' : active === 'past-due' || active === 'full-paid' ? 'No. of Client' : 'No. of Payments'}</div>
-                  <div className="fw-bold">{(active === 'monthly-releases' || active === 'loan-type') ? getSortedModalData().length : active === 'full-paid' ? (selectedCollector.loan_count || selectedCollector.payment_count) : active === 'past-due' ? selectedCollector.client_count : selectedCollector.payment_count}</div>
+                  <div className="nav-section-label" style={{ marginBottom: 4 }}>{active === 'payments-reversed' ? 'No. of Reversals' : active === 'monthly-releases' ? 'No. of Releases' : active === 'past-due' || active === 'full-paid' ? 'No. of Client' : 'No. of Payments'}</div>
+                  <div className="fw-bold">{active === 'monthly-releases' ? getSortedModalData().length : active === 'full-paid' ? (selectedCollector.loan_count || selectedCollector.payment_count) : active === 'past-due' ? selectedCollector.client_count : selectedCollector.payment_count}</div>
                 </div>
                 <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-soft, #f8fafc)' }}>
-                  <div className="nav-section-label" style={{ marginBottom: 4 }}>{active === 'payments-reversed' ? 'Total Reversed' : (active === 'monthly-releases' || active === 'loan-type') ? 'Total Released' : active === 'past-due' ? 'Total Balance' : active === 'full-paid' ? 'Total Principal' : 'Total Collection'}</div>
-                  <div className={`fw-bold ${active === 'payments-reversed' ? '' : 'text-success'}`} style={active === 'payments-reversed' ? { color: '#dc2626' } : {}}>PHP {fmt(active === 'past-due' ? selectedCollector.total_balance : ((active === 'monthly-releases' || active === 'loan-type') ? getSortedModalData().reduce((sum, l) => sum + Number(l.principal || 0), 0) : (selectedCollector.total_amount || selectedCollector.total_principal)))}</div>
+                  <div className="nav-section-label" style={{ marginBottom: 4 }}>{active === 'payments-reversed' ? 'Total Reversed' : active === 'monthly-releases' ? 'Total Released' : active === 'past-due' ? 'Total Balance' : active === 'full-paid' ? 'Total Principal' : 'Total Collection'}</div>
+                  <div className={`fw-bold ${active === 'payments-reversed' ? '' : 'text-success'}`} style={active === 'payments-reversed' ? { color: '#dc2626' } : {}}>PHP {fmt(active === 'past-due' ? selectedCollector.total_balance : (active === 'monthly-releases' ? getSortedModalData().reduce((sum, l) => sum + Number(l.principal || 0), 0) : (selectedCollector.total_amount || selectedCollector.total_principal)))}</div>
                 </div>
                 {active === 'full-paid' && (
                   <>
@@ -4681,7 +4578,7 @@ export default function Reports() {
               </div>
               <div style={{ maxHeight: '55vh', overflow: 'auto' }} className="modal-print-ready">
                 <table className="data-table">
-                  {active === 'monthly-releases' || active === 'loan-type' ? (
+                  {active === 'monthly-releases' ? (
                     <>
                       <thead>
                         <tr>

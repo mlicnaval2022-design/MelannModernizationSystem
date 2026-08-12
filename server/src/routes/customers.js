@@ -561,7 +561,9 @@ router.get('/:id', authenticateToken, async (req, res) => {
       WHERE c.id = ?`, [req.params.id]);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
     const loans = await dbAll(`
-      SELECT * FROM tblLoan l
+      SELECT l.*, u.full_name as created_by_name, u.username as created_by_username
+      FROM tblLoan l
+      LEFT JOIN tblUser u ON l.created_by = u.id
       WHERE l.customer_id = ?
         AND NOT EXISTS (
           SELECT 1 FROM tblLoan dup
@@ -574,7 +576,14 @@ router.get('/:id', authenticateToken, async (req, res) => {
         )
       ORDER BY l.created_at DESC
     `, [req.params.id]);
-    const payments = await dbAll(`SELECT p.*, l.loan_code FROM tblPayment p JOIN tblLoan l ON p.loan_id = l.id WHERE p.customer_id = ? ORDER BY p.date_paid DESC, p.created_at DESC`, [req.params.id]);
+    const payments = await dbAll(`
+      SELECT p.*, l.loan_code, u.full_name as encoded_by_name, u.username as encoded_by_username
+      FROM tblPayment p
+      JOIN tblLoan l ON p.loan_id = l.id
+      LEFT JOIN tblUser u ON p.encoded_by = u.id
+      WHERE p.customer_id = ?
+      ORDER BY p.date_paid DESC, p.created_at DESC
+    `, [req.params.id]);
     res.json({ ...customer, loans, payments });
   } catch (err) { console.error(err); sendRouteError(res, err); }
 });

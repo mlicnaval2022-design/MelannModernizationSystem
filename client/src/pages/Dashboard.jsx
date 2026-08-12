@@ -2,10 +2,20 @@
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { AreaChart, Area, ResponsiveContainer, Tooltip, YAxis } from 'recharts'
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import '../dashboard.css'
 
 function fmt(n) { return Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }
+
+const formatChartDate = value => {
+  const text = String(value || '').slice(0, 10)
+  const parts = text.split('-').map(Number)
+  const date = parts.length === 3 && parts.every(Boolean)
+    ? new Date(parts[0], parts[1] - 1, parts[2])
+    : new Date(value)
+  if (Number.isNaN(date.getTime())) return text || '-'
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
 
 const toDateKey = date => {
   const year = date.getFullYear()
@@ -159,91 +169,132 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <h4 style={{ margin: '0 0 10px 0', color: '#334155' }}>3-Day No-Payment Alerts</h4>
-      <div className="metrics-top-row" style={{ marginBottom: 20 }}>
-        <div className="metric-card-v2 compact-card" onClick={() => navigate('/monitoring?tab=monitoring')} style={{ cursor: 'pointer', borderTop: '4px solid #ef4444' }}>
-          <div className="header">
-            <span style={{ fontWeight: 'bold', color: '#b91c1c' }}>All Active Alerts</span>
-            <h3 style={{ color: '#dc2626' }}>{data.monitoring_alerts_active || 0} <span style={{fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)'}}>Clients</span></h3>
-            <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Unresolved eligible records</span>
+      <div className="dashboard-operations-grid">
+        <div className="dashboard-table-stack">
+          <div className="card-v2 dashboard-status-table-card">
+            <div className="card-v2-title" style={{ justifyContent: 'space-between' }}>
+              <span>3-Day No-Payment Alerts</span>
+              <button className="dashboard-table-link" onClick={() => navigate('/monitoring?tab=monitoring')}>Open</button>
+            </div>
+            <table className="data-table dashboard-status-table">
+              <thead>
+                <tr>
+                  <th>Alert</th>
+                  <th className="text-right">Count</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr onClick={() => navigate('/monitoring?tab=monitoring')}>
+                  <td><strong>All Active Alerts</strong><span>Unresolved eligible records</span></td>
+                  <td className="text-right fw-bold" style={{ color: '#dc2626' }}>{data.monitoring_alerts_active || 0}</td>
+                  <td><span className="dashboard-status-pill danger">Active</span></td>
+                </tr>
+                <tr onClick={() => navigate('/monitoring?tab=escalated')}>
+                  <td><strong>Escalated (Day 4+)</strong><span>Requires immediate follow-up</span></td>
+                  <td className="text-right fw-bold" style={{ color: '#991b1b' }}>{data.monitoring_alerts_escalated || 0}</td>
+                  <td><span className="dashboard-status-pill critical">Escalated</span></td>
+                </tr>
+                <tr onClick={() => navigate('/monitoring?tab=resolved')}>
+                  <td><strong>Resolved Today</strong><span>Cleared monitoring records</span></td>
+                  <td className="text-right fw-bold" style={{ color: '#059669' }}>{data.monitoring_alerts_resolved_today || 0}</td>
+                  <td><span className="dashboard-status-pill success">Resolved</span></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <div className="metric-icon-circle" style={{ background: '#fef2f2', color: '#ef4444', fontSize: 13 }}>AL</div>
-        </div>
-        <div className="metric-card-v2 compact-card" onClick={() => navigate('/monitoring?tab=escalated')} style={{ cursor: 'pointer', borderTop: '4px solid #991b1b' }}>
-          <div className="header">
-            <span style={{ fontWeight: 'bold', color: '#7f1d1d' }}>Escalated (Day 4+)</span>
-            <h3 style={{ color: '#991b1b' }}>{data.monitoring_alerts_escalated || 0}</h3>
+
+          <div className="card-v2 dashboard-status-table-card">
+            <div className="card-v2-title" style={{ justifyContent: 'space-between' }}>
+              <span>Loan Processing Queue</span>
+              <button className="dashboard-table-link" onClick={() => navigate('/credit-scoring')}>Open</button>
+            </div>
+            <table className="data-table dashboard-status-table">
+              <thead>
+                <tr>
+                  <th>Queue</th>
+                  <th className="text-right">Applications</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr onClick={() => navigate('/credit-scoring')}>
+                  <td><strong>For CI</strong><span>Waiting for credit investigation</span></td>
+                  <td className="text-right fw-bold" style={{ color: '#d97706' }}>{data.pending_ci_count || 0}</td>
+                  <td><span className="dashboard-status-pill warning">CI</span></td>
+                </tr>
+                <tr onClick={() => navigate('/credit-scoring')}>
+                  <td><strong>For Approval</strong><span>Ready for approval decision</span></td>
+                  <td className="text-right fw-bold" style={{ color: '#2563eb' }}>{data.for_approval_count || 0}</td>
+                  <td><span className="dashboard-status-pill info">Approval</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Approved Today</strong><span>Applications approved today</span></td>
+                  <td className="text-right fw-bold" style={{ color: '#059669' }}>{data.approved_today || 0}</td>
+                  <td><span className="dashboard-status-pill success">Approved</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Rejected Today</strong><span>Applications rejected today</span></td>
+                  <td className="text-right fw-bold" style={{ color: '#dc2626' }}>{data.rejected_today || 0}</td>
+                  <td><span className="dashboard-status-pill danger">Rejected</span></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <div className="metric-icon-circle" style={{ background: '#fee2e2', color: '#b91c1c', fontSize: 13 }}>ESC</div>
-        </div>
-        <div className="metric-card-v2 compact-card" onClick={() => navigate('/monitoring?tab=resolved')} style={{ cursor: 'pointer', borderTop: '4px solid #10b981' }}>
-          <div className="header">
-            <span style={{ fontWeight: 'bold', color: '#047857' }}>Resolved Today</span>
-            <h3 style={{ color: '#059669' }}>{data.monitoring_alerts_resolved_today || 0}</h3>
-          </div>
-          <div className="metric-icon-circle" style={{ background: '#ecfdf5', color: '#10b981', fontSize: 13 }}>OK</div>
         </div>
 
-        {/* Daily Collection Trend Chart in 4th Slot */}
-        <div className="metric-card-v2 compact-card" style={{ borderTop: '4px solid #8b5cf6', paddingBottom: 10 }}>
-          <div className="header" style={{ marginBottom: 4 }}>
-            <span style={{ fontWeight: 'bold', color: '#6d28d9' }}>7-Day Collection Trend</span>
+        <div className="card-v2 dashboard-trend-card">
+          <div className="card-v2-title" style={{ justifyContent: 'space-between' }}>
+            <span>7-Day Collection Trend</span>
+            <strong>PHP {fmt((data.weekly_collection_trend || []).reduce((sum, row) => sum + Number(row.total || 0), 0))}</strong>
           </div>
-          <div style={{ height: 65, width: '100%', marginTop: 'auto' }}>
+          <div className="dashboard-trend-chart">
             {data.weekly_collection_trend && data.weekly_collection_trend.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data.weekly_collection_trend} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <Tooltip 
-                    formatter={(value) => [`PHP ${fmt(value)}`, 'Total']} 
-                    labelFormatter={(label) => new Date(label).toLocaleDateString('en-US', {month: 'short', day: 'numeric'})}
-                    contentStyle={{ fontSize: '11px', padding: '4px 8px', borderRadius: '4px' }}
+                <LineChart data={data.weekly_collection_trend} margin={{ top: 18, right: 18, left: 2, bottom: 8 }}>
+                  <CartesianGrid vertical={false} stroke="#e5edf5" strokeDasharray="3 4" />
+                  <Tooltip
+                    formatter={(value) => [`PHP ${fmt(value)}`, 'Total']}
+                    labelFormatter={formatChartDate}
+                    cursor={{ stroke: '#cbd5e1', strokeWidth: 1 }}
+                    contentStyle={{
+                      fontSize: 12,
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: '1px solid #dbe4f0',
+                      boxShadow: '0 10px 24px rgba(15, 23, 42, 0.08)',
+                    }}
                   />
-                  <YAxis domain={['dataMin', 'dataMax']} hide />
-                  <Area type="monotone" dataKey="total" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorTotal)" />
-                </AreaChart>
+                  <XAxis
+                    dataKey="date"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: '#64748b', fontWeight: 700 }}
+                    tickFormatter={formatChartDate}
+                    interval={0}
+                    dy={8}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    width={46}
+                    tick={{ fontSize: 11, fill: '#8aa0b8', fontWeight: 700 }}
+                    tickFormatter={(value) => `PHP ${Number(value || 0) >= 1000 ? `${Math.round(Number(value) / 1000)}k` : Number(value || 0)}`}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="total"
+                    stroke="#0f766e"
+                    strokeWidth={3}
+                    dot={false}
+                    activeDot={{ r: 4, stroke: '#0f766e', strokeWidth: 2, fill: '#ffffff' }}
+                  />
+                </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>No data</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No collection trend data</div>
             )}
           </div>
-        </div>
-      </div>
-
-      <h4 style={{ margin: '0 0 10px 0', color: '#334155' }}>Loan Processing Queue</h4>
-      <div className="metrics-top-row" style={{ marginBottom: 20 }}>
-        <div className="metric-card-v2 compact-card" onClick={() => navigate('/credit-scoring')} style={{ cursor: 'pointer', borderTop: '4px solid #f59e0b' }}>
-          <div className="header">
-            <span style={{ fontWeight: 'bold', color: '#b45309' }}>For CI</span>
-            <h3 style={{ color: '#d97706' }}>{data.pending_ci_count || 0} <span style={{fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)'}}>Applications</span></h3>
-          </div>
-          <div className="metric-icon-circle" style={{ background: '#fffbeb', color: '#f59e0b', fontSize: 13 }}>CI</div>
-        </div>
-        <div className="metric-card-v2 compact-card" onClick={() => navigate('/credit-scoring')} style={{ cursor: 'pointer', borderTop: '4px solid #3b82f6' }}>
-          <div className="header">
-            <span style={{ fontWeight: 'bold', color: '#1d4ed8' }}>For Approval</span>
-            <h3 style={{ color: '#2563eb' }}>{data.for_approval_count || 0} <span style={{fontSize: 12, fontWeight: 'normal', color: 'var(--text-muted)'}}>Applications</span></h3>
-          </div>
-          <div className="metric-icon-circle" style={{ background: '#eff6ff', color: '#3b82f6', fontSize: 13 }}>APR</div>
-        </div>
-        <div className="metric-card-v2 compact-card" style={{ borderTop: '4px solid #10b981' }}>
-          <div className="header">
-            <span style={{ fontWeight: 'bold', color: '#047857' }}>Approved Today</span>
-            <h3 style={{ color: '#059669' }}>{data.approved_today || 0}</h3>
-          </div>
-          <div className="metric-icon-circle" style={{ background: '#ecfdf5', color: '#10b981', fontSize: 13 }}>APP</div>
-        </div>
-        <div className="metric-card-v2 compact-card" style={{ borderTop: '4px solid #ef4444' }}>
-          <div className="header">
-            <span style={{ fontWeight: 'bold', color: '#b91c1c' }}>Rejected Today</span>
-            <h3 style={{ color: '#dc2626' }}>{data.rejected_today || 0}</h3>
-          </div>
-          <div className="metric-icon-circle" style={{ background: '#fef2f2', color: '#ef4444', fontSize: 13 }}>REJ</div>
         </div>
       </div>
 
