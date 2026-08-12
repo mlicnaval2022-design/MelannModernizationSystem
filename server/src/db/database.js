@@ -363,6 +363,31 @@ async function initializeDatabase() {
       updated_at TEXT DEFAULT (datetime('now')),
       UNIQUE(collector_id, report_date)
     );
+    CREATE TABLE IF NOT EXISTS tblExpensePersonnel (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_name TEXT NOT NULL,
+      position TEXT,
+      status TEXT DEFAULT 'active',
+      created_by INTEGER,
+      updated_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS tblEmployeeExpense (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      personnel_id INTEGER NOT NULL,
+      expense_date TEXT NOT NULL,
+      category TEXT,
+      description TEXT,
+      amount REAL NOT NULL DEFAULT 0,
+      remarks TEXT,
+      status TEXT DEFAULT 'active',
+      created_by INTEGER,
+      updated_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (personnel_id) REFERENCES tblExpensePersonnel(id)
+    );
     CREATE TABLE IF NOT EXISTS tblCashOnBank (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       branch_id INTEGER,

@@ -14,10 +14,16 @@ import {
   CheckCircle2,
   ClipboardList,
   FileText,
+  Pencil,
+  Plus,
   Printer,
   RefreshCcw,
   Rocket,
+  Save,
   Target,
+  Trash2,
+  UsersRound,
+  WalletCards,
 } from 'lucide-react'
 const CL = { navy: '#0D1B3D', active: '#1F2933', recon: '#1565C0', overdue: '#EF6C00', pastdue: '#D71920', lightBg: '#F5F7FA' }
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })
@@ -519,6 +525,7 @@ const REPORT_TYPES = [
   { key: 'daily-target', label: 'Daily Target', desc: 'Daily target collection', Icon: Target, color: '#be123c', bg: '#ffe4e6' },
   { key: 'disclosure-statement', label: 'Disclosure Statement', desc: 'Client disclosure for every reloan', Icon: FileText, color: '#0f766e', bg: '#ccfbf1' },
   { key: 'aging-report', label: 'Aging Report', desc: 'Overdue aging by period and collector', Icon: Bell, color: '#ca8a04', bg: '#fef3c7' },
+  { key: 'expenses-report', label: 'Expenses Reports', desc: 'Employee expense input and summary', Icon: WalletCards, color: '#0f766e', bg: '#ccfbf1' },
 ]
 
 export default function Reports() {
@@ -592,6 +599,13 @@ export default function Reports() {
   const [fieldReleaseSaving, setFieldReleaseSaving] = useState(false)
   const [printMode, setPrintMode] = useState('detailed')
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const [expensesTab, setExpensesTab] = useState('summary')
+  const [expensePersonnel, setExpensePersonnel] = useState([])
+  const [expenseEntries, setExpenseEntries] = useState([])
+  const [expenseSummary, setExpenseSummary] = useState(null)
+  const [expensesLoading, setExpensesLoading] = useState(false)
+  const [expenseForm, setExpenseForm] = useState({ id: '', personnel_id: '', expense_date: toDateInputValue(new Date()), category: '', description: '', amount: '', remarks: '' })
+  const [personnelForm, setPersonnelForm] = useState({ id: '', employee_name: '', position: '', status: 'active' })
 
   const openFieldReleaseModal = async () => {
     const reportDate = params.date || toDateInputValue(new Date())
@@ -627,6 +641,105 @@ export default function Reports() {
       alert(err.response?.data?.error || 'Failed to save field release data')
     } finally {
       setFieldReleaseSaving(false)
+    }
+  }
+
+  const loadExpensesReport = async (nextParams = params) => {
+    setExpensesLoading(true)
+    try {
+      const query = { date_from: nextParams.date_from, date_to: nextParams.date_to }
+      const [personnelRes, entriesRes, summaryRes] = await Promise.all([
+        API.get('/reports/expenses/personnel'),
+        API.get('/reports/expenses/entries', { params: query }),
+        API.get('/reports/expenses/summary', { params: query }),
+      ])
+      setExpensePersonnel(Array.isArray(personnelRes.data) ? personnelRes.data : [])
+      setExpenseEntries(Array.isArray(entriesRes.data) ? entriesRes.data : [])
+      setExpenseSummary(summaryRes.data || null)
+      setData(summaryRes.data || { ready: true })
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to load expenses report')
+      setData({ error: err.response?.data?.error || 'Failed to load expenses report' })
+    } finally {
+      setExpensesLoading(false)
+    }
+  }
+
+  const savePersonnel = async (event) => {
+    event.preventDefault()
+    const payload = {
+      employee_name: personnelForm.employee_name.trim(),
+      position: personnelForm.position.trim(),
+      status: personnelForm.status || 'active',
+    }
+    if (!payload.employee_name) {
+      alert('Employee name is required.')
+      return
+    }
+    try {
+      if (personnelForm.id) {
+        await API.put(`/reports/expenses/personnel/${personnelForm.id}`, payload)
+      } else {
+        await API.post('/reports/expenses/personnel', payload)
+      }
+      setPersonnelForm({ id: '', employee_name: '', position: '', status: 'active' })
+      await loadExpensesReport()
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to save employee')
+    }
+  }
+
+  const saveExpenseEntry = async (event) => {
+    event.preventDefault()
+    const payload = {
+      personnel_id: expenseForm.personnel_id,
+      expense_date: expenseForm.expense_date,
+      category: expenseForm.category.trim(),
+      description: expenseForm.description.trim(),
+      amount: Number(expenseForm.amount || 0),
+      remarks: expenseForm.remarks.trim(),
+    }
+    if (!payload.personnel_id) {
+      alert('Please select an employee.')
+      return
+    }
+    if (!(payload.amount > 0)) {
+      alert('Amount must be greater than zero.')
+      return
+    }
+    try {
+      if (expenseForm.id) {
+        await API.put(`/reports/expenses/entries/${expenseForm.id}`, payload)
+      } else {
+        await API.post('/reports/expenses/entries', payload)
+      }
+      setExpenseForm({ id: '', personnel_id: payload.personnel_id, expense_date: toDateInputValue(new Date()), category: '', description: '', amount: '', remarks: '' })
+      await loadExpensesReport()
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to save expense')
+    }
+  }
+
+  const editExpenseEntry = entry => {
+    setExpensesTab('input')
+    setExpenseForm({
+      id: entry.id,
+      personnel_id: String(entry.personnel_id || ''),
+      expense_date: dateOnly(entry.expense_date) || toDateInputValue(new Date()),
+      category: entry.category || '',
+      description: entry.description || '',
+      amount: entry.amount || '',
+      remarks: entry.remarks || '',
+    })
+  }
+
+  const deleteExpenseEntry = async id => {
+    if (!window.confirm('Delete this expense entry?')) return
+    try {
+      await API.delete(`/reports/expenses/entries/${id}`)
+      await loadExpensesReport()
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete expense')
     }
   }
 
@@ -1447,6 +1560,12 @@ export default function Reports() {
       setParams(nextParams)
       run(key, nextParams)
     }
+    if (key === 'expenses-report') {
+      const nextParams = { ...params, date_from: '', date_to: toDateInputValue(new Date()) }
+      setParams(nextParams)
+      setExpensesTab('summary')
+      loadExpensesReport(nextParams)
+    }
   }
 
   const run = async (reportKey = active, reportParams = params, subTab = collectionSubTab) => {
@@ -1477,6 +1596,9 @@ export default function Reports() {
       }
       if (reportKey === 'daily-target') {
         endpoint = 'collection-sheet'
+      }
+      if (reportKey === 'expenses-report') {
+        return await loadExpensesReport(finalParams)
       }
       const r = await API.get(`/reports/${endpoint}`, { params: finalParams })
       setData(r.data)
@@ -1524,6 +1646,25 @@ export default function Reports() {
               <button className={`btn ${releaseMonthlySubTab === 'overall' ? 'btn-primary' : 'btn-secondary'} btn-sm`} onClick={() => setReleaseMonthlySubTab('overall')} style={{ padding: '4px 12px', fontSize: 13 }}>Overall</button>
             </div>
           )}
+        </div>
+      )
+    }
+    if (active === 'expenses-report') {
+      const tabs = [
+        { key: 'summary', label: 'Summary', Icon: BarChart3 },
+        { key: 'input', label: 'Input Expense', Icon: Plus },
+        { key: 'personnel', label: 'Personnel Management', Icon: UsersRound },
+      ]
+      return (
+        <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+          {tabs.map(tab => {
+            const Icon = tab.Icon
+            return (
+              <button key={tab.key} className={`btn ${expensesTab === tab.key ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setExpensesTab(tab.key)}>
+                <Icon size={15} /> {tab.label}
+              </button>
+            )
+          })}
         </div>
       )
     }
@@ -1580,6 +1721,12 @@ export default function Reports() {
       <>
         <div className="form-group"><label className="form-label">Date From</label><input type="date" className="form-control" value={params.date_from || ''} onChange={e => setParams(p => ({ ...p, date_from: e.target.value }))} /></div>
         <div className="form-group"><label className="form-label">Date To</label><input type="date" className="form-control" value={params.date_to || toDateInputValue(new Date())} onChange={e => setParams(p => ({ ...p, date_to: e.target.value }))} /></div>
+      </>
+    )
+    if (active === 'expenses-report') return (
+      <>
+        <div className="form-group"><label className="form-label">Date From</label><input type="date" className="form-control" value={params.date_from || ''} onChange={e => setParams(p => ({ ...p, date_from: e.target.value }))} /></div>
+        <div className="form-group"><label className="form-label">Date To</label><input type="date" className="form-control" value={params.date_to || ''} onChange={e => setParams(p => ({ ...p, date_to: e.target.value }))} /></div>
       </>
     )
     if (active === 'monthly-releases') return (
@@ -1679,8 +1826,151 @@ export default function Reports() {
   }
 
   const renderResult = () => {
-    if (loading) return <div className="empty-state"><p>Generating report...</p></div>
+    if (loading || (active === 'expenses-report' && expensesLoading)) return <div className="empty-state"><p>Generating report...</p></div>
     if (!data) return <div className="empty-state"><div className="empty-icon">REPORT</div><p>Set your parameters and click Run Report</p></div>
+
+    if (active === 'expenses-report') {
+      const summary = expenseSummary || {}
+      const byEmployee = summary.by_employee || []
+      const byCategory = summary.by_category || []
+      const activePersonnel = expensePersonnel.filter(p => p.status === 'active')
+      const totalAmount = Number(summary.total_amount || 0)
+
+      if (data.error) return <div className="empty-state"><p>{data.error}</p></div>
+
+      if (expensesTab === 'summary') return (
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
+            <div style={{ margin: 0, border: '1px solid var(--border)', borderRadius: 8, padding: 16, background: '#fff' }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Total Expenses</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: '#0f766e', marginTop: 6 }}>PHP {fmtMoney(totalAmount)}</div>
+            </div>
+            <div style={{ margin: 0, border: '1px solid var(--border)', borderRadius: 8, padding: 16, background: '#fff' }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Expense Entries</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: '#0D1B3D', marginTop: 6 }}>{summary.expense_count || 0}</div>
+            </div>
+            <div style={{ margin: 0, border: '1px solid var(--border)', borderRadius: 8, padding: 16, background: '#fff' }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Active Employees</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: '#0D1B3D', marginTop: 6 }}>{activePersonnel.length}</div>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+            <div>
+              <h3 style={{ margin: '0 0 10px 0', color: 'var(--blue-dark)' }}>Total Kada Employee</h3>
+              <table className="data-table">
+                <thead><tr><th>Employee</th><th>Position</th><th className="text-right">Entries</th><th className="text-right">Total Expense</th></tr></thead>
+                <tbody>
+                  {byEmployee.length === 0 ? <tr><td colSpan={4} className="empty-state">No employees found</td></tr> : byEmployee.map(row => (
+                    <tr key={row.personnel_id}>
+                      <td className="fw-600">{row.employee_name}</td>
+                      <td>{row.position || '-'}</td>
+                      <td className="text-right">{row.expense_count || 0}</td>
+                      <td className="text-right fw-700">PHP {fmtMoney(row.total_amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <h3 style={{ margin: '0 0 10px 0', color: 'var(--blue-dark)' }}>By Category</h3>
+              <table className="data-table">
+                <thead><tr><th>Category</th><th className="text-right">Total</th></tr></thead>
+                <tbody>
+                  {byCategory.length === 0 ? <tr><td colSpan={2} className="empty-state">No expenses yet</td></tr> : byCategory.map(row => (
+                    <tr key={row.category}>
+                      <td>{row.category}</td>
+                      <td className="text-right fw-700">PHP {fmtMoney(row.total_amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )
+
+      if (expensesTab === 'input') return (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+          <form onSubmit={saveExpenseEntry} style={{ margin: 0, border: '1px solid var(--border)', borderRadius: 8, padding: 16, background: '#fff' }}>
+            <h3 style={{ margin: '0 0 12px 0', color: 'var(--blue-dark)' }}>{expenseForm.id ? 'Edit Expense' : 'Input Expense'}</h3>
+            <div className="form-group"><label className="form-label">Employee *</label>
+              <select className="form-control" value={expenseForm.personnel_id} onChange={e => setExpenseForm(f => ({ ...f, personnel_id: e.target.value }))}>
+                <option value="">Select employee...</option>
+                {activePersonnel.map(p => <option key={p.id} value={p.id}>{p.employee_name}</option>)}
+              </select>
+            </div>
+            <div className="form-group"><label className="form-label">Expense Date *</label><input type="date" className="form-control" value={expenseForm.expense_date} onChange={e => setExpenseForm(f => ({ ...f, expense_date: e.target.value }))} /></div>
+            <div className="form-group"><label className="form-label">Category</label><input className="form-control" value={expenseForm.category} onChange={e => setExpenseForm(f => ({ ...f, category: e.target.value }))} placeholder="Allowance, fuel, meals..." /></div>
+            <div className="form-group"><label className="form-label">Description</label><input className="form-control" value={expenseForm.description} onChange={e => setExpenseForm(f => ({ ...f, description: e.target.value }))} /></div>
+            <div className="form-group"><label className="form-label">Amount *</label><input type="number" min="0" step="0.01" className="form-control" value={expenseForm.amount} onChange={e => setExpenseForm(f => ({ ...f, amount: e.target.value }))} /></div>
+            <div className="form-group"><label className="form-label">Remarks</label><textarea className="form-control" rows={3} value={expenseForm.remarks} onChange={e => setExpenseForm(f => ({ ...f, remarks: e.target.value }))} /></div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              {expenseForm.id && <button type="button" className="btn btn-secondary" onClick={() => setExpenseForm({ id: '', personnel_id: '', expense_date: toDateInputValue(new Date()), category: '', description: '', amount: '', remarks: '' })}>Cancel</button>}
+              <button type="submit" className="btn btn-primary"><Save size={15} /> Save Expense</button>
+            </div>
+          </form>
+          <div>
+            <h3 style={{ margin: '0 0 10px 0', color: 'var(--blue-dark)' }}>Expense Entries</h3>
+            <table className="data-table">
+              <thead><tr><th>Date</th><th>Employee</th><th>Category</th><th>Description</th><th className="text-right">Amount</th><th>Actions</th></tr></thead>
+              <tbody>
+                {expenseEntries.length === 0 ? <tr><td colSpan={6} className="empty-state">No expense entries for the selected period</td></tr> : expenseEntries.map(entry => (
+                  <tr key={entry.id}>
+                    <td>{shortDate(entry.expense_date)}</td>
+                    <td className="fw-600">{entry.employee_name}</td>
+                    <td>{entry.category || '-'}</td>
+                    <td>{entry.description || '-'}</td>
+                    <td className="text-right fw-700">PHP {fmtMoney(entry.amount)}</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn btn-secondary" style={{ padding: '5px 8px' }} onClick={() => editExpenseEntry(entry)} title="Edit"><Pencil size={14} /></button>
+                        <button className="btn btn-secondary" style={{ padding: '5px 8px', color: '#dc2626' }} onClick={() => deleteExpenseEntry(entry.id)} title="Delete"><Trash2 size={14} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )
+
+      return (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+          <form onSubmit={savePersonnel} style={{ margin: 0, border: '1px solid var(--border)', borderRadius: 8, padding: 16, background: '#fff' }}>
+            <h3 style={{ margin: '0 0 12px 0', color: 'var(--blue-dark)' }}>{personnelForm.id ? 'Edit Employee' : 'Add Employee'}</h3>
+            <div className="form-group"><label className="form-label">Employee Name *</label><input className="form-control" value={personnelForm.employee_name} onChange={e => setPersonnelForm(f => ({ ...f, employee_name: e.target.value }))} /></div>
+            <div className="form-group"><label className="form-label">Position</label><input className="form-control" value={personnelForm.position} onChange={e => setPersonnelForm(f => ({ ...f, position: e.target.value }))} /></div>
+            <div className="form-group"><label className="form-label">Status</label>
+              <select className="form-control" value={personnelForm.status} onChange={e => setPersonnelForm(f => ({ ...f, status: e.target.value }))}>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              {personnelForm.id && <button type="button" className="btn btn-secondary" onClick={() => setPersonnelForm({ id: '', employee_name: '', position: '', status: 'active' })}>Cancel</button>}
+              <button type="submit" className="btn btn-primary"><Save size={15} /> Save Employee</button>
+            </div>
+          </form>
+          <div>
+            <h3 style={{ margin: '0 0 10px 0', color: 'var(--blue-dark)' }}>Personnel List</h3>
+            <table className="data-table">
+              <thead><tr><th>Employee Name</th><th>Position</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>
+                {expensePersonnel.length === 0 ? <tr><td colSpan={4} className="empty-state">No employees yet</td></tr> : expensePersonnel.map(person => (
+                  <tr key={person.id}>
+                    <td className="fw-600">{person.employee_name}</td>
+                    <td>{person.position || '-'}</td>
+                    <td><span className={`badge ${person.status === 'active' ? 'badge-success' : 'badge-secondary'}`}>{person.status}</span></td>
+                    <td><button className="btn btn-secondary" style={{ padding: '5px 8px' }} onClick={() => setPersonnelForm({ id: person.id, employee_name: person.employee_name || '', position: person.position || '', status: person.status || 'active' })} title="Edit"><Pencil size={14} /></button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )
+    }
 
     if (active === 'disclosure-statement') {
       const loan = data.loan || {}
@@ -4443,6 +4733,8 @@ export default function Reports() {
                       <button className="btn btn-secondary" onClick={openFieldReleaseModal} disabled={loading}>Field Release</button>
                       <button className="btn btn-secondary" onClick={printCollectionSheet} disabled={loading}><Printer size={15} /> Print</button>
                     </>
+                  ) : active === 'expenses-report' ? (
+                    <button className="btn btn-secondary" onClick={() => loadExpensesReport()} disabled={loading || expensesLoading}>Refresh</button>
                   ) : ['collection-report', 'monthly-releases', 'past-due', 'payments-reversed', 'full-paid'].includes(active) ? (
                     <>
                       <button className="btn btn-secondary" onClick={handleExportExcel} disabled={loading || data?.error}>Export Excel</button>
