@@ -183,6 +183,7 @@ export default function CollectorPerformance() {
   const [collectorEdits, setCollectorEdits] = useState({})
   const [lockedCollections, setLockedCollections] = useState(null)
   const [showSavedModal, setShowSavedModal] = useState(false)
+  const [showPerformancePreview, setShowPerformancePreview] = useState(false)
   const [collectionsLoading, setCollectionsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
@@ -416,11 +417,18 @@ export default function CollectorPerformance() {
 
   const lockWeekForPrinting = () => {
     const dates = getOperationWeek(filters.date_to)
-    setLockedCollections({
+    const locked = {
       dateFrom: dates[0],
       dateTo: dates[dates.length - 1],
       collectors: collectionRows
-    })
+    }
+    setLockedCollections(locked)
+    return locked
+  }
+
+  const previewLockedPerformance = () => {
+    if (!lockedCollections) lockWeekForPrinting()
+    setShowPerformancePreview(true)
   }
 
   const printLockedPerformance = () => {
@@ -435,6 +443,7 @@ export default function CollectorPerformance() {
     document.body.classList.add('print-performance-report')
     window.print()
     document.body.classList.remove('print-performance-report')
+    setShowPerformancePreview(false)
   }
 
   useEffect(() => {
@@ -517,6 +526,30 @@ export default function CollectorPerformance() {
       <style>{`
         .collector-print-layout { display: none; }
         .performance-print-layout { display: none; }
+        .performance-print-layout.performance-preview-visible {
+          display: block;
+          position: fixed;
+          inset: 0;
+          z-index: 1000;
+          overflow: auto;
+          background: rgba(15, 23, 42, 0.72);
+          padding: 72px 24px 24px;
+        }
+        .performance-preview-controls {
+          position: fixed;
+          top: 18px;
+          right: 24px;
+          z-index: 1001;
+          display: flex;
+          gap: 10px;
+        }
+        .performance-print-layout.performance-preview-visible .performance-print-page {
+          width: 8.5in;
+          min-height: 11in;
+          margin: 0 auto 24px;
+          background: #fff;
+          box-shadow: 0 20px 60px rgba(0,0,0,.35);
+        }
         .collector-print-table {
           width: 100%;
           border-collapse: collapse;
@@ -599,10 +632,21 @@ export default function CollectorPerformance() {
             padding: 0.25in 0.35in;
           }
           .performance-print-page:last-child { page-break-after: auto; }
+          .performance-preview-controls { display: none !important; }
         }
       `}</style>
 
-      <div className="performance-print-layout">
+      <div className={`performance-print-layout ${showPerformancePreview ? 'performance-preview-visible' : ''}`}>
+        {showPerformancePreview && (
+          <div className="performance-preview-controls">
+            <button className="btn btn-secondary" type="button" onClick={() => setShowPerformancePreview(false)}>
+              <X size={16} /> Close Preview
+            </button>
+            <button className="btn btn-primary" type="button" onClick={printLockedPerformance}>
+              <Printer size={16} /> Print
+            </button>
+          </div>
+        )}
         {(lockedCollections?.collectors || collectionRows).map(collector => {
           const summary = getCollectorCollectionTotals(collector.rows)
           const edit = collectorEdits[collector.id] || {}
@@ -660,10 +704,45 @@ export default function CollectorPerformance() {
                 </tbody>
               </table>
 
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, marginBottom: 0 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5, marginBottom: 0 }}>
                 <tbody>
-                  <tr><td style={{ border: '1px solid #000', padding: 8, width: '15%' }}><b>Legend:</b><br /><span style={{ display: 'inline-block', width: 95, background: '#bbf7d0', border: '1px solid #000', textAlign: 'center' }}>Passed</span><br /><span style={{ display: 'inline-block', width: 95, background: '#fde68a', border: '1px solid #000', textAlign: 'center' }}>Warning</span><br /><span style={{ display: 'inline-block', width: 95, background: '#fecaca', border: '1px solid #000', textAlign: 'center' }}>Needs Improvement</span></td><td style={{ border: '1px solid #000', padding: 8, width: '45%' }}>90.00% and above<br />85% - 89.99%<br />84.99% and below</td><td style={{ border: '1px solid #000', padding: 8, textAlign: 'center' }}><u>Coaching Details:</u><br /><br />Date<br /><br />Name and Signature of Coach<br /><br /><b>VICTORIO L. RELOBA, JR.</b><br />Position of Coach<br /><br />Collector<br /><br /><b>{String(edit.fullName || collector.name).toUpperCase()}</b><br />Name of Collector</td></tr>
-                  <tr><td colSpan={3} style={{ border: '1px solid #000', padding: 10 }}><b><u>Recommendation:</u></b><br /><br /><i>{edit.recommendation || insight.recommendation}</i><br /><br /><b><u>Comment/Suggestions:</u></b><br /><br /><i>{edit.comment || insight.comment}</i></td></tr>
+                  <tr>
+                    <td colSpan={2} style={{ border: '1px solid #000', padding: 8, verticalAlign: 'top', width: '63%' }}>
+                      <b><u>Legend:</u></b>
+                      <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', alignItems: 'start', gap: 8, marginTop: 6 }}>
+                        <div>
+                          <div style={{ background: '#bbf7d0', border: '1px solid #000', textAlign: 'center', fontWeight: 800 }}>Passed</div>
+                          <div style={{ background: '#fde68a', border: '1px solid #000', borderTop: 0, textAlign: 'center', fontWeight: 800 }}>Warning</div>
+                          <div style={{ background: '#fecaca', border: '1px solid #000', borderTop: 0, textAlign: 'center', fontWeight: 800 }}>Needs Improvement</div>
+                        </div>
+                        <div style={{ lineHeight: 1.5 }}>90.00% and above<br />85% - 89.99%<br />84.99% and below</div>
+                      </div>
+                    </td>
+                    <td style={{ border: '1px solid #000', padding: 0, verticalAlign: 'top', width: '37%' }} rowSpan={3}>
+                      <table style={{ width: '100%', height: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+                        <tbody>
+                          <tr><td colSpan={2} style={{ borderBottom: '1px solid #000', padding: 6, textAlign: 'center' }}><u>Coaching Details:</u></td></tr>
+                          <tr><td style={{ borderRight: '1px dotted #000', borderBottom: '1px solid #000', padding: 6, width: '32%' }}>Date</td><td style={{ borderBottom: '1px solid #000', padding: 6 }}></td></tr>
+                          <tr><td style={{ borderRight: '1px dotted #000', borderBottom: '1px solid #000', padding: 6, height: 70 }}>Name and<br />Signature of<br />Coach</td><td style={{ borderBottom: '1px solid #000', padding: 6, textAlign: 'center', verticalAlign: 'bottom' }}><b>VICTORIO L. RELOBA, JR.</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 145, paddingTop: 2 }}>Position of Coach</span></td></tr>
+                          <tr><td style={{ borderRight: '1px dotted #000', padding: 6, height: 70 }}>Collector</td><td style={{ padding: 6, textAlign: 'center', verticalAlign: 'bottom' }}><b>{String(edit.fullName || collector.name).toUpperCase()}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 145, paddingTop: 2 }}>Name of Collector</span></td></tr>
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={{ border: '1px solid #000', padding: 10, height: 70, verticalAlign: 'bottom', width: '31.5%' }}><i>Prepared by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>MIA S. YBAÑEZ</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>IT/ Acctg. Clerk</span></div></td>
+                    <td style={{ border: '1px solid #000', padding: 10, height: 70, verticalAlign: 'bottom', width: '31.5%' }}><i>Acknowledged by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>{String(edit.fullName || collector.name).toUpperCase()}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>CI/Collector</span></div></td>
+                  </tr>
+                  <tr>
+                    <td style={{ border: '1px solid #000', padding: 10, height: 70, verticalAlign: 'bottom' }}><i>Reviewed by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>MARILYN O. RELOBA</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>Branch Manager</span></div></td>
+                    <td style={{ border: '1px solid #000', padding: 10, height: 70, verticalAlign: 'bottom' }}><i>Approved by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>VICTORIO L. RELOBA, JR.</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>Operations Manager</span></div></td>
+                  </tr>
+                  <tr>
+                    <td colSpan={3} style={{ border: '1px solid #000', padding: 10, height: 105, verticalAlign: 'top' }}>
+                      <b><u>Recommendation:</u></b><br /><br /><i>{edit.recommendation || insight.recommendation}</i><br /><br />
+                      <b><u>Comments/Suggestions:</u></b><br /><br /><i>{edit.comment || insight.comment}</i>
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -953,6 +1032,9 @@ export default function CollectorPerformance() {
                     </button>
                     <button className="btn btn-secondary" type="button" onClick={lockWeekForPrinting} disabled={collectionsLoading || !collectionRows.length}>
                       Lock Week
+                    </button>
+                    <button className="btn btn-secondary" type="button" onClick={previewLockedPerformance} disabled={collectionsLoading || !collectionRows.length}>
+                      Preview Performance
                     </button>
                     <button className="btn btn-primary" type="button" onClick={printLockedPerformance} disabled={collectionsLoading || !collectionRows.length}>
                       <Printer size={16} /> Print Performance
