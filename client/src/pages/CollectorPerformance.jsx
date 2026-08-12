@@ -558,9 +558,12 @@ export default function CollectorPerformance() {
           @page { size: portrait; margin: 0.35in; }
           body { background: #fff !important; }
           body * { visibility: hidden !important; }
-          #printable-area.collector-print-layout,
-          #printable-area.collector-print-layout * { visibility: visible !important; }
-          #printable-area.collector-print-layout {
+          body.print-target #printable-area.collector-print-layout,
+          body.print-target #printable-area.collector-print-layout *,
+          body.print-actual #printable-area.collector-print-layout,
+          body.print-actual #printable-area.collector-print-layout * { visibility: visible !important; }
+          body.print-target #printable-area.collector-print-layout,
+          body.print-actual #printable-area.collector-print-layout {
             display: grid !important;
             grid-template-columns: 1fr;
             gap: 0.2in;
