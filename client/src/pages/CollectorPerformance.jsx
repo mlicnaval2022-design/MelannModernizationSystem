@@ -96,37 +96,37 @@ const getGeneratedCollectionInsight = (collectorName, rows, summary) => {
 
   if (summary.rate >= 100) {
     return {
-      comment: `${collector} exceeded the weekly collection target with ${summary.rate.toFixed(2)}% accomplishment. Best collection day was ${shortDisplayDate(bestRow?.date)} at ${Number(bestRow?.rate || 0).toFixed(2)}%.`,
-      recommendation: 'Maintain the current route discipline and use the same follow-up timing for accounts with upcoming dues.'
+      comment: `${collector} nakalapas sa target with ${summary.rate.toFixed(2)}% accomplishment. Maayo ang resulta, pero dili ni rason nga mukompyansa kay kinahanglan consistent gihapon matag adlaw. Pinakamaayo nga adlaw: ${shortDisplayDate(bestRow?.date)} with ${Number(bestRow?.rate || 0).toFixed(2)}%.`,
+      recommendation: 'Padayona ang disiplina sa ruta ug follow-up. Ayaw hulata nga mubagsak pa ang performance; bantayi daan ang mga account nga hapit na malapas sa due.'
     }
   }
 
   if (summary.rate >= 85) {
     return {
-      comment: `${collector} is on track at ${summary.rate.toFixed(2)}% accomplishment, but there is still a small gap against the weekly target.`,
-      recommendation: 'Prioritize accounts with missed or partial payments and close the remaining gap before the week ends.'
+      comment: `${collector} naa pa sa acceptable level with ${summary.rate.toFixed(2)}%, pero klaro nga kulang pa gihapon. Dili dapat mahulog sa "okay na" mindset kay naa pay target gap nga wala pa nakuha.`,
+      recommendation: 'Unaha ang clients nga partial ug missed payment. Kinahanglan naay klarong lista sa kolektahonon ug deadline kada account before mahuman ang semana.'
     }
   }
 
   if (paidRows.length === 0) {
     return {
-      comment: `${collector} has no posted actual collection for the selected week, so accomplishment remains at 0.00%.`,
-      recommendation: 'Validate collection posting first, then schedule immediate follow-ups for all active accounts assigned to this collector.'
+      comment: `${collector} walay bisan usa ka posted actual collection sa selected week. Kini seryoso nga red flag kay 0.00% ang accomplishment ug walay makita nga collection output.`,
+      recommendation: 'I-verify dayon kung na-post ba ang collections. Kung wala gyud collection, kinahanglan immediate field validation, client follow-up, ug written recovery plan sa tanan active accounts.'
     }
   }
 
   if (zeroRows.length >= 3) {
     return {
-      comment: `${collector} has collections on ${paidRows.length} day(s), but ${zeroRows.length} operational day(s) have zero actual collection. Weekly accomplishment is ${summary.rate.toFixed(2)}%.`,
-      recommendation: 'Review the zero-collection dates, confirm field activity, and require a focused recovery plan for unpaid active accounts.'
+      comment: `${collector} naay collection sa ${paidRows.length} ka adlaw, pero ${zeroRows.length} ka operational days ang zero actual collection. Dili ni acceptable nga pattern kay weekly accomplishment ra ang ${summary.rate.toFixed(2)}%. Nagpasabot ni nga huyang ang daily follow-up ug dili stable ang collection execution.`,
+      recommendation: 'I-review tagsa-tagsa ang zero-collection dates. Pangayoa ang proof of field activity, listahan sa giadto nga clients, ug concrete recovery plan sa unpaid active accounts.'
     }
   }
 
   return {
-    comment: `${collector} recorded PHP ${fmt(summary.actual)} actual collection against PHP ${fmt(summary.dailyTarget)} total target for ${summary.rate.toFixed(2)}% accomplishment.`,
+    comment: `${collector} nakakuha ra og PHP ${fmt(summary.actual)} actual collection batok sa PHP ${fmt(summary.dailyTarget)} total target, equivalent sa ${summary.rate.toFixed(2)}%. Kulang pa ang performance ug dili pa ni enough para matawag nga lig-on ang collection output.`,
     recommendation: Number(latestRow?.actual || 0) === 0
-      ? 'Follow up immediately on the latest operational day with no collection and prioritize high-probability paying clients.'
-      : 'Continue daily monitoring and focus on accounts needed to lift accomplishment above 85%.'
+      ? 'Tutuki dayon ang pinakabag-o nga operational day nga zero collection. Prioritize ang high-probability paying clients ug ayaw pasagdi nga modaghan ang walay bayad.'
+      : 'Kinahanglan mas agresibo ang daily monitoring. I-focus ang effort sa accounts nga makataas sa accomplishment above 85%, dili lang sa sayon kolektahon.'
   }
 }
 
