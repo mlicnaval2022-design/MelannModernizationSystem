@@ -64,6 +64,93 @@ const resolvePrintablePreviousBalance = async (loan, findPriorBalancePayment = (
   return loan.previous_balance;
 };
 
+const buildCollectionReleaseChargeRows = releases => releases.flatMap(loan => {
+  const base = {
+    loan_id: loan.id,
+    loan_code: loan.loan_code,
+    customer_id: loan.customer_id,
+    customer_code: loan.customer_code,
+    customer_name: loan.customer_name,
+    collector_name: loan.collector_name || 'Unassigned',
+    date_paid: loan.date_released,
+    balance_after: loan.balance,
+    collection_source: 'loan_release',
+  };
+  const rows = [];
+  const pushCharge = (kind, amount) => {
+    const value = Number(amount || 0);
+    if (value <= 0) return;
+    rows.push({
+      ...base,
+      id: `release-charge-${kind}-${loan.id}`,
+      amount_paid: value,
+      payment_type: kind,
+      payment_code: kind.toUpperCase(),
+      or_number: kind.toUpperCase(),
+      remarks: `Loan release ${kind} charge`,
+    });
+  };
+
+  if (Number(loan.balance_payment_count || 0) === 0) {
+    pushCharge('old_balance', loan.previous_balance);
+  }
+  if (Number(loan.penalty_payment_count || 0) === 0) {
+    pushCharge('penalty', loan.penalty);
+  }
+  pushCharge('passbook', loan.passbook);
+
+  return rows;
+});
+
+const getCollectionReleaseCharges = async (from, to) => {
+  const releases = await dbAll(`
+    SELECT
+      l.id,
+      l.customer_id,
+      l.loan_code,
+      l.date_released,
+      l.balance,
+      l.previous_balance,
+      l.penalty,
+      l.passbook,
+      c.customer_code,
+      c.full_name as customer_name,
+      COALESCE(
+        NULLIF(TRIM(co.first_name || ' ' || co.last_name), ''),
+        NULLIF(TRIM(cco.first_name || ' ' || cco.last_name), ''),
+        'Unassigned'
+      ) as collector_name,
+      (
+        SELECT COUNT(*)
+        FROM tblPayment pp
+        WHERE pp.loan_id = l.id
+          AND pp.status = 'penalty'
+      ) as penalty_payment_count,
+      (
+        SELECT COUNT(*)
+        FROM tblPayment pp
+        WHERE pp.customer_id = l.customer_id
+          AND pp.date_paid = l.date_released
+          AND pp.status = 'active'
+          AND (
+            LOWER(COALESCE(pp.remarks, '')) LIKE '%old balance%'
+            OR LOWER(COALESCE(pp.remarks, '')) LIKE '%recon balance%'
+            OR LOWER(COALESCE(pp.payment_type, '')) IN ('balance', 'recon', 'old_balance')
+          )
+      ) as balance_payment_count
+    FROM tblLoan l
+    LEFT JOIN tblCustomer c ON l.customer_id = c.id
+    LEFT JOIN tblCollector co ON l.collector_id = co.id
+    LEFT JOIN tblCollector cco ON c.collector_id = cco.id
+    WHERE l.date_released BETWEEN ? AND ?
+      AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected')
+      AND ${sqlNotSunday('l.date_released')}
+    ORDER BY l.date_released, collector_name, c.full_name
+  `, [from, to]);
+
+  return buildCollectionReleaseChargeRows(releases);
+};
+
 const ensureCollectionFieldReleaseTable = () => dbRun(`
   CREATE TABLE IF NOT EXISTS tblCollectionFieldRelease (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -567,17 +654,31 @@ router.get('/daily-collection', authenticateToken, async (req, res) => {
              CAST(MAX(0, ROUND(JULIANDAY(p.date_paid) - JULIANDAY(l.date_maturity))) AS INTEGER) as days_past_due,
              c.full_name as customer_name,
              c.customer_code,
-             co.first_name || ' ' || co.last_name as collector_name
+             COALESCE(
+               NULLIF(TRIM(co.first_name || ' ' || co.last_name), ''),
+               NULLIF(TRIM(lco.first_name || ' ' || lco.last_name), ''),
+               NULLIF(TRIM(cco.first_name || ' ' || cco.last_name), ''),
+               'Unassigned'
+             ) as collector_name
       FROM tblPayment p
       LEFT JOIN tblLoan l ON p.loan_id = l.id
       LEFT JOIN tblCustomer c ON p.customer_id = c.id
-      JOIN tblCollector co ON p.collector_id = co.id AND co.is_active = 1
+      LEFT JOIN tblCollector co ON p.collector_id = co.id
+      LEFT JOIN tblCollector lco ON l.collector_id = lco.id
+      LEFT JOIN tblCollector cco ON c.collector_id = cco.id
       WHERE p.date_paid BETWEEN ? AND ?
         AND p.status IN ('active', 'penalty')
         AND ${sqlNotSunday('p.date_paid')}
-      ORDER BY p.date_paid, co.last_name
+      ORDER BY p.date_paid, collector_name, c.full_name
     `, [from, to]);
-    res.json({ payments, total: payments.reduce((s, p) => s + p.amount_paid, 0), date_from: from, date_to: to });
+    const releaseCharges = await getCollectionReleaseCharges(from, to);
+    const collectionRows = [...payments, ...releaseCharges]
+      .sort((a, b) =>
+        String(a.date_paid || '').localeCompare(String(b.date_paid || '')) ||
+        String(a.collector_name || '').localeCompare(String(b.collector_name || '')) ||
+        String(a.customer_name || '').localeCompare(String(b.customer_name || ''))
+      );
+    res.json({ payments: collectionRows, total: collectionRows.reduce((s, p) => s + Number(p.amount_paid || 0), 0), date_from: from, date_to: to });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 
@@ -1061,6 +1162,8 @@ router.get('/aging-report', authenticateToken, async (req, res) => {
 router.__private = {
   normalizeLoanTypeKey,
   resolvePrintablePreviousBalance,
+  buildCollectionReleaseChargeRows,
+  getCollectionReleaseCharges,
 };
 
 module.exports = router;
