@@ -756,46 +756,32 @@ export default function CollectorPerformance() {
                 </tbody>
               </table>
 
-            </div>
-
-            <div className="performance-print-page performance-print-details">
+              
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5, marginBottom: 0 }}>
                 <tbody>
                   <tr>
-                    <td colSpan={2} style={{ border: '1px solid #000', padding: 8, verticalAlign: 'top', width: '63%' }}>
-                      <b><u>Legend:</u></b>
-                      <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', alignItems: 'start', gap: 8, marginTop: 6 }}>
-                        <div>
-                          <div style={{ background: '#bbf7d0', border: '1px solid #000', textAlign: 'center', fontWeight: 800 }}>Passed</div>
-                          <div style={{ background: '#fde68a', border: '1px solid #000', borderTop: 0, textAlign: 'center', fontWeight: 800 }}>Warning</div>
-                          <div style={{ background: '#fecaca', border: '1px solid #000', borderTop: 0, textAlign: 'center', fontWeight: 800 }}>Needs Improvement</div>
-                        </div>
-                        <div style={{ lineHeight: 1.5 }}>90.00% and above<br />85% - 89.99%<br />84.99% and below</div>
-                      </div>
-                    </td>
-                    <td style={{ border: '1px solid #000', padding: 0, verticalAlign: 'top', width: '37%' }} rowSpan={3}>
-                      <table style={{ width: '100%', height: '100%', minHeight: 243, borderCollapse: 'collapse', fontSize: 10, tableLayout: 'fixed' }}>
+                    <td style={{ border: '1px solid #000', padding: 0, verticalAlign: 'top', width: '63%' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, tableLayout: 'fixed' }}>
                         <tbody>
-                          <tr><td colSpan={2} style={{ borderBottom: '1px solid #000', padding: 6, textAlign: 'center', height: 24 }}><u>Coaching Details:</u></td></tr>
-                          <tr><td style={{ borderRight: '1px dotted #000', borderBottom: '1px solid #000', padding: 6, width: '32%', height: 40, verticalAlign: 'middle' }}>Date</td><td style={{ borderBottom: '1px solid #000', padding: 6 }}></td></tr>
-                          <tr><td style={{ borderRight: '1px dotted #000', borderBottom: '1px solid #000', padding: 6, height: 92, verticalAlign: 'middle' }}>Name and<br />Signature of<br />Coach</td><td style={{ borderBottom: '1px solid #000', padding: 6, textAlign: 'center', verticalAlign: 'bottom' }}><b>VICTORIO L. RELOBA, JR.</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 145, paddingTop: 2 }}>Position of Coach</span></td></tr>
-                          <tr><td style={{ borderRight: '1px dotted #000', padding: 6, height: 85, verticalAlign: 'middle' }}>Collector</td><td style={{ padding: 6, textAlign: 'center', verticalAlign: 'bottom' }}><b>{String(edit.fullName || collector.name).toUpperCase()}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 145, paddingTop: 2 }}>Name of Collector</span></td></tr>
+                          <tr><td colSpan={2} style={{ borderBottom: '1px solid #000', padding: 8, height: 102, verticalAlign: 'top' }}><b><u>Legend:</u></b><div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: 8, marginTop: 6 }}><div><div style={{ background: '#bbf7d0', border: '1px solid #000', textAlign: 'center', fontWeight: 800 }}>Passed</div><div style={{ background: '#fde68a', border: '1px solid #000', borderTop: 0, textAlign: 'center', fontWeight: 800 }}>Warning</div><div style={{ background: '#fecaca', border: '1px solid #000', borderTop: 0, textAlign: 'center', fontWeight: 800 }}>Needs Improvement</div></div><div style={{ lineHeight: 1.5 }}>90.00% and above<br />85% - 89.99%<br />84.99% and below</div></div></td></tr>
+                          <tr><td style={{ borderRight: '1px solid #000', borderBottom: '1px solid #000', padding: 8, height: 76, verticalAlign: 'bottom', width: '50%' }}><i>Prepared by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>MIA S. YBAÑEZ</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>IT/ Acctg. Clerk</span></div></td><td style={{ borderBottom: '1px solid #000', padding: 8, height: 76, verticalAlign: 'bottom', width: '50%' }}><i>Acknowledged by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>{String(edit.fullName || collector.name).toUpperCase()}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>CI/Collector</span></div></td></tr>
+                          <tr><td style={{ borderRight: '1px solid #000', padding: 8, height: 76, verticalAlign: 'bottom' }}><i>Reviewed by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>MARILYN O. RELOBA</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>Branch Manager</span></div></td><td style={{ padding: 8, height: 76, verticalAlign: 'bottom' }}><i>Approved by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>VICTORIO L. RELOBA, JR.</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>Operations Manager</span></div></td></tr>
                         </tbody>
                       </table>
                     </td>
-                  </tr>
-                  <tr>
-                    <td style={{ border: '1px solid #000', padding: 8, height: 80, verticalAlign: 'bottom', width: '31.5%' }}><i>Prepared by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>MIA S. YBAÑEZ</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>IT/ Acctg. Clerk</span></div></td>
-                    <td style={{ border: '1px solid #000', padding: 8, height: 80, verticalAlign: 'bottom', width: '31.5%' }}><i>Acknowledged by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>{String(edit.fullName || collector.name).toUpperCase()}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>CI/Collector</span></div></td>
-                  </tr>
-                  <tr>
-                    <td style={{ border: '1px solid #000', padding: 8, height: 80, verticalAlign: 'bottom' }}><i>Reviewed by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>MARILYN O. RELOBA</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>Branch Manager</span></div></td>
-                    <td style={{ border: '1px solid #000', padding: 8, height: 80, verticalAlign: 'bottom' }}><i>Approved by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>VICTORIO L. RELOBA, JR.</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 190 }}>Operations Manager</span></div></td>
-                  </tr>
-                  <tr>
-                    <td colSpan={3} style={{ border: '1px solid #000', padding: 8, height: 111, verticalAlign: 'top' }}>
-                      <b><u>Recommendation:</u></b><br /><br /><i>{edit.recommendation || insight.recommendation}</i><br /><br />
-                      <b><u>Comments/Suggestions:</u></b><br /><br /><i>{edit.comment || insight.comment}</i>
+                    <td style={{ border: '1px solid #000', padding: 0, verticalAlign: 'top', width: '37%' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, tableLayout: 'fixed' }}>
+                        <tbody>
+                          <tr><td colSpan={2} style={{ borderBottom: '1px solid #000', padding: 8, height: 20 }}><b><u>Recommendation:</u></b></td></tr>
+                          <tr><td colSpan={2} style={{ borderBottom: '1px solid #000', padding: 8, height: 66, verticalAlign: 'top' }}><i>{edit.recommendation || insight.recommendation}</i></td></tr>
+                          <tr><td colSpan={2} style={{ borderBottom: '1px solid #000', padding: 6, textAlign: 'center', height: 22 }}><u>Coaching Details:</u></td></tr>
+                          <tr><td style={{ borderRight: '1px dotted #000', borderBottom: '1px solid #000', padding: 6, width: '32%', height: 30 }}>Date</td><td style={{ borderBottom: '1px solid #000', padding: 6 }}></td></tr>
+                          <tr><td style={{ borderRight: '1px dotted #000', borderBottom: '1px solid #000', padding: 6, height: 56, verticalAlign: 'middle' }}>Name and<br />Signature of<br />Coach</td><td style={{ borderBottom: '1px solid #000', padding: 6, textAlign: 'center', verticalAlign: 'bottom' }}><b>VICTORIO L. RELOBA, JR.</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 145, paddingTop: 2 }}>Position of Coach</span></td></tr>
+                          <tr><td style={{ borderRight: '1px dotted #000', borderBottom: '1px solid #000', padding: 6, height: 50, verticalAlign: 'middle' }}>Coachee</td><td style={{ borderBottom: '1px solid #000', padding: 6, textAlign: 'center', verticalAlign: 'bottom' }}><b>{String(edit.fullName || collector.name).toUpperCase()}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: 145, paddingTop: 2 }}>Signature of Coachee</span></td></tr>
+                          <tr><td colSpan={2} style={{ borderBottom: '1px solid #000', padding: 6, height: 20 }}><b><u>Comments/Suggestions:</u></b></td></tr>
+                          <tr><td colSpan={2} style={{ padding: 8, height: 50, verticalAlign: 'top' }}><i>{edit.comment || insight.comment}</i></td></tr>
+                        </tbody>
+                      </table>
                     </td>
                   </tr>
                 </tbody>
