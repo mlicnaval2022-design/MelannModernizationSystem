@@ -7,6 +7,39 @@ import '../dashboard.css'
 const fmt = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 const countFmt = value => Number(value || 0).toLocaleString('en-PH')
 const printAmount = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const COLLECTOR_EDITS_STORAGE_KEY = 'collectorPerformanceEdits'
+const MAX_PROFILE_PHOTO_DIMENSION = 320
+
+const compressProfilePhoto = source => new Promise(resolve => {
+  const image = new Image()
+
+  image.onload = () => {
+    const largestDimension = Math.max(image.naturalWidth, image.naturalHeight)
+    const scale = largestDimension > MAX_PROFILE_PHOTO_DIMENSION
+      ? MAX_PROFILE_PHOTO_DIMENSION / largestDimension
+      : 1
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
+    canvas.getContext('2d')?.drawImage(image, 0, 0, canvas.width, canvas.height)
+
+    try {
+      resolve(canvas.toDataURL('image/jpeg', 0.72))
+    } catch {
+      resolve(source)
+    }
+  }
+
+  image.onerror = () => resolve(source)
+  image.src = source
+})
+
+const compactCollectorEdits = async edits => Object.fromEntries(await Promise.all(
+  Object.entries(edits).map(async ([collectorId, edit]) => {
+    if (!String(edit?.photo || '').startsWith('data:image/')) return [collectorId, edit]
+    return [collectorId, { ...edit, photo: await compressProfilePhoto(edit.photo) }]
+  })
+))
 
 const toDateKey = date => {
   const year = date.getFullYear()
@@ -187,6 +220,7 @@ export default function CollectorPerformance() {
   const [collectorEdits, setCollectorEdits] = useState({})
   const [lockedCollections, setLockedCollections] = useState(null)
   const [showSavedModal, setShowSavedModal] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [showPerformancePreview, setShowPerformancePreview] = useState(false)
   const [collectionsLoading, setCollectionsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -455,6 +489,7 @@ export default function CollectorPerformance() {
       }
     }))
     setShowSavedModal(false)
+    setSaveError('')
   }
 
   const updateCollectorPhoto = (collectorId, file) => {
@@ -464,9 +499,30 @@ export default function CollectorPerformance() {
     reader.readAsDataURL(file)
   }
 
-  const saveCollectorEdits = () => {
-    localStorage.setItem('collectorPerformanceEdits', JSON.stringify(collectorEdits))
-    setShowSavedModal(true)
+  const saveCollectorEdits = async () => {
+    const compactEdits = await compactCollectorEdits(collectorEdits)
+
+    try {
+      localStorage.setItem(COLLECTOR_EDITS_STORAGE_KEY, JSON.stringify(compactEdits))
+      setCollectorEdits(compactEdits)
+      setSaveError('')
+      setShowSavedModal(true)
+    } catch (error) {
+      if (error?.name !== 'QuotaExceededError') throw error
+
+      const editsWithoutPhotos = Object.fromEntries(Object.entries(compactEdits).map(([collectorId, edit]) => {
+        const editWithoutPhoto = { ...edit }
+        delete editWithoutPhoto.photo
+        return [collectorId, editWithoutPhoto]
+      }))
+
+      try {
+        localStorage.setItem(COLLECTOR_EDITS_STORAGE_KEY, JSON.stringify(editsWithoutPhotos))
+        setSaveError('Profile details were saved, but photos could not be saved because browser storage is full. Remove old site data or use smaller photos.')
+      } catch {
+        setSaveError('Unable to save profile details because browser storage is full. Remove old site data, then try again.')
+      }
+    }
   }
 
   const lockWeekForPrinting = () => {
@@ -518,7 +574,7 @@ export default function CollectorPerformance() {
 
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem('collectorPerformanceEdits') || '{}')
+      const saved = JSON.parse(localStorage.getItem(COLLECTOR_EDITS_STORAGE_KEY) || '{}')
       setCollectorEdits(saved && typeof saved === 'object' ? saved : {})
     } catch {
       setCollectorEdits({})
@@ -1169,6 +1225,7 @@ export default function CollectorPerformance() {
                         Save
                       </button>
                     </div>
+                    {saveError && <div className="empty-state" style={{ marginBottom: 18 }}><p>{saveError}</p></div>}
 
                     <div className="card-v2" style={{ marginBottom: 24 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
