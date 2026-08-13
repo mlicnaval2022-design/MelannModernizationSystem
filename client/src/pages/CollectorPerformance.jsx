@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, CalendarDays, CheckCircle2, Edit3, FileText, MapPin, Plus, Printer, RefreshCw, TrendingUp, User, Users, X } from 'lucide-react'
+import { ArrowLeft, CalendarDays, CheckCircle2, Edit3, FileText, MapPin, Plus, Printer, RefreshCw, Trash2, TrendingUp, User, Users, X } from 'lucide-react'
 import API from '../services/api'
 import logo from '../assets/logo.png'
 import '../dashboard.css'
@@ -81,7 +81,10 @@ const ratingPeriod = dates => {
   const first = new Date(`${dates[0]}T00:00:00`)
   const last = new Date(`${dates[dates.length - 1]}T00:00:00`)
   const firstLabel = first.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
-  const lastLabel = last.toLocaleDateString('en-US', { day: 'numeric', year: 'numeric' })
+  const crossesMonth = first.getMonth() !== last.getMonth() || first.getFullYear() !== last.getFullYear()
+  const lastLabel = crossesMonth
+    ? last.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    : `${last.getDate()}, ${last.getFullYear()}`
   return `${firstLabel} - ${lastLabel}`
 }
 
@@ -179,6 +182,7 @@ export default function CollectorPerformance() {
   const [data, setData] = useState(null)
   const [activeTab, setActiveTab] = useState('targets')
   const [collectionRows, setCollectionRows] = useState([])
+  const [newCollectionDate, setNewCollectionDate] = useState(defaultRange.date_to)
   const [selectedCollectionId, setSelectedCollectionId] = useState(null)
   const [collectorEdits, setCollectorEdits] = useState({})
   const [lockedCollections, setLockedCollections] = useState(null)
@@ -379,12 +383,62 @@ export default function CollectorPerformance() {
       })))
       const builtCollections = buildCollectionsByCollector(responses.map(response => response.data))
       setCollectionRows(builtCollections)
+      setLockedCollections(null)
       setSelectedCollectionId(current => current && !builtCollections.some(collector => collector.id === current) ? null : current)
     } catch (err) {
       setErrorMsg(err.response?.data?.error || err.message || 'Could not load collections')
     } finally {
       setCollectionsLoading(false)
     }
+  }
+
+  const addCollectionDate = async () => {
+    if (!newCollectionDate) return
+    const operationDates = getOperationWeek(filters.date_to)
+    if (!operationDates.includes(newCollectionDate)) {
+      setErrorMsg(`Date must be within ${displayDate(operationDates[0])} to ${displayDate(operationDates[5])}.`)
+      return
+    }
+    if (collectionRows.some(collector => collector.rows.some(row => row.date === newCollectionDate))) {
+      setErrorMsg(`${displayDate(newCollectionDate)} is already included.`)
+      return
+    }
+
+    setCollectionsLoading(true)
+    try {
+      const response = await API.get('/collector-performance/summary', {
+        params: { date_to: newCollectionDate, pastdue_cutoff: filters.pastdue_cutoff }
+      })
+      const addedCollectors = buildCollectionsByCollector([response.data])
+      setCollectionRows(current => {
+        const merged = new Map(current.map(collector => [collector.id, { ...collector, rows: [...collector.rows] }]))
+        addedCollectors.forEach(collector => {
+          const existing = merged.get(collector.id)
+          if (existing) {
+            existing.rows = [...existing.rows, ...collector.rows]
+              .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
+          } else {
+            merged.set(collector.id, collector)
+          }
+        })
+        return Array.from(merged.values())
+          .sort((a, b) => getSortOrder(a.name) - getSortOrder(b.name) || String(a.name || '').localeCompare(String(b.name || '')))
+      })
+      setLockedCollections(null)
+      setErrorMsg('')
+    } catch (err) {
+      setErrorMsg(err.response?.data?.error || err.message || 'Could not add collection date')
+    } finally {
+      setCollectionsLoading(false)
+    }
+  }
+
+  const deleteCollectionDate = date => {
+    setCollectionRows(current => current
+      .map(collector => ({ ...collector, rows: collector.rows.filter(row => row.date !== date) }))
+      .filter(collector => collector.rows.length))
+    setLockedCollections(null)
+    setErrorMsg('')
   }
 
   const applyFilters = async () => {
@@ -417,10 +471,16 @@ export default function CollectorPerformance() {
 
   const lockWeekForPrinting = () => {
     const dates = getOperationWeek(filters.date_to)
+    const dateSet = new Set(dates)
     const locked = {
       dateFrom: dates[0],
       dateTo: dates[dates.length - 1],
-      collectors: collectionRows
+      collectors: collectionRows.map(collector => ({
+        ...collector,
+        rows: collector.rows
+          .filter(row => dateSet.has(row.date))
+          .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
+      }))
     }
     setLockedCollections(locked)
     return locked
@@ -434,10 +494,16 @@ export default function CollectorPerformance() {
   const printLockedPerformance = () => {
     const dates = getOperationWeek(filters.date_to)
     if (!lockedCollections) {
+      const dateSet = new Set(dates)
       setLockedCollections({
         dateFrom: dates[0],
         dateTo: dates[dates.length - 1],
-        collectors: collectionRows
+        collectors: collectionRows.map(collector => ({
+          ...collector,
+          rows: collector.rows
+            .filter(row => dateSet.has(row.date))
+            .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
+        }))
       })
     }
     document.body.classList.add('print-performance-report')
@@ -520,6 +586,7 @@ export default function CollectorPerformance() {
   const selectedInsight = selectedCollection && selectedSummary
     ? getGeneratedCollectionInsight(selectedCollection.name, selectedCollection.rows, selectedSummary)
     : null
+  const performanceWeekDates = getOperationWeek(lockedCollections?.dateTo || filters.date_to)
 
   return (
     <div className="dashboard-v2">
@@ -662,7 +729,6 @@ export default function CollectorPerformance() {
         {(lockedCollections?.collectors || collectionRows).map(collector => {
           const summary = getCollectorCollectionTotals(collector.rows)
           const edit = collectorEdits[collector.id] || {}
-          const weekDates = collector.rows.map(row => row.date)
           const firstRow = collector.rows[0] || {}
           const newClients = collector.rows.reduce((sum, row) => sum + Number(row.newClients || 0), 0)
           const newPrincipal = collector.rows.reduce((sum, row) => sum + Number(row.newClientPrincipal || 0), 0)
@@ -687,7 +753,7 @@ export default function CollectorPerformance() {
                 </div>
               </div>
               <div style={{ textAlign: 'center', color: '#2563eb', fontWeight: 900, letterSpacing: 2, textDecoration: 'underline', margin: '6px 0 10px' }}>WEEKLY PERFORMANCE RATING</div>
-              <div style={{ fontSize: 12, marginBottom: 8 }}>Rating Period: <span style={{ color: '#ef4444', textDecoration: 'underline' }}>{ratingPeriod(weekDates)}</span></div>
+              <div style={{ fontSize: 12, marginBottom: 8 }}>Rating Period: <span style={{ color: '#ef4444', textDecoration: 'underline' }}>{ratingPeriod(performanceWeekDates)}</span></div>
 
               <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: 11.5, marginBottom: 10 }}>
                 <colgroup><col style={{ width: '20%' }} /><col style={{ width: '30%' }} /><col style={{ width: '20%' }} /><col style={{ width: '30%' }} /></colgroup>
@@ -761,7 +827,7 @@ export default function CollectorPerformance() {
                 <tbody>
                   <tr>
                     <td style={{ border: '1px solid #000', padding: 0, verticalAlign: 'top', width: '63%' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, tableLayout: 'fixed' }}>
+                      <table style={{ width: '100%', height: 220, borderCollapse: 'collapse', fontSize: 11, tableLayout: 'fixed' }}>
                         <tbody>
                           <tr><td colSpan={2} style={{ borderBottom: '1px solid #000', padding: 8, height: 82, verticalAlign: 'top' }}><b><u>Legend:</u></b><div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: 8, marginTop: 6 }}><div><div style={{ background: '#bbf7d0', border: '1px solid #000', textAlign: 'center', fontWeight: 800 }}>Passed</div><div style={{ background: '#fde68a', border: '1px solid #000', borderTop: 0, textAlign: 'center', fontWeight: 800 }}>Warning</div><div style={{ background: '#fecaca', border: '1px solid #000', borderTop: 0, textAlign: 'center', fontWeight: 800 }}>Needs Improvement</div></div><div style={{ lineHeight: 1.45 }}>90.00% and above<br />85% - 89.99%<br />84.99% and below</div></div></td></tr>
                           <tr><td style={{ borderRight: '1px solid #000', borderBottom: '1px solid #000', padding: 8, height: 70, verticalAlign: 'bottom', width: '50%' }}><i>Prepared by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>MIA S. YBAÑEZ</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', width: '90%', paddingTop: 2 }}>IT/ Acctg. Clerk</span></div></td><td style={{ borderBottom: '1px solid #000', padding: 8, height: 70, verticalAlign: 'bottom', width: '50%' }}><i>Acknowledged by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>{String(edit.fullName || collector.name).toUpperCase()}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', width: '90%', paddingTop: 2 }}>CI/Collector</span></div></td></tr>
@@ -770,12 +836,12 @@ export default function CollectorPerformance() {
                       </table>
                     </td>
                     <td style={{ border: '1px solid #000', padding: 0, verticalAlign: 'top', width: '37%' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, tableLayout: 'fixed' }}>
+                      <table style={{ width: '100%', height: 282, borderCollapse: 'collapse', fontSize: 11, tableLayout: 'fixed' }}>
                         <tbody>
-                          <tr><td colSpan={2} style={{ borderBottom: '1px solid #000', padding: 6, textAlign: 'center', height: 22 }}><u>Coaching Details:</u></td></tr>
-                          <tr><td style={{ borderRight: '1px dotted #000', borderBottom: '1px solid #000', padding: 6, width: '32%', height: 30 }}>Date</td><td style={{ borderBottom: '1px solid #000', padding: 6 }}></td></tr>
-                          <tr><td style={{ borderRight: '1px dotted #000', borderBottom: '1px solid #000', padding: 6, height: 56, verticalAlign: 'middle' }}>Name and<br />Signature of<br />Coach</td><td style={{ borderBottom: '1px solid #000', padding: 6, textAlign: 'center', verticalAlign: 'bottom' }}><b>VICTORIO L. RELOBA, JR.</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', width: '88%', paddingTop: 2 }}>Position of Coach</span></td></tr>
-                          <tr><td style={{ borderRight: '1px dotted #000', padding: 6, height: 50, verticalAlign: 'middle' }}>Coachee</td><td style={{ padding: 6, textAlign: 'center', verticalAlign: 'bottom' }}><b>{String(edit.fullName || collector.name).toUpperCase()}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', width: '88%', paddingTop: 2 }}>Signature of Coachee</span></td></tr>
+                          <tr><td colSpan={2} style={{ borderBottom: '1px solid #000', padding: 6, textAlign: 'center', height: 24 }}><u>Coaching Details:</u></td></tr>
+                          <tr><td style={{ borderRight: '1px dotted #000', borderBottom: '1px solid #000', padding: 6, width: '32%', height: 36, verticalAlign: 'middle' }}>Date</td><td style={{ borderBottom: '1px solid #000', padding: 6 }}></td></tr>
+                          <tr><td style={{ borderRight: '1px dotted #000', borderBottom: '1px solid #000', padding: 6, height: 82, verticalAlign: 'middle' }}>Name and<br />Signature of<br />Coach</td><td style={{ borderBottom: '1px solid #000', padding: 6, textAlign: 'center', verticalAlign: 'bottom' }}><b>VICTORIO L. RELOBA, JR.</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', width: '88%', paddingTop: 2 }}>Position of Coach</span></td></tr>
+                          <tr><td style={{ borderRight: '1px dotted #000', padding: 6, height: 80, verticalAlign: 'middle' }}>Collector</td><td style={{ padding: 6, textAlign: 'center', verticalAlign: 'bottom' }}><b>{String(edit.fullName || collector.name).toUpperCase()}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', width: '88%', paddingTop: 2 }}>Name of Collector</span></td></tr>
                         </tbody>
                       </table>
                     </td>
@@ -906,6 +972,8 @@ export default function CollectorPerformance() {
                   <label className="form-label">Collection Sheet Date</label>
                   <input className="form-control" type="date" value={filters.date_to} onChange={e => {
                     const nextDate = e.target.value
+                    setNewCollectionDate(nextDate)
+                    setLockedCollections(null)
                     setFilters(current => ({
                       ...current,
                       date_to: nextDate,
@@ -1085,9 +1153,21 @@ export default function CollectorPerformance() {
                     <button className="btn btn-primary" type="button" onClick={printLockedPerformance} disabled={collectionsLoading || !collectionRows.length}>
                       <Printer size={16} /> Print Performance
                     </button>
-                    <button className="btn btn-success" type="button" onClick={loadCollections} disabled={collectionsLoading}>
-                      <Plus size={16} /> Add Date
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        className="form-control"
+                        type="date"
+                        aria-label="Date to add"
+                        min={getOperationWeek(filters.date_to)[0]}
+                        max={getOperationWeek(filters.date_to)[5]}
+                        value={newCollectionDate}
+                        onChange={e => setNewCollectionDate(e.target.value)}
+                        style={{ width: 150 }}
+                      />
+                      <button className="btn btn-success" type="button" onClick={addCollectionDate} disabled={collectionsLoading || !newCollectionDate}>
+                        <Plus size={16} /> Add Date
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1217,7 +1297,7 @@ export default function CollectorPerformance() {
                       <div style={{ overflowX: 'auto' }}>
                         <table className="data-table" style={{ margin: 0, border: 'none', minWidth: 980 }}>
                           <thead>
-                            <tr><th rowSpan={2}>Rating Period</th><th colSpan={2} style={{ textAlign: 'center' }}>Target</th><th rowSpan={2} style={{ textAlign: 'right' }}>Actual</th><th rowSpan={2} style={{ textAlign: 'center' }}>Percentage of Accomplishment</th><th rowSpan={2} style={{ textAlign: 'center' }}>Remarks</th></tr>
+                            <tr><th rowSpan={2}>Rating Period</th><th colSpan={2} style={{ textAlign: 'center' }}>Target</th><th rowSpan={2} style={{ textAlign: 'right' }}>Actual</th><th rowSpan={2} style={{ textAlign: 'center' }}>Percentage of Accomplishment</th><th rowSpan={2} style={{ textAlign: 'center' }}>Remarks</th><th rowSpan={2} style={{ width: 64, textAlign: 'center' }}>Action</th></tr>
                             <tr><th style={{ textAlign: 'right' }}>Daily</th><th style={{ textAlign: 'right' }}>Weekly</th></tr>
                           </thead>
                           <tbody>
@@ -1231,6 +1311,11 @@ export default function CollectorPerformance() {
                                   <td style={{ textAlign: 'right', color: row.actual > 0 ? '#0ea5e9' : '#64748b', fontWeight: 900 }}>PHP {fmt(row.actual)}</td>
                                   <td style={{ textAlign: 'center' }}><div style={{ color: row.rate >= 85 ? '#059669' : '#e11d48', fontWeight: 900, fontSize: 18 }}>{row.rate.toFixed(2)}%</div><div style={{ width: 84, height: 5, borderRadius: 999, background: '#e8edf4', margin: '8px auto 0', overflow: 'hidden' }}><div style={{ width: `${Math.min(row.rate, 100)}%`, height: '100%', background: row.rate >= 85 ? '#10b981' : '#e11d48' }} /></div></td>
                                   <td style={{ textAlign: 'center' }}><span style={{ display: 'inline-flex', justifyContent: 'center', minWidth: 118, padding: '9px 13px', border: `1px solid ${rowRemarkStyle.borderColor}`, borderRadius: 8, fontSize: 11, fontWeight: 900, letterSpacing: 1.1, textTransform: 'uppercase', ...rowRemarkStyle }}>{row.remark}</span></td>
+                                  <td style={{ textAlign: 'center' }}>
+                                    <button className="btn btn-secondary" type="button" title={`Delete ${displayDate(row.date)}`} aria-label={`Delete ${displayDate(row.date)}`} onClick={() => deleteCollectionDate(row.date)} style={{ padding: 8, color: '#dc2626' }}>
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </td>
                                 </tr>
                               )
                             })}
@@ -1243,6 +1328,7 @@ export default function CollectorPerformance() {
                               <td style={{ textAlign: 'right', color: '#38bdf8', fontWeight: 900 }}>PHP {fmt(selectedSummary.actual)}</td>
                               <td style={{ textAlign: 'center', fontWeight: 900, fontSize: 18 }}>{selectedSummary.rate.toFixed(2)}%</td>
                               <td style={{ textAlign: 'center' }}><span style={{ display: 'inline-flex', justifyContent: 'center', minWidth: 118, padding: '9px 13px', borderRadius: 8, background: selectedSummary.remark === 'PASSED' ? '#10b981' : selectedSummary.remark === 'WARNING' ? '#f97316' : '#f43f5e', color: '#fff', fontSize: 11, fontWeight: 900, letterSpacing: 1.1, textTransform: 'uppercase' }}>{selectedSummary.remark}</span></td>
+                              <td></td>
                             </tr>
                           </tfoot>
                         </table>
