@@ -2,6 +2,7 @@
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { CalendarDays, ChevronDown } from 'lucide-react'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import '../dashboard.css'
 
@@ -15,6 +16,57 @@ const formatChartDate = value => {
     : new Date(value)
   if (Number.isNaN(date.getTime())) return text || '-'
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+const formatTrendDate = value => {
+  const text = String(value || '').slice(0, 10)
+  const parts = text.split('-').map(Number)
+  const date = parts.length === 3 && parts.every(Boolean)
+    ? new Date(parts[0], parts[1] - 1, parts[2])
+    : new Date(value)
+  if (Number.isNaN(date.getTime())) return text || '-'
+  return date.toLocaleDateString('en-US', { day: 'numeric', weekday: 'short' })
+}
+
+const formatTrendDateRange = trend => {
+  if (!trend || trend.length === 0) return 'No date range'
+  const parse = value => {
+    const text = String(value || '').slice(0, 10)
+    const parts = text.split('-').map(Number)
+    const date = parts.length === 3 && parts.every(Boolean)
+      ? new Date(parts[0], parts[1] - 1, parts[2])
+      : new Date(value)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+  const start = parse(trend[0]?.date)
+  const end = parse(trend[trend.length - 1]?.date)
+  if (!start || !end) return 'Collection period'
+  const startLabel = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const endLabel = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return `${startLabel} - ${endLabel} (Days of week)`
+}
+
+const getCollectionTrendStats = trend => {
+  const rows = (trend || []).map(row => ({
+    ...row,
+    total: Number(row.total || 0)
+  }))
+  const total = rows.reduce((sum, row) => sum + row.total, 0)
+  const average = rows.length ? total / rows.length : 0
+  const highest = rows.reduce((best, row) => row.total > best.total ? row : best, { total: 0, date: '' })
+  const lowest = rows.reduce((best, row) => row.total < best.total ? row : best, rows[0] || { total: 0, date: '' })
+  const first = rows[0]?.total || 0
+  const last = rows[rows.length - 1]?.total || 0
+  const trendPct = first > 0 ? ((last - first) / first) * 100 : 0
+
+  return {
+    rows,
+    total,
+    average,
+    highest,
+    lowest,
+    trendPct
+  }
 }
 
 const toDateKey = date => {
@@ -73,6 +125,8 @@ export default function Dashboard() {
   if (loading) return <div className="empty-state"><p>Loading dashboard...</p></div>
   if (errorMsg) return <div className="empty-state"><p>Could not load dashboard: {errorMsg}</p></div>
   if (!data) return <div className="empty-state"><p>Could not load dashboard data.</p></div>
+
+  const collectionTrend = getCollectionTrendStats(data.weekly_collection_trend)
 
   return (
     <div className="dashboard-v2">
@@ -243,20 +297,34 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="card-v2 dashboard-trend-card">
-          <div className="card-v2-title" style={{ justifyContent: 'space-between' }}>
-            <span>7-Day Collection Trend</span>
-            <strong>PHP {fmt((data.weekly_collection_trend || []).reduce((sum, row) => sum + Number(row.total || 0), 0))}</strong>
+        <div className="card-v2 dashboard-trend-card dashboard-collection-trend-card">
+          <div className="dashboard-collection-trend-header">
+            <div className="dashboard-collection-trend-title">
+              <h3>Collection Trend <span>(Overall)</span></h3>
+              <p>Overall collection performance across all periods</p>
+            </div>
+            <div className="dashboard-trend-controls">
+              <div className="dashboard-trend-tabs" aria-label="Collection trend range">
+                <button type="button">Weekly</button>
+                <button type="button" className="active">Daily</button>
+                <button type="button">Every 45 Days</button>
+              </div>
+              <button type="button" className="dashboard-trend-date-filter">
+                <CalendarDays size={13} />
+                <span>{formatTrendDateRange(collectionTrend.rows)}</span>
+                <ChevronDown size={13} />
+              </button>
+            </div>
           </div>
           <div className="dashboard-trend-chart">
-            {data.weekly_collection_trend && data.weekly_collection_trend.length > 0 ? (
+            {collectionTrend.rows.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data.weekly_collection_trend} margin={{ top: 18, right: 18, left: 2, bottom: 8 }}>
-                  <CartesianGrid vertical={false} stroke="#e5edf5" strokeDasharray="3 4" />
+                <LineChart data={collectionTrend.rows} margin={{ top: 14, right: 18, left: 0, bottom: 8 }}>
+                  <CartesianGrid vertical={false} stroke="#e9eef6" strokeDasharray="3 4" />
                   <Tooltip
-                    formatter={(value) => [`PHP ${fmt(value)}`, 'Total']}
+                    formatter={(value) => [`₱${fmt(value)}`, 'Collection']}
                     labelFormatter={formatChartDate}
-                    cursor={{ stroke: '#cbd5e1', strokeWidth: 1 }}
+                    cursor={{ stroke: '#d7e0ee', strokeWidth: 1 }}
                     contentStyle={{
                       fontSize: 12,
                       padding: '8px 10px',
@@ -269,31 +337,58 @@ export default function Dashboard() {
                     dataKey="date"
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fontSize: 11, fill: '#64748b', fontWeight: 700 }}
-                    tickFormatter={formatChartDate}
+                    tick={{ fontSize: 11, fill: '#475569', fontWeight: 700 }}
+                    tickFormatter={formatTrendDate}
                     interval={0}
                     dy={8}
                   />
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    width={46}
-                    tick={{ fontSize: 11, fill: '#8aa0b8', fontWeight: 700 }}
-                    tickFormatter={(value) => `PHP ${Number(value || 0) >= 1000 ? `${Math.round(Number(value) / 1000)}k` : Number(value || 0)}`}
+                    width={50}
+                    tick={{ fontSize: 11, fill: '#64748b', fontWeight: 700 }}
+                    tickFormatter={(value) => `₱${Number(value || 0) >= 1000 ? `${Math.round(Number(value) / 1000)}K` : Number(value || 0)}`}
                   />
                   <Line
                     type="monotone"
                     dataKey="total"
-                    stroke="#0f766e"
+                    stroke="#3b82f6"
                     strokeWidth={3}
-                    dot={false}
-                    activeDot={{ r: 4, stroke: '#0f766e', strokeWidth: 2, fill: '#ffffff' }}
+                    dot={{ r: 4, stroke: '#ffffff', strokeWidth: 2, fill: '#3b82f6' }}
+                    activeDot={{ r: 5, stroke: '#ffffff', strokeWidth: 2, fill: '#2563eb' }}
                   />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
               <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No collection trend data</div>
             )}
+          </div>
+          <div className="dashboard-trend-summary">
+            <div>
+              <span>Average Per Day</span>
+              <strong>₱{fmt(collectionTrend.average)}</strong>
+            </div>
+            <div>
+              <span>Highest Day</span>
+              <strong className="blue">₱{fmt(collectionTrend.highest.total)}</strong>
+              <small>{formatTrendDate(collectionTrend.highest.date)}</small>
+            </div>
+            <div>
+              <span>Lowest Day</span>
+              <strong className="red">₱{fmt(collectionTrend.lowest.total)}</strong>
+              <small>{formatTrendDate(collectionTrend.lowest.date)}</small>
+            </div>
+            <div>
+              <span>Total ({collectionTrend.rows.length} Days)</span>
+              <strong>₱{fmt(collectionTrend.total)}</strong>
+            </div>
+            <div>
+              <span>Trend</span>
+              <strong className={collectionTrend.trendPct >= 0 ? 'green' : 'red'}>
+                {collectionTrend.trendPct >= 0 ? '↗' : '↘'} {Math.abs(collectionTrend.trendPct).toFixed(1)}%
+              </strong>
+              <small>vs. first day</small>
+            </div>
           </div>
         </div>
       </div>

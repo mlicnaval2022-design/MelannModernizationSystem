@@ -217,13 +217,165 @@
   font-size: 14px;
 }
 
-.dashboard-trend-chart {
-  min-height: 315px;
-  flex: 1;
-  border: 1px solid #dbe4f0;
-  border-radius: 10px;
+.dashboard-collection-trend-card {
+  padding: 24px 24px 20px;
+  border-radius: 14px;
+}
+
+.dashboard-collection-trend-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.dashboard-collection-trend-title {
+  max-width: 260px;
+}
+
+.dashboard-collection-trend-title h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 1.6px;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.dashboard-collection-trend-title h3 span {
+  display: block;
+}
+
+.dashboard-collection-trend-title p {
+  margin: 7px 0 0;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.dashboard-trend-controls {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.dashboard-trend-tabs {
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(70px, 1fr));
+  overflow: hidden;
+  border-radius: 8px;
+  background: #f1f5f9;
+}
+
+.dashboard-trend-tabs button {
+  min-height: 48px;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  padding: 8px 14px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  line-height: 1.2;
+  text-transform: uppercase;
+  cursor: default;
+}
+
+.dashboard-trend-tabs button.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-radius: 6px;
+  box-shadow: 0 8px 16px rgba(37, 99, 235, 0.22);
+}
+
+.dashboard-trend-date-filter {
+  min-height: 32px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
   background: #ffffff;
-  padding: 12px;
+  color: #334155;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.dashboard-trend-date-filter svg {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.dashboard-trend-chart {
+  min-height: 275px;
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  background: #ffffff;
+  padding: 0;
+}
+
+.dashboard-trend-summary {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  border-top: 1px solid #edf2f7;
+  margin-top: 12px;
+  padding-top: 18px;
+}
+
+.dashboard-trend-summary > div {
+  min-width: 0;
+  text-align: center;
+  padding: 0 12px;
+  border-right: 1px solid #edf2f7;
+}
+
+.dashboard-trend-summary > div:last-child {
+  border-right: 0;
+}
+
+.dashboard-trend-summary span {
+  display: block;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.dashboard-trend-summary strong {
+  display: block;
+  margin-top: 7px;
+  color: #020617;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.dashboard-trend-summary strong.blue {
+  color: #2563eb;
+}
+
+.dashboard-trend-summary strong.red {
+  color: #e11d48;
+}
+
+.dashboard-trend-summary strong.green {
+  color: #059669;
+}
+
+.dashboard-trend-summary small {
+  display: block;
+  margin-top: 5px;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 700;
 }
 
 /* Metric Cards Top Row */
@@ -425,5 +577,32 @@
 
   .dashboard-status-table-card {
     overflow-x: auto;
+  }
+
+  .dashboard-collection-trend-header,
+  .dashboard-trend-controls {
+    flex-direction: column;
+  }
+
+  .dashboard-collection-trend-title {
+    max-width: none;
+  }
+
+  .dashboard-trend-tabs {
+    width: 100%;
+  }
+
+  .dashboard-trend-date-filter {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .dashboard-trend-summary {
+    grid-template-columns: 1fr;
+    row-gap: 14px;
+  }
+
+  .dashboard-trend-summary > div {
+    border-right: 0;
   }
 }
