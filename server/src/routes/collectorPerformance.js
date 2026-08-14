@@ -13,12 +13,15 @@ function resolveDateRange(query) {
   const today = dayjs();
   const defaultTo = today.day() === 0 ? today.subtract(1, 'day') : today;
   const selectedDate = dayjs(query.date || query.date_to || defaultTo).format('YYYY-MM-DD');
-  const pastdueCutoff = dayjs(query.pastdue_cutoff || `${dayjs(selectedDate).year()}-05-15`).format('YYYY-MM-DD');
+  const requestedFrom = dayjs(query.date_from || selectedDate);
+  const requestedTo = dayjs(selectedDate);
+  const from = requestedFrom.isAfter(requestedTo, 'day') ? requestedTo : requestedFrom;
+  const pastdueCutoff = dayjs(query.pastdue_cutoff || `${requestedTo.year()}-05-15`).format('YYYY-MM-DD');
 
   return {
-    from: selectedDate,
-    to: selectedDate,
-    targetDate: selectedDate,
+    from: from.format('YYYY-MM-DD'),
+    to: requestedTo.format('YYYY-MM-DD'),
+    targetDate: requestedTo.format('YYYY-MM-DD'),
     pastdueCutoff
   };
 }
@@ -258,7 +261,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
       const sheetStats = await getCollectorSheetStats(collector.id, targetDate, pastdueCutoff);
       const row = {
         ...collector,
-        target: sheetStats.target,
+        target: 0,
         collected: 0,
         actual_collection: 0,
         gross_collection: 0,
@@ -276,6 +279,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
 
       for (const date of dates) {
         const dailyStats = date === targetDate ? sheetStats : await getCollectorSheetStats(collector.id, date, pastdueCutoff);
+        row.target += dailyStats.target;
         row.collected += dailyStats.collected;
         row.actual_collection += dailyStats.collected;
         row.gross_collection += dailyStats.gross_collected;

@@ -100,6 +100,23 @@ const getCollectionRemark = rate => {
   return 'NEEDS IMPROVEMENT'
 }
 
+const getFortyFiveDayRange = dateKey => {
+  const end = new Date(`${dateKey}T00:00:00`)
+  const start = new Date(end)
+  start.setDate(end.getDate() - 44)
+  return { date_from: toDateKey(start), date_to: toDateKey(end) }
+}
+
+const getFortyFiveDayRating = rate => {
+  if (!Number.isFinite(rate)) return 'Not rated'
+  if (rate >= 115) return 'Outstanding Performance'
+  if (rate >= 110) return 'Passing / Very Satisfactory'
+  if (rate >= 105) return 'Below Passing Standard'
+  if (rate >= 95) return 'Unsatisfactory Performance'
+  if (rate >= 90) return 'Poor Performance'
+  return 'Critical Performance Failure'
+}
+
 const printDate = value => {
   if (!value) return ''
   return new Date(`${value}T00:00:00`).toLocaleDateString('en-US', {
@@ -210,9 +227,10 @@ const getSortOrder = name => {
 }
 
 export default function CollectorPerformance() {
-  const defaultRange = useMemo(getDefaultRange, [])
+  const defaultRange = useMemo(() => getDefaultRange(), [])
   const [filters, setFilters] = useState(defaultRange)
   const [data, setData] = useState(null)
+  const [fortyFiveDayData, setFortyFiveDayData] = useState(null)
   const [activeTab, setActiveTab] = useState('targets')
   const [collectionRows, setCollectionRows] = useState([])
   const [newCollectionDate, setNewCollectionDate] = useState(defaultRange.date_to)
@@ -224,6 +242,7 @@ export default function CollectorPerformance() {
   const [showPerformancePreview, setShowPerformancePreview] = useState(false)
   const [collectionsLoading, setCollectionsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [fortyFiveDayLoading, setFortyFiveDayLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
   const buildFallbackSummary = async () => {
@@ -295,7 +314,11 @@ export default function CollectorPerformance() {
         paying_clients: row.paying_clients_set.size,
         achievement_rate: row.target > 0 ? Math.round((row.collected / row.target) * 100) : 0
       }))
-      .map(({ paying_clients_set, ...row }) => row)
+      .map(row => {
+        const sanitizedRow = { ...row }
+        delete sanitizedRow.paying_clients_set
+        return sanitizedRow
+      })
 
     const top_collector = [...rawCollectors].sort((a, b) => b.collected - a.collected)[0] || null
     const collectors = rawCollectors.sort((a, b) => getSortOrder(a.name) - getSortOrder(b.name) || String(a.name || '').localeCompare(String(b.name || '')))
@@ -426,6 +449,22 @@ export default function CollectorPerformance() {
     }
   }
 
+  const loadFortyFiveDayData = async () => {
+    const range = getFortyFiveDayRange(filters.date_to)
+    setFortyFiveDayLoading(true)
+    try {
+      const response = await API.get('/collector-performance/summary', {
+        params: { ...range, pastdue_cutoff: filters.pastdue_cutoff }
+      })
+      setFortyFiveDayData(response.data)
+      setErrorMsg('')
+    } catch (err) {
+      setErrorMsg(err.response?.data?.error || err.message || 'Could not load 45 days performance')
+    } finally {
+      setFortyFiveDayLoading(false)
+    }
+  }
+
   const addCollectionDate = async () => {
     if (!newCollectionDate) return
     const operationDates = getOperationWeek(filters.date_to)
@@ -478,6 +517,7 @@ export default function CollectorPerformance() {
   const applyFilters = async () => {
     await loadData()
     if (activeTab === 'collections') await loadCollections()
+    if (activeTab === 'forty-five-days') await loadFortyFiveDayData()
   }
 
   const updateCollectorEdit = (collectorId, field, value) => {
@@ -583,6 +623,7 @@ export default function CollectorPerformance() {
 
   useEffect(() => {
     if (activeTab === 'collections') loadCollections()
+    if (activeTab === 'forty-five-days') loadFortyFiveDayData()
   }, [activeTab])
 
   const collectors = (data?.collectors || [])
@@ -643,6 +684,10 @@ export default function CollectorPerformance() {
     ? getGeneratedCollectionInsight(selectedCollection.name, selectedCollection.rows, selectedSummary)
     : null
   const performanceWeekDates = getOperationWeek(lockedCollections?.dateTo || filters.date_to)
+  const fortyFiveDayRange = getFortyFiveDayRange(filters.date_to)
+  const fortyFiveDayCollectors = [...(fortyFiveDayData?.collectors || [])]
+    .sort((a, b) => Number(b.achievement_rate || 0) - Number(a.achievement_rate || 0))
+  const fortyFiveDayTotals = fortyFiveDayData?.totals || { target: 0, collected: 0, achievement_rate: 0 }
 
   return (
     <div className="dashboard-v2">
@@ -1072,6 +1117,13 @@ export default function CollectorPerformance() {
                 onClick={() => setActiveTab('collections')}
               >
                 <CalendarDays size={16} /> Collections
+              </button>
+              <button
+                className={`btn ${activeTab === 'forty-five-days' ? 'btn-primary' : 'btn-secondary'}`}
+                type="button"
+                onClick={() => setActiveTab('forty-five-days')}
+              >
+                <TrendingUp size={16} /> 45 Days Performance
               </button>
             </div>
 
@@ -1517,6 +1569,51 @@ export default function CollectorPerformance() {
                   )}
                 </div>
                 )}
+              </div>
+            )}
+
+            {activeTab === 'forty-five-days' && (
+              <div style={{ padding: 22, background: '#f8fbff' }}>
+                <div style={{ border: '1px solid #dbe4f0', borderRadius: 14, background: '#fff', boxShadow: '0 18px 40px rgba(15, 23, 42, 0.08)', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, padding: '22px 24px', flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontSize: 22, fontWeight: 900, color: '#08184a', textTransform: 'uppercase' }}>45 Days Performance</div>
+                      <div style={{ marginTop: 5, color: '#475569', fontSize: 14, fontWeight: 700 }}>
+                        Rating period: {displayDate(fortyFiveDayRange.date_from)} to {displayDate(fortyFiveDayRange.date_to)} (45 calendar days)
+                      </div>
+                    </div>
+                    <button className="btn btn-secondary" type="button" onClick={loadFortyFiveDayData} disabled={fortyFiveDayLoading}>
+                      <RefreshCw size={16} /> {fortyFiveDayLoading ? 'Loading...' : 'Refresh'}
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14, padding: '0 24px 22px' }}>
+                    {[
+                      ['Collection Target', `PHP ${fmt(fortyFiveDayTotals.target)}`, '#6d28d9'],
+                      ['Actual Collection', `PHP ${fmt(fortyFiveDayTotals.collected)}`, '#2563eb'],
+                      ['Accomplishment', `${Number(fortyFiveDayTotals.achievement_rate || 0).toFixed(2)}%`, '#059669'],
+                      ['Overall Rating', getFortyFiveDayRating(Number(fortyFiveDayTotals.achievement_rate || 0)), '#0f172a']
+                    ].map(([label, value, color]) => (
+                      <div key={label} style={{ border: '1px solid #dbe4f0', borderRadius: 10, padding: '14px 16px', background: '#fff' }}>
+                        <div style={{ color: '#64748b', fontSize: 11, fontWeight: 900, letterSpacing: .5, textTransform: 'uppercase' }}>{label}</div>
+                        <div style={{ marginTop: 6, color, fontSize: 18, fontWeight: 900 }}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ overflowX: 'auto', padding: '0 18px 18px' }}>
+                    <table className="data-table" style={{ margin: 0, border: '1px solid #dbe4f0', minWidth: 820 }}>
+                      <thead><tr style={{ background: 'linear-gradient(90deg, #0f766e, #0f4c5c)' }}>
+                        <th style={{ color: '#fff', textAlign: 'center' }}>Rank</th><th style={{ color: '#fff' }}>Collector</th><th style={{ color: '#fff', textAlign: 'right' }}>Target (PHP)</th><th style={{ color: '#fff', textAlign: 'right' }}>Actual (PHP)</th><th style={{ color: '#fff', textAlign: 'right' }}>Accomplishment</th><th style={{ color: '#fff' }}>Rating</th>
+                      </tr></thead>
+                      <tbody>{fortyFiveDayLoading ? (
+                        <tr><td colSpan={6} style={{ textAlign: 'center', padding: 28 }}>Loading 45 days performance...</td></tr>
+                      ) : fortyFiveDayCollectors.length ? fortyFiveDayCollectors.map((collector, index) => (
+                        <tr key={`45-day-${collector.id}`}><td style={{ textAlign: 'center', fontWeight: 900 }}>{index + 1}</td><td style={{ fontWeight: 900, textTransform: 'uppercase' }}>{collector.name}</td><td style={{ textAlign: 'right' }}>PHP {fmt(collector.target)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(collector.actual_collection ?? collector.collected)}</td><td style={{ textAlign: 'right', fontWeight: 900 }}>{Number(collector.achievement_rate || 0).toFixed(2)}%</td><td style={{ fontWeight: 800 }}>{getFortyFiveDayRating(Number(collector.achievement_rate || 0))}</td></tr>
+                      )) : <tr><td colSpan={6} style={{ textAlign: 'center', padding: 28 }}>No collector performance is available for this period.</td></tr>}</tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             )}
           </div>
