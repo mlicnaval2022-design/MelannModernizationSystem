@@ -369,6 +369,7 @@ async function initializeDatabase() {
       collection_total REAL NOT NULL DEFAULT 0,
       release_total REAL NOT NULL DEFAULT 0,
       expense_total REAL NOT NULL DEFAULT 0,
+      reported_pastdue REAL NOT NULL DEFAULT 0,
       net_income REAL NOT NULL DEFAULT 0,
       accomplishment_percentage REAL,
       rating TEXT NOT NULL DEFAULT 'Not rated',
@@ -693,6 +694,10 @@ async function initializeDatabase() {
   const paymentCols = await dbAll(`PRAGMA table_info(tblPayment)`);
   const paymentColNames = new Set(paymentCols.map(c => c.name));
   if (!paymentColNames.has('payment_code')) await dbRun(`ALTER TABLE tblPayment ADD COLUMN payment_code TEXT`);
+
+  const fortyFiveDayEvaluationCols = await dbAll(`PRAGMA table_info(tblFortyFiveDayRatingEvaluation)`);
+  const fortyFiveDayEvaluationColNames = new Set(fortyFiveDayEvaluationCols.map(c => c.name));
+  if (!fortyFiveDayEvaluationColNames.has('reported_pastdue')) await dbRun(`ALTER TABLE tblFortyFiveDayRatingEvaluation ADD COLUMN reported_pastdue REAL NOT NULL DEFAULT 0`);
 
   const demandCols = await dbAll(`PRAGMA table_info(tblDemandLetter)`);
   const demandColNames = new Set(demandCols.map(c => c.name));
