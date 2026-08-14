@@ -550,6 +550,107 @@ test('saving a sent second demand automatically closes the first-demand follow-u
   assert.equal(monitoredThird.second_demand_received_date, '2026-08-10');
 });
 
+test('manual advance entry is linked to the client loan and appears on the collector collection sheet', async () => {
+  const login = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: 'admin123' }),
+  });
+  const { token } = await login.json();
+  const headers = { 'content-type': 'application/json', authorization: `Bearer ${token}` };
+  const branch = await dbGet(`SELECT id FROM tblBranch LIMIT 1`);
+  const user = await dbGet(`SELECT id FROM tblUser WHERE username = 'admin'`);
+  const collector = await dbRun(`
+    INSERT INTO tblCollector (collector_code, first_name, last_name, branch_id, is_active)
+    VALUES (?, ?, ?, ?, 1)
+  `, ['COL-ADV-MANUAL', 'Manual', 'Advance', branch.id]);
+  const customer = await dbRun(`
+    INSERT INTO tblCustomer (customer_code, first_name, last_name, full_name, branch_id, collector_id, status)
+    VALUES (?, ?, ?, ?, ?, ?, 'active')
+  `, ['CLIENT-ADV-001', 'Advance', 'Client', 'Advance Client', branch.id, collector.lastID]);
+  const loan = await dbRun(`
+    INSERT INTO tblLoan (
+      loan_code, customer_id, collector_id, branch_id, loan_type, principal,
+      interest_rate, loan_period, date_released, date_maturity, amortization,
+      total_amortization, net_proceeds, balance, status, created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+  `, [
+    'LOAN-ADV-001', customer.lastID, collector.lastID, branch.id, 'regular', 10000,
+    0, 30, '2026-08-01', '2026-09-01', 500, 10000, 10000, 10000, user.id,
+  ]);
+
+  const lookupRes = await fetch(`${baseUrl}/api/reports/collection-sheet/advance-client?client_code=CLIENT-ADV-001`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const lookup = await lookupRes.json();
+  assert.equal(lookupRes.status, 200, lookup.error);
+  assert.equal(lookup.customer_id, customer.lastID);
+  assert.equal(lookup.loan_id, loan.lastID);
+  assert.equal(lookup.loan_code, 'LOAN-ADV-001');
+  assert.equal(lookup.collector_id, collector.lastID);
+
+  const saveRes = await fetch(`${baseUrl}/api/reports/collection-sheet/advance-manual`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      date: '2026-08-14',
+      customer_id: customer.lastID,
+      loan_id: loan.lastID,
+      amount: 500,
+    }),
+  });
+  const saved = await saveRes.json();
+  assert.equal(saveRes.status, 201, saved.error);
+  assert.equal(saved.entry.amount, 500);
+  assert.equal(saved.entry.collector_id, collector.lastID);
+
+  const entriesRes = await fetch(`${baseUrl}/api/reports/collection-sheet/advance-manual?date=2026-08-14`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const entries = await entriesRes.json();
+  assert.equal(entriesRes.status, 200, entries.error);
+  const savedEntry = entries.entries.find(entry => entry.id === saved.entry.id);
+  assert.ok(savedEntry, JSON.stringify(entries));
+  assert.equal(savedEntry.customer_code, 'CLIENT-ADV-001');
+  assert.equal(savedEntry.loan_code, 'LOAN-ADV-001');
+  assert.equal(savedEntry.amount, 500);
+
+  const updateRes = await fetch(`${baseUrl}/api/reports/collection-sheet/advance-manual/${saved.entry.id}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({ amount: 750 }),
+  });
+  const updated = await updateRes.json();
+  assert.equal(updateRes.status, 200, updated.error);
+  assert.equal(updated.amount, 750);
+
+  const sheetRes = await fetch(`${baseUrl}/api/reports/collection-sheet?collector_id=${collector.lastID}&date=2026-08-14`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const sheet = await sheetRes.json();
+  assert.equal(sheetRes.status, 200, sheet.error);
+  const sheetLoan = sheet.loans.find(row => row.id === loan.lastID);
+  assert.ok(sheetLoan, JSON.stringify(sheet));
+  assert.equal(sheetLoan.advance_manual_today, 750);
+  assert.equal(sheetLoan.collected_today, 0);
+  assert.equal(sheet.summary.totalCollection, 0);
+
+  const deleteRes = await fetch(`${baseUrl}/api/reports/collection-sheet/advance-manual/${saved.entry.id}`, {
+    method: 'DELETE',
+    headers,
+  });
+  const deleted = await deleteRes.json();
+  assert.equal(deleteRes.status, 200, deleted.error);
+
+  const sheetAfterDeleteRes = await fetch(`${baseUrl}/api/reports/collection-sheet?collector_id=${collector.lastID}&date=2026-08-14`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const sheetAfterDelete = await sheetAfterDeleteRes.json();
+  assert.equal(sheetAfterDeleteRes.status, 200, sheetAfterDelete.error);
+  const sheetLoanAfterDelete = sheetAfterDelete.loans.find(row => row.id === loan.lastID);
+  assert.equal(sheetLoanAfterDelete.advance_manual_today, 0);
+});
+
 test('collector performance summary excludes Recon loans released on target date from Actual Collection', async () => {
   const login = await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',

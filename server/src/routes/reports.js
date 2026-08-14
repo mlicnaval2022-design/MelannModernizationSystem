@@ -165,12 +165,39 @@ const ensureCollectionFieldReleaseTable = () => dbRun(`
   )
 `);
 
+const ensureCollectionAdvanceManualTable = () => dbRun(`
+  CREATE TABLE IF NOT EXISTS tblCollectionAdvanceManual (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL,
+    loan_id INTEGER NOT NULL,
+    collector_id INTEGER NOT NULL,
+    report_date TEXT NOT NULL,
+    amount REAL NOT NULL DEFAULT 0,
+    created_by INTEGER,
+    updated_by INTEGER,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(loan_id, report_date)
+  )
+`);
+
 const ensureExpensesReportTables = async () => {
   await dbRun(`
     CREATE TABLE IF NOT EXISTS tblExpensePersonnel (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       employee_name TEXT NOT NULL,
       position TEXT,
+      status TEXT DEFAULT 'active',
+      created_by INTEGER,
+      updated_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS tblExpenseCategory (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category_name TEXT NOT NULL COLLATE NOCASE UNIQUE,
       status TEXT DEFAULT 'active',
       created_by INTEGER,
       updated_by INTEGER,
@@ -194,6 +221,12 @@ const ensureExpensesReportTables = async () => {
       updated_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (personnel_id) REFERENCES tblExpensePersonnel(id)
     )
+  `);
+  await dbRun(`
+    INSERT OR IGNORE INTO tblExpenseCategory (category_name, status)
+    SELECT DISTINCT TRIM(category), 'active'
+    FROM tblEmployeeExpense
+    WHERE TRIM(COALESCE(category, '')) != ''
   `);
 };
 
@@ -326,6 +359,77 @@ router.put('/expenses/personnel/:id', authenticateToken, async (req, res) => {
   } catch (err) { sendRouteError(res, err); }
 });
 
+router.get('/expenses/categories', authenticateToken, async (req, res) => {
+  try {
+    await ensureExpensesReportTables();
+    const rows = await dbAll(`
+      SELECT id, category_name, status, created_at, updated_at
+      FROM tblExpenseCategory
+      ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, category_name COLLATE NOCASE
+    `);
+    res.json(rows);
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.post('/expenses/categories', authenticateToken, async (req, res) => {
+  try {
+    await ensureExpensesReportTables();
+    const categoryName = String(req.body.category_name || '').trim();
+    if (!categoryName) return res.status(400).json({ error: 'Category name is required' });
+
+    const existing = await dbGet(`SELECT id FROM tblExpenseCategory WHERE category_name = ? COLLATE NOCASE`, [categoryName]);
+    if (existing) return res.status(409).json({ error: 'Category already exists' });
+
+    const result = await dbRun(`
+      INSERT INTO tblExpenseCategory (category_name, status, created_by, updated_by)
+      VALUES (?, ?, ?, ?)
+    `, [categoryName, normalizeExpenseStatus(req.body.status), req.user.id, req.user.id]);
+
+    const row = await dbGet(`SELECT * FROM tblExpenseCategory WHERE id = ?`, [result.lastID]);
+    res.status(201).json(row);
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.put('/expenses/categories/:id', authenticateToken, async (req, res) => {
+  try {
+    await ensureExpensesReportTables();
+    const categoryName = String(req.body.category_name || '').trim();
+    if (!categoryName) return res.status(400).json({ error: 'Category name is required' });
+
+    const current = await dbGet(`SELECT * FROM tblExpenseCategory WHERE id = ?`, [req.params.id]);
+    if (!current) return res.status(404).json({ error: 'Category not found' });
+
+    const duplicate = await dbGet(`
+      SELECT id FROM tblExpenseCategory
+      WHERE category_name = ? COLLATE NOCASE AND id != ?
+    `, [categoryName, req.params.id]);
+    if (duplicate) return res.status(409).json({ error: 'Category already exists' });
+
+    await dbRun('BEGIN IMMEDIATE TRANSACTION');
+    try {
+      await dbRun(`
+        UPDATE tblExpenseCategory
+        SET category_name = ?, status = ?, updated_by = ?, updated_at = datetime('now')
+        WHERE id = ?
+      `, [categoryName, normalizeExpenseStatus(req.body.status), req.user.id, req.params.id]);
+      if (current.category_name !== categoryName) {
+        await dbRun(`
+          UPDATE tblEmployeeExpense
+          SET category = ?, updated_by = ?, updated_at = datetime('now')
+          WHERE category = ? COLLATE NOCASE
+        `, [categoryName, req.user.id, current.category_name]);
+      }
+      await dbRun('COMMIT');
+    } catch (err) {
+      await dbRun('ROLLBACK').catch(() => {});
+      throw err;
+    }
+
+    const row = await dbGet(`SELECT * FROM tblExpenseCategory WHERE id = ?`, [req.params.id]);
+    res.json(row);
+  } catch (err) { sendRouteError(res, err); }
+});
+
 router.get('/expenses/entries', authenticateToken, async (req, res) => {
   try {
     await ensureExpensesReportTables();
@@ -354,17 +458,24 @@ router.post('/expenses/entries', authenticateToken, async (req, res) => {
     const personnelId = Number(req.body.personnel_id);
     const expenseDate = req.body.expense_date || toLocalDateString();
     const amount = Number(req.body.amount || 0);
+    const category = String(req.body.category || '').trim();
     if (!personnelId) return res.status(400).json({ error: 'Employee is required' });
     if (!expenseDate) return res.status(400).json({ error: 'Expense date is required' });
     if (!(amount > 0)) return res.status(400).json({ error: 'Amount must be greater than zero' });
 
     const personnel = await dbGet(`SELECT id FROM tblExpensePersonnel WHERE id = ?`, [personnelId]);
     if (!personnel) return res.status(404).json({ error: 'Employee not found' });
+    if (category) {
+      const configuredCategory = await dbGet(`
+        SELECT id FROM tblExpenseCategory WHERE category_name = ? COLLATE NOCASE AND status = 'active'
+      `, [category]);
+      if (!configuredCategory) return res.status(400).json({ error: 'Please select an active expense category' });
+    }
 
     const result = await dbRun(`
       INSERT INTO tblEmployeeExpense (personnel_id, expense_date, category, description, amount, remarks, created_by, updated_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `, [personnelId, expenseDate, req.body.category || null, req.body.description || null, amount, req.body.remarks || null, req.user.id, req.user.id]);
+    `, [personnelId, expenseDate, category || null, req.body.description || null, amount, req.body.remarks || null, req.user.id, req.user.id]);
 
     const row = await dbGet(`
       SELECT ee.*, ep.employee_name, ep.position
@@ -382,14 +493,21 @@ router.put('/expenses/entries/:id', authenticateToken, async (req, res) => {
     const personnelId = Number(req.body.personnel_id);
     const expenseDate = req.body.expense_date || toLocalDateString();
     const amount = Number(req.body.amount || 0);
+    const category = String(req.body.category || '').trim();
     if (!personnelId) return res.status(400).json({ error: 'Employee is required' });
     if (!(amount > 0)) return res.status(400).json({ error: 'Amount must be greater than zero' });
+    if (category) {
+      const configuredCategory = await dbGet(`
+        SELECT id FROM tblExpenseCategory WHERE category_name = ? COLLATE NOCASE AND status = 'active'
+      `, [category]);
+      if (!configuredCategory) return res.status(400).json({ error: 'Please select an active expense category' });
+    }
 
     const result = await dbRun(`
       UPDATE tblEmployeeExpense
       SET personnel_id = ?, expense_date = ?, category = ?, description = ?, amount = ?, remarks = ?, updated_by = ?, updated_at = datetime('now')
       WHERE id = ? AND status = 'active'
-    `, [personnelId, expenseDate, req.body.category || null, req.body.description || null, amount, req.body.remarks || null, req.user.id, req.params.id]);
+    `, [personnelId, expenseDate, category || null, req.body.description || null, amount, req.body.remarks || null, req.user.id, req.params.id]);
     if (!result.changes) return res.status(404).json({ error: 'Expense entry not found' });
 
     const row = await dbGet(`
@@ -682,6 +800,195 @@ router.get('/daily-collection', authenticateToken, async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 
+router.get('/collection-sheet/advance-client', authenticateToken, async (req, res) => {
+  try {
+    const clientCode = String(req.query.client_code || '').trim();
+    if (!clientCode) return res.status(400).json({ error: 'Client Code is required' });
+
+    const client = await dbGet(`
+      SELECT
+        c.id AS customer_id,
+        c.customer_code,
+        COALESCE(NULLIF(c.full_name, ''), TRIM(c.first_name || ' ' || c.last_name)) AS customer_name,
+        l.id AS loan_id,
+        l.loan_code,
+        l.loan_type,
+        COALESCE(l.collector_id, c.collector_id) AS collector_id,
+        COALESCE(
+          NULLIF(TRIM(co.first_name || ' ' || co.last_name), ''),
+          'Unassigned'
+        ) AS collector_name
+      FROM tblCustomer c
+      JOIN tblLoan l ON l.customer_id = c.id
+      LEFT JOIN tblCollector co ON co.id = COALESCE(l.collector_id, c.collector_id)
+      WHERE LOWER(TRIM(c.customer_code)) = LOWER(?)
+        AND LOWER(COALESCE(l.status, '')) IN ('active', 'pastdue')
+        AND COALESCE(l.balance, 0) > 0
+      ORDER BY CASE WHEN LOWER(l.status) = 'active' THEN 0 ELSE 1 END,
+               date(COALESCE(l.date_released, l.created_at)) DESC,
+               l.id DESC
+      LIMIT 1
+    `, [clientCode]);
+
+    if (!client) return res.status(404).json({ error: 'No active loan found for this Client Code' });
+    if (!client.collector_id) return res.status(400).json({ error: 'The selected client has no assigned collector' });
+    res.json(client);
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.get('/collection-sheet/advance-manual', authenticateToken, async (req, res) => {
+  try {
+    const targetDate = req.query.date || new Date().toISOString().split('T')[0];
+    requireOperationDate(targetDate, 'Advance entry date');
+    await ensureCollectionAdvanceManualTable();
+
+    const entries = await dbAll(`
+      SELECT
+        a.id,
+        a.customer_id,
+        a.loan_id,
+        a.collector_id,
+        a.report_date,
+        a.amount,
+        a.created_at,
+        a.updated_at,
+        c.customer_code,
+        COALESCE(NULLIF(c.full_name, ''), TRIM(c.first_name || ' ' || c.last_name)) AS customer_name,
+        l.loan_code,
+        l.loan_type,
+        COALESCE(NULLIF(TRIM(co.first_name || ' ' || co.last_name), ''), 'Unassigned') AS collector_name
+      FROM tblCollectionAdvanceManual a
+      JOIN tblCustomer c ON c.id = a.customer_id
+      JOIN tblLoan l ON l.id = a.loan_id
+      LEFT JOIN tblCollector co ON co.id = a.collector_id
+      WHERE a.report_date = ?
+      ORDER BY datetime(a.updated_at) DESC, a.id DESC
+    `, [targetDate]);
+
+    res.json({ date: targetDate, entries });
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.post('/collection-sheet/advance-manual', authenticateToken, async (req, res) => {
+  try {
+    const targetDate = req.body.date || new Date().toISOString().split('T')[0];
+    const customerId = Number(req.body.customer_id);
+    const loanId = Number(req.body.loan_id);
+    const amount = Number(req.body.amount);
+    requireOperationDate(targetDate, 'Advance entry date');
+    if (!customerId || !loanId) return res.status(400).json({ error: 'A valid client and loan are required' });
+    if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'Amount must be greater than zero' });
+
+    const loan = await dbGet(`
+      SELECT
+        l.id AS loan_id,
+        l.loan_code,
+        l.loan_type,
+        c.id AS customer_id,
+        c.customer_code,
+        COALESCE(NULLIF(c.full_name, ''), TRIM(c.first_name || ' ' || c.last_name)) AS customer_name,
+        COALESCE(l.collector_id, c.collector_id) AS collector_id,
+        COALESCE(NULLIF(TRIM(co.first_name || ' ' || co.last_name), ''), 'Unassigned') AS collector_name
+      FROM tblLoan l
+      JOIN tblCustomer c ON c.id = l.customer_id
+      LEFT JOIN tblCollector co ON co.id = COALESCE(l.collector_id, c.collector_id)
+      WHERE l.id = ?
+        AND c.id = ?
+        AND LOWER(COALESCE(l.status, '')) IN ('active', 'pastdue')
+        AND COALESCE(l.balance, 0) > 0
+    `, [loanId, customerId]);
+    if (!loan) return res.status(404).json({ error: 'The selected active loan was not found' });
+    if (!loan.collector_id) return res.status(400).json({ error: 'The selected client has no assigned collector' });
+
+    await ensureCollectionAdvanceManualTable();
+    await dbRun(`
+      INSERT INTO tblCollectionAdvanceManual (
+        customer_id, loan_id, collector_id, report_date, amount, created_by, updated_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(loan_id, report_date)
+      DO UPDATE SET
+        customer_id = excluded.customer_id,
+        collector_id = excluded.collector_id,
+        amount = excluded.amount,
+        updated_by = excluded.updated_by,
+        updated_at = datetime('now')
+    `, [customerId, loanId, loan.collector_id, targetDate, amount, req.user.id, req.user.id]);
+
+    const saved = await dbGet(`
+      SELECT * FROM tblCollectionAdvanceManual WHERE loan_id = ? AND report_date = ?
+    `, [loanId, targetDate]);
+    await dbRun(
+      `INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
+      [req.user.id, req.user.username, 'UPSERT', 'COLLECTION_SHEET_ADVANCE', saved.id,
+        `Adv. ${amount} entered for ${loan.customer_name} (${loan.loan_code}) on ${targetDate}`]
+    );
+
+    res.status(201).json({
+      message: 'Advance entry saved successfully',
+      entry: saved,
+      client: loan,
+    });
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.put('/collection-sheet/advance-manual/:id', authenticateToken, async (req, res) => {
+  try {
+    const entryId = Number(req.params.id);
+    const amount = Number(req.body.amount);
+    if (!entryId) return res.status(400).json({ error: 'A valid advance entry is required' });
+    if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'Amount must be greater than zero' });
+    await ensureCollectionAdvanceManualTable();
+
+    const existing = await dbGet(`
+      SELECT a.*, c.full_name AS customer_name, l.loan_code
+      FROM tblCollectionAdvanceManual a
+      JOIN tblCustomer c ON c.id = a.customer_id
+      JOIN tblLoan l ON l.id = a.loan_id
+      WHERE a.id = ?
+    `, [entryId]);
+    if (!existing) return res.status(404).json({ error: 'Advance entry not found' });
+
+    await dbRun(`
+      UPDATE tblCollectionAdvanceManual
+      SET amount = ?, updated_by = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `, [amount, req.user.id, entryId]);
+    await dbRun(
+      `INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
+      [req.user.id, req.user.username, 'UPDATE', 'COLLECTION_SHEET_ADVANCE', entryId,
+        `Adv. entry changed from ${existing.amount} to ${amount} for ${existing.customer_name} (${existing.loan_code}) on ${existing.report_date}`]
+    );
+
+    res.json({ message: 'Advance entry updated successfully', id: entryId, amount });
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.delete('/collection-sheet/advance-manual/:id', authenticateToken, async (req, res) => {
+  try {
+    const entryId = Number(req.params.id);
+    if (!entryId) return res.status(400).json({ error: 'A valid advance entry is required' });
+    await ensureCollectionAdvanceManualTable();
+
+    const existing = await dbGet(`
+      SELECT a.*, c.full_name AS customer_name, l.loan_code
+      FROM tblCollectionAdvanceManual a
+      JOIN tblCustomer c ON c.id = a.customer_id
+      JOIN tblLoan l ON l.id = a.loan_id
+      WHERE a.id = ?
+    `, [entryId]);
+    if (!existing) return res.status(404).json({ error: 'Advance entry not found' });
+
+    await dbRun(`DELETE FROM tblCollectionAdvanceManual WHERE id = ?`, [entryId]);
+    await dbRun(
+      `INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
+      [req.user.id, req.user.username, 'DELETE', 'COLLECTION_SHEET_ADVANCE', entryId,
+        `Adv. ${existing.amount} deleted for ${existing.customer_name} (${existing.loan_code}) on ${existing.report_date}`]
+    );
+
+    res.json({ message: 'Advance entry deleted successfully', collector_id: existing.collector_id });
+  } catch (err) { sendRouteError(res, err); }
+});
+
 router.get('/monthly-releases', authenticateToken, async (req, res) => {
   try {
     const y = String(req.query.year || new Date().getFullYear());
@@ -820,12 +1127,15 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
   try {
     const { collector_id, date } = req.query;
     if (!collector_id) return res.status(400).json({ error: 'Please select a collector' });
+    const collectorId = Number(collector_id);
+    if (!collectorId) return res.status(400).json({ error: 'Invalid collector' });
     const targetDate = date || new Date().toISOString().split('T')[0];
     requireOperationDate(targetDate, 'Collection sheet date');
     await ensureCollectionFieldReleaseTable();
+    await ensureCollectionAdvanceManualTable();
 
     // Get collector info
-    const collector = await dbGet(`SELECT id, collector_code, first_name, last_name FROM tblCollector WHERE id = ?`, [collector_id]);
+    const collector = await dbGet(`SELECT id, collector_code, first_name, last_name FROM tblCollector WHERE id = ?`, [collectorId]);
     const collectorName = collector ? `${collector.last_name}, ${collector.first_name}`.toUpperCase() : 'UNASSIGNED';
 
     // Get active/pastdue loans with collected amounts for the date
@@ -842,7 +1152,7 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
         (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date(date_paid) = date(?) AND status = 'penalty' AND ${sqlNotSunday('date_paid')}) as penalty_collected_today
       FROM tblLoan l
       LEFT JOIN tblCustomer c ON l.customer_id = c.id
-      WHERE l.collector_id = ?
+      WHERE COALESCE(l.collector_id, c.collector_id) = ?
         AND (
           (LOWER(l.status) IN ('active', 'pastdue') AND COALESCE(l.balance, 0) > 0)
           OR EXISTS (
@@ -854,7 +1164,18 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
           )
         )
       ORDER BY c.full_name ASC
-    `, [targetDate, targetDate, targetDate, collector_id, targetDate]);
+    `, [targetDate, targetDate, targetDate, collectorId, targetDate]);
+
+    const advanceRows = await dbAll(`
+      SELECT loan_id, COALESCE(SUM(amount), 0) AS amount
+      FROM tblCollectionAdvanceManual
+      WHERE collector_id = ? AND report_date = ?
+      GROUP BY loan_id
+    `, [collectorId, targetDate]);
+    const advanceByLoan = new Map(advanceRows.map(row => [Number(row.loan_id), Number(row.amount || 0)]));
+    loans.forEach(loan => {
+      loan.advance_manual_today = advanceByLoan.get(Number(loan.id)) || 0;
+    });
 
     // Compute days past due for each loan
     const refDate = new Date(targetDate + 'T00:00:00');
@@ -913,14 +1234,14 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
         AND LOWER(COALESCE(status, '')) != 'reversed'
         AND COALESCE(passbook, 0) > 0
         AND ${sqlNotSunday('date_released')}
-    `, [collector_id, targetDate]);
+    `, [collectorId, targetDate]);
     const pbInsDstTotal = Number(pbInsDst?.total || 0);
     const fieldRelease = await dbGet(`
       SELECT COALESCE(amount, 0) as amount
       FROM tblCollectionFieldRelease
       WHERE collector_id = ?
         AND report_date = ?
-    `, [collector_id, targetDate]);
+    `, [collectorId, targetDate]);
     const fieldReleaseTotal = Number(fieldRelease?.amount || 0);
 
     // Calculate summary totals
@@ -928,7 +1249,7 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
 
     res.json({
       loans: collectionLoans,
-      collector_id,
+      collector_id: collectorId,
       date: targetDate,
       collector: { id: collector?.id, name: collectorName },
       summary: {

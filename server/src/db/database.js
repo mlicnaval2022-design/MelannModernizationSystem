@@ -404,10 +404,32 @@ async function initializeDatabase() {
       updated_at TEXT DEFAULT (datetime('now')),
       UNIQUE(collector_id, report_date)
     );
+    CREATE TABLE IF NOT EXISTS tblCollectionAdvanceManual (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      loan_id INTEGER NOT NULL,
+      collector_id INTEGER NOT NULL,
+      report_date TEXT NOT NULL,
+      amount REAL NOT NULL DEFAULT 0,
+      created_by INTEGER,
+      updated_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(loan_id, report_date)
+    );
     CREATE TABLE IF NOT EXISTS tblExpensePersonnel (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       employee_name TEXT NOT NULL,
       position TEXT,
+      status TEXT DEFAULT 'active',
+      created_by INTEGER,
+      updated_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS tblExpenseCategory (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category_name TEXT NOT NULL COLLATE NOCASE UNIQUE,
       status TEXT DEFAULT 'active',
       created_by INTEGER,
       updated_by INTEGER,
