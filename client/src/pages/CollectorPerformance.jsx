@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Building2, CalendarDays, CheckCircle2, Edit3, FileText, Lock, MapPin, Plus, Printer, RefreshCw, Trash2, TrendingUp, Unlock, User, Users, X } from 'lucide-react'
+import { ArrowLeft, Building2, CalendarDays, CheckCircle2, Edit3, FileText, Lock, MapPin, Plus, Printer, RefreshCw, Sparkles, Trash2, TrendingUp, Unlock, User, Users, X } from 'lucide-react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import logo from '../assets/logo.png'
@@ -589,6 +589,23 @@ export default function CollectorPerformance() {
     setSaveError('')
   }
 
+  const generateAiCoaching = () => {
+    const collector = collectionRows.find(row => row.id === selectedCollectionId)
+    if (!collector) return
+    const summary = getCollectorCollectionTotals(collector.rows)
+    const insight = getGeneratedCollectionInsight(collector.name, collector.rows, summary)
+    setCollectorEdits(current => ({
+      ...current,
+      [collector.id]: {
+        ...(current[collector.id] || {}),
+        comment: insight.comment,
+        recommendation: insight.recommendation
+      }
+    }))
+    setShowSavedModal(false)
+    setSaveError('')
+  }
+
   const updateCollectorPhoto = (collectorId, file) => {
     if (!file) return
     const reader = new FileReader()
@@ -740,9 +757,6 @@ export default function CollectorPerformance() {
     ? Number(selectedLatestRow.activeClients || 0) + Number(selectedLatestRow.overdueClients || 0)
     : 0
   const selectedEndingBalance = Math.max(0, selectedBeginningActive - selectedReconClients)
-  const selectedInsight = selectedCollection && selectedSummary
-    ? getGeneratedCollectionInsight(selectedCollection.name, selectedCollection.rows, selectedSummary)
-    : null
   const performanceWeekDates = getOperationWeek(lockedCollections?.dateTo || filters.date_to)
   const isValidRatingRange = Boolean(ratingDateRange.start_date && ratingDateRange.end_date && ratingDateRange.end_date >= ratingDateRange.start_date)
 
@@ -896,7 +910,6 @@ export default function CollectorPerformance() {
           const beginningActive = Number(firstRow.activeClients || 0) + Number(firstRow.overdueClients || 0)
           const endingBalance = Math.max(0, beginningActive - reconClients)
           const lacking = Math.max(0, activeTarget - endingBalance)
-          const insight = getGeneratedCollectionInsight(edit.fullName || collector.name, collector.rows, summary)
           return (
             <Fragment key={`print-performance-${collector.id}`}>
             <div className="performance-print-page">
@@ -997,9 +1010,9 @@ export default function CollectorPerformance() {
               <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: 11, marginTop: -1 }}>
                 <tbody>
                   <tr><td style={{ border: '1px solid #000', padding: '7px 9px 4px' }}><b><u>Recommendation:</u></b></td></tr>
-                  <tr><td style={{ border: '1px solid #000', borderTop: 0, padding: '4px 9px 8px', minHeight: 34, verticalAlign: 'top' }}><i>{edit.recommendation || insight.recommendation}</i></td></tr>
+                  <tr><td style={{ border: '1px solid #000', borderTop: 0, padding: '4px 9px 8px', minHeight: 34, verticalAlign: 'top' }}><i>{edit.recommendation || 'AI coaching has not been generated.'}</i></td></tr>
                   <tr><td style={{ border: '1px solid #000', borderTop: 0, padding: '7px 9px 4px' }}><b><u>Comments/Suggestions:</u></b></td></tr>
-                  <tr><td style={{ border: '1px solid #000', borderTop: 0, padding: '4px 9px 8px', minHeight: 42, verticalAlign: 'top' }}><i>{edit.comment || insight.comment}</i></td></tr>
+                  <tr><td style={{ border: '1px solid #000', borderTop: 0, padding: '4px 9px 8px', minHeight: 42, verticalAlign: 'top' }}><i>{edit.comment || 'AI coaching has not been generated.'}</i></td></tr>
                 </tbody>
               </table>
             </div>
@@ -1219,7 +1232,7 @@ export default function CollectorPerformance() {
                       <div key={label} style={{ border: '1px solid #dbe4f0', borderRadius: 10, padding: '14px 16px', background: '#fff' }}>
                         <div style={{ color: '#64748b', fontSize: 11, fontWeight: 900, letterSpacing: .5, textTransform: 'uppercase' }}>{label}</div>
                         <div style={{ marginTop: 6, color, fontSize: 20, fontWeight: 900, whiteSpace: 'nowrap' }}>{value}</div>
-                        {label === 'Total Target' && totals.recon_target > 0 && <div style={{ marginTop: 4, color: '#2563eb', fontSize: 10, fontWeight: 900 }}>Includes Laude Recon: PHP {fmt(totals.recon_target)}</div>}
+                        {label === 'Total Target' && totals.recon_target > 0 && <div style={{ marginTop: 4, color: '#2563eb', fontSize: 10, fontWeight: 900 }}>Laude includes active Recon clients</div>}
                       </div>
                     ))}
                   </div>
@@ -1260,8 +1273,7 @@ export default function CollectorPerformance() {
                               <td style={{ textAlign: 'right', fontWeight: 900 }}>
                                 {isLaude && reconTarget > 0 ? <>
                                   <div style={{ color: '#6d28d9' }}>Regular: PHP {fmt(regularTarget)}</div>
-                                  <div style={{ color: '#2563eb', marginTop: 3 }}>Recon: PHP {fmt(reconTarget)}</div>
-                                  <div style={{ color: '#08184a', marginTop: 5, paddingTop: 5, borderTop: '1px solid #dbe4f0' }}>Total: PHP {fmt(collector.target)}</div>
+                                  <div style={{ color: '#2563eb', marginTop: 5, paddingTop: 5, borderTop: '1px solid #dbe4f0' }}>With Recon: PHP {fmt(collector.target)}</div>
                                 </> : <span style={{ color: '#6d28d9' }}>PHP {fmt(collector.target)}</span>}
                               </td>
                             </tr>
@@ -1500,13 +1512,17 @@ export default function CollectorPerformance() {
                     </div>
 
                     <div className="card-v2">
-                      <div className="card-v2-title" style={{ marginBottom: 20 }}>AI Generated Comment and Recommendation</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+                        <div className="card-v2-title">AI Generated Comment and Recommendation</div>
+                        <button className="btn btn-primary" type="button" onClick={generateAiCoaching}><Sparkles size={16} /> Generate AI Coaching</button>
+                      </div>
                       <div style={{ display: 'grid', gap: 18 }}>
                         <div>
                           <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>Supervisor Comments</div>
                           <textarea
                             className="form-control"
-                            value={selectedEdit.comment ?? selectedInsight.comment}
+                            value={selectedEdit.comment ?? ''}
+                            placeholder="Click Generate AI Coaching to create a performance critique."
                             onChange={e => updateCollectorEdit(selectedCollection.id, 'comment', e.target.value)}
                             style={{ minHeight: 92, fontWeight: 800, lineHeight: 1.6 }}
                           />
@@ -1515,7 +1531,8 @@ export default function CollectorPerformance() {
                           <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>Strategic Recommendation</div>
                           <textarea
                             className="form-control"
-                            value={selectedEdit.recommendation ?? selectedInsight.recommendation}
+                            value={selectedEdit.recommendation ?? ''}
+                            placeholder="The strategic recommendation will appear after generation."
                             onChange={e => updateCollectorEdit(selectedCollection.id, 'recommendation', e.target.value)}
                             style={{ minHeight: 92, fontWeight: 800, lineHeight: 1.6 }}
                           />
