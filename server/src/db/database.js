@@ -352,6 +352,30 @@ async function initializeDatabase() {
       closed_at TEXT DEFAULT (datetime('now')),
       remarks TEXT
     );
+    CREATE TABLE IF NOT EXISTS tblFortyFiveDayRatingPeriod (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      branch_id INTEGER,
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'Draft',
+      created_by INTEGER NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(branch_id, start_date, end_date)
+    );
+    CREATE TABLE IF NOT EXISTS tblFortyFiveDayRatingEvaluation (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      period_id INTEGER NOT NULL,
+      collector_id INTEGER NOT NULL,
+      collection_total REAL NOT NULL DEFAULT 0,
+      release_total REAL NOT NULL DEFAULT 0,
+      expense_total REAL NOT NULL DEFAULT 0,
+      net_income REAL NOT NULL DEFAULT 0,
+      accomplishment_percentage REAL,
+      rating TEXT NOT NULL DEFAULT 'Not rated',
+      FOREIGN KEY (period_id) REFERENCES tblFortyFiveDayRatingPeriod(id) ON DELETE CASCADE,
+      FOREIGN KEY (collector_id) REFERENCES tblCollector(id),
+      UNIQUE(period_id, collector_id)
+    );
     CREATE TABLE IF NOT EXISTS tblCollectionFieldRelease (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       collector_id INTEGER NOT NULL,

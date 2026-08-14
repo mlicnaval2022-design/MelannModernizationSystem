@@ -100,23 +100,6 @@ const getCollectionRemark = rate => {
   return 'NEEDS IMPROVEMENT'
 }
 
-const getFortyFiveDayRange = dateKey => {
-  const end = new Date(`${dateKey}T00:00:00`)
-  const start = new Date(end)
-  start.setDate(end.getDate() - 44)
-  return { date_from: toDateKey(start), date_to: toDateKey(end) }
-}
-
-const getFortyFiveDayRating = rate => {
-  if (!Number.isFinite(rate)) return 'Not rated'
-  if (rate >= 115) return 'Outstanding Performance'
-  if (rate >= 110) return 'Passing / Very Satisfactory'
-  if (rate >= 105) return 'Below Passing Standard'
-  if (rate >= 95) return 'Unsatisfactory Performance'
-  if (rate >= 90) return 'Poor Performance'
-  return 'Critical Performance Failure'
-}
-
 const printDate = value => {
   if (!value) return ''
   return new Date(`${value}T00:00:00`).toLocaleDateString('en-US', {
@@ -236,7 +219,9 @@ export default function CollectorPerformance() {
   const defaultRange = useMemo(() => getDefaultRange(), [])
   const [filters, setFilters] = useState(defaultRange)
   const [data, setData] = useState(null)
-  const [fortyFiveDayData, setFortyFiveDayData] = useState(null)
+  const [ratingPeriods, setRatingPeriods] = useState([])
+  const [ratingDateRange, setRatingDateRange] = useState({ start_date: '', end_date: '' })
+  const [selectedRatingPeriod, setSelectedRatingPeriod] = useState(null)
   const [activeTab, setActiveTab] = useState('targets')
   const [collectionRows, setCollectionRows] = useState([])
   const [newCollectionDate, setNewCollectionDate] = useState(defaultRange.date_to)
@@ -456,16 +441,54 @@ export default function CollectorPerformance() {
   }
 
   const loadFortyFiveDayData = async () => {
-    const range = getFortyFiveDayRange(filters.date_to)
     setFortyFiveDayLoading(true)
     try {
-      const response = await API.get('/collector-performance/summary', {
-        params: { ...range, pastdue_cutoff: filters.pastdue_cutoff }
-      })
-      setFortyFiveDayData(response.data)
+      const response = await API.get('/forty-five-day-rating/periods')
+      setRatingPeriods(response.data)
       setErrorMsg('')
     } catch (err) {
       setErrorMsg(err.response?.data?.error || err.message || 'Could not load 45 days performance')
+    } finally {
+      setFortyFiveDayLoading(false)
+    }
+  }
+
+  const loadRatingPeriod = async id => {
+    setFortyFiveDayLoading(true)
+    try {
+      const response = await API.get(`/forty-five-day-rating/periods/${id}`)
+      setSelectedRatingPeriod(response.data)
+      setErrorMsg('')
+    } catch (err) {
+      setErrorMsg(err.response?.data?.error || err.message || 'Could not load rating period')
+    } finally {
+      setFortyFiveDayLoading(false)
+    }
+  }
+
+  const generateFortyFiveDayRating = async () => {
+    setFortyFiveDayLoading(true)
+    try {
+      const response = await API.post('/forty-five-day-rating/periods', ratingDateRange)
+      setRatingDateRange({ start_date: '', end_date: '' })
+      await loadFortyFiveDayData()
+      await loadRatingPeriod(response.data.id)
+    } catch (err) {
+      setErrorMsg(err.response?.data?.error || err.message || 'Could not generate 45-day rating')
+    } finally {
+      setFortyFiveDayLoading(false)
+    }
+  }
+
+  const refreshRatingPeriod = async () => {
+    if (!selectedRatingPeriod?.period?.id) return
+    setFortyFiveDayLoading(true)
+    try {
+      await API.post(`/forty-five-day-rating/periods/${selectedRatingPeriod.period.id}/refresh`)
+      await loadFortyFiveDayData()
+      await loadRatingPeriod(selectedRatingPeriod.period.id)
+    } catch (err) {
+      setErrorMsg(err.response?.data?.error || err.message || 'Could not refresh rating totals')
     } finally {
       setFortyFiveDayLoading(false)
     }
@@ -523,7 +546,6 @@ export default function CollectorPerformance() {
   const applyFilters = async () => {
     await loadData()
     if (activeTab === 'collections') await loadCollections()
-    if (activeTab === 'forty-five-days') await loadFortyFiveDayData()
   }
 
   const updateCollectorEdit = (collectorId, field, value) => {
@@ -690,10 +712,6 @@ export default function CollectorPerformance() {
     ? getGeneratedCollectionInsight(selectedCollection.name, selectedCollection.rows, selectedSummary)
     : null
   const performanceWeekDates = getOperationWeek(lockedCollections?.dateTo || filters.date_to)
-  const fortyFiveDayRange = getFortyFiveDayRange(filters.date_to)
-  const fortyFiveDayCollectors = [...(fortyFiveDayData?.collectors || [])]
-    .sort((a, b) => Number(b.achievement_rate || 0) - Number(a.achievement_rate || 0))
-  const fortyFiveDayTotals = fortyFiveDayData?.totals || { target: 0, collected: 0, achievement_rate: 0 }
 
   return (
     <div className="dashboard-v2">
@@ -1581,44 +1599,40 @@ export default function CollectorPerformance() {
             {activeTab === 'forty-five-days' && (
               <div style={{ padding: 22, background: '#f8fbff' }}>
                 <div style={{ border: '1px solid #dbe4f0', borderRadius: 14, background: '#fff', boxShadow: '0 18px 40px rgba(15, 23, 42, 0.08)', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, padding: '22px 24px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, padding: '22px 24px', flexWrap: 'wrap', borderBottom: '1px solid #dbe4f0' }}>
                     <div>
-                      <div style={{ fontSize: 22, fontWeight: 900, color: '#08184a', textTransform: 'uppercase' }}>45 Days Performance</div>
+                      <div style={{ fontSize: 22, fontWeight: 900, color: '#08184a', textTransform: 'uppercase' }}>45-Day Performance Rating</div>
                       <div style={{ marginTop: 5, color: '#475569', fontSize: 14, fontWeight: 700 }}>
-                        Rating period: {displayDate(fortyFiveDayRange.date_from)} to {displayDate(fortyFiveDayRange.date_to)} (45 calendar days)
+                        Generate a 45-calendar-day rating with automated collection, release, and DCR expense totals.
                       </div>
                     </div>
-                    <button className="btn btn-secondary" type="button" onClick={loadFortyFiveDayData} disabled={fortyFiveDayLoading}>
-                      <RefreshCw size={16} /> {fortyFiveDayLoading ? 'Loading...' : 'Refresh'}
-                    </button>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14, padding: '0 24px 22px' }}>
-                    {[
-                      ['Collection Target', `PHP ${fmt(fortyFiveDayTotals.target)}`, '#6d28d9'],
-                      ['Actual Collection', `PHP ${fmt(fortyFiveDayTotals.collected)}`, '#2563eb'],
-                      ['Accomplishment', `${Number(fortyFiveDayTotals.achievement_rate || 0).toFixed(2)}%`, '#059669'],
-                      ['Overall Rating', getFortyFiveDayRating(Number(fortyFiveDayTotals.achievement_rate || 0)), '#0f172a']
-                    ].map(([label, value, color]) => (
-                      <div key={label} style={{ border: '1px solid #dbe4f0', borderRadius: 10, padding: '14px 16px', background: '#fff' }}>
-                        <div style={{ color: '#64748b', fontSize: 11, fontWeight: 900, letterSpacing: .5, textTransform: 'uppercase' }}>{label}</div>
-                        <div style={{ marginTop: 6, color, fontSize: 18, fontWeight: 900 }}>{value}</div>
-                      </div>
-                    ))}
+                  <div style={{ padding: 24, borderBottom: '1px solid #dbe4f0' }}>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: '#08184a', marginBottom: 16 }}>Generate 45-Day Rating</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 16, alignItems: 'end' }}>
+                      <label><span className="form-label">Start date</span><input className="form-control" type="date" value={ratingDateRange.start_date} onChange={e => setRatingDateRange(current => ({ ...current, start_date: e.target.value }))} /></label>
+                      <label><span className="form-label">End date</span><input className="form-control" type="date" value={ratingDateRange.end_date} onChange={e => setRatingDateRange(current => ({ ...current, end_date: e.target.value }))} /></label>
+                      <button className="btn btn-primary" type="button" onClick={generateFortyFiveDayRating} disabled={fortyFiveDayLoading || !ratingDateRange.start_date || !ratingDateRange.end_date} style={{ justifyContent: 'center' }}><CalendarDays size={16} /> Generate Rating</button>
+                    </div>
+                    <div style={{ color: '#64748b', fontSize: 12, fontWeight: 700, marginTop: 12 }}>The end date must be 44 days after the start date (45 calendar days inclusive).</div>
                   </div>
 
                   <div style={{ overflowX: 'auto', padding: '0 18px 18px' }}>
-                    <table className="data-table" style={{ margin: 0, border: '1px solid #dbe4f0', minWidth: 820 }}>
-                      <thead><tr style={{ background: 'linear-gradient(90deg, #0f766e, #0f4c5c)' }}>
-                        <th style={{ color: '#fff', textAlign: 'center' }}>Rank</th><th style={{ color: '#fff' }}>Collector</th><th style={{ color: '#fff', textAlign: 'right' }}>Target (PHP)</th><th style={{ color: '#fff', textAlign: 'right' }}>Actual (PHP)</th><th style={{ color: '#fff', textAlign: 'right' }}>Accomplishment</th><th style={{ color: '#fff' }}>Rating</th>
-                      </tr></thead>
-                      <tbody>{fortyFiveDayLoading ? (
-                        <tr><td colSpan={6} style={{ textAlign: 'center', padding: 28 }}>Loading 45 days performance...</td></tr>
-                      ) : fortyFiveDayCollectors.length ? fortyFiveDayCollectors.map((collector, index) => (
-                        <tr key={`45-day-${collector.id}`}><td style={{ textAlign: 'center', fontWeight: 900 }}>{index + 1}</td><td style={{ fontWeight: 900, textTransform: 'uppercase' }}>{collector.name}</td><td style={{ textAlign: 'right' }}>PHP {fmt(collector.target)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(collector.actual_collection ?? collector.collected)}</td><td style={{ textAlign: 'right', fontWeight: 900 }}>{Number(collector.achievement_rate || 0).toFixed(2)}%</td><td style={{ fontWeight: 800 }}>{getFortyFiveDayRating(Number(collector.achievement_rate || 0))}</td></tr>
-                      )) : <tr><td colSpan={6} style={{ textAlign: 'center', padding: 28 }}>No collector performance is available for this period.</td></tr>}</tbody>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: '#08184a', margin: '22px 6px 14px' }}>Generated Periods</div>
+                    <table className="data-table" style={{ margin: 0, border: '1px solid #dbe4f0', minWidth: 900 }}>
+                      <thead><tr style={{ background: 'linear-gradient(90deg, #0f766e, #0f4c5c)' }}><th style={{ color: '#fff' }}>Date Range</th><th style={{ color: '#fff' }}>Status</th><th style={{ color: '#fff', textAlign: 'right' }}>Collections (PHP)</th><th style={{ color: '#fff', textAlign: 'right' }}>Releases (PHP)</th><th style={{ color: '#fff', textAlign: 'right' }}>DCR Expenses (PHP)</th><th style={{ color: '#fff' }}>Overall Rating</th><th style={{ color: '#fff' }}>Action</th></tr></thead>
+                      <tbody>{fortyFiveDayLoading && !ratingPeriods.length ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28 }}>Loading rating periods...</td></tr> : ratingPeriods.length ? ratingPeriods.map(period => (
+                        <tr key={`rating-period-${period.id}`}><td>{displayDate(period.start_date)} to {displayDate(period.end_date)}</td><td><span className="status-badge">{period.status}</span></td><td style={{ textAlign: 'right' }}>PHP {fmt(period.total_collection)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(period.total_release)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(period.total_expense)}</td><td style={{ fontWeight: 800 }}>{period.overall_rating}</td><td><button className="btn btn-secondary" type="button" onClick={() => loadRatingPeriod(period.id)}>View Rating</button></td></tr>
+                      )) : <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28 }}>No 45-day ratings generated yet.</td></tr>}</tbody>
                     </table>
                   </div>
+
+                  {selectedRatingPeriod && <div style={{ padding: 24, borderTop: '1px solid #dbe4f0', background: '#f8fbff' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}><div><div style={{ fontSize: 18, fontWeight: 900, color: '#08184a' }}>Daily Input / Collector Evaluation</div><div style={{ color: '#64748b', fontSize: 13, fontWeight: 700 }}>{displayDate(selectedRatingPeriod.period.start_date)} to {displayDate(selectedRatingPeriod.period.end_date)}</div></div><button className="btn btn-secondary" type="button" onClick={refreshRatingPeriod} disabled={fortyFiveDayLoading || selectedRatingPeriod.period.status === 'Finalized'}><RefreshCw size={16} /> Refresh automated totals</button></div>
+                    <div style={{ color: '#475569', fontSize: 12, lineHeight: 1.5, marginBottom: 14 }}>Collection is summed per collector. Recon releases are excluded. The DCR expense total is divided equally among active collectors.</div>
+                    <div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 950 }}><thead><tr><th>Collector</th><th style={{ textAlign: 'right' }}>Collection</th><th style={{ textAlign: 'right' }}>Release</th><th style={{ textAlign: 'right' }}>Expense Share</th><th style={{ textAlign: 'right' }}>Net Income</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Rating</th></tr></thead><tbody>{selectedRatingPeriod.evaluations.map(evaluation => <tr key={evaluation.id}><td style={{ fontWeight: 800 }}>{evaluation.collector_name}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.collection_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.release_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.expense_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.net_income)}</td><td style={{ textAlign: 'right' }}>{evaluation.accomplishment_percentage == null ? 'Not rated' : `${Number(evaluation.accomplishment_percentage).toFixed(2)}%`}</td><td style={{ fontWeight: 800 }}>{evaluation.rating}</td></tr>)}</tbody></table></div>
+                  </div>}
                 </div>
               </div>
             )}

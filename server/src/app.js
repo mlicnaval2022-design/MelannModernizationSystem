@@ -21,6 +21,7 @@ const cicRoutes = require('./routes/cic');
 const monitoringRoutes = require('./routes/monitoring');
 const settingsRoutes = require('./routes/settings');
 const collectorPerformanceRoutes = require('./routes/collectorPerformance');
+const fortyFiveDayRatingRoutes = require('./routes/fortyFiveDayRating');
 const demandLetterRoutes = require('./routes/demandLetters');
 const systemRoutes = require('./routes/system');
 const jcashMigrationRoutes = require('./routes/jcashMigration');
@@ -62,6 +63,7 @@ function createApp() {
   app.use('/api/monitoring', monitoringRoutes);
   app.use('/api/settings', settingsRoutes);
   app.use('/api/collector-performance', collectorPerformanceRoutes);
+  app.use('/api/forty-five-day-rating', fortyFiveDayRatingRoutes);
   app.use('/api/demand-letters', demandLetterRoutes);
   app.use('/api/system', systemRoutes);
   app.use('/api/jcash-migration', jcashMigrationRoutes);
