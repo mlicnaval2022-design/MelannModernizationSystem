@@ -163,42 +163,48 @@ const getGeneratedCollectionInsight = (collectorName, rows, summary) => {
   const collector = String(collectorName || 'This collector').toUpperCase()
   const paidRows = rows.filter(row => Number(row.actual || 0) > 0)
   const zeroRows = rows.filter(row => Number(row.actual || 0) === 0)
-  const bestRow = [...rows].sort((a, b) => Number(b.rate || 0) - Number(a.rate || 0))[0]
+  const bestRow = [...rows].sort((a, b) => Number(b.actual || 0) - Number(a.actual || 0))[0]
+  const lowestPaidRow = [...paidRows].sort((a, b) => Number(a.actual || 0) - Number(b.actual || 0))[0]
   const latestRow = rows[rows.length - 1]
-
-  if (summary.rate >= 100) {
-    return {
-      comment: `${collector} nakalapas sa target with ${summary.rate.toFixed(2)}% accomplishment. Maayo ang resulta, pero dili ni rason nga mukompyansa kay kinahanglan consistent gihapon matag adlaw. Pinakamaayo nga adlaw: ${shortDisplayDate(bestRow?.date)} with ${Number(bestRow?.rate || 0).toFixed(2)}%.`,
-      recommendation: 'Padayona ang disiplina sa ruta ug follow-up. Ayaw hulata nga mubagsak pa ang performance; bantayi daan ang mga account nga hapit na malapas sa due.'
-    }
-  }
-
-  if (summary.rate >= 85) {
-    return {
-      comment: `${collector} naa pa sa acceptable level with ${summary.rate.toFixed(2)}%, pero klaro nga kulang pa gihapon. Dili dapat mahulog sa "okay na" mindset kay naa pay target gap nga wala pa nakuha.`,
-      recommendation: 'Unaha ang clients nga partial ug missed payment. Kinahanglan naay klarong lista sa kolektahonon ug deadline kada account before mahuman ang semana.'
-    }
-  }
+  const targetGap = Math.max(0, Number(summary.dailyTarget || 0) - Number(summary.actual || 0))
+  const zeroDates = zeroRows.map(row => shortDisplayDate(row.date)).join(', ')
+  const bestDay = `${shortDisplayDate(bestRow?.date)} (PHP ${fmt(bestRow?.actual)})`
+  const lowestPaidDay = lowestPaidRow ? `${shortDisplayDate(lowestPaidRow.date)} (PHP ${fmt(lowestPaidRow.actual)})` : 'walay posted collection'
+  const performanceFacts = `Nakolekta niya ang PHP ${fmt(summary.actual)} batok sa PHP ${fmt(summary.dailyTarget)} target, kulang ug PHP ${fmt(targetGap)} (${summary.rate.toFixed(2)}%). Naay collection sa ${paidRows.length}/${rows.length} ka operational days; ${zeroRows.length} ka adlaw ang zero collection${zeroRows.length ? ` (${zeroDates})` : ''}. Pinakataas nga collection: ${bestDay}; pinakagamay nga naay collection: ${lowestPaidDay}.`
 
   if (paidRows.length === 0) {
     return {
-      comment: `${collector} walay bisan usa ka posted actual collection sa selected week. Kini seryoso nga red flag kay 0.00% ang accomplishment ug walay makita nga collection output.`,
-      recommendation: 'I-verify dayon kung na-post ba ang collections. Kung wala gyud collection, kinahanglan immediate field validation, client follow-up, ug written recovery plan sa tanan active accounts.'
+      comment: `${collector} walay bisan usa ka posted actual collection sa selected week. ${performanceFacts}`,
+      recommendation: `I-validate dayon ang tanan ${rows.length} ka operational days ug pangayoa ang route/activity proof. Himoa ug recovery list sa clients para ma-post ang unang collection sa sunod nga operation day.`
     }
   }
 
-  if (zeroRows.length >= 3) {
+  if (summary.rate >= 100 && zeroRows.length === 0) {
     return {
-      comment: `${collector} naay collection sa ${paidRows.length} ka adlaw, pero ${zeroRows.length} ka operational days ang zero actual collection. Dili ni acceptable nga pattern kay weekly accomplishment ra ang ${summary.rate.toFixed(2)}%. Nagpasabot ni nga huyang ang daily follow-up ug dili stable ang collection execution.`,
-      recommendation: 'I-review tagsa-tagsa ang zero-collection dates. Pangayoa ang proof of field activity, listahan sa giadto nga clients, ug concrete recovery plan sa unpaid active accounts.'
+      comment: `${collector} nalapas ang weekly target ug consistent ang collection sa tanang operational days. ${performanceFacts}`,
+      recommendation: `Padayona ang daily route discipline nga nakaproduce sa ${bestDay}. I-monitor ang low-output day nga ${lowestPaidDay} aron mapadayon ang performance bisan dili pareho ang client availability.`
+    }
+  }
+
+  if (zeroRows.length >= 2) {
+    return {
+      comment: `${collector} adunay inconsistent nga collection pattern tungod sa ${zeroRows.length} ka zero-collection days. ${performanceFacts}`,
+      recommendation: `Unaha ang follow-up sa zero-collection dates (${zeroDates}) ug pangitaa ang clients nga na-miss sa maong routes. Gamita ang ${bestDay} nga adlaw isip reference sa clients o ruta nga mahimong ma-repeat para mabawasan ang PHP ${fmt(targetGap)} nga gap.`
+    }
+  }
+
+  if (summary.rate < 85) {
+    return {
+      comment: `${collector} adunay collection sa halos tanang adlaw apan ubos pa ang weekly accomplishment. ${performanceFacts}`,
+      recommendation: `I-prioritize ang accounts nga makadugang sa PHP ${fmt(targetGap)} nga kulang. I-review ang ${lowestPaidDay} ug ilisi ang follow-up strategy didto; dili igo ang naay collection kung gamay ra ang amount.`
     }
   }
 
   return {
-    comment: `${collector} nakakuha ra og PHP ${fmt(summary.actual)} actual collection batok sa PHP ${fmt(summary.dailyTarget)} total target, equivalent sa ${summary.rate.toFixed(2)}%. Kulang pa ang performance ug dili pa ni enough para matawag nga lig-on ang collection output.`,
+    comment: `${collector} duol na sa target apan naa pay measurable nga kulang nga kinahanglan mahabol. ${performanceFacts}`,
     recommendation: Number(latestRow?.actual || 0) === 0
-      ? 'Tutuki dayon ang pinakabag-o nga operational day nga zero collection. Prioritize ang high-probability paying clients ug ayaw pasagdi nga modaghan ang walay bayad.'
-      : 'Kinahanglan mas agresibo ang daily monitoring. I-focus ang effort sa accounts nga makataas sa accomplishment above 85%, dili lang sa sayon kolektahon.'
+      ? `I-address una ang latest zero-collection day (${shortDisplayDate(latestRow.date)}) ug targeta ang PHP ${fmt(targetGap)} nga gap pinaagi sa high-probability paying clients.`
+      : `Maintain ang follow-up nga nakahatag sa ${bestDay}, unya kuhaa ang PHP ${fmt(targetGap)} nga remaining gap gikan sa accounts nga partial o missed ang bayad.`
   }
 }
 
