@@ -600,6 +600,11 @@ export default function Reports() {
   const [fieldReleaseSaving, setFieldReleaseSaving] = useState(false)
   const [advanceManualOpen, setAdvanceManualOpen] = useState(false)
   const [advanceManualForm, setAdvanceManualForm] = useState({ client_code: '', client: null, amount: '', searching: false, saving: false, error: '' })
+  const [advanceManualEntries, setAdvanceManualEntries] = useState([])
+  const [advanceEntriesLoading, setAdvanceEntriesLoading] = useState(false)
+  const [advanceEditingId, setAdvanceEditingId] = useState(null)
+  const [advanceEditAmount, setAdvanceEditAmount] = useState('')
+  const [advanceDeletingId, setAdvanceDeletingId] = useState(null)
   const [advanceManualSuccess, setAdvanceManualSuccess] = useState(null)
   const [printMode, setPrintMode] = useState('detailed')
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
@@ -651,9 +656,25 @@ export default function Reports() {
     }
   }
 
+  const loadAdvanceManualEntries = async (reportDate = params.date || toDateInputValue(new Date())) => {
+    setAdvanceEntriesLoading(true)
+    try {
+      const res = await API.get('/reports/collection-sheet/advance-manual', { params: { date: reportDate } })
+      setAdvanceManualEntries(Array.isArray(res.data?.entries) ? res.data.entries : [])
+    } catch (err) {
+      setAdvanceManualEntries([])
+      setAdvanceManualForm(prev => ({ ...prev, error: err.response?.data?.error || 'Failed to load advance entries.' }))
+    } finally {
+      setAdvanceEntriesLoading(false)
+    }
+  }
+
   const openAdvanceManualModal = () => {
     setAdvanceManualForm({ client_code: '', client: null, amount: '', searching: false, saving: false, error: '' })
+    setAdvanceEditingId(null)
+    setAdvanceEditAmount('')
     setAdvanceManualOpen(true)
+    loadAdvanceManualEntries()
   }
 
   const searchAdvanceClient = async (event) => {
@@ -694,7 +715,8 @@ export default function Reports() {
         loan_id: client.loan_id,
         amount,
       })
-      setAdvanceManualOpen(false)
+      await loadAdvanceManualEntries(reportDate)
+      setAdvanceManualForm({ client_code: '', client: null, amount: '', searching: false, saving: false, error: '' })
       setAdvanceManualSuccess({
         client_name: client.customer_name,
         loan_code: client.loan_code,
@@ -707,6 +729,47 @@ export default function Reports() {
       }
     } catch (err) {
       setAdvanceManualForm(prev => ({ ...prev, saving: false, error: err.response?.data?.error || 'Failed to save advance entry.' }))
+    }
+  }
+
+  const updateAdvanceManualEntry = async (entry) => {
+    const amount = Number(advanceEditAmount)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setAdvanceManualForm(prev => ({ ...prev, error: 'Amount must be greater than zero.' }))
+      return
+    }
+    setAdvanceManualForm(prev => ({ ...prev, error: '' }))
+    try {
+      await API.put(`/reports/collection-sheet/advance-manual/${entry.id}`, { amount })
+      setAdvanceEditingId(null)
+      setAdvanceEditAmount('')
+      await loadAdvanceManualEntries()
+      if (active === 'collection-sheet' && String(params.collector_id) === String(entry.collector_id)) {
+        await run('collection-sheet', params)
+      }
+    } catch (err) {
+      setAdvanceManualForm(prev => ({ ...prev, error: err.response?.data?.error || 'Failed to update advance entry.' }))
+    }
+  }
+
+  const deleteAdvanceManualEntry = async (entry) => {
+    if (!window.confirm(`Delete Adv. ${Number(entry.amount).toLocaleString('en-PH', { maximumFractionDigits: 2 })} for ${entry.customer_name}?`)) return
+    setAdvanceDeletingId(entry.id)
+    setAdvanceManualForm(prev => ({ ...prev, error: '' }))
+    try {
+      await API.delete(`/reports/collection-sheet/advance-manual/${entry.id}`)
+      if (advanceEditingId === entry.id) {
+        setAdvanceEditingId(null)
+        setAdvanceEditAmount('')
+      }
+      await loadAdvanceManualEntries()
+      if (active === 'collection-sheet' && String(params.collector_id) === String(entry.collector_id)) {
+        await run('collection-sheet', params)
+      }
+    } catch (err) {
+      setAdvanceManualForm(prev => ({ ...prev, error: err.response?.data?.error || 'Failed to delete advance entry.' }))
+    } finally {
+      setAdvanceDeletingId(null)
     }
   }
 
@@ -4981,7 +5044,7 @@ export default function Reports() {
       )}
       {advanceManualOpen && (
         <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && !advanceManualForm.saving && setAdvanceManualOpen(false)}>
-          <div className="modal" style={{ maxWidth: 760 }}>
+          <div className="modal" style={{ maxWidth: 920 }}>
             <div className="modal-header">
               <span className="modal-title">Advance Manual Input</span>
               <button className="modal-close" onClick={() => setAdvanceManualOpen(false)} disabled={advanceManualForm.saving}>x</button>
@@ -5044,10 +5107,90 @@ export default function Reports() {
                   </div>
                 </>
               ) : (
-                <div className="empty-state" style={{ minHeight: 150 }}>
+                <div className="empty-state" style={{ minHeight: 100 }}>
                   Enter a Client Code to display the client, active loan, and assigned collector.
                 </div>
               )}
+
+              <div style={{ marginTop: 22, paddingTop: 18, borderTop: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
+                  <div>
+                    <div style={{ color: '#0f172a', fontSize: 15, fontWeight: 800 }}>Entries Today</div>
+                    <div style={{ marginTop: 2, color: 'var(--text-muted)', fontSize: 11 }}>
+                      Advance entries for {displayDate(params.date || toDateInputValue(new Date()))}
+                    </div>
+                  </div>
+                  <div style={{ padding: '4px 9px', borderRadius: 999, background: '#eff6ff', color: '#1d4ed8', fontSize: 11, fontWeight: 800 }}>
+                    {advanceManualEntries.length} {advanceManualEntries.length === 1 ? 'entry' : 'entries'}
+                  </div>
+                </div>
+                {advanceEntriesLoading ? (
+                  <div className="empty-state" style={{ minHeight: 90 }}>Loading entries...</div>
+                ) : advanceManualEntries.length === 0 ? (
+                  <div className="empty-state" style={{ minHeight: 90 }}>No advance entries for this collection date.</div>
+                ) : (
+                  <div style={{ overflowX: 'auto', maxHeight: 245, border: '1px solid var(--border)', borderRadius: 8 }}>
+                    <table className="data-table" style={{ minWidth: 780 }}>
+                      <thead>
+                        <tr>
+                          <th>Client</th>
+                          <th>Loan Code</th>
+                          <th>Collector</th>
+                          <th style={{ textAlign: 'right' }}>Amount</th>
+                          <th style={{ width: 105, textAlign: 'center' }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {advanceManualEntries.map(entry => {
+                          const isEditing = advanceEditingId === entry.id
+                          return (
+                            <tr key={entry.id}>
+                              <td>
+                                <div style={{ fontWeight: 800 }}>{entry.customer_name}</div>
+                                <div style={{ marginTop: 2, color: 'var(--text-muted)', fontSize: 11 }}>{entry.customer_code}</div>
+                              </td>
+                              <td>
+                                <div style={{ fontWeight: 700 }}>{entry.loan_code}</div>
+                                <div style={{ marginTop: 2, color: 'var(--text-muted)', fontSize: 11 }}>{entry.loan_type || '-'}</div>
+                              </td>
+                              <td>{entry.collector_name}</td>
+                              <td style={{ textAlign: 'right' }}>
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    className="form-control"
+                                    value={advanceEditAmount}
+                                    onChange={e => setAdvanceEditAmount(e.target.value)}
+                                    style={{ width: 110, marginLeft: 'auto', textAlign: 'right', fontWeight: 800 }}
+                                    autoFocus
+                                  />
+                                ) : (
+                                  <strong style={{ color: '#D71920' }}>Adv. {Number(entry.amount).toLocaleString('en-PH', { maximumFractionDigits: 2 })}</strong>
+                                )}
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', justifyContent: 'center', gap: 5 }}>
+                                  {isEditing ? (
+                                    <>
+                                      <button className="btn btn-primary" style={{ padding: '5px 8px' }} onClick={() => updateAdvanceManualEntry(entry)} title="Save changes"><Save size={13} /></button>
+                                      <button className="btn btn-secondary" style={{ padding: '5px 8px' }} onClick={() => { setAdvanceEditingId(null); setAdvanceEditAmount('') }} title="Cancel editing">x</button>
+                                    </>
+                                  ) : (
+                                    <button className="btn btn-secondary" style={{ padding: '5px 8px' }} onClick={() => { setAdvanceEditingId(entry.id); setAdvanceEditAmount(String(entry.amount)); setAdvanceManualForm(prev => ({ ...prev, error: '' })) }} title="Edit"><Pencil size={13} /></button>
+                                  )}
+                                  <button className="btn btn-secondary" style={{ padding: '5px 8px', color: '#dc2626' }} onClick={() => deleteAdvanceManualEntry(entry)} disabled={advanceDeletingId === entry.id} title="Delete"><Trash2 size={13} /></button>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
                 <button className="btn btn-secondary" onClick={() => setAdvanceManualOpen(false)} disabled={advanceManualForm.saving}>Cancel</button>
