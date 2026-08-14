@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Building2, CalendarDays, CheckCircle2, ChevronDown, ChevronRight, Edit3, FileText, Lock, MapPin, Plus, Printer, RefreshCw, Sparkles, Trash2, TrendingUp, Unlock, User, Users, X } from 'lucide-react'
+import { ArrowLeft, Building2, CalendarDays, CheckCircle2, ChevronRight, Edit3, FileText, Lock, MapPin, Plus, Printer, RefreshCw, Sparkles, Trash2, TrendingUp, Unlock, User, Users, X } from 'lucide-react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import logo from '../assets/logo.png'
@@ -246,7 +246,7 @@ const getSortOrder = name => {
   return index !== -1 ? index : targetOrder.length
 }
 
-function FortyFiveEvaluationTable({ entityLabel, rows = [], childRows = () => [], expandedRows, onToggle, rowKeyPrefix, footerRow }) {
+function FortyFiveEvaluationTable({ entityLabel, rows = [], childRows = () => [], childEntityLabel = 'Details', onOpenChildren, footerRow }) {
   const renderCells = row => {
     const ratingStyle = getRatingPresentation(row.rating)
     const accomplishment = Number(row.accomplishment_percentage || 0)
@@ -268,32 +268,67 @@ function FortyFiveEvaluationTable({ entityLabel, rows = [], childRows = () => []
         <tbody>{rows.map((row, index) => {
           const name = row.collector_name || row.name
           const children = childRows(row) || []
-          const rowKey = `${rowKeyPrefix}-${row.id || row.branch_id || name || index}`
-          const isExpanded = Boolean(expandedRows[rowKey])
-          return <Fragment key={rowKey}>
-            <tr>
+          const rowKey = row.id || row.branch_id || name || index
+          return <tr key={rowKey}>
               <td style={{ fontWeight: 900 }}>
-                {children.length ? <button className="forty-five-name-button" type="button" onClick={() => onToggle(rowKey)} aria-expanded={isExpanded}>
-                  {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                {children.length ? <button className="forty-five-name-button" type="button" onClick={() => onOpenChildren({ title: name, childEntityLabel, rows: children })} aria-label={`View ${childEntityLabel.toLowerCase()} under ${name}`}>
+                  <ChevronRight size={15} />
                   <span className="forty-five-person-avatar">{getCollectorInitials(name)}</span><span>{name}</span>
                 </button> : <span className="forty-five-static-name"><span className="forty-five-person-avatar">{getCollectorInitials(name)}</span>{name}</span>}
               </td>
               {renderCells(row)}
             </tr>
-            {isExpanded && children.map((child, childIndex) => {
-              const childName = child.collector_name || child.name
-              return <tr className="forty-five-child-row" key={`${rowKey}-child-${child.id || child.branch_id || childName || childIndex}`}>
-                <td><span className="forty-five-child-name"><span className="forty-five-person-avatar forty-five-child-avatar">{getCollectorInitials(childName)}</span>{childName}</span></td>
-                {renderCells(child)}
-              </tr>
-            })}
-          </Fragment>
         })}</tbody>
         {footerRow && <tfoot><tr className="forty-five-overall-row"><td><span className="forty-five-static-name"><span className="forty-five-person-avatar">OM</span>{footerRow.name || 'Operations Manager Overall'}</span></td>{renderCells(footerRow)}</tr></tfoot>}
       </table>
     </div>
     <div className="forty-five-formula">💡 Net Income = Collections − Non-Recon Releases − Expense Share. Reported Pastdue is shown separately and is not included in the formula.</div>
   </>
+}
+
+function FortyFiveHierarchyModal({ details, onClose }) {
+  useEffect(() => {
+    const closeOnEscape = event => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [onClose])
+
+  const totals = details.rows.reduce((sum, row) => ({
+    collection_total: sum.collection_total + Number(row.collection_total || 0),
+    release_total: sum.release_total + Number(row.release_total || 0),
+    expense_total: sum.expense_total + Number(row.expense_total || 0),
+    reported_pastdue: sum.reported_pastdue + Number(row.reported_pastdue || 0),
+    net_income: sum.net_income + Number(row.net_income || 0)
+  }), { collection_total: 0, release_total: 0, expense_total: 0, reported_pastdue: 0, net_income: 0 })
+
+  return <div className="forty-five-modal-backdrop" onMouseDown={event => event.target === event.currentTarget && onClose()}>
+    <section className="forty-five-modal" role="dialog" aria-modal="true" aria-labelledby="forty-five-modal-title">
+      <header className="forty-five-modal-header">
+        <div>
+          <span className="forty-five-modal-eyebrow">{details.childEntityLabel} Performance Breakdown</span>
+          <h3 id="forty-five-modal-title">{details.childEntityLabel}s under {details.title}</h3>
+          <p>{details.rows.length} {details.childEntityLabel.toLowerCase()}{details.rows.length === 1 ? '' : 's'} included in this rating period</p>
+        </div>
+        <button type="button" className="forty-five-modal-close" onClick={onClose} aria-label="Close performance breakdown"><X size={19} /></button>
+      </header>
+      <div className="forty-five-modal-table-wrap">
+        <table className="data-table forty-five-modal-table">
+          <thead><tr><th>{details.childEntityLabel}</th><th>Collection</th><th>Non-Recon Release</th><th>Expense Share</th><th>Reported Pastdue</th><th>Net Income</th></tr></thead>
+          <tbody>{details.rows.map((row, index) => {
+            const name = row.collector_name || row.name
+            return <tr key={row.id || row.branch_id || name || index}>
+              <td><span className="forty-five-static-name"><span className="forty-five-person-avatar">{getCollectorInitials(name)}</span>{name}</span></td>
+              <td>PHP {fmt(row.collection_total)}</td><td>PHP {fmt(row.release_total)}</td><td>PHP {fmt(row.expense_total)}</td><td>PHP {fmt(row.reported_pastdue)}</td>
+              <td className={Number(row.net_income) >= 0 ? 'forty-five-positive' : 'forty-five-negative'}>PHP {fmt(row.net_income)}</td>
+            </tr>
+          })}</tbody>
+          <tfoot><tr><td>Total</td><td>PHP {fmt(totals.collection_total)}</td><td>PHP {fmt(totals.release_total)}</td><td>PHP {fmt(totals.expense_total)}</td><td>PHP {fmt(totals.reported_pastdue)}</td><td className={totals.net_income >= 0 ? 'forty-five-positive' : 'forty-five-negative'}>PHP {fmt(totals.net_income)}</td></tr></tfoot>
+        </table>
+      </div>
+    </section>
+  </div>
 }
 
 export default function CollectorPerformance() {
@@ -305,7 +340,7 @@ export default function CollectorPerformance() {
   const [ratingDateRange, setRatingDateRange] = useState({ start_date: '', end_date: '' })
   const [selectedRatingPeriod, setSelectedRatingPeriod] = useState(null)
   const [ratingEvaluationTab, setRatingEvaluationTab] = useState('collector')
-  const [expandedRatingRows, setExpandedRatingRows] = useState({})
+  const [ratingHierarchyModal, setRatingHierarchyModal] = useState(null)
   const [activeTab, setActiveTab] = useState('targets')
   const [collectionRows, setCollectionRows] = useState([])
   const [newCollectionDate, setNewCollectionDate] = useState(defaultRange.date_to)
@@ -319,10 +354,6 @@ export default function CollectorPerformance() {
   const [loading, setLoading] = useState(true)
   const [fortyFiveDayLoading, setFortyFiveDayLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
-
-  const toggleRatingRow = rowKey => {
-    setExpandedRatingRows(current => ({ ...current, [rowKey]: !current[rowKey] }))
-  }
 
   const buildFallbackSummary = async () => {
     const dashboardRes = await API.get('/reports/dashboard', { params: { date: filters.date_to } })
@@ -546,7 +577,7 @@ export default function CollectorPerformance() {
     try {
       const response = await API.get(`/forty-five-day-rating/periods/${id}`)
       setSelectedRatingPeriod(response.data)
-      setExpandedRatingRows({})
+      setRatingHierarchyModal(null)
       setErrorMsg('')
     } catch (err) {
       setErrorMsg(err.response?.data?.error || err.message || 'Could not load rating period')
@@ -1004,6 +1035,23 @@ export default function CollectorPerformance() {
         .forty-five-child-avatar { color: #087d73; background: #d9f1ec; border: 1px solid #b8e1d8; }
         .forty-five-overall-row td { padding: 13px 10px; border-top: 2px solid #91cec5; color: #123a48; background: #eaf7f4; font-size: 12px; font-weight: 900; }
         .forty-five-formula { margin-top: 10px; padding: 9px 14px; border: 1px solid #d8efeb; border-radius: 6px; color: #3c5b68; background: linear-gradient(90deg, #eefaf7, #f8fbfc); font-size: 11px; }
+        .forty-five-modal-backdrop { position: fixed; inset: 0; z-index: 1300; display: grid; place-items: center; padding: 24px; background: rgba(10, 30, 48, .58); backdrop-filter: blur(5px); }
+        .forty-five-modal { width: min(1180px, 100%); max-height: min(82vh, 760px); overflow: hidden; border: 1px solid #bcded8; border-radius: 14px; background: #fff; box-shadow: 0 28px 80px rgba(7, 41, 55, .32); }
+        .forty-five-modal-header { display: flex; justify-content: space-between; gap: 24px; padding: 22px 24px; color: #fff; background: linear-gradient(115deg, #087d73, #075e59); }
+        .forty-five-modal-eyebrow { display: block; margin-bottom: 6px; color: #bff3e9; font-size: 10px; font-weight: 950; letter-spacing: .7px; text-transform: uppercase; }
+        .forty-five-modal-header h3 { margin: 0; font-size: 21px; line-height: 1.2; }
+        .forty-five-modal-header p { margin: 6px 0 0; color: #d9f7f1; font-size: 12px; font-weight: 700; }
+        .forty-five-modal-close { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 38px; border: 1px solid rgba(255,255,255,.42); border-radius: 9px; color: #fff; background: rgba(255,255,255,.12); cursor: pointer; }
+        .forty-five-modal-close:hover { background: rgba(255,255,255,.22); }
+        .forty-five-modal-table-wrap { max-height: calc(min(82vh, 760px) - 112px); overflow: auto; padding: 18px; }
+        .forty-five-modal-table { width: 100%; min-width: 960px; margin: 0; border-collapse: separate; border-spacing: 0; border: 0 !important; }
+        .forty-five-modal-table thead th { position: sticky; top: 0; z-index: 1; padding: 12px 10px; border-color: #e1e8ee; color: #fff; background: #0c6f68; font-size: 10px; font-weight: 950; letter-spacing: .25px; text-transform: uppercase; }
+        .forty-five-modal-table tbody td { padding: 13px 10px; border-color: #e7edf1; color: #223148; font-size: 12px; }
+        .forty-five-modal-table th:not(:first-child), .forty-five-modal-table td:not(:first-child) { text-align: right; white-space: nowrap; }
+        .forty-five-modal-table tbody tr:hover td { background: #f1faf8; }
+        .forty-five-modal-table tfoot td { padding: 13px 10px; border-top: 2px solid #8dcfc4; color: #123a48; background: #eaf7f4; font-size: 12px; font-weight: 950; }
+        .forty-five-positive { color: #059669 !important; font-weight: 900; }
+        .forty-five-negative { color: #ef4444 !important; font-weight: 900; }
         @media (max-width: 1100px) {
           .forty-five-shell { grid-template-columns: 1fr; }
           .forty-five-hero, .forty-five-evaluation { grid-column: 1; }
@@ -1014,6 +1062,10 @@ export default function CollectorPerformance() {
           .forty-five-graphic { display: none; }
           .forty-five-form-grid { grid-template-columns: 1fr; }
           .forty-five-title { font-size: 21px; }
+          .forty-five-modal-backdrop { padding: 10px; }
+          .forty-five-modal-header { padding: 17px; }
+          .forty-five-modal-header h3 { font-size: 17px; }
+          .forty-five-modal-table-wrap { padding: 10px; }
         }
         @media print {
           @page { size: 8.5in 13in; margin: 0.25in; }
@@ -1879,10 +1931,10 @@ export default function CollectorPerformance() {
                       Collection is summed for Torreta, Domingono, Caballes, Jugar, Rosal, and Laude only. Recon releases are excluded. User-entered DCR expenses, excluding Short/Overages, are divided equally among these six collectors. Reported Pastdue is display-only and is not included in the formula.
                       {selectedRatingPeriod.period.reported_pastdue_period && <> Reported Pastdue period: {displayDate(selectedRatingPeriod.period.reported_pastdue_period.start_date)} to {displayDate(selectedRatingPeriod.period.reported_pastdue_period.end_date)}.</>}
                     </div>
-                    {ratingEvaluationTab === 'collector' && <FortyFiveEvaluationTable entityLabel="Collector" rows={selectedRatingPeriod.evaluations} expandedRows={expandedRatingRows} onToggle={toggleRatingRow} rowKeyPrefix="collector" />}
-                    {ratingEvaluationTab === 'supervisor' && <FortyFiveEvaluationTable entityLabel="Supervisor" rows={selectedRatingPeriod.supervisor_evaluations || []} childRows={row => row.collector_results} expandedRows={expandedRatingRows} onToggle={toggleRatingRow} rowKeyPrefix="supervisor" />}
-                    {ratingEvaluationTab === 'branch-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.branch_manager_evaluations || []} childRows={row => row.supervisor_results} expandedRows={expandedRatingRows} onToggle={toggleRatingRow} rowKeyPrefix="branch-manager" />}
-                    {ratingEvaluationTab === 'operations-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.operations_manager_evaluation?.branch_results || []} childRows={row => row.supervisor_results} expandedRows={expandedRatingRows} onToggle={toggleRatingRow} rowKeyPrefix="operations-manager" footerRow={selectedRatingPeriod.operations_manager_evaluation} />}
+                    {ratingEvaluationTab === 'collector' && <FortyFiveEvaluationTable entityLabel="Collector" rows={selectedRatingPeriod.evaluations} />}
+                    {ratingEvaluationTab === 'supervisor' && <FortyFiveEvaluationTable entityLabel="Supervisor" rows={selectedRatingPeriod.supervisor_evaluations || []} childRows={row => row.collector_results} childEntityLabel="Collector" onOpenChildren={setRatingHierarchyModal} />}
+                    {ratingEvaluationTab === 'branch-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.branch_manager_evaluations || []} childRows={row => row.supervisor_results} childEntityLabel="Supervisor" onOpenChildren={setRatingHierarchyModal} />}
+                    {ratingEvaluationTab === 'operations-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.operations_manager_evaluation?.branch_results || []} childRows={row => row.supervisor_results} childEntityLabel="Supervisor" onOpenChildren={setRatingHierarchyModal} footerRow={selectedRatingPeriod.operations_manager_evaluation} />}
                   </div>}
                 </div>
               </div>
@@ -1948,6 +2000,8 @@ export default function CollectorPerformance() {
           </div>}
         </>
       )}
+
+      {ratingHierarchyModal && <FortyFiveHierarchyModal details={ratingHierarchyModal} onClose={() => setRatingHierarchyModal(null)} />}
 
       {showSavedModal && (
         <div style={{
