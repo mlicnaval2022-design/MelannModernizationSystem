@@ -821,7 +821,7 @@ export default function CollectorPerformance() {
   const totals = collectors.reduce((acc, collector) => {
     const isLaude = String(collector.name || '').toLowerCase().includes('laude')
     const collectorTotal = Number(collector.active_clients || 0) + Number(collector.recon_clients || 0) + Number(collector.overdue_clients || 0) + Number(collector.pastdue_clients || 0)
-    acc.target += Number(collector.target || 0)
+    acc.target += Number(collector.regular_target ?? collector.target ?? 0)
     if (isLaude) acc.recon_target += Number(collector.recon_target || 0)
     acc.collected += Number(collector.actual_collection ?? collector.collected ?? 0)
     acc.payment_count += Number(collector.payment_count || 0)
@@ -1002,8 +1002,8 @@ export default function CollectorPerformance() {
         .forty-five-page .data-table tbody td { padding: 12px 10px; border-color: #e7edf1; color: #223148; font-size: 12px; }
         .forty-five-periods .data-table thead th { color: #fff; background: #087d73; border: 0; }
         .forty-five-periods .data-table { width: 100%; min-width: 0 !important; table-layout: fixed; }
-        .forty-five-periods .data-table thead th,
-        .forty-five-periods .data-table tbody td { padding: 10px 7px; font-size: 9px; white-space: normal; overflow-wrap: anywhere; }
+        .forty-five-periods .data-table thead th { padding: 12px 9px; font-size: 11px; line-height: 1.3; white-space: normal; overflow-wrap: anywhere; }
+        .forty-five-periods .data-table tbody td { padding: 13px 9px; font-size: 12px; line-height: 1.4; white-space: normal; overflow-wrap: anywhere; }
         .forty-five-periods .data-table th:nth-child(1) { width: 18%; }
         .forty-five-periods .data-table th:nth-child(2) { width: 9%; }
         .forty-five-periods .data-table th:nth-child(3),
@@ -1013,9 +1013,10 @@ export default function CollectorPerformance() {
         .forty-five-periods .data-table th:nth-child(7) { width: 12%; }
         .forty-five-periods .data-table thead th:first-child { border-radius: 6px 0 0 0; }
         .forty-five-periods .data-table thead th:last-child { border-radius: 0 6px 0 0; }
-        .forty-five-periods .status-badge { border: 0; background: #fff1cc; color: #b56a00; }
+        .forty-five-periods .status-badge { border: 0; background: #fff1cc; color: #b56a00; font-size: 12px; }
+        .forty-five-periods .forty-five-rating-pill { font-size: 11px; }
         .forty-five-actions { display: grid; gap: 7px; min-width: 110px; }
-        .forty-five-actions .btn { min-height: 32px; justify-content: center; padding: 6px 10px; font-size: 11px; }
+        .forty-five-actions .btn { min-height: 34px; justify-content: center; padding: 7px 10px; font-size: 12px; }
         .forty-five-lock { color: #fff !important; background: #0d1f3a !important; border-color: #0d1f3a !important; }
         .forty-five-eval-header { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
         .forty-five-tabs { display: flex; gap: 5px; overflow-x: auto; padding: 0 !important; margin: 0 0 10px !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; }
@@ -1464,7 +1465,7 @@ export default function CollectorPerformance() {
                       <div key={label} style={{ border: '1px solid #dbe4f0', borderRadius: 10, padding: '14px 16px', background: '#fff' }}>
                         <div style={{ color: '#64748b', fontSize: 11, fontWeight: 900, letterSpacing: .5, textTransform: 'uppercase' }}>{label}</div>
                         <div style={{ marginTop: 6, color, fontSize: 20, fontWeight: 900, whiteSpace: 'nowrap' }}>{value}</div>
-                        {label === 'Total Target' && totals.recon_target > 0 && <div style={{ marginTop: 4, color: '#2563eb', fontSize: 10, fontWeight: 900 }}>Laude includes active Recon clients</div>}
+                        {label === 'Total Target' && totals.recon_target > 0 && <div style={{ marginTop: 4, color: '#2563eb', fontSize: 10, fontWeight: 900 }}>Laude With Recon is display-only</div>}
                       </div>
                     ))}
                   </div>
@@ -1490,7 +1491,8 @@ export default function CollectorPerformance() {
                           const collectorTotal = collectorActive + Number(collector.recon_clients || 0) + collectorPastDue
                           const isLaude = String(collector.name || '').toLowerCase().includes('laude')
                           const reconTarget = isLaude ? Number(collector.recon_target || 0) : 0
-                          const regularTarget = Math.max(0, Number(collector.target || 0) - reconTarget)
+                          const regularTarget = Number(collector.regular_target ?? collector.target ?? 0)
+                          const withReconTarget = Number(collector.with_recon_target ?? (regularTarget + reconTarget))
                           const cardEdit = collectorEdits[collector.id] || {}
                           return (
                             <tr key={collector.id}>
@@ -1505,8 +1507,8 @@ export default function CollectorPerformance() {
                               <td style={{ textAlign: 'right', fontWeight: 900 }}>
                                 {isLaude && reconTarget > 0 ? <>
                                   <div style={{ color: '#6d28d9' }}>Regular: PHP {fmt(regularTarget)}</div>
-                                  <div style={{ color: '#2563eb', marginTop: 5, paddingTop: 5, borderTop: '1px solid #dbe4f0' }}>With Recon: PHP {fmt(collector.target)}</div>
-                                </> : <span style={{ color: '#6d28d9' }}>PHP {fmt(collector.target)}</span>}
+                                  <div style={{ color: '#2563eb', marginTop: 5, paddingTop: 5, borderTop: '1px solid #dbe4f0' }}>With Recon: PHP {fmt(withReconTarget)}</div>
+                                </> : <span style={{ color: '#6d28d9' }}>PHP {fmt(regularTarget)}</span>}
                               </td>
                             </tr>
                           )

@@ -296,9 +296,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
       }
 
       row.regular_target = row.target;
-      if (String(collector.name || '').toLowerCase().includes('laude')) {
-        row.target += row.recon_target;
-      }
+      row.with_recon_target = row.target + row.recon_target;
 
       row.achievement_rate = row.target > 0 ? Math.round((row.collected / row.target) * 100) : 0;
       collectorRows.push(row);
@@ -372,6 +370,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
         target: toAmount(row.target),
         regular_target: toAmount(row.regular_target),
         recon_target: toAmount(row.recon_target),
+        with_recon_target: toAmount(row.with_recon_target),
         collected: toAmount(row.collected),
         actual_collection: toAmount(row.actual_collection),
         gross_collection: toAmount(row.gross_collection),
