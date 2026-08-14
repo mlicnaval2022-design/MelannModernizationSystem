@@ -92,8 +92,8 @@ router.post('/periods', authenticateToken, async (req, res) => {
     const { start_date, end_date } = req.body;
     const start = dayjs(start_date);
     const end = dayjs(end_date);
-    if (!start.isValid() || !end.isValid() || end.diff(start, 'day') !== 44) {
-      return res.status(400).json({ error: 'The rating period must contain exactly 45 calendar days.' });
+    if (!start.isValid() || !end.isValid() || end.isBefore(start, 'day')) {
+      return res.status(400).json({ error: 'Select a valid rating period. The end date cannot be before the start date.' });
     }
     const duplicate = await dbGet('SELECT id FROM tblFortyFiveDayRatingPeriod WHERE branch_id IS ? AND start_date = ? AND end_date = ?', [req.user.branch_id || null, start.format('YYYY-MM-DD'), end.format('YYYY-MM-DD')]);
     if (duplicate) return res.status(409).json({ error: 'This 45-day rating period already exists.' });

@@ -51,6 +51,7 @@ export default function Customers() {
   const [soaTab, setSoaTab] = useState('summary')
   const [selectedLoanForPayments, setSelectedLoanForPayments] = useState(null)
   const [paymentHistoryDateSort, setPaymentHistoryDateSort] = useState('desc')
+  const [hideReversedPayments, setHideReversedPayments] = useState(true)
   const [penaltyLoan, setPenaltyLoan] = useState(null)
   const [editingPenaltyPayment, setEditingPenaltyPayment] = useState(null)
   const [printModeLoan, setPrintModeLoan] = useState(null)
@@ -415,6 +416,7 @@ export default function Customers() {
     const direction = paymentHistoryDateSort === 'asc' ? 1 : -1;
     return (soaData?.payments || [])
       .filter(p => p.loan_code === loan?.loan_code)
+      .filter(p => !hideReversedPayments || String(p.status || '').toLowerCase() !== 'reversed')
       .sort((a, b) => {
         const dateCompare = String(a.date_paid || '').localeCompare(String(b.date_paid || ''));
         if (dateCompare !== 0) return dateCompare * direction;
@@ -2442,6 +2444,10 @@ export default function Customers() {
                 <i className="bi bi-file-text" style={{ color: '#2563eb', fontSize: '20px' }}></i>
                 <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENT HISTORY</h3>
                 <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }}></div>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#475569', fontSize: '13px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <input type="checkbox" checked={hideReversedPayments} onChange={event => setHideReversedPayments(event.target.checked)} style={{ width: '17px', height: '17px', accentColor: '#2563eb', cursor: 'pointer' }} />
+                  Hide reversed payments
+                </label>
                 <button
                   type="button"
                   onClick={() => setPenaltyLoan(selectedLoanForPayments)}

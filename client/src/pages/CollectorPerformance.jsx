@@ -467,6 +467,10 @@ export default function CollectorPerformance() {
   }
 
   const generateFortyFiveDayRating = async () => {
+    if (!ratingDateRange.start_date || !ratingDateRange.end_date || ratingDateRange.end_date < ratingDateRange.start_date) {
+      setErrorMsg('Select a valid rating period. The end date cannot be before the start date.')
+      return
+    }
     setFortyFiveDayLoading(true)
     try {
       const response = await API.post('/forty-five-day-rating/periods', ratingDateRange)
@@ -712,6 +716,7 @@ export default function CollectorPerformance() {
     ? getGeneratedCollectionInsight(selectedCollection.name, selectedCollection.rows, selectedSummary)
     : null
   const performanceWeekDates = getOperationWeek(lockedCollections?.dateTo || filters.date_to)
+  const isValidRatingRange = Boolean(ratingDateRange.start_date && ratingDateRange.end_date && ratingDateRange.end_date >= ratingDateRange.start_date)
 
   return (
     <div className="dashboard-v2">
@@ -1603,7 +1608,7 @@ export default function CollectorPerformance() {
                     <div>
                       <div style={{ fontSize: 22, fontWeight: 900, color: '#08184a', textTransform: 'uppercase' }}>45-Day Performance Rating</div>
                       <div style={{ marginTop: 5, color: '#475569', fontSize: 14, fontWeight: 700 }}>
-                        Generate a 45-calendar-day rating with automated collection, release, and DCR expense totals.
+                        Generate a company-selected rating period with automated collection, release, and DCR expense totals.
                       </div>
                     </div>
                   </div>
@@ -1611,11 +1616,11 @@ export default function CollectorPerformance() {
                   <div style={{ padding: 24, borderBottom: '1px solid #dbe4f0' }}>
                     <div style={{ fontSize: 16, fontWeight: 900, color: '#08184a', marginBottom: 16 }}>Generate 45-Day Rating</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 16, alignItems: 'end' }}>
-                      <label><span className="form-label">Start date</span><input className="form-control" type="date" value={ratingDateRange.start_date} onChange={e => setRatingDateRange(current => ({ ...current, start_date: e.target.value }))} /></label>
-                      <label><span className="form-label">End date</span><input className="form-control" type="date" value={ratingDateRange.end_date} onChange={e => setRatingDateRange(current => ({ ...current, end_date: e.target.value }))} /></label>
-                      <button className="btn btn-primary" type="button" onClick={generateFortyFiveDayRating} disabled={fortyFiveDayLoading || !ratingDateRange.start_date || !ratingDateRange.end_date} style={{ justifyContent: 'center' }}><CalendarDays size={16} /> Generate Rating</button>
+                      <label><span className="form-label">Start date</span><input className="form-control" type="date" value={ratingDateRange.start_date} onChange={e => { setRatingDateRange(current => ({ ...current, start_date: e.target.value })); setErrorMsg('') }} /></label>
+                      <label><span className="form-label">End date</span><input className="form-control" type="date" value={ratingDateRange.end_date} min={ratingDateRange.start_date || undefined} onChange={e => { setRatingDateRange(current => ({ ...current, end_date: e.target.value })); setErrorMsg('') }} disabled={!ratingDateRange.start_date} /></label>
+                      <button className="btn btn-primary" type="button" onClick={generateFortyFiveDayRating} disabled={fortyFiveDayLoading || !isValidRatingRange} style={{ justifyContent: 'center' }}><CalendarDays size={16} /> Generate Rating</button>
                     </div>
-                    <div style={{ color: '#64748b', fontSize: 12, fontWeight: 700, marginTop: 12 }}>The end date must be 44 days after the start date (45 calendar days inclusive).</div>
+                    <div style={{ color: '#64748b', fontSize: 12, fontWeight: 700, marginTop: 12 }}>The company may choose any rating period. The end date only needs to be on or after the start date.</div>
                   </div>
 
                   <div style={{ overflowX: 'auto', padding: '0 18px 18px' }}>
