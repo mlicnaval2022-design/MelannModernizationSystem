@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import API from '../services/api'
 import letterHeadImg from '../assets/new-letter-head-logo.jpg'
 import './DemandLetter.css'
-import { ChevronDown, FileText, Printer, RefreshCw, Search, Bell, Calendar, Trash2, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, Filter } from 'lucide-react'
+import { ChevronDown, FileText, Printer, RefreshCw, Search, Bell, Calendar, Trash2, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, Filter, Send, ArrowRightCircle } from 'lucide-react'
 
 const DEMAND_TYPES = {
   first: {
@@ -71,12 +71,26 @@ const getFollowUpDate = (dateReceived, demandType) => {
 
 const getDemandStatus = (row) => {
   const storedStatus = String(row?.status || '').trim()
-  if (storedStatus.toLowerCase().startsWith('settled(') || storedStatus === 'Closed') return storedStatus
-  if (!row?.date_received) return 'Pending'
+  const preservedStatuses = ['Draft', 'Generated', 'Sent', 'Awaiting Receipt', 'Superseded', 'Closed']
+  if (storedStatus.toLowerCase().startsWith('settled(') || preservedStatuses.includes(storedStatus)) return storedStatus
+  if (!row?.date_received) return row?.date_sent ? 'Awaiting Receipt' : 'Generated'
   const followUpDate = parseLocalDate(row.follow_up_date)
   const today = parseLocalDate(toDateInputValue(new Date()))
-  if (followUpDate && followUpDate <= today) return 'Urgent Action Require'
-  return '2nd Demand on Process'
+  if (followUpDate && followUpDate <= today) return 'Follow-up Due'
+  return 'Received'
+}
+
+const getNextDemandType = (demandType) => demandType === 'first' ? 'second' : demandType === 'second' ? 'third' : ''
+
+const getDemandNextAction = (row) => {
+  const status = getDemandStatus(row)
+  if (status === 'Awaiting Receipt' || status === 'Sent') return 'Confirm receipt'
+  if (status === 'Follow-up Due' || status === 'Urgent Action Require') {
+    const nextType = getNextDemandType(row.demand_type)
+    return nextType ? `Proceed to ${DEMAND_TYPES[nextType].label}` : 'Review account'
+  }
+  if (status === 'Received') return 'Wait for follow-up date'
+  return 'Review demand'
 }
 
 const getStatusClassName = (status) => `status-${String(status || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`
@@ -469,6 +483,7 @@ export default function DemandLetter() {
   const [successModal, setSuccessModal] = useState(null)
   const [errorModal, setErrorModal] = useState(null)
   const [receivedModal, setReceivedModal] = useState(null)
+  const [progressionModal, setProgressionModal] = useState(null)
   const [deleteModal, setDeleteModal] = useState(null)
 
   const [courierFilter, setCourierFilter] = useState([])
@@ -615,7 +630,12 @@ export default function DemandLetter() {
         .filter(row => !String(row.status || '').trim().toLowerCase().startsWith('settled('))
       setDemandUpdates(activeNotifications)
       setDemandUpdateCount(activeNotifications.length)
-      setDemandTodayCount(activeNotifications.filter(row => String(row.follow_up_date || '').slice(0, 10) === toDateInputValue(new Date())).length)
+      const today = toDateInputValue(new Date())
+      setDemandTodayCount(activeNotifications.filter(row => {
+        const status = getDemandStatus(row)
+        const relevantDate = ['Sent', 'Awaiting Receipt'].includes(status) ? row.date_sent : row.follow_up_date
+        return String(relevantDate || '').slice(0, 10) === today
+      }).length)
     } catch (err) {
       setDemandUpdatesError(err.response?.data?.error || 'Failed to load demand updates')
     } finally {
@@ -682,8 +702,10 @@ export default function DemandLetter() {
       penalty_charges: computation.totalPenalty,
       total_amount_due: computation.updatedAmountDue,
       date_generated: asOfDate || toDateInputValue(computation.datePrepared),
+      date_sent: asOfDate || toDateInputValue(new Date()),
       courier,
-      status: 'Pending',
+      delivery_status: 'Awaiting Receipt',
+      status: 'Awaiting Receipt',
     })
     return res.data
   }
@@ -791,6 +813,7 @@ export default function DemandLetter() {
         date_received: receivedModal.date_received,
         follow_up_date: receivedModal.follow_up_date,
         remarks: receivedModal.remarks,
+        delivery_status: 'Received',
         status,
       })
       setMonitoringRows(prev => prev.map(row => row.id === receivedModal.id ? res.data : row))
@@ -805,6 +828,46 @@ export default function DemandLetter() {
         ...prev,
         saving: false,
         error: err.response?.data?.error || 'Failed to save received details',
+      }))
+    }
+  }
+
+  const openProgressionModal = (row) => {
+    setProgressionModal({
+      ...row,
+      next_demand_type: getNextDemandType(row.demand_type),
+      date_sent: toDateInputValue(new Date()),
+      courier: row.courier || 'Field Personnel',
+      remarks: '',
+      saving: false,
+      error: '',
+    })
+  }
+
+  const saveDemandProgression = async () => {
+    if (!progressionModal) return
+    setProgressionModal(prev => ({ ...prev, saving: true, error: '' }))
+    try {
+      const res = await API.post(`/demand-letters/${progressionModal.id}/advance`, {
+        date_sent: progressionModal.date_sent,
+        courier: progressionModal.courier,
+        remarks: progressionModal.remarks,
+      })
+      const nextDemand = res.data.next_demand
+      await loadDemandUpdates()
+      setProgressionModal(null)
+      setMonitoringType(nextDemand.demand_type)
+      setActiveTab('monitoring')
+      await loadMonitoring(nextDemand.demand_type)
+      setSuccessModal({
+        title: 'Demand Stage Updated',
+        message: `${nextDemand.client_name} is now under ${DEMAND_TYPES[nextDemand.demand_type]?.label || nextDemand.demand_type} — Awaiting Receipt.`,
+      })
+    } catch (err) {
+      setProgressionModal(prev => ({
+        ...prev,
+        saving: false,
+        error: err.response?.data?.error || 'Failed to advance demand stage',
       }))
     }
   }
@@ -885,12 +948,12 @@ export default function DemandLetter() {
             <table className="data-table demand-update-table">
               <thead>
                 <tr>
-                  <th>Demand</th>
+                  <th>Current Stage</th>
                   <th>Client Name</th>
                   <th>Collector</th>
-                  <th>Follow-up Date</th>
-                  <th>Remarks</th>
+                  <th>Relevant Date</th>
                   <th>Status</th>
+                  <th>Next Action</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -905,18 +968,27 @@ export default function DemandLetter() {
                     <td className="fw-600">{row.client_name}</td>
                     <td>{row.collector_name || '-'}</td>
                     <td>
-                      <span className="demand-update-date">{formatDateLong(row.follow_up_date)}</span>
+                      <span className="demand-update-date">
+                        {formatDateLong(row.follow_up_date || row.date_sent || row.date_generated)}
+                      </span>
                     </td>
-                    <td className="demand-remarks-cell">{row.remarks || '-'}</td>
                     <td>
                       <span className={`demand-status-badge ${getStatusClassName(getDemandStatus(row))}`}>
                         {getDemandStatus(row)}
                       </span>
                     </td>
+                    <td className="demand-next-action-cell">{getDemandNextAction(row)}</td>
                     <td>
-                      <button className="btn btn-secondary demand-received-btn" onClick={() => openReceivedModal(row)}>
-                        Update
-                      </button>
+                      <div className="demand-action-group">
+                        <button className="btn btn-secondary demand-received-btn" onClick={() => openReceivedModal(row)}>
+                          {getDemandStatus(row) === 'Awaiting Receipt' ? 'Receive' : 'Update'}
+                        </button>
+                        {getNextDemandType(row.demand_type) && !['Awaiting Receipt', 'Sent'].includes(getDemandStatus(row)) && (
+                          <button className="btn btn-primary demand-advance-btn" onClick={() => openProgressionModal(row)}>
+                            <ArrowRightCircle size={14} /> Advance
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1048,7 +1120,7 @@ export default function DemandLetter() {
                     onClick={handleSaveDemand}
                     disabled={!type || !selectedCustomer || !selectedLoan || savingRecord}
                   >
-                    <FileText size={16} /> {savingRecord ? 'Saving...' : 'Save'}
+                    <Send size={16} /> {savingRecord ? 'Saving...' : 'Mark as Sent & Add to Monitoring'}
                   </button>
                 </div>
               ) : (
@@ -1165,6 +1237,7 @@ export default function DemandLetter() {
                       )}
                     </div>
                   </th>
+                  <th>Date Sent</th>
                   <th className="sortable-th" onClick={() => handleSort('date_received')} title="Click to sort by Date Received">
                     <div className="th-sort-content">
                       Date Received
@@ -1192,9 +1265,9 @@ export default function DemandLetter() {
               </thead>
               <tbody>
                 {monitoringLoading ? (
-                  <tr className="loading-row"><td colSpan={10}>Loading monitoring records...</td></tr>
+                  <tr className="loading-row"><td colSpan={11}>Loading monitoring records...</td></tr>
                 ) : filteredAndSortedRows.length === 0 ? (
-                  <tr><td colSpan={10} className="empty-state">No demand letter transactions found matching the filter.</td></tr>
+                  <tr><td colSpan={11} className="empty-state">No demand letter transactions found matching the filter.</td></tr>
                 ) : filteredAndSortedRows.map(row => (
                   <tr key={row.id}>
                     <td>
@@ -1208,6 +1281,7 @@ export default function DemandLetter() {
                     <td className="fw-600">{row.client_name}</td>
                     <td><span className="demand-loan-code">{row.loan_code || '-'}</span></td>
                     <td>{formatDateLong(row.date_generated)}</td>
+                    <td>{row.date_sent ? formatDateLong(row.date_sent) : '-'}</td>
                     <td>{row.date_received ? formatDateLong(row.date_received) : '-'}</td>
                     <td>{row.follow_up_date ? formatDateLong(row.follow_up_date) : '-'}</td>
                     <td className="demand-remarks-cell">{row.remarks || '-'}</td>
@@ -1219,8 +1293,13 @@ export default function DemandLetter() {
                     <td>
                       <div className="demand-action-group">
                         <button className="btn btn-secondary demand-received-btn" onClick={() => openReceivedModal(row)}>
-                          Received
+                          {row.date_received ? 'Update' : 'Receive'}
                         </button>
+                        {getNextDemandType(row.demand_type) && !['Superseded', 'Awaiting Receipt', 'Sent'].includes(getDemandStatus(row)) && (
+                          <button className="btn btn-primary demand-advance-btn" onClick={() => openProgressionModal(row)}>
+                            <ArrowRightCircle size={13} /> Advance
+                          </button>
+                        )}
                         <button className="demand-delete-btn" title="Delete record" onClick={() => openDeleteModal(row)}>
                           <Trash2 size={13} /> Delete
                         </button>
@@ -1299,6 +1378,70 @@ export default function DemandLetter() {
               <button className="btn btn-primary demand-modal-primary" onClick={() => setErrorModal(null)}>
                 OK
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {progressionModal && (
+        <div className="modal-overlay demand-modal-overlay" onMouseDown={e => e.target === e.currentTarget && !progressionModal.saving && setProgressionModal(null)}>
+          <div className="modal demand-received-modal demand-progression-modal">
+            <div className="modal-header">
+              <span className="modal-title">
+                Advance to {DEMAND_TYPES[progressionModal.next_demand_type]?.label} — {progressionModal.client_name}
+              </span>
+              <button className="modal-close" onClick={() => setProgressionModal(null)} disabled={progressionModal.saving}>x</button>
+            </div>
+            <div className="modal-body">
+              {progressionModal.error && <div className="login-error" style={{ marginBottom: 14 }}>{progressionModal.error}</div>}
+              <div className="demand-progression-summary">
+                <span>{DEMAND_TYPES[progressionModal.demand_type]?.label}</span>
+                <ArrowRightCircle size={20} />
+                <strong>{DEMAND_TYPES[progressionModal.next_demand_type]?.label}</strong>
+                <em>Awaiting Receipt</em>
+              </div>
+              <div className="demand-received-grid">
+                <div className="form-group">
+                  <label className="form-label">Date Sent</label>
+                  <input
+                    type="date"
+                    className="form-control"
+                    value={progressionModal.date_sent || ''}
+                    onChange={e => setProgressionModal(prev => ({ ...prev, date_sent: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Delivery Method</label>
+                  <select
+                    className="form-control"
+                    value={progressionModal.courier || ''}
+                    onChange={e => setProgressionModal(prev => ({ ...prev, courier: e.target.value }))}
+                  >
+                    <option value="Field Personnel">Field Personnel</option>
+                    <option value="Mailed">Mailed</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Remarks</label>
+                <textarea
+                  className="form-control demand-received-remarks"
+                  value={progressionModal.remarks || ''}
+                  onChange={e => setProgressionModal(prev => ({ ...prev, remarks: e.target.value }))}
+                  placeholder="Example: Second demand sent through field personnel."
+                />
+              </div>
+              <div className="demand-progression-note">
+                The current demand will be marked Superseded. The next demand will appear in Monitoring as Awaiting Receipt.
+              </div>
+              <div className="demand-modal-actions">
+                <button className="btn btn-secondary" onClick={() => setProgressionModal(null)} disabled={progressionModal.saving}>
+                  Cancel
+                </button>
+                <button className="btn btn-primary" onClick={saveDemandProgression} disabled={!progressionModal.date_sent || progressionModal.saving}>
+                  <Send size={15} /> {progressionModal.saving ? 'Updating...' : `Confirm ${DEMAND_TYPES[progressionModal.next_demand_type]?.label}`}
+                </button>
+              </div>
             </div>
           </div>
         </div>

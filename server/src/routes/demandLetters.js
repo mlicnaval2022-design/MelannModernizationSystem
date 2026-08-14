@@ -6,10 +6,15 @@ const router = express.Router();
 
 const DEMAND_TYPES = new Set(['first', 'second', 'third']);
 const STATUSES = new Set([
+  'Draft',
   'Generated',
+  'Sent',
+  'Awaiting Receipt',
   'Delivered',
   'Received',
+  'Follow-up Due',
   'For Follow-up',
+  'Superseded',
   'Closed',
   'Settled(Recon)',
   'Settled(Reloan)',
@@ -39,6 +44,42 @@ const demandTypeLabel = value => {
   if (demandType === 'second') return '2nd Demand';
   if (demandType === 'third') return '3rd Demand';
   return 'Demand Letter';
+};
+
+const previousDemandType = value => {
+  const demandType = normalizeDemandType(value);
+  if (demandType === 'second') return 'first';
+  if (demandType === 'third') return 'second';
+  return '';
+};
+
+const nextDemandType = value => {
+  const demandType = normalizeDemandType(value);
+  if (demandType === 'first') return 'second';
+  if (demandType === 'second') return 'third';
+  return '';
+};
+
+const buildIdentityMatch = record => {
+  const checks = [];
+  const params = [];
+  if (record.loan_id) {
+    checks.push('loan_id = ?');
+    params.push(record.loan_id);
+  }
+  if (record.customer_id) {
+    checks.push('customer_id = ?');
+    params.push(record.customer_id);
+  }
+  if (String(record.loan_code || '').trim()) {
+    checks.push('loan_code = ?');
+    params.push(String(record.loan_code).trim());
+  }
+  if (!checks.length) {
+    checks.push('LOWER(client_name) = LOWER(?)');
+    params.push(String(record.client_name || '').trim());
+  }
+  return { checks, params };
 };
 
 const parseLocalDate = value => {
@@ -256,15 +297,24 @@ router.get('/notifications', authenticateToken, async (req, res) => {
     const rows = await dbAll(`
       SELECT *
       FROM tblDemandLetter
-      WHERE follow_up_date != ''
-        AND follow_up_date <= ?
-        AND COALESCE(status, '') NOT IN ('Closed', 'Received', 'Settled(Recon)', 'Settled(Reloan)', 'Settled(Fully Paid)')
+      WHERE (
+          (follow_up_date != '' AND follow_up_date <= ?)
+          OR COALESCE(status, '') IN ('Sent', 'Awaiting Receipt')
+        )
+        AND COALESCE(status, '') NOT IN (
+          'Draft', 'Closed', 'Superseded',
+          'Settled(Recon)', 'Settled(Reloan)', 'Settled(Fully Paid)'
+        )
       ORDER BY follow_up_date ASC, id DESC
     `, [today]);
 
     const enrichedRows = await enrichDemandRows(rows);
     const activeRows = enrichedRows.filter(row => !String(row.status || '').toLowerCase().startsWith('settled('));
-    const todayCount = activeRows.filter(row => String(row.follow_up_date || '').slice(0, 10) === today).length;
+    const todayCount = activeRows.filter(row => {
+      const status = String(row.status || '').trim();
+      const relevantDate = ['Sent', 'Awaiting Receipt'].includes(status) ? row.date_sent : row.follow_up_date;
+      return String(relevantDate || '').slice(0, 10) === today;
+    }).length;
     res.json({ count: activeRows.length, today_count: todayCount, notifications: activeRows });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -326,31 +376,19 @@ router.post('/', authenticateToken, async (req, res) => {
     const customerId = req.body.customer_id || null;
     const loanId = req.body.loan_id || null;
     const loanCode = String(req.body.loan_code || '').trim();
-    const duplicateChecks = [];
-    const duplicateParams = [];
-    if (loanId) {
-      duplicateChecks.push('loan_id = ?');
-      duplicateParams.push(loanId);
-    }
-    if (customerId) {
-      duplicateChecks.push('customer_id = ?');
-      duplicateParams.push(customerId);
-    }
-    if (loanCode) {
-      duplicateChecks.push('loan_code = ?');
-      duplicateParams.push(loanCode);
-    }
-    if (!duplicateChecks.length) {
-      duplicateChecks.push('LOWER(client_name) = LOWER(?)');
-      duplicateParams.push(clientName);
-    }
+    const { checks: duplicateChecks, params: duplicateParams } = buildIdentityMatch({
+      loan_id: loanId,
+      customer_id: customerId,
+      loan_code: loanCode,
+      client_name: clientName,
+    });
 
     const ongoingDemand = await dbGet(`
       SELECT id, demand_type, client_name, loan_code, status
       FROM tblDemandLetter
       WHERE demand_type = ?
         AND (${duplicateChecks.join(' OR ')})
-        AND LOWER(COALESCE(status, '')) NOT IN ('closed', 'settled(recon)', 'settled(reloan)', 'settled(fully paid)')
+        AND LOWER(COALESCE(status, '')) NOT IN ('closed', 'superseded', 'settled(recon)', 'settled(reloan)', 'settled(fully paid)')
       ORDER BY date_generated DESC, id DESC
       LIMIT 1
     `, [demandType, ...duplicateParams]);
@@ -365,12 +403,32 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 
     const generatedDate = req.body.date_generated || todayDateOnly();
+    const sentDate = req.body.date_sent || '';
+    const requestedStatus = String(req.body.status || '').trim();
+    const initialStatus = requestedStatus || (sentDate ? 'Awaiting Receipt' : 'Generated');
+    if (initialStatus && !STATUSES.has(initialStatus)) return res.status(400).json({ error: 'Invalid status' });
+
+    const priorType = previousDemandType(demandType);
+    let priorDemand = null;
+    if (priorType) {
+      priorDemand = await dbGet(`
+        SELECT *
+        FROM tblDemandLetter
+        WHERE demand_type = ?
+          AND (${duplicateChecks.join(' OR ')})
+          AND LOWER(COALESCE(status, '')) NOT IN ('closed', 'superseded', 'settled(recon)', 'settled(reloan)', 'settled(fully paid)')
+        ORDER BY date_generated DESC, id DESC
+        LIMIT 1
+      `, [priorType, ...duplicateParams]);
+    }
+
     const result = await dbRun(`
       INSERT INTO tblDemandLetter (
         demand_type, customer_id, loan_id, loan_code, courier, collector_name,
-        client_name, date_generated, total_loan, running_balance, beginning_overdue,
-        penalty_charges, total_amount_due, date_received, follow_up_date, remarks, status, generated_by
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        client_name, date_generated, date_sent, delivery_status, total_loan, running_balance, beginning_overdue,
+        penalty_charges, total_amount_due, date_received, follow_up_date, remarks, status,
+        previous_demand_id, generated_by
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `, [
       demandType,
       customerId,
@@ -380,6 +438,8 @@ router.post('/', authenticateToken, async (req, res) => {
       req.body.collector_name || '',
       clientName,
       generatedDate,
+      sentDate,
+      req.body.delivery_status || (sentDate ? 'Awaiting Receipt' : ''),
       Number(req.body.total_loan || 0),
       Number(req.body.running_balance || 0),
       Number(req.body.beginning_overdue || 0),
@@ -388,9 +448,19 @@ router.post('/', authenticateToken, async (req, res) => {
       req.body.date_received || '',
       req.body.follow_up_date || '',
       req.body.remarks || '',
-      req.body.status || 'Pending',
+      initialStatus,
+      priorDemand?.id || req.body.previous_demand_id || null,
       req.user.id
     ]);
+
+    const advancesPriorStage = ['Sent', 'Awaiting Receipt', 'Received', 'Follow-up Due'].includes(initialStatus);
+    if (priorDemand && advancesPriorStage) {
+      await dbRun(`
+        UPDATE tblDemandLetter
+        SET status = 'Superseded', superseded_by_id = ?, follow_up_date = '', updated_at = datetime('now')
+        WHERE id = ?
+      `, [result.lastID, priorDemand.id]);
+    }
 
     await dbRun(
       `INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
@@ -400,6 +470,83 @@ router.post('/', authenticateToken, async (req, res) => {
     const row = await dbGet(`SELECT * FROM tblDemandLetter WHERE id = ?`, [result.lastID]);
     const enrichedRows = await enrichDemandRows([row]);
     res.status(201).json(enrichedRows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/:id/advance', authenticateToken, async (req, res) => {
+  try {
+    const existing = await dbGet(`SELECT * FROM tblDemandLetter WHERE id = ?`, [req.params.id]);
+    if (!existing) return res.status(404).json({ error: 'Demand letter record not found' });
+
+    const targetType = nextDemandType(existing.demand_type);
+    if (!targetType) return res.status(400).json({ error: 'No next demand stage is configured' });
+
+    const { checks, params } = buildIdentityMatch(existing);
+    const sentDate = req.body.date_sent || todayDateOnly();
+    let nextDemand = await dbGet(`
+      SELECT *
+      FROM tblDemandLetter
+      WHERE demand_type = ?
+        AND (${checks.join(' OR ')})
+        AND id != ?
+        AND LOWER(COALESCE(status, '')) NOT IN ('closed', 'superseded', 'settled(recon)', 'settled(reloan)', 'settled(fully paid)')
+      ORDER BY date_generated DESC, id DESC
+      LIMIT 1
+    `, [targetType, ...params, existing.id]);
+
+    if (nextDemand) {
+      await dbRun(`
+        UPDATE tblDemandLetter
+        SET date_sent = ?, courier = ?, delivery_status = 'Awaiting Receipt',
+            status = 'Awaiting Receipt', previous_demand_id = ?,
+            remarks = ?, updated_at = datetime('now')
+        WHERE id = ?
+      `, [
+        sentDate,
+        req.body.courier || nextDemand.courier || existing.courier || '',
+        existing.id,
+        String(req.body.remarks || '').trim() ? req.body.remarks : nextDemand.remarks,
+        nextDemand.id,
+      ]);
+    } else {
+      const result = await dbRun(`
+        INSERT INTO tblDemandLetter (
+          demand_type, customer_id, loan_id, loan_code, courier, collector_name,
+          client_name, date_generated, date_sent, delivery_status, total_loan,
+          running_balance, beginning_overdue, penalty_charges, total_amount_due,
+          remarks, status, previous_demand_id, generated_by
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      `, [
+        targetType, existing.customer_id, existing.loan_id, existing.loan_code,
+        req.body.courier || existing.courier || '', existing.collector_name,
+        existing.client_name, req.body.date_generated || sentDate, sentDate,
+        'Awaiting Receipt', existing.total_loan, existing.running_balance,
+        existing.beginning_overdue, existing.penalty_charges, existing.total_amount_due,
+        req.body.remarks || '', 'Awaiting Receipt', existing.id, req.user.id,
+      ]);
+      nextDemand = await dbGet(`SELECT * FROM tblDemandLetter WHERE id = ?`, [result.lastID]);
+    }
+
+    await dbRun(`
+      UPDATE tblDemandLetter
+      SET status = 'Superseded', superseded_by_id = ?, follow_up_date = '', updated_at = datetime('now')
+      WHERE id = ?
+    `, [nextDemand.id, existing.id]);
+
+    const updatedNextDemand = await dbGet(`SELECT * FROM tblDemandLetter WHERE id = ?`, [nextDemand.id]);
+    await dbRun(
+      `INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
+      [req.user.id, req.user.username, 'ADVANCE', 'DEMAND_LETTER', existing.id,
+        `${demandTypeLabel(existing.demand_type)} advanced to ${demandTypeLabel(targetType)} for ${existing.client_name}`]
+    );
+
+    res.json({
+      message: `${demandTypeLabel(existing.demand_type)} advanced to ${demandTypeLabel(targetType)}`,
+      previous_demand: await dbGet(`SELECT * FROM tblDemandLetter WHERE id = ?`, [existing.id]),
+      next_demand: updatedNextDemand,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -416,6 +563,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
     await dbRun(`
       UPDATE tblDemandLetter
       SET courier = ?,
+          date_sent = ?,
+          delivery_status = ?,
           date_received = ?,
           follow_up_date = ?,
           remarks = ?,
@@ -424,6 +573,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
       WHERE id = ?
     `, [
       req.body.courier !== undefined ? req.body.courier : existing.courier,
+      req.body.date_sent !== undefined ? req.body.date_sent : existing.date_sent,
+      req.body.delivery_status !== undefined ? req.body.delivery_status : existing.delivery_status,
       req.body.date_received !== undefined ? req.body.date_received : existing.date_received,
       req.body.follow_up_date !== undefined ? req.body.follow_up_date : existing.follow_up_date,
       req.body.remarks !== undefined ? req.body.remarks : existing.remarks,

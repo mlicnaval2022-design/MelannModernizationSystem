@@ -891,6 +891,90 @@
   border: 1px solid #e2e8f0;
 }
 
+.demand-status-badge.status-awaiting-receipt,
+.demand-status-badge.status-sent {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+.demand-status-badge.status-received {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.demand-status-badge.status-follow-up-due {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.demand-status-badge.status-superseded {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+
+.demand-next-action-cell {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.demand-advance-btn {
+  min-height: 34px;
+  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.demand-progression-summary {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.demand-progression-summary span {
+  color: #64748b;
+  font-weight: 700;
+}
+
+.demand-progression-summary strong {
+  font-weight: 850;
+}
+
+.demand-progression-summary em {
+  justify-self: end;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #c2410c;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.demand-progression-note {
+  margin-top: 16px;
+  padding: 10px 12px;
+  border-left: 3px solid #2563eb;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .demand-status-badge.status-urgent-action-require {
   background: #fef2f2;
   color: #dc2626;
