@@ -359,6 +359,11 @@ async function initializeDatabase() {
       end_date TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'Draft',
       created_by INTEGER NOT NULL,
+      finalized_by INTEGER,
+      finalized_at TEXT,
+      reopened_by INTEGER,
+      reopened_at TEXT,
+      reopen_reason TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       UNIQUE(branch_id, start_date, end_date)
     );
@@ -376,6 +381,17 @@ async function initializeDatabase() {
       FOREIGN KEY (period_id) REFERENCES tblFortyFiveDayRatingPeriod(id) ON DELETE CASCADE,
       FOREIGN KEY (collector_id) REFERENCES tblCollector(id),
       UNIQUE(period_id, collector_id)
+    );
+    CREATE TABLE IF NOT EXISTS tblFortyFiveDayRatingAudit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      period_id INTEGER NOT NULL,
+      action TEXT NOT NULL,
+      old_status TEXT,
+      new_status TEXT,
+      reason TEXT,
+      changed_by INTEGER NOT NULL,
+      changed_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (period_id) REFERENCES tblFortyFiveDayRatingPeriod(id) ON DELETE CASCADE
     );
     CREATE TABLE IF NOT EXISTS tblCollectionFieldRelease (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -702,6 +718,17 @@ async function initializeDatabase() {
   const fortyFiveDayEvaluationCols = await dbAll(`PRAGMA table_info(tblFortyFiveDayRatingEvaluation)`);
   const fortyFiveDayEvaluationColNames = new Set(fortyFiveDayEvaluationCols.map(c => c.name));
   if (!fortyFiveDayEvaluationColNames.has('reported_pastdue')) await dbRun(`ALTER TABLE tblFortyFiveDayRatingEvaluation ADD COLUMN reported_pastdue REAL NOT NULL DEFAULT 0`);
+
+  const fortyFiveDayPeriodCols = await dbAll(`PRAGMA table_info(tblFortyFiveDayRatingPeriod)`);
+  const fortyFiveDayPeriodColNames = new Set(fortyFiveDayPeriodCols.map(c => c.name));
+  const fortyFiveDayPeriodTextCols = ['finalized_at', 'reopened_at', 'reopen_reason'];
+  const fortyFiveDayPeriodIntegerCols = ['finalized_by', 'reopened_by'];
+  for (const c of fortyFiveDayPeriodTextCols) {
+    if (!fortyFiveDayPeriodColNames.has(c)) await dbRun(`ALTER TABLE tblFortyFiveDayRatingPeriod ADD COLUMN ${c} TEXT`);
+  }
+  for (const c of fortyFiveDayPeriodIntegerCols) {
+    if (!fortyFiveDayPeriodColNames.has(c)) await dbRun(`ALTER TABLE tblFortyFiveDayRatingPeriod ADD COLUMN ${c} INTEGER`);
+  }
 
   const demandCols = await dbAll(`PRAGMA table_info(tblDemandLetter)`);
   const demandColNames = new Set(demandCols.map(c => c.name));

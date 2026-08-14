@@ -1,10 +1,12 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, CalendarDays, CheckCircle2, Edit3, FileText, MapPin, Plus, Printer, RefreshCw, Trash2, TrendingUp, User, Users, X } from 'lucide-react'
+import { ArrowLeft, Building2, CalendarDays, CheckCircle2, Edit3, FileText, Lock, MapPin, Plus, Printer, RefreshCw, Trash2, TrendingUp, Unlock, User, Users, X } from 'lucide-react'
 import API from '../services/api'
+import { useAuth } from '../context/AuthContext'
 import logo from '../assets/logo.png'
 import '../dashboard.css'
 
 const fmt = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
+const isFinalRatingStatus = status => ['final', 'finalized'].includes(String(status || '').toLowerCase())
 const countFmt = value => Number(value || 0).toLocaleString('en-PH')
 const printAmount = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const COLLECTOR_EDITS_STORAGE_KEY = 'collectorPerformanceEdits'
@@ -216,12 +218,14 @@ const getSortOrder = name => {
 }
 
 export default function CollectorPerformance() {
+  const { hasRole } = useAuth()
   const defaultRange = useMemo(() => getDefaultRange(), [])
   const [filters, setFilters] = useState(defaultRange)
   const [data, setData] = useState(null)
   const [ratingPeriods, setRatingPeriods] = useState([])
   const [ratingDateRange, setRatingDateRange] = useState({ start_date: '', end_date: '' })
   const [selectedRatingPeriod, setSelectedRatingPeriod] = useState(null)
+  const [ratingEvaluationTab, setRatingEvaluationTab] = useState('collector')
   const [activeTab, setActiveTab] = useState('targets')
   const [collectionRows, setCollectionRows] = useState([])
   const [newCollectionDate, setNewCollectionDate] = useState(defaultRange.date_to)
@@ -461,6 +465,27 @@ export default function CollectorPerformance() {
       setErrorMsg('')
     } catch (err) {
       setErrorMsg(err.response?.data?.error || err.message || 'Could not load rating period')
+    } finally {
+      setFortyFiveDayLoading(false)
+    }
+  }
+
+  const changeRatingLock = async (period, shouldLock) => {
+    if (!period?.id || !hasRole('admin')) return
+    let reason
+    if (shouldLock) {
+      if (!window.confirm('Lock this 45-day rating? Its automated totals will become final and read-only.')) return
+    } else {
+      reason = window.prompt('Reason for unlocking this final 45-day rating:')?.trim()
+      if (!reason) return
+    }
+    setFortyFiveDayLoading(true)
+    try {
+      await API.post(`/forty-five-day-rating/periods/${period.id}/${shouldLock ? 'lock' : 'unlock'}`, shouldLock ? {} : { reason })
+      await loadFortyFiveDayData()
+      await loadRatingPeriod(period.id)
+    } catch (err) {
+      setErrorMsg(err.response?.data?.error || err.message || `Could not ${shouldLock ? 'lock' : 'unlock'} rating period`)
     } finally {
       setFortyFiveDayLoading(false)
     }
@@ -1626,20 +1651,26 @@ export default function CollectorPerformance() {
                   <div style={{ overflowX: 'auto', padding: '0 18px 18px' }}>
                     <div style={{ fontSize: 16, fontWeight: 900, color: '#08184a', margin: '22px 6px 14px' }}>Generated Periods</div>
                     <table className="data-table" style={{ margin: 0, border: '1px solid #dbe4f0', minWidth: 900 }}>
-                      <thead><tr style={{ background: 'linear-gradient(90deg, #0f766e, #0f4c5c)' }}><th style={{ color: '#fff' }}>Date Range</th><th style={{ color: '#fff' }}>Status</th><th style={{ color: '#fff', textAlign: 'right' }}>Collections (PHP)</th><th style={{ color: '#fff', textAlign: 'right' }}>Releases (PHP)</th><th style={{ color: '#fff', textAlign: 'right' }}>DCR Expenses (PHP)</th><th style={{ color: '#fff' }}>Overall Rating</th><th style={{ color: '#fff' }}>Action</th></tr></thead>
+                      <thead><tr style={{ background: 'linear-gradient(90deg, #0f766e, #0f4c5c)' }}><th style={{ color: '#fff' }}>Date Range</th><th style={{ color: '#fff' }}>Status</th><th style={{ color: '#fff', textAlign: 'right' }}>Collections (PHP)</th><th style={{ color: '#fff', textAlign: 'right' }}>Non-Recon Releases (PHP)</th><th style={{ color: '#fff', textAlign: 'right' }}>DCR Expenses (PHP)</th><th style={{ color: '#fff' }}>Overall Rating</th><th style={{ color: '#fff' }}>Action</th></tr></thead>
                       <tbody>{fortyFiveDayLoading && !ratingPeriods.length ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28 }}>Loading rating periods...</td></tr> : ratingPeriods.length ? ratingPeriods.map(period => (
-                        <tr key={`rating-period-${period.id}`}><td>{displayDate(period.start_date)} to {displayDate(period.end_date)}</td><td><span className="status-badge">{period.status}</span></td><td style={{ textAlign: 'right' }}>PHP {fmt(period.total_collection)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(period.total_release)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(period.total_expense)}</td><td style={{ fontWeight: 800 }}>{period.overall_rating}</td><td><button className="btn btn-secondary" type="button" onClick={() => loadRatingPeriod(period.id)}>View Rating</button></td></tr>
+                        <tr key={`rating-period-${period.id}`}><td>{displayDate(period.start_date)} to {displayDate(period.end_date)}</td><td><span className="status-badge">{isFinalRatingStatus(period.status) ? 'Final' : 'Draft'}</span></td><td style={{ textAlign: 'right' }}>PHP {fmt(period.total_collection)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(period.total_release)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(period.total_expense)}</td><td style={{ fontWeight: 800 }}>{period.overall_rating}</td><td><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><button className="btn btn-secondary" type="button" onClick={() => loadRatingPeriod(period.id)}>View Rating</button>{isFinalRatingStatus(period.status) ? <button className="btn btn-secondary" type="button" onClick={() => changeRatingLock(period, false)} disabled={fortyFiveDayLoading || !hasRole('admin')} title={hasRole('admin') ? 'Reopen this rating for changes' : 'Admin permission is required'}><Unlock size={15} /> Unlock</button> : <button className="btn btn-primary" type="button" onClick={() => changeRatingLock(period, true)} disabled={fortyFiveDayLoading || !hasRole('admin')} title={hasRole('admin') ? 'Make this rating final' : 'Admin permission is required'}><Lock size={15} /> Lock Rating</button>}</div></td></tr>
                       )) : <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28 }}>No 45-day ratings generated yet.</td></tr>}</tbody>
                     </table>
                   </div>
 
                   {selectedRatingPeriod && <div style={{ padding: 24, borderTop: '1px solid #dbe4f0', background: '#f8fbff' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}><div><div style={{ fontSize: 18, fontWeight: 900, color: '#08184a' }}>Daily Input / Collector Evaluation</div><div style={{ color: '#64748b', fontSize: 13, fontWeight: 700 }}>{displayDate(selectedRatingPeriod.period.start_date)} to {displayDate(selectedRatingPeriod.period.end_date)}</div></div><button className="btn btn-secondary" type="button" onClick={refreshRatingPeriod} disabled={fortyFiveDayLoading || selectedRatingPeriod.period.status === 'Finalized'}><RefreshCw size={16} /> Refresh automated totals</button></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}><div><div style={{ fontSize: 18, fontWeight: 900, color: '#08184a' }}>45-Day Role Evaluation</div><div style={{ color: '#64748b', fontSize: 13, fontWeight: 700 }}>{displayDate(selectedRatingPeriod.period.start_date)} to {displayDate(selectedRatingPeriod.period.end_date)} · {isFinalRatingStatus(selectedRatingPeriod.period.status) ? 'Final and locked' : 'Draft'}</div></div><button className="btn btn-secondary" type="button" onClick={refreshRatingPeriod} disabled={fortyFiveDayLoading || isFinalRatingStatus(selectedRatingPeriod.period.status)}><RefreshCw size={16} /> Refresh automated totals</button></div>
+                    <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: 5, marginBottom: 18, background: '#fff', border: '1px solid #dbe4f0', borderRadius: 10 }}>
+                      {[['collector', 'Collector Evaluation', <User size={16} />], ['supervisor', 'Supervisor Evaluation', <Users size={16} />], ['branch-manager', 'Branch Manager Evaluation', <Building2 size={16} />], ['operations-manager', 'Operations Manager Evaluation', <Building2 size={16} />]].map(([tab, label, icon]) => <button key={tab} className={`btn ${ratingEvaluationTab === tab ? 'btn-primary' : 'btn-secondary'}`} type="button" onClick={() => setRatingEvaluationTab(tab)} style={{ flexShrink: 0 }}>{icon}{label}</button>)}
+                    </div>
                     <div style={{ color: '#475569', fontSize: 12, lineHeight: 1.5, marginBottom: 14 }}>
-                      Collection is summed for Torreta, Domingono, Caballes, Jugar, Rosal, and Laude only. Recon releases are excluded. User-entered DCR expenses are divided equally among these six collectors. Reported Pastdue is display-only and is not included in the formula.
+                      Collection is summed for Torreta, Domingono, Caballes, Jugar, Rosal, and Laude only. Recon releases are excluded. User-entered DCR expenses, excluding Short/Overages, are divided equally among these six collectors. Reported Pastdue is display-only and is not included in the formula.
                       {selectedRatingPeriod.period.reported_pastdue_period && <> Reported Pastdue period: {displayDate(selectedRatingPeriod.period.reported_pastdue_period.start_date)} to {displayDate(selectedRatingPeriod.period.reported_pastdue_period.end_date)}.</>}
                     </div>
-                    <div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 1100 }}><thead><tr><th>Collector</th><th style={{ textAlign: 'right' }}>Collection</th><th style={{ textAlign: 'right' }}>Release</th><th style={{ textAlign: 'right' }}>Expense Share</th><th style={{ textAlign: 'right' }}>Reported Pastdue</th><th style={{ textAlign: 'right' }}>Net Income</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Rating</th></tr></thead><tbody>{selectedRatingPeriod.evaluations.map(evaluation => <tr key={evaluation.id}><td style={{ fontWeight: 800 }}>{evaluation.collector_name}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.collection_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.release_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.expense_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.reported_pastdue)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.net_income)}</td><td style={{ textAlign: 'right' }}>{evaluation.accomplishment_percentage == null ? 'Not rated' : `${Number(evaluation.accomplishment_percentage).toFixed(2)}%`}</td><td style={{ fontWeight: 800 }}>{evaluation.rating}</td></tr>)}</tbody></table></div>
+                    {ratingEvaluationTab === 'collector' && <div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 1100 }}><thead><tr><th>Collector</th><th style={{ textAlign: 'right' }}>Collection</th><th style={{ textAlign: 'right' }}>Non-Recon Release</th><th style={{ textAlign: 'right' }}>Expense Share</th><th style={{ textAlign: 'right' }}>Reported Pastdue</th><th style={{ textAlign: 'right' }}>Net Income</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Rating</th></tr></thead><tbody>{selectedRatingPeriod.evaluations.map(evaluation => <tr key={evaluation.id}><td style={{ fontWeight: 800 }}>{evaluation.collector_name}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.collection_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.release_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.expense_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.reported_pastdue)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.net_income)}</td><td style={{ textAlign: 'right' }}>{evaluation.accomplishment_percentage == null ? 'Not rated' : `${Number(evaluation.accomplishment_percentage).toFixed(2)}%`}</td><td style={{ fontWeight: 800 }}>{evaluation.rating}</td></tr>)}</tbody></table></div>}
+                    {ratingEvaluationTab === 'supervisor' && <div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 1050 }}><thead><tr><th>Supervisor</th><th>Collectors Under Supervisor</th><th style={{ textAlign: 'right' }}>Collection</th><th style={{ textAlign: 'right' }}>Release</th><th style={{ textAlign: 'right' }}>Expense</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Overall Rating</th></tr></thead><tbody>{(selectedRatingPeriod.supervisor_evaluations || []).map(row => <tr key={row.name}><td style={{ fontWeight: 900 }}>{row.name}</td><td>{row.collectors.join(', ')}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.collection_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.release_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.expense_total)}</td><td style={{ textAlign: 'right' }}>{row.accomplishment_percentage == null ? 'Not rated' : `${Number(row.accomplishment_percentage).toFixed(2)}%`}</td><td style={{ fontWeight: 800 }}>{row.rating}</td></tr>)}</tbody></table></div>}
+                    {ratingEvaluationTab === 'branch-manager' && <div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 1000 }}><thead><tr><th>Branch Manager</th><th>Supervisors Included</th><th style={{ textAlign: 'right' }}>Collection</th><th style={{ textAlign: 'right' }}>Release</th><th style={{ textAlign: 'right' }}>Expense</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Overall Rating</th></tr></thead><tbody>{(selectedRatingPeriod.branch_manager_evaluations || []).map(row => <tr key={row.name}><td style={{ fontWeight: 900 }}>{row.name}</td><td>{row.supervisors.join(', ')}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.collection_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.release_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.expense_total)}</td><td style={{ textAlign: 'right' }}>{row.accomplishment_percentage == null ? 'Not rated' : `${Number(row.accomplishment_percentage).toFixed(2)}%`}</td><td style={{ fontWeight: 800 }}>{row.rating}</td></tr>)}</tbody></table></div>}
+                    {ratingEvaluationTab === 'operations-manager' && <div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 1000 }}><thead><tr><th>Branch Manager</th><th>Status</th><th style={{ textAlign: 'right' }}>Collection</th><th style={{ textAlign: 'right' }}>Release</th><th style={{ textAlign: 'right' }}>Expense</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Overall Rating</th></tr></thead><tbody>{(selectedRatingPeriod.operations_manager_evaluation?.branch_results || []).map(row => <tr key={`${row.branch_id}-${row.name}`}><td style={{ fontWeight: 900 }}>{row.name}</td><td><span className="status-badge">{isFinalRatingStatus(row.status) ? 'Final' : 'Draft'}</span></td><td style={{ textAlign: 'right' }}>PHP {fmt(row.collection_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.release_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.expense_total)}</td><td style={{ textAlign: 'right' }}>{row.accomplishment_percentage == null ? 'Not rated' : `${Number(row.accomplishment_percentage).toFixed(2)}%`}</td><td style={{ fontWeight: 800 }}>{row.rating}</td></tr>)}<tr style={{ background: '#eef6ff' }}><td colSpan={2} style={{ fontWeight: 900 }}>Operations Manager Overall</td><td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(selectedRatingPeriod.operations_manager_evaluation?.collection_total)}</td><td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(selectedRatingPeriod.operations_manager_evaluation?.release_total)}</td><td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(selectedRatingPeriod.operations_manager_evaluation?.expense_total)}</td><td style={{ textAlign: 'right', fontWeight: 900 }}>{selectedRatingPeriod.operations_manager_evaluation?.accomplishment_percentage == null ? 'Not rated' : `${Number(selectedRatingPeriod.operations_manager_evaluation.accomplishment_percentage).toFixed(2)}%`}</td><td style={{ fontWeight: 900 }}>{selectedRatingPeriod.operations_manager_evaluation?.rating}</td></tr></tbody></table></div>}
                   </div>}
                 </div>
               </div>
