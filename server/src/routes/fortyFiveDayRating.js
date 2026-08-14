@@ -2,9 +2,9 @@ const express = require('express');
 const dayjs = require('dayjs');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken } = require('../middleware/auth');
+const { sqlNotSunday } = require('../services/operationDays');
 
 const router = express.Router();
-const reconLoanTypes = ['recon', 'reconstruct', 'reconstructed'];
 const ratedCollectorLastNames = ['torreta', 'domingono', 'caballes', 'jugar', 'rosal', 'laude'];
 const companyPeriods = [
   ['01-01', '02-15'],
@@ -46,6 +46,22 @@ function getPreviousCompanyPeriod(startDate) {
     .sort((a, b) => b.end_date.localeCompare(a.end_date))[0] || null;
 }
 
+async function getActualCollectionTotal(collectorId, startDate, endDate) {
+  const paymentRow = await dbGet(`
+    SELECT COALESCE(SUM(p.amount_paid), 0) AS total
+    FROM tblPayment p
+    LEFT JOIN tblLoan l ON l.id = p.loan_id
+    LEFT JOIN tblCustomer c ON c.id = p.customer_id
+    WHERE COALESCE(p.collector_id, l.collector_id, c.collector_id) = ?
+      AND date(p.date_paid) BETWEEN date(?) AND date(?)
+      AND p.status IN ('active', 'penalty')
+      AND LOWER(COALESCE(p.payment_type, '')) != 'passbook'
+      AND LOWER(COALESCE(p.remarks, '')) NOT LIKE '%passbook%'
+      AND ${sqlNotSunday('p.date_paid')}
+  `, [collectorId, startDate, endDate]);
+  return asAmount(paymentRow?.total);
+}
+
 async function buildPeriodEvaluations(period) {
   const collectorBranch = getBranchFilter(period.branch_id, 'co.branch_id');
   const collectors = await dbAll(`
@@ -84,23 +100,15 @@ async function buildPeriodEvaluations(period) {
 
   await dbRun('DELETE FROM tblFortyFiveDayRatingEvaluation WHERE period_id = ?', [period.id]);
   for (const collector of collectors) {
-    const collectionRow = await dbGet(`
-      SELECT COALESCE(SUM(p.amount_paid), 0) AS total
-      FROM tblPayment p
-      JOIN tblCustomer c ON c.id = p.customer_id
-      WHERE COALESCE(p.collector_id, c.collector_id) = ?
-        AND date(p.date_paid) BETWEEN date(?) AND date(?)
-        AND p.status IN ('active', 'penalty')
-    `, [collector.id, period.start_date, period.end_date]);
     const releaseRow = await dbGet(`
       SELECT COALESCE(SUM(l.principal), 0) AS total
       FROM tblLoan l
       WHERE l.collector_id = ?
         AND date(l.date_released) BETWEEN date(?) AND date(?)
         AND LOWER(COALESCE(l.status, '')) IN ('active', 'fully_paid')
-        AND LOWER(COALESCE(l.loan_type, 'regular')) NOT IN (${reconLoanTypes.map(() => '?').join(', ')})
-    `, [collector.id, period.start_date, period.end_date, ...reconLoanTypes]);
-    const collectionTotal = asAmount(collectionRow?.total);
+        AND LOWER(COALESCE(l.loan_type, 'regular')) NOT LIKE '%recon%'
+    `, [collector.id, period.start_date, period.end_date]);
+    const collectionTotal = await getActualCollectionTotal(collector.id, period.start_date, period.end_date);
     const releaseTotal = asAmount(releaseRow?.total);
     const netIncome = collectionTotal - releaseTotal - expenseShare;
     const denominator = releaseTotal + expenseShare;
