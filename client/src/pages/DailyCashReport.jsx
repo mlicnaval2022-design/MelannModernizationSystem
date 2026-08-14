@@ -146,9 +146,9 @@ export default function DailyCashReport() {
     let csv = `DAILY CASH REPORT\nDate: ${date}\nDCR No: ${data.dcr ? data.dcr.dcr_number : `DCR-${dayjs(date).format('YYYYMMDD')}-0001`}\n\n`;
     
     // 1. LOAN RELEASES
-    csv += `1. LOAN RELEASES\nNo.,Code,Customer,Collector,Type of Loan,Amount\n`;
+    csv += `1. LOAN RELEASES\nNo.,Client Code,Customer,Collector,Type of Loan,Amount\n`;
     data.releases.forEach((r, i) => {
-      csv += `${i + 1},${r.loan_code.replace('LN-','')},"${r.last_name}, ${r.first_name}",${r.collector_name || 'Unassigned'},${r.loan_type || 'NEW'},${(r.principal || 0).toFixed(2)}\n`;
+      csv += `${i + 1},${r.customer_code || ''},"${r.last_name}, ${r.first_name}",${r.collector_name || 'Unassigned'},${r.loan_type || 'NEW'},${(r.principal || 0).toFixed(2)}\n`;
     });
     csv += `TOTAL LOAN RELEASES,,,,,,${data.display_total_releases.toFixed(2)}\n\n`;
 
@@ -430,7 +430,7 @@ export default function DailyCashReport() {
             <table className="dcr-table">
               <thead>
                 <tr>
-                  <th>No.</th><th>Code</th><th>Customer</th><th>Collector</th>
+                  <th>No.</th><th>Client Code</th><th>Customer</th><th>Collector</th>
                   <th style={{textAlign:'center'}}>Type of Loan</th>
                   <th className="text-right">Amount</th>
                   <th className="text-right">Penalty</th>
@@ -453,7 +453,7 @@ export default function DailyCashReport() {
                   return sortedReleases.map((r, i) => (
                     <tr key={r.id}>
                       <td>{i + 1}</td>
-                      <td>{r.loan_code.replace('LN-','')}</td>
+                      <td>{r.customer_code || '-'}</td>
                       <td style={{fontWeight: 600}}>{r.last_name}, {r.first_name}</td>
                       <td>{r.collector_name || 'Unassigned'}</td>
                       <td style={{textAlign:'center'}}>

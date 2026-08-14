@@ -271,7 +271,7 @@ function FortyFiveEvaluationTable({ entityLabel, rows = [], childRows = () => []
           const rowKey = row.id || row.branch_id || name || index
           return <tr key={rowKey}>
               <td style={{ fontWeight: 900 }}>
-                {children.length ? <button className="forty-five-name-button" type="button" onClick={() => onOpenChildren({ title: name, childEntityLabel, rows: children })} aria-label={`View ${childEntityLabel.toLowerCase()} under ${name}`}>
+                {onOpenChildren ? <button className="forty-five-name-button" type="button" onClick={() => onOpenChildren({ title: name, childEntityLabel, rows: children })} aria-label={`View ${childEntityLabel.toLowerCase()} under ${name}`}>
                   <ChevronRight size={15} />
                   <span className="forty-five-person-avatar">{getCollectorInitials(name)}</span><span>{name}</span>
                 </button> : <span className="forty-five-static-name"><span className="forty-five-person-avatar">{getCollectorInitials(name)}</span>{name}</span>}
@@ -955,7 +955,7 @@ export default function CollectorPerformance() {
         .forty-five-page { padding: 12px; background: #f5f8fb; }
         .forty-five-shell {
           display: grid;
-          grid-template-columns: minmax(300px, .62fr) minmax(620px, 1fr);
+          grid-template-columns: minmax(0, 1fr);
           gap: 10px;
           padding: 10px;
           border: 1px solid #dce6eb;
@@ -987,13 +987,13 @@ export default function CollectorPerformance() {
         .forty-five-graphic span:nth-child(3) { height: 47px; }
         .forty-five-graphic svg { position: absolute; right: 0; top: 0; }
         .forty-five-card { border: 1px solid #dce6eb; border-radius: 8px; background: #fff; box-shadow: 0 5px 14px rgba(15, 50, 65, .055); overflow: hidden; }
-        .forty-five-generator { padding: 18px; }
-        .forty-five-periods { padding: 14px; overflow-x: auto; }
+        .forty-five-generator { grid-column: 1; width: min(760px, 100%); padding: 18px; }
+        .forty-five-periods { grid-column: 1; width: 100%; padding: 14px; overflow-x: auto; }
         .forty-five-evaluation { grid-column: 1 / -1; padding: 16px; }
         .forty-five-section-title { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; color: #075e59; font-size: 14px; font-weight: 950; text-transform: uppercase; }
         .forty-five-section-title svg { color: #07877d; }
-        .forty-five-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: end; }
-        .forty-five-generate-button { grid-column: 1 / -1; justify-content: center; background: #087d73 !important; border-color: #087d73 !important; }
+        .forty-five-form-grid { display: grid; grid-template-columns: minmax(190px, 240px) minmax(190px, 240px) minmax(170px, 210px); gap: 12px; align-items: end; }
+        .forty-five-generate-button { grid-column: auto; justify-content: center; background: #087d73 !important; border-color: #087d73 !important; }
         .forty-five-note { display: flex; gap: 9px; align-items: flex-start; margin-top: 18px; color: #51657a; font-size: 11px; font-weight: 700; line-height: 1.45; }
         .forty-five-note::before { content: 'ⓘ'; color: #2563eb; font-size: 14px; }
         .forty-five-page .data-table { border-collapse: separate; border-spacing: 0; border: 0 !important; }
@@ -1061,6 +1061,7 @@ export default function CollectorPerformance() {
           .forty-five-shell { padding: 7px; }
           .forty-five-graphic { display: none; }
           .forty-five-form-grid { grid-template-columns: 1fr; }
+          .forty-five-generate-button { grid-column: 1; }
           .forty-five-title { font-size: 21px; }
           .forty-five-modal-backdrop { padding: 10px; }
           .forty-five-modal-header { padding: 17px; }
@@ -1932,8 +1933,8 @@ export default function CollectorPerformance() {
                       {selectedRatingPeriod.period.reported_pastdue_period && <> Reported Pastdue period: {displayDate(selectedRatingPeriod.period.reported_pastdue_period.start_date)} to {displayDate(selectedRatingPeriod.period.reported_pastdue_period.end_date)}.</>}
                     </div>
                     {ratingEvaluationTab === 'collector' && <FortyFiveEvaluationTable entityLabel="Collector" rows={selectedRatingPeriod.evaluations} />}
-                    {ratingEvaluationTab === 'supervisor' && <FortyFiveEvaluationTable entityLabel="Supervisor" rows={selectedRatingPeriod.supervisor_evaluations || []} childRows={row => row.collector_results} childEntityLabel="Collector" onOpenChildren={setRatingHierarchyModal} />}
-                    {ratingEvaluationTab === 'branch-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.branch_manager_evaluations || []} childRows={row => row.supervisor_results} childEntityLabel="Supervisor" onOpenChildren={setRatingHierarchyModal} />}
+                    {ratingEvaluationTab === 'supervisor' && <FortyFiveEvaluationTable entityLabel="Supervisor" rows={selectedRatingPeriod.supervisor_evaluations || []} childRows={row => row.collector_results?.length ? row.collector_results : selectedRatingPeriod.evaluations.filter(evaluation => (String(evaluation.supervisor || '').trim() || 'Unassigned Supervisor') === row.name)} childEntityLabel="Collector" onOpenChildren={setRatingHierarchyModal} />}
+                    {ratingEvaluationTab === 'branch-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.branch_manager_evaluations || []} childRows={row => row.supervisor_results?.length ? row.supervisor_results : (selectedRatingPeriod.supervisor_evaluations || []).filter(supervisor => (row.supervisors || []).includes(supervisor.name))} childEntityLabel="Supervisor" onOpenChildren={setRatingHierarchyModal} />}
                     {ratingEvaluationTab === 'operations-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.operations_manager_evaluation?.branch_results || []} childRows={row => row.supervisor_results} childEntityLabel="Supervisor" onOpenChildren={setRatingHierarchyModal} footerRow={selectedRatingPeriod.operations_manager_evaluation} />}
                   </div>}
                 </div>
