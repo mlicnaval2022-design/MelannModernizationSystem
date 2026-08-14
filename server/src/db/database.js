@@ -627,6 +627,8 @@ async function initializeDatabase() {
       collector_name TEXT,
       client_name TEXT NOT NULL,
       date_generated TEXT NOT NULL DEFAULT (date('now')),
+      date_sent TEXT,
+      delivery_status TEXT,
       total_loan REAL DEFAULT 0,
       running_balance REAL DEFAULT 0,
       beginning_overdue REAL DEFAULT 0,
@@ -636,6 +638,8 @@ async function initializeDatabase() {
       follow_up_date TEXT,
       remarks TEXT,
       status TEXT DEFAULT 'Generated',
+      previous_demand_id INTEGER,
+      superseded_by_id INTEGER,
       generated_by INTEGER,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
@@ -701,12 +705,14 @@ async function initializeDatabase() {
 
   const demandCols = await dbAll(`PRAGMA table_info(tblDemandLetter)`);
   const demandColNames = new Set(demandCols.map(c => c.name));
-  const demandTextCols = ['loan_code', 'courier', 'collector_name', 'date_received', 'follow_up_date', 'remarks', 'status'];
+  const demandTextCols = ['loan_code', 'courier', 'collector_name', 'date_sent', 'delivery_status', 'date_received', 'follow_up_date', 'remarks', 'status'];
   for (const c of demandTextCols) {
     if (!demandColNames.has(c)) await dbRun(`ALTER TABLE tblDemandLetter ADD COLUMN ${c} TEXT`);
   }
   if (!demandColNames.has('customer_id')) await dbRun(`ALTER TABLE tblDemandLetter ADD COLUMN customer_id INTEGER`);
   if (!demandColNames.has('loan_id')) await dbRun(`ALTER TABLE tblDemandLetter ADD COLUMN loan_id INTEGER`);
+  if (!demandColNames.has('previous_demand_id')) await dbRun(`ALTER TABLE tblDemandLetter ADD COLUMN previous_demand_id INTEGER`);
+  if (!demandColNames.has('superseded_by_id')) await dbRun(`ALTER TABLE tblDemandLetter ADD COLUMN superseded_by_id INTEGER`);
   if (!demandColNames.has('generated_by')) await dbRun(`ALTER TABLE tblDemandLetter ADD COLUMN generated_by INTEGER`);
   if (!demandColNames.has('updated_at')) await dbRun(`ALTER TABLE tblDemandLetter ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))`);
   const demandAmountCols = ['total_loan', 'running_balance', 'beginning_overdue', 'penalty_charges', 'total_amount_due'];

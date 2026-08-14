@@ -377,6 +377,124 @@ test('demand letter creation and deletion endpoint', async () => {
   assert.equal(checkDb, undefined);
 });
 
+test('advancing a demand supersedes the previous stage and registers the next stage for monitoring', async () => {
+  const login = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: 'admin123' }),
+  });
+  const { token } = await login.json();
+  const headers = { 'content-type': 'application/json', authorization: `Bearer ${token}` };
+
+  const createFirstRes = await fetch(`${baseUrl}/api/demand-letters`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      demand_type: 'first',
+      customer_id: 998001,
+      loan_id: 998002,
+      loan_code: 'ADVANCE-DEMAND-TEST',
+      client_name: 'TEST DEMAND PROGRESSION',
+      courier: 'Field Personnel',
+      date_generated: '2026-07-01',
+      status: 'Generated',
+    }),
+  });
+  const firstDemand = await createFirstRes.json();
+  assert.equal(createFirstRes.status, 201, firstDemand.error);
+
+  const makeDueRes = await fetch(`${baseUrl}/api/demand-letters/${firstDemand.id}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({
+      date_received: '2026-07-02',
+      follow_up_date: '2026-07-17',
+      delivery_status: 'Received',
+      status: 'Follow-up Due',
+    }),
+  });
+  assert.equal(makeDueRes.status, 200, (await makeDueRes.json()).error);
+
+  const advanceRes = await fetch(`${baseUrl}/api/demand-letters/${firstDemand.id}/advance`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      date_sent: '2026-08-14',
+      courier: 'Mailed',
+      remarks: 'Second demand sent for progression test',
+    }),
+  });
+  const advanced = await advanceRes.json();
+  assert.equal(advanceRes.status, 200, advanced.error);
+  assert.equal(advanced.previous_demand.status, 'Superseded');
+  assert.equal(advanced.previous_demand.follow_up_date, '');
+  assert.equal(advanced.next_demand.demand_type, 'second');
+  assert.equal(advanced.next_demand.status, 'Awaiting Receipt');
+  assert.equal(advanced.next_demand.date_sent, '2026-08-14');
+  assert.equal(advanced.next_demand.previous_demand_id, firstDemand.id);
+  assert.equal(advanced.previous_demand.superseded_by_id, advanced.next_demand.id);
+
+  const secondMonitoringRes = await fetch(`${baseUrl}/api/demand-letters?type=second`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const secondMonitoring = await secondMonitoringRes.json();
+  assert.equal(secondMonitoringRes.status, 200, secondMonitoring.error);
+  assert.ok(secondMonitoring.some(row => row.id === advanced.next_demand.id));
+
+  const notificationsRes = await fetch(`${baseUrl}/api/demand-letters/notifications`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const notifications = await notificationsRes.json();
+  assert.equal(notificationsRes.status, 200, notifications.error);
+  assert.ok(!notifications.notifications.some(row => row.id === firstDemand.id));
+  assert.ok(notifications.notifications.some(row => row.id === advanced.next_demand.id && row.status === 'Awaiting Receipt'));
+});
+
+test('saving a sent second demand automatically closes the first-demand follow-up', async () => {
+  const login = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: 'admin123' }),
+  });
+  const { token } = await login.json();
+  const headers = { 'content-type': 'application/json', authorization: `Bearer ${token}` };
+  const identity = {
+    customer_id: 998101,
+    loan_id: 998102,
+    loan_code: 'GENERATE-SECOND-TEST',
+    client_name: 'TEST GENERATED SECOND DEMAND',
+  };
+
+  const firstRes = await fetch(`${baseUrl}/api/demand-letters`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ ...identity, demand_type: 'first', status: 'Generated' }),
+  });
+  const first = await firstRes.json();
+  assert.equal(firstRes.status, 201, first.error);
+
+  const secondRes = await fetch(`${baseUrl}/api/demand-letters`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      ...identity,
+      demand_type: 'second',
+      date_sent: '2026-08-14',
+      delivery_status: 'Awaiting Receipt',
+      status: 'Awaiting Receipt',
+    }),
+  });
+  const second = await secondRes.json();
+  assert.equal(secondRes.status, 201, second.error);
+  assert.equal(second.previous_demand_id, first.id);
+  assert.equal(second.status, 'Awaiting Receipt');
+
+  const updatedFirst = await dbGet(`SELECT status, follow_up_date, superseded_by_id FROM tblDemandLetter WHERE id = ?`, [first.id]);
+  assert.equal(updatedFirst.status, 'Superseded');
+  assert.equal(updatedFirst.follow_up_date, '');
+  assert.equal(updatedFirst.superseded_by_id, second.id);
+});
+
 test('collector performance summary excludes Recon loans released on target date from Actual Collection', async () => {
   const login = await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',
