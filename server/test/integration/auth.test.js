@@ -473,6 +473,18 @@ test('saving a sent second demand automatically closes the first-demand follow-u
   const first = await firstRes.json();
   assert.equal(firstRes.status, 201, first.error);
 
+  const receiveFirstRes = await fetch(`${baseUrl}/api/demand-letters/${first.id}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({
+      date_received: '2026-08-01',
+      follow_up_date: '2026-08-16',
+      delivery_status: 'Received',
+      status: 'Received',
+    }),
+  });
+  assert.equal(receiveFirstRes.status, 200, (await receiveFirstRes.json()).error);
+
   const secondRes = await fetch(`${baseUrl}/api/demand-letters`, {
     method: 'POST',
     headers,
@@ -493,6 +505,49 @@ test('saving a sent second demand automatically closes the first-demand follow-u
   assert.equal(updatedFirst.status, 'Superseded');
   assert.equal(updatedFirst.follow_up_date, '');
   assert.equal(updatedFirst.superseded_by_id, second.id);
+
+  const secondMonitoringRes = await fetch(`${baseUrl}/api/demand-letters?type=second`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const secondMonitoring = await secondMonitoringRes.json();
+  const monitoredSecond = secondMonitoring.find(row => row.id === second.id);
+  assert.equal(secondMonitoringRes.status, 200, secondMonitoring.error);
+  assert.equal(monitoredSecond.first_demand_received_date, '2026-08-01');
+
+  const receiveSecondRes = await fetch(`${baseUrl}/api/demand-letters/${second.id}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({
+      date_received: '2026-08-10',
+      follow_up_date: '2026-08-20',
+      delivery_status: 'Received',
+      status: 'Received',
+    }),
+  });
+  assert.equal(receiveSecondRes.status, 200, (await receiveSecondRes.json()).error);
+
+  const thirdRes = await fetch(`${baseUrl}/api/demand-letters`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      ...identity,
+      demand_type: 'third',
+      date_sent: '2026-08-21',
+      delivery_status: 'Awaiting Receipt',
+      status: 'Awaiting Receipt',
+    }),
+  });
+  const third = await thirdRes.json();
+  assert.equal(thirdRes.status, 201, third.error);
+
+  const thirdMonitoringRes = await fetch(`${baseUrl}/api/demand-letters?type=third`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const thirdMonitoring = await thirdMonitoringRes.json();
+  const monitoredThird = thirdMonitoring.find(row => row.id === third.id);
+  assert.equal(thirdMonitoringRes.status, 200, thirdMonitoring.error);
+  assert.equal(monitoredThird.first_demand_received_date, '2026-08-01');
+  assert.equal(monitoredThird.second_demand_received_date, '2026-08-10');
 });
 
 test('collector performance summary excludes Recon loans released on target date from Actual Collection', async () => {

@@ -279,10 +279,44 @@ router.get('/', authenticateToken, async (req, res) => {
     if (!DEMAND_TYPES.has(demandType)) return res.status(400).json({ error: 'Invalid demand type' });
 
     const rows = await dbAll(`
-      SELECT *
-      FROM tblDemandLetter
-      WHERE demand_type = ?
-      ORDER BY date_generated DESC, id DESC
+      SELECT dl.*,
+        (
+          SELECT previous.date_received
+          FROM tblDemandLetter previous
+          WHERE previous.demand_type = 'first'
+            AND COALESCE(previous.date_received, '') != ''
+            AND (
+              (dl.loan_id IS NOT NULL AND previous.loan_id = dl.loan_id)
+              OR (dl.customer_id IS NOT NULL AND previous.customer_id = dl.customer_id)
+              OR (COALESCE(dl.loan_code, '') != '' AND previous.loan_code = dl.loan_code)
+              OR (
+                dl.loan_id IS NULL AND dl.customer_id IS NULL AND COALESCE(dl.loan_code, '') = ''
+                AND LOWER(previous.client_name) = LOWER(dl.client_name)
+              )
+            )
+          ORDER BY previous.date_received DESC, previous.date_generated DESC, previous.id DESC
+          LIMIT 1
+        ) AS first_demand_received_date,
+        (
+          SELECT previous.date_received
+          FROM tblDemandLetter previous
+          WHERE previous.demand_type = 'second'
+            AND COALESCE(previous.date_received, '') != ''
+            AND (
+              (dl.loan_id IS NOT NULL AND previous.loan_id = dl.loan_id)
+              OR (dl.customer_id IS NOT NULL AND previous.customer_id = dl.customer_id)
+              OR (COALESCE(dl.loan_code, '') != '' AND previous.loan_code = dl.loan_code)
+              OR (
+                dl.loan_id IS NULL AND dl.customer_id IS NULL AND COALESCE(dl.loan_code, '') = ''
+                AND LOWER(previous.client_name) = LOWER(dl.client_name)
+              )
+            )
+          ORDER BY previous.date_received DESC, previous.date_generated DESC, previous.id DESC
+          LIMIT 1
+        ) AS second_demand_received_date
+      FROM tblDemandLetter dl
+      WHERE dl.demand_type = ?
+      ORDER BY dl.date_generated DESC, dl.id DESC
     `, [demandType]);
 
     res.json(await enrichDemandRows(rows));

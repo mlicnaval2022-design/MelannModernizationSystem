@@ -1716,6 +1716,21 @@
   background: #f4f7fb;
 }
 
+.demand-monitoring-table th:first-child,
+.demand-monitoring-table td:first-child {
+  width: 106px;
+  min-width: 106px;
+  padding-right: 6px;
+  padding-left: 6px;
+}
+
+.demand-monitoring-table td:first-child .form-control {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 7px;
+  font-size: 11px;
+}
+
 .demand-monitoring-table th:last-child,
 .demand-monitoring-table td:last-child {
   width: 1%;

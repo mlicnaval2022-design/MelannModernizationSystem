@@ -572,6 +572,8 @@ export default function DemandLetter() {
     return result
   }, [monitoringRows, courierFilter, collectorFilter, statusFilter, monitoringSearch, sortField, sortOrder])
 
+  const monitoringColumnCount = monitoringType === 'third' ? 12 : monitoringType === 'second' ? 11 : 10
+
   useEffect(() => {
     const query = search.trim()
     if (query.length < 2) {
@@ -1237,7 +1239,13 @@ export default function DemandLetter() {
                       )}
                     </div>
                   </th>
-                  <th>Date Sent</th>
+                  {monitoringType === 'second' && <th>1st Demand Date</th>}
+                  {monitoringType === 'third' && (
+                    <>
+                      <th>1st Demand Date</th>
+                      <th>2nd Demand Date</th>
+                    </>
+                  )}
                   <th className="sortable-th" onClick={() => handleSort('date_received')} title="Click to sort by Date Received">
                     <div className="th-sort-content">
                       Date Received
@@ -1265,9 +1273,9 @@ export default function DemandLetter() {
               </thead>
               <tbody>
                 {monitoringLoading ? (
-                  <tr className="loading-row"><td colSpan={11}>Loading monitoring records...</td></tr>
+                  <tr className="loading-row"><td colSpan={monitoringColumnCount}>Loading monitoring records...</td></tr>
                 ) : filteredAndSortedRows.length === 0 ? (
-                  <tr><td colSpan={11} className="empty-state">No demand letter transactions found matching the filter.</td></tr>
+                  <tr><td colSpan={monitoringColumnCount} className="empty-state">No demand letter transactions found matching the filter.</td></tr>
                 ) : filteredAndSortedRows.map(row => (
                   <tr key={row.id}>
                     <td>
@@ -1281,7 +1289,15 @@ export default function DemandLetter() {
                     <td className="fw-600">{row.client_name}</td>
                     <td><span className="demand-loan-code">{row.loan_code || '-'}</span></td>
                     <td>{formatDateLong(row.date_generated)}</td>
-                    <td>{row.date_sent ? formatDateLong(row.date_sent) : '-'}</td>
+                    {monitoringType === 'second' && (
+                      <td>{row.first_demand_received_date ? formatDateLong(row.first_demand_received_date) : '-'}</td>
+                    )}
+                    {monitoringType === 'third' && (
+                      <>
+                        <td>{row.first_demand_received_date ? formatDateLong(row.first_demand_received_date) : '-'}</td>
+                        <td>{row.second_demand_received_date ? formatDateLong(row.second_demand_received_date) : '-'}</td>
+                      </>
+                    )}
                     <td>{row.date_received ? formatDateLong(row.date_received) : '-'}</td>
                     <td>{row.follow_up_date ? formatDateLong(row.follow_up_date) : '-'}</td>
                     <td className="demand-remarks-cell">{row.remarks || '-'}</td>
