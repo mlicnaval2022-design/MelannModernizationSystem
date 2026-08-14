@@ -1352,6 +1352,8 @@ export default function Customers() {
 
                           const onTime = creditEval ? (creditEval.on_time_payments || 0) : activePaymentsCount;
                           const late = creditEval ? (creditEval.late_payments || 0) : 0;
+                          const paymentGrade = creditEval?.payment_grade || meta.label;
+                          const longestLateDays = creditEval?.longest_late_days || 0;
                           const pdCount = creditEval ? (creditEval.past_due_occurrences || 0) : pastDueCount;
                           const totalL = creditEval ? (creditEval.total_loans || 0) : loans.length;
 
@@ -1373,7 +1375,7 @@ export default function Customers() {
                                       {isUnrated ? (
                                         <span>New account &bull; Total Loans: <strong>{totalL}</strong> &bull; Payments Received: <strong>0</strong></span>
                                       ) : (
-                                        <span>On-Time: <strong>{onTime}</strong> &bull; Late: <strong>{late}</strong> &bull; Past Due: <strong>{pdCount}</strong> &bull; Total Loans: <strong>{totalL}</strong></span>
+                                        <span>Payment Grade: <strong>{paymentGrade}</strong> &bull; On-Time: <strong>{onTime}</strong> &bull; Late: <strong>{late}</strong> &bull; Longest Delay: <strong>{longestLateDays} day{longestLateDays === 1 ? '' : 's'}</strong> &bull; Past Due: <strong>{pdCount}</strong> &bull; Total Loans: <strong>{totalL}</strong></span>
                                       )}
                                     </div>
                                   </div>
@@ -1726,6 +1728,8 @@ export default function Customers() {
 
                           const onTime = creditEval ? (creditEval.on_time_payments || 0) : activePaymentsCount;
                           const late = creditEval ? (creditEval.late_payments || 0) : 0;
+                          const paymentGrade = creditEval?.payment_grade || meta.label;
+                          const longestLateDays = creditEval?.longest_late_days || 0;
                           const pdCount = creditEval ? (creditEval.past_due_occurrences || 0) : pastDueCount;
                           const totalL = creditEval ? (creditEval.total_loans || 0) : loansList.length;
 
@@ -1747,7 +1751,7 @@ export default function Customers() {
                                       {isUnrated ? (
                                         <span>New account &bull; Total Loans: <strong>{totalL}</strong> &bull; Payments Received: <strong>0</strong></span>
                                       ) : (
-                                        <span>On-Time Payments: <strong>{onTime}</strong> &bull; Late Payments: <strong>{late}</strong> &bull; Past Due: <strong>{pdCount}</strong> &bull; Total Loans: <strong>{totalL}</strong></span>
+                                        <span>Payment Grade: <strong>{paymentGrade}</strong> &bull; On-Time Payments: <strong>{onTime}</strong> &bull; Late Payments: <strong>{late}</strong> &bull; Longest Delay: <strong>{longestLateDays} day{longestLateDays === 1 ? '' : 's'}</strong> &bull; Past Due: <strong>{pdCount}</strong> &bull; Total Loans: <strong>{totalL}</strong></span>
                                       )}
                                     </div>
                                   </div>
