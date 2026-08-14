@@ -710,6 +710,7 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
               const lastPayment = sortedPayments.length > 0 ? new Date(sortedPayments[0].date_paid).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
               const nextDueDate = (printModeLoan ? [printModeLoan] : activeLoans).length > 0 && (printModeLoan || activeLoans[0]).date_maturity ? new Date((printModeLoan || activeLoans[0]).date_maturity).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
               const memberSince = soaData.created_at ? new Date(soaData.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
+              const customerAddress = [soaData.address, soaData.sitio, soaData.purok, soaData.brgy, soaData.city, soaData.province, soaData.zip_code].filter(Boolean).join(', ') || '-';
               const accountStatus = (currentLoan.id ? getLoanStatusLabel(currentLoan) : soaData.status) || '-';
               const soaNumber = `SOA-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${soaData.customer_code || soaData.id}`;
               const penaltyComputation = getPenaltyComputation(currentLoan);
@@ -810,7 +811,7 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                               </div>
                               <div>
                                 <div className="soa-label-v2">Address</div>
-                                <div className="soa-val-v2" style={{ fontSize: 14, lineHeight: 1.4 }}>{[soaData.address, soaData.sitio, soaData.purok, soaData.brgy, soaData.city].filter(Boolean).join(', ') || '-'}</div>
+                                <div className="soa-val-v2" style={{ fontSize: 14, lineHeight: 1.4 }}>{customerAddress}</div>
                                 <div className="soa-label-v2">Member Since</div>
                                 <div className="soa-val-sub-v2"><CalendarDays size={14} /> {memberSince}</div>
                               </div>

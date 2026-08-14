@@ -610,12 +610,63 @@ router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
     const sched = await dbGet(`
       SELECT 
         COUNT(*) as total,
-        SUM(CASE WHEN status='paid' AND date_paid <= due_date THEN 1 ELSE 0 END) as on_time,
-        SUM(CASE WHEN status='paid' AND date_paid > due_date THEN 1 ELSE 0 END) as late
+        SUM(CASE WHEN COALESCE(amount_paid, 0) > 0 THEN 1 ELSE 0 END) as paid_count,
+        SUM(CASE WHEN COALESCE(amount_paid, 0) > 0 AND date_paid <= due_date THEN 1 ELSE 0 END) as on_time,
+        SUM(CASE WHEN COALESCE(amount_paid, 0) > 0 AND date_paid > due_date THEN 1 ELSE 0 END) as late
       FROM tblAmortizationSchedule 
       WHERE loan_id IN (SELECT id FROM tblLoan WHERE customer_id = ?)`, [id]);
 
-    if (sched && sched.total) totalPaymentCount = sched.total;
+    // Imported legacy loans may not have an amortization schedule. Build an
+    // in-memory schedule for those loans so their payment behavior is scored
+    // the same way as newly created loans, without changing historical data.
+    const loansWithoutSchedule = await dbAll(`
+      SELECT l.id, l.date_released, l.loan_period, l.amortization, l.total_amortization
+      FROM tblLoan l
+      WHERE l.customer_id = ?
+        AND NOT EXISTS (SELECT 1 FROM tblAmortizationSchedule s WHERE s.loan_id = l.id)`, [id]);
+    const virtualStats = { paid_count: 0, on_time: 0, late: 0 };
+
+    for (const loan of loansWithoutSchedule) {
+      const amortization = Number(loan.amortization || 0) || Number(loan.total_amortization || 0) / getWorkingDays(loan.loan_period);
+      if (!loan.date_released || !Number.isFinite(amortization) || amortization <= 0) continue;
+      const virtualSchedule = generateAmortizationSchedule(
+        loan.id,
+        loan.date_released,
+        loan.loan_period,
+        amortization
+      );
+      const loanPayments = await dbAll(`
+        SELECT date_paid, amount_paid
+        FROM tblPayment
+        WHERE loan_id = ? AND status = 'active' AND COALESCE(amount_paid, 0) > 0
+        ORDER BY date_paid ASC, id ASC`, [loan.id]);
+      let scheduleIndex = 0;
+
+      for (const payment of loanPayments) {
+        let remaining = Number(payment.amount_paid || 0);
+        while (remaining > 0 && scheduleIndex < virtualSchedule.length) {
+          const installment = virtualSchedule[scheduleIndex];
+          const amountToApply = Math.min(remaining, Math.max(0, installment.amount_due - installment.amount_paid));
+          installment.amount_paid += amountToApply;
+          installment.date_paid = payment.date_paid;
+          remaining -= amountToApply;
+          if (installment.amount_paid >= installment.amount_due) scheduleIndex += 1;
+        }
+      }
+
+      virtualSchedule.filter(installment => installment.amount_paid > 0).forEach(installment => {
+        virtualStats.paid_count += 1;
+        if (String(installment.date_paid) > String(installment.due_date)) virtualStats.late += 1;
+        else virtualStats.on_time += 1;
+      });
+    }
+
+    const paymentStats = {
+      paid_count: Number(sched?.paid_count || 0) + virtualStats.paid_count,
+      on_time: Number(sched?.on_time || 0) + virtualStats.on_time,
+      late: Number(sched?.late || 0) + virtualStats.late
+    };
+    totalPaymentCount = paymentStats.paid_count;
 
     const pd = await dbGet(`SELECT COUNT(*) as past_due_occurrences FROM tblLoan WHERE customer_id = ? AND status='pastdue'`, [id]);
     const recon = await dbGet(`SELECT COUNT(*) as recon_history FROM tblCustomerStatusHistory WHERE customer_id = ? AND new_status='RECON'`, [id]);
@@ -623,12 +674,12 @@ router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
     let payments = [];
     let consistency = { score: 100, on_time_rate: 0, days_between_payments: 0, score_adjustment: 0 };
     if (lastLoan) {
-      payments = await dbAll(`SELECT * FROM tblPayment WHERE loan_id = ? ORDER BY date_paid ASC`, [lastLoan.id]);
+      payments = await dbAll(`SELECT * FROM tblPayment WHERE loan_id = ? AND status = 'active' AND COALESCE(amount_paid, 0) > 0 ORDER BY date_paid ASC`, [lastLoan.id]);
       if (payments && payments.length > 0) {
         let onTimeCount = 0;
         let totalDays = 0;
         for (let i = 0; i < payments.length; i++) {
-          if (payments[i].penalty_amount <= 0) onTimeCount++;
+          if (Number(payments[i].penalty_amount || 0) <= 0) onTimeCount++;
           if (i > 0) {
             const d1 = new Date(payments[i - 1].date_paid);
             const d2 = new Date(payments[i].date_paid);
@@ -683,7 +734,7 @@ router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
         score = Math.max(0, 100 - (daysSinceRelease * 15) - ((pd ? pd.past_due_occurrences : 0) * 20));
       }
     } else {
-      score = 100 - ((sched ? sched.late : 0) * 2) - ((pd ? pd.past_due_occurrences : 0) * 20) + consistency.score_adjustment;
+      score = 100 - (paymentStats.late * 12) - ((pd ? pd.past_due_occurrences : 0) * 20) + consistency.score_adjustment;
       if (daysOverdue > 0) score -= Math.min(40, daysOverdue * 2);
       score = Math.max(0, score);
     }
@@ -692,8 +743,8 @@ router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
       total_loans: stats ? stats.total_loans : 0,
       total_amount_borrowed: stats ? stats.total_amount_borrowed : 0,
       last_loan_amount: stats ? stats.last_loan_amount : 0,
-      on_time_payments: sched ? sched.on_time : 0,
-      late_payments: sched ? sched.late : 0,
+      on_time_payments: paymentStats.on_time,
+      late_payments: paymentStats.late,
       total_payment_count: totalPaymentCount,
       past_due_occurrences: pd ? pd.past_due_occurrences : 0,
       recon_history: recon ? recon.recon_history : 0,
