@@ -56,7 +56,8 @@ function getSupervisorEvaluations(evaluations) {
     groups.get(supervisor).push(row);
   });
   return Array.from(groups.entries()).map(([supervisor, rows]) => aggregateRating(supervisor, rows, {
-    collectors: rows.map(row => row.collector_name)
+    collectors: rows.map(row => row.collector_name),
+    collector_results: rows
   })).sort((a, b) => b.accomplishment_percentage - a.accomplishment_percentage || a.name.localeCompare(b.name));
 }
 
@@ -218,14 +219,18 @@ router.get('/periods/:id', authenticateToken, async (req, res) => {
     const branch_manager_evaluations = [aggregateRating(`${branchName} Branch Manager`, evaluations, {
       branch_id: period.branch_id,
       branch_name: branchName,
-      supervisors: supervisor_evaluations.map(row => row.name)
+      supervisors: supervisor_evaluations.map(row => row.name),
+      supervisor_results: supervisor_evaluations
     })];
 
     const operationRows = await dbAll(`
       SELECT p.id AS source_period_id, p.branch_id, p.status, b.branch_name,
-        e.collection_total, e.release_total, e.expense_total, e.reported_pastdue
+        e.id, e.collector_id, e.collection_total, e.release_total, e.expense_total,
+        e.reported_pastdue, e.net_income, e.accomplishment_percentage, e.rating,
+        co.first_name || ' ' || co.last_name AS collector_name, co.supervisor
       FROM tblFortyFiveDayRatingPeriod p
       JOIN tblFortyFiveDayRatingEvaluation e ON e.period_id = p.id
+      JOIN tblCollector co ON co.id = e.collector_id
       LEFT JOIN tblBranch b ON b.id = p.branch_id
       WHERE p.start_date = ? AND p.end_date = ?
         AND (LOWER(p.status) IN ('final', 'finalized') OR p.id = ?)
@@ -244,13 +249,16 @@ router.get('/periods/:id', authenticateToken, async (req, res) => {
       if (!operationGroups.has(key)) operationGroups.set(key, []);
       operationGroups.get(key).push(row);
     });
-    const branchResults = Array.from(operationGroups.values()).map(rows => aggregateRating(
-      `${rows[0].branch_name || 'Current Branch'} Branch Manager`, rows, {
+    const branchResults = Array.from(operationGroups.values()).map(rows => {
+      const supervisorResults = getSupervisorEvaluations(rows);
+      return aggregateRating(`${rows[0].branch_name || 'Current Branch'} Branch Manager`, rows, {
         branch_id: rows[0].branch_id,
         branch_name: rows[0].branch_name || 'Current Branch',
-        status: rows[0].status
-      }
-    ));
+        status: rows[0].status,
+        supervisors: supervisorResults.map(row => row.name),
+        supervisor_results: supervisorResults
+      });
+    });
     const operations_manager_evaluation = aggregateRating('Operations Manager', branchResults, {
       branches: branchResults.map(row => row.branch_name),
       branch_results: branchResults

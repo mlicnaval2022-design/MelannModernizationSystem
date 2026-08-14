@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Building2, CalendarDays, CheckCircle2, Edit3, FileText, Lock, MapPin, Plus, Printer, RefreshCw, Sparkles, Trash2, TrendingUp, Unlock, User, Users, X } from 'lucide-react'
+import { ArrowLeft, Building2, CalendarDays, CheckCircle2, ChevronDown, ChevronRight, Edit3, FileText, Lock, MapPin, Plus, Printer, RefreshCw, Sparkles, Trash2, TrendingUp, Unlock, User, Users, X } from 'lucide-react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import logo from '../assets/logo.png'
@@ -246,6 +246,56 @@ const getSortOrder = name => {
   return index !== -1 ? index : targetOrder.length
 }
 
+function FortyFiveEvaluationTable({ entityLabel, rows = [], childRows = () => [], expandedRows, onToggle, rowKeyPrefix, footerRow }) {
+  const renderCells = row => {
+    const ratingStyle = getRatingPresentation(row.rating)
+    const accomplishment = Number(row.accomplishment_percentage || 0)
+    return <>
+      <td style={{ textAlign: 'right' }}>PHP {fmt(row.collection_total)}</td>
+      <td style={{ textAlign: 'right' }}>PHP {fmt(row.release_total)}</td>
+      <td style={{ textAlign: 'right' }}>PHP {fmt(row.expense_total)}</td>
+      <td style={{ textAlign: 'right' }}>PHP {fmt(row.reported_pastdue)}</td>
+      <td style={{ textAlign: 'right', color: Number(row.net_income) >= 0 ? '#059669' : '#ef4444', fontWeight: 900 }}>PHP {fmt(row.net_income)}</td>
+      <td style={{ textAlign: 'right', fontWeight: 800 }}>{row.accomplishment_percentage == null ? 'Not rated' : <>{accomplishment.toFixed(2)}%<div className="forty-five-progress"><span style={{ width: `${Math.max(0, Math.min(accomplishment, 100))}%`, background: accomplishment >= 100 ? '#0aa77e' : accomplishment >= 90 ? '#f59e0b' : '#ef4444' }} /></div></>}</td>
+      <td><span className="forty-five-rating-pill" style={{ color: ratingStyle.color, background: ratingStyle.background, borderColor: ratingStyle.border }}><span className="forty-five-rating-dot">☆</span>{row.rating}</span></td>
+    </>
+  }
+
+  return <>
+    <div style={{ overflowX: 'auto' }}>
+      <table className="data-table forty-five-hierarchy-table" style={{ margin: 0, minWidth: 1100 }}>
+        <thead><tr><th>{entityLabel}</th><th style={{ textAlign: 'right' }}>Collection (PHP)</th><th style={{ textAlign: 'right' }}>Non-Recon Release (PHP)</th><th style={{ textAlign: 'right' }}>Expense Share (PHP)</th><th style={{ textAlign: 'right' }}>Reported Pastdue (PHP)</th><th style={{ textAlign: 'right' }}>Net Income (PHP)</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Rating</th></tr></thead>
+        <tbody>{rows.map((row, index) => {
+          const name = row.collector_name || row.name
+          const children = childRows(row) || []
+          const rowKey = `${rowKeyPrefix}-${row.id || row.branch_id || name || index}`
+          const isExpanded = Boolean(expandedRows[rowKey])
+          return <Fragment key={rowKey}>
+            <tr>
+              <td style={{ fontWeight: 900 }}>
+                {children.length ? <button className="forty-five-name-button" type="button" onClick={() => onToggle(rowKey)} aria-expanded={isExpanded}>
+                  {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                  <span className="forty-five-person-avatar">{getCollectorInitials(name)}</span><span>{name}</span>
+                </button> : <span className="forty-five-static-name"><span className="forty-five-person-avatar">{getCollectorInitials(name)}</span>{name}</span>}
+              </td>
+              {renderCells(row)}
+            </tr>
+            {isExpanded && children.map((child, childIndex) => {
+              const childName = child.collector_name || child.name
+              return <tr className="forty-five-child-row" key={`${rowKey}-child-${child.id || child.branch_id || childName || childIndex}`}>
+                <td><span className="forty-five-child-name"><span className="forty-five-person-avatar forty-five-child-avatar">{getCollectorInitials(childName)}</span>{childName}</span></td>
+                {renderCells(child)}
+              </tr>
+            })}
+          </Fragment>
+        })}</tbody>
+        {footerRow && <tfoot><tr className="forty-five-overall-row"><td><span className="forty-five-static-name"><span className="forty-five-person-avatar">OM</span>{footerRow.name || 'Operations Manager Overall'}</span></td>{renderCells(footerRow)}</tr></tfoot>}
+      </table>
+    </div>
+    <div className="forty-five-formula">💡 Net Income = Collections − Non-Recon Releases − Expense Share. Reported Pastdue is shown separately and is not included in the formula.</div>
+  </>
+}
+
 export default function CollectorPerformance() {
   const { hasRole } = useAuth()
   const defaultRange = useMemo(() => getDefaultRange(), [])
@@ -255,6 +305,7 @@ export default function CollectorPerformance() {
   const [ratingDateRange, setRatingDateRange] = useState({ start_date: '', end_date: '' })
   const [selectedRatingPeriod, setSelectedRatingPeriod] = useState(null)
   const [ratingEvaluationTab, setRatingEvaluationTab] = useState('collector')
+  const [expandedRatingRows, setExpandedRatingRows] = useState({})
   const [activeTab, setActiveTab] = useState('targets')
   const [collectionRows, setCollectionRows] = useState([])
   const [newCollectionDate, setNewCollectionDate] = useState(defaultRange.date_to)
@@ -268,6 +319,10 @@ export default function CollectorPerformance() {
   const [loading, setLoading] = useState(true)
   const [fortyFiveDayLoading, setFortyFiveDayLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+
+  const toggleRatingRow = rowKey => {
+    setExpandedRatingRows(current => ({ ...current, [rowKey]: !current[rowKey] }))
+  }
 
   const buildFallbackSummary = async () => {
     const dashboardRes = await API.get('/reports/dashboard', { params: { date: filters.date_to } })
@@ -491,6 +546,7 @@ export default function CollectorPerformance() {
     try {
       const response = await API.get(`/forty-five-day-rating/periods/${id}`)
       setSelectedRatingPeriod(response.data)
+      setExpandedRatingRows({})
       setErrorMsg('')
     } catch (err) {
       setErrorMsg(err.response?.data?.error || err.message || 'Could not load rating period')
@@ -938,6 +994,15 @@ export default function CollectorPerformance() {
         .forty-five-rating-dot { width: 18px; height: 18px; flex: 0 0 18px; display: grid; place-items: center; border: 1px solid currentColor; border-radius: 50%; font-size: 10px; }
         .forty-five-progress { width: 82px; height: 5px; margin: 7px 0 0 auto; border-radius: 999px; overflow: hidden; background: #dfe7ed; }
         .forty-five-progress > span { display: block; height: 100%; border-radius: inherit; }
+        .forty-five-name-button { display: inline-flex; align-items: center; gap: 7px; width: 100%; padding: 0; border: 0; color: #16283f; background: transparent; font: inherit; font-weight: 900; text-align: left; cursor: pointer; }
+        .forty-five-name-button:hover { color: #087d73; }
+        .forty-five-name-button:focus-visible { outline: 2px solid #32a89d; outline-offset: 4px; border-radius: 4px; }
+        .forty-five-static-name, .forty-five-child-name { display: inline-flex; align-items: center; gap: 9px; font-weight: 900; }
+        .forty-five-person-avatar { display: inline-grid; place-items: center; width: 26px; height: 26px; flex: 0 0 26px; border-radius: 50%; color: #fff; background: #148a7d; font-size: 10px; }
+        .forty-five-child-row td { background: #f2faf8; border-color: #d9eee9 !important; }
+        .forty-five-child-row td:first-child { padding-left: 43px !important; }
+        .forty-five-child-avatar { color: #087d73; background: #d9f1ec; border: 1px solid #b8e1d8; }
+        .forty-five-overall-row td { padding: 13px 10px; border-top: 2px solid #91cec5; color: #123a48; background: #eaf7f4; font-size: 12px; font-weight: 900; }
         .forty-five-formula { margin-top: 10px; padding: 9px 14px; border: 1px solid #d8efeb; border-radius: 6px; color: #3c5b68; background: linear-gradient(90deg, #eefaf7, #f8fbfc); font-size: 11px; }
         @media (max-width: 1100px) {
           .forty-five-shell { grid-template-columns: 1fr; }
@@ -1814,10 +1879,10 @@ export default function CollectorPerformance() {
                       Collection is summed for Torreta, Domingono, Caballes, Jugar, Rosal, and Laude only. Recon releases are excluded. User-entered DCR expenses, excluding Short/Overages, are divided equally among these six collectors. Reported Pastdue is display-only and is not included in the formula.
                       {selectedRatingPeriod.period.reported_pastdue_period && <> Reported Pastdue period: {displayDate(selectedRatingPeriod.period.reported_pastdue_period.start_date)} to {displayDate(selectedRatingPeriod.period.reported_pastdue_period.end_date)}.</>}
                     </div>
-                    {ratingEvaluationTab === 'collector' && <><div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 1100 }}><thead><tr><th>Collector</th><th style={{ textAlign: 'right' }}>Collection (PHP)</th><th style={{ textAlign: 'right' }}>Non-Recon Release (PHP)</th><th style={{ textAlign: 'right' }}>Expense Share (PHP)</th><th style={{ textAlign: 'right' }}>Reported Pastdue (PHP)</th><th style={{ textAlign: 'right' }}>Net Income (PHP)</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Rating</th></tr></thead><tbody>{selectedRatingPeriod.evaluations.map(evaluation => { const ratingStyle = getRatingPresentation(evaluation.rating); const accomplishment = Number(evaluation.accomplishment_percentage || 0); return <tr key={evaluation.id}><td style={{ fontWeight: 900 }}><span style={{ display: 'inline-grid', placeItems: 'center', width: 26, height: 26, marginRight: 9, borderRadius: '50%', color: '#fff', background: '#148a7d', fontSize: 10 }}>{getCollectorInitials(evaluation.collector_name)}</span>{evaluation.collector_name}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.collection_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.release_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.expense_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.reported_pastdue)}</td><td style={{ textAlign: 'right', color: Number(evaluation.net_income) >= 0 ? '#059669' : '#ef4444', fontWeight: 900 }}>PHP {fmt(evaluation.net_income)}</td><td style={{ textAlign: 'right', fontWeight: 800 }}>{evaluation.accomplishment_percentage == null ? 'Not rated' : <>{accomplishment.toFixed(2)}%<div className="forty-five-progress"><span style={{ width: `${Math.min(accomplishment, 100)}%`, background: accomplishment >= 100 ? '#0aa77e' : accomplishment >= 90 ? '#f59e0b' : '#ef4444' }} /></div></>}</td><td><span className="forty-five-rating-pill" style={{ color: ratingStyle.color, background: ratingStyle.background, borderColor: ratingStyle.border }}><span className="forty-five-rating-dot">☆</span>{evaluation.rating}</span></td></tr>})}</tbody></table></div><div className="forty-five-formula">💡 Net Income = Collections − Non-Recon Releases − Expense Share. Reported Pastdue is shown separately and is not included in the formula.</div></>}
-                    {ratingEvaluationTab === 'supervisor' && <div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 1050 }}><thead><tr><th>Supervisor</th><th>Collectors Under Supervisor</th><th style={{ textAlign: 'right' }}>Collection</th><th style={{ textAlign: 'right' }}>Release</th><th style={{ textAlign: 'right' }}>Expense</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Overall Rating</th></tr></thead><tbody>{(selectedRatingPeriod.supervisor_evaluations || []).map(row => <tr key={row.name}><td style={{ fontWeight: 900 }}>{row.name}</td><td>{row.collectors.join(', ')}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.collection_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.release_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.expense_total)}</td><td style={{ textAlign: 'right' }}>{row.accomplishment_percentage == null ? 'Not rated' : `${Number(row.accomplishment_percentage).toFixed(2)}%`}</td><td style={{ fontWeight: 800 }}>{row.rating}</td></tr>)}</tbody></table></div>}
-                    {ratingEvaluationTab === 'branch-manager' && <div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 1000 }}><thead><tr><th>Branch Manager</th><th>Supervisors Included</th><th style={{ textAlign: 'right' }}>Collection</th><th style={{ textAlign: 'right' }}>Release</th><th style={{ textAlign: 'right' }}>Expense</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Overall Rating</th></tr></thead><tbody>{(selectedRatingPeriod.branch_manager_evaluations || []).map(row => <tr key={row.name}><td style={{ fontWeight: 900 }}>{row.name}</td><td>{row.supervisors.join(', ')}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.collection_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.release_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.expense_total)}</td><td style={{ textAlign: 'right' }}>{row.accomplishment_percentage == null ? 'Not rated' : `${Number(row.accomplishment_percentage).toFixed(2)}%`}</td><td style={{ fontWeight: 800 }}>{row.rating}</td></tr>)}</tbody></table></div>}
-                    {ratingEvaluationTab === 'operations-manager' && <div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 1000 }}><thead><tr><th>Branch Manager</th><th>Status</th><th style={{ textAlign: 'right' }}>Collection</th><th style={{ textAlign: 'right' }}>Release</th><th style={{ textAlign: 'right' }}>Expense</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Overall Rating</th></tr></thead><tbody>{(selectedRatingPeriod.operations_manager_evaluation?.branch_results || []).map(row => <tr key={`${row.branch_id}-${row.name}`}><td style={{ fontWeight: 900 }}>{row.name}</td><td><span className="status-badge">{isFinalRatingStatus(row.status) ? 'Final' : 'Draft'}</span></td><td style={{ textAlign: 'right' }}>PHP {fmt(row.collection_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.release_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.expense_total)}</td><td style={{ textAlign: 'right' }}>{row.accomplishment_percentage == null ? 'Not rated' : `${Number(row.accomplishment_percentage).toFixed(2)}%`}</td><td style={{ fontWeight: 800 }}>{row.rating}</td></tr>)}<tr style={{ background: '#eef6ff' }}><td colSpan={2} style={{ fontWeight: 900 }}>Operations Manager Overall</td><td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(selectedRatingPeriod.operations_manager_evaluation?.collection_total)}</td><td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(selectedRatingPeriod.operations_manager_evaluation?.release_total)}</td><td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(selectedRatingPeriod.operations_manager_evaluation?.expense_total)}</td><td style={{ textAlign: 'right', fontWeight: 900 }}>{selectedRatingPeriod.operations_manager_evaluation?.accomplishment_percentage == null ? 'Not rated' : `${Number(selectedRatingPeriod.operations_manager_evaluation.accomplishment_percentage).toFixed(2)}%`}</td><td style={{ fontWeight: 900 }}>{selectedRatingPeriod.operations_manager_evaluation?.rating}</td></tr></tbody></table></div>}
+                    {ratingEvaluationTab === 'collector' && <FortyFiveEvaluationTable entityLabel="Collector" rows={selectedRatingPeriod.evaluations} expandedRows={expandedRatingRows} onToggle={toggleRatingRow} rowKeyPrefix="collector" />}
+                    {ratingEvaluationTab === 'supervisor' && <FortyFiveEvaluationTable entityLabel="Supervisor" rows={selectedRatingPeriod.supervisor_evaluations || []} childRows={row => row.collector_results} expandedRows={expandedRatingRows} onToggle={toggleRatingRow} rowKeyPrefix="supervisor" />}
+                    {ratingEvaluationTab === 'branch-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.branch_manager_evaluations || []} childRows={row => row.supervisor_results} expandedRows={expandedRatingRows} onToggle={toggleRatingRow} rowKeyPrefix="branch-manager" />}
+                    {ratingEvaluationTab === 'operations-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.operations_manager_evaluation?.branch_results || []} childRows={row => row.supervisor_results} expandedRows={expandedRatingRows} onToggle={toggleRatingRow} rowKeyPrefix="operations-manager" footerRow={selectedRatingPeriod.operations_manager_evaluation} />}
                   </div>}
                 </div>
               </div>
