@@ -845,6 +845,7 @@ export default function CollectorPerformance() {
   totals.achievement_rate = totals.target > 0 ? Math.round((totals.collected / totals.target) * 100) : 0
   const totalClients = Number(totals.active_clients || 0) + Number(totals.recon_clients || 0) + Number(totals.overdue_clients || 0) + Number(totals.pastdue_clients || 0)
   const activeTotal = Number(totals.active_clients || 0) + Number(totals.overdue_clients || 0)
+  const actualTargetTotal = collectors.reduce((sum, collector) => sum + Number(collector.regular_target ?? collector.target ?? 0), 0)
   const pastdueTotal = Number(totals.pastdue_clients || 0)
   const reportDate = data?.target_date || filters.date_to
   const pastdueCutoff = data?.pastdue_cutoff || filters.pastdue_cutoff
@@ -1315,7 +1316,7 @@ export default function CollectorPerformance() {
                 <tr key={`print-right-${collector.id}`}>
                   <td className="collector-print-name">{shortCollectorName(collector.name)}</td>
                   <td className="collector-print-num">{countFmt(Number(collector.active_clients || 0) + Number(collector.overdue_clients || 0))}</td>
-                  <td className="collector-print-money">{printAmount(collector.target)}</td>
+                  <td className="collector-print-money">{printAmount(collector.regular_target ?? collector.target)}</td>
                   <td className="collector-print-money">{collector.actual_collection || collector.collected ? printAmount(collector.actual_collection ?? collector.collected) : ''}</td>
                 </tr>
               ))}
@@ -1971,11 +1972,12 @@ export default function CollectorPerformance() {
                     <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>Loading...</td></tr>
                   ) : collectors.length ? collectors.map(collector => {
                     const collectorActive = Number(collector.active_clients || 0) + Number(collector.overdue_clients || 0)
+                    const regularTarget = Number(collector.regular_target ?? collector.target ?? 0)
                     return (
                       <tr key={`actual-${collector.id}`}>
                         <td style={{ fontWeight: 900, textTransform: 'uppercase', color: '#08184a' }}>{collector.name}</td>
                         <td style={{ textAlign: 'center', fontWeight: 900 }}>{countFmt(collectorActive)}</td>
-                        <td style={{ textAlign: 'right', color: '#6d28d9', fontWeight: 900 }}>PHP {fmt(collector.target)}</td>
+                        <td style={{ textAlign: 'right', color: '#6d28d9', fontWeight: 900 }}>PHP {fmt(regularTarget)}</td>
                         <td style={{ textAlign: 'right', color: '#2563eb', fontWeight: 900 }}>
                           {collector.actual_collection || collector.collected ? `PHP ${fmt(collector.actual_collection ?? collector.collected)}` : '-'}
                         </td>
@@ -1990,7 +1992,7 @@ export default function CollectorPerformance() {
                     <tr style={{ background: '#eaf1ff' }}>
                       <td style={{ fontWeight: 900, textTransform: 'uppercase', padding: '18px 24px', color: '#1d4ed8' }}>Total</td>
                       <td style={{ textAlign: 'center', fontWeight: 900, color: '#059669' }}>{countFmt(activeTotal)}</td>
-                      <td style={{ textAlign: 'right', color: '#6d28d9', fontWeight: 900, fontSize: 18 }}>PHP {fmt(totals.target)}</td>
+                      <td style={{ textAlign: 'right', color: '#6d28d9', fontWeight: 900, fontSize: 18 }}>PHP {fmt(actualTargetTotal)}</td>
                       <td style={{ textAlign: 'right', color: '#2563eb', fontWeight: 900, fontSize: 18 }}>PHP {fmt(totals.collected)}</td>
                     </tr>
                   </tfoot>
