@@ -111,6 +111,7 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
 
   const stats = {
     target: 0,
+    recon_target: 0,
     collected: 0,
     payment_count: 0,
     paying_clients: 0,
@@ -221,6 +222,7 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
     } else {
       if (group === 'recon') {
         stats.recon_clients += 1;
+        stats.recon_target += toAmount(loan.amortization);
       } else if (group === 'overdue') {
         stats.overdue_clients += 1;
         if (!String(loan.loan_type || '').toLowerCase().includes('recon')) {
@@ -262,6 +264,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
       const row = {
         ...collector,
         target: 0,
+        recon_target: 0,
         collected: 0,
         actual_collection: 0,
         gross_collection: 0,
@@ -280,6 +283,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
       for (const date of dates) {
         const dailyStats = date === targetDate ? sheetStats : await getCollectorSheetStats(collector.id, date, pastdueCutoff);
         row.target += dailyStats.target;
+        row.recon_target += dailyStats.recon_target;
         row.collected += dailyStats.collected;
         row.actual_collection += dailyStats.collected;
         row.gross_collection += dailyStats.gross_collected;
@@ -291,6 +295,11 @@ router.get('/summary', authenticateToken, async (req, res) => {
         trendMap.set(date, (trendMap.get(date) || 0) + dailyStats.collected);
       }
 
+      row.regular_target = row.target;
+      if (String(collector.name || '').toLowerCase().includes('laude')) {
+        row.target += row.recon_target;
+      }
+
       row.achievement_rate = row.target > 0 ? Math.round((row.collected / row.target) * 100) : 0;
       collectorRows.push(row);
     }
@@ -299,6 +308,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
 
     const totals = collectorRows.reduce((acc, row) => {
       acc.target += toAmount(row.target);
+      acc.recon_target += toAmount(row.recon_target);
       acc.collected += toAmount(row.collected);
       acc.paying_clients += toAmount(row.paying_clients);
       acc.active_loans += toAmount(row.active_loans);
@@ -314,6 +324,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
       return acc;
     }, {
       target: 0,
+      recon_target: 0,
       collected: 0,
       paying_clients: 0,
       active_loans: 0,
@@ -359,6 +370,8 @@ router.get('/summary', authenticateToken, async (req, res) => {
       collectors: collectorRows.map(row => ({
         ...row,
         target: toAmount(row.target),
+        regular_target: toAmount(row.regular_target),
+        recon_target: toAmount(row.recon_target),
         collected: toAmount(row.collected),
         actual_collection: toAmount(row.actual_collection),
         gross_collection: toAmount(row.gross_collection),

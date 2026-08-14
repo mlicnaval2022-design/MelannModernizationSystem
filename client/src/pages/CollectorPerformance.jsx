@@ -383,7 +383,7 @@ export default function CollectorPerformance() {
 
       dailyCollectors.forEach(collector => {
         const key = collector.id || collector.name
-        const dailyTarget = Number(collector.target || 0)
+        const dailyTarget = Number(collector.regular_target ?? collector.target ?? 0)
         const actual = Number(collector.actual_collection ?? collector.collected ?? 0)
         const rate = dailyTarget > 0 ? (actual / dailyTarget) * 100 : 0
 
@@ -687,8 +687,10 @@ export default function CollectorPerformance() {
     .filter(collector => !String(collector.name || '').toLowerCase().includes('melann office'))
     .sort((a, b) => getSortOrder(a.name) - getSortOrder(b.name) || String(a.name || '').localeCompare(String(b.name || '')))
   const totals = collectors.reduce((acc, collector) => {
+    const isLaude = String(collector.name || '').toLowerCase().includes('laude')
     const collectorTotal = Number(collector.active_clients || 0) + Number(collector.recon_clients || 0) + Number(collector.overdue_clients || 0) + Number(collector.pastdue_clients || 0)
     acc.target += Number(collector.target || 0)
+    if (isLaude) acc.recon_target += Number(collector.recon_target || 0)
     acc.collected += Number(collector.actual_collection ?? collector.collected ?? 0)
     acc.payment_count += Number(collector.payment_count || 0)
     acc.active_clients += Number(collector.active_clients || 0)
@@ -699,6 +701,7 @@ export default function CollectorPerformance() {
     return acc
   }, {
     target: 0,
+    recon_target: 0,
     collected: 0,
     payment_count: 0,
     active_clients: 0,
@@ -1216,6 +1219,7 @@ export default function CollectorPerformance() {
                       <div key={label} style={{ border: '1px solid #dbe4f0', borderRadius: 10, padding: '14px 16px', background: '#fff' }}>
                         <div style={{ color: '#64748b', fontSize: 11, fontWeight: 900, letterSpacing: .5, textTransform: 'uppercase' }}>{label}</div>
                         <div style={{ marginTop: 6, color, fontSize: 20, fontWeight: 900, whiteSpace: 'nowrap' }}>{value}</div>
+                        {label === 'Total Target' && totals.recon_target > 0 && <div style={{ marginTop: 4, color: '#2563eb', fontSize: 10, fontWeight: 900 }}>Includes Laude Recon: PHP {fmt(totals.recon_target)}</div>}
                       </div>
                     ))}
                   </div>
@@ -1239,6 +1243,9 @@ export default function CollectorPerformance() {
                           const collectorActive = Number(collector.active_clients || 0) + Number(collector.overdue_clients || 0)
                           const collectorPastDue = Number(collector.pastdue_clients || 0)
                           const collectorTotal = collectorActive + Number(collector.recon_clients || 0) + collectorPastDue
+                          const isLaude = String(collector.name || '').toLowerCase().includes('laude')
+                          const reconTarget = isLaude ? Number(collector.recon_target || 0) : 0
+                          const regularTarget = Math.max(0, Number(collector.target || 0) - reconTarget)
                           const cardEdit = collectorEdits[collector.id] || {}
                           return (
                             <tr key={collector.id}>
@@ -1250,7 +1257,13 @@ export default function CollectorPerformance() {
                               <td style={{ textAlign: 'center', color: '#059669', fontWeight: 900 }}>{countFmt(collectorActive)}</td>
                               <td style={{ textAlign: 'center', color: '#1d4ed8', fontWeight: 900 }}>{countFmt(collector.recon_clients)}</td>
                               <td style={{ textAlign: 'center', color: '#dc2626', fontWeight: 900 }}>{countFmt(collectorPastDue)}</td>
-                              <td style={{ textAlign: 'right', color: '#6d28d9', fontWeight: 900 }}>PHP {fmt(collector.target)}</td>
+                              <td style={{ textAlign: 'right', fontWeight: 900 }}>
+                                {isLaude && reconTarget > 0 ? <>
+                                  <div style={{ color: '#6d28d9' }}>Regular: PHP {fmt(regularTarget)}</div>
+                                  <div style={{ color: '#2563eb', marginTop: 3 }}>Recon: PHP {fmt(reconTarget)}</div>
+                                  <div style={{ color: '#08184a', marginTop: 5, paddingTop: 5, borderTop: '1px solid #dbe4f0' }}>Total: PHP {fmt(collector.target)}</div>
+                                </> : <span style={{ color: '#6d28d9' }}>PHP {fmt(collector.target)}</span>}
+                              </td>
                             </tr>
                           )
                         }) : (
