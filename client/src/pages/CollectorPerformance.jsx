@@ -7,6 +7,13 @@ import '../dashboard.css'
 
 const fmt = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 const isFinalRatingStatus = status => ['final', 'finalized'].includes(String(status || '').toLowerCase())
+const getRatingPresentation = rating => {
+  const value = String(rating || 'Not rated').toLowerCase()
+  if (value.includes('outstanding') || value.includes('passing')) return { color: '#047857', background: '#e8f8f1', border: '#bcebd8' }
+  if (value.includes('critical') || value.includes('poor')) return { color: '#dc2626', background: '#fff0f0', border: '#fecaca' }
+  if (value.includes('unsatisfactory') || value.includes('below')) return { color: '#c56a00', background: '#fff7e6', border: '#fde3ad' }
+  return { color: '#64748b', background: '#f1f5f9', border: '#dbe4f0' }
+}
 const countFmt = value => Number(value || 0).toLocaleString('en-PH')
 const printAmount = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const COLLECTOR_EDITS_STORAGE_KEY = 'collectorPerformanceEdits'
@@ -858,6 +865,91 @@ export default function CollectorPerformance() {
         .collector-print-num { text-align: center; font-weight: 700; }
         .collector-print-money { text-align: right; font-weight: 700; }
         .collector-print-total td { font-weight: 900; }
+        .forty-five-page { padding: 12px; background: #f5f8fb; }
+        .forty-five-shell {
+          display: grid;
+          grid-template-columns: minmax(300px, .62fr) minmax(620px, 1fr);
+          gap: 10px;
+          padding: 10px;
+          border: 1px solid #dce6eb;
+          border-radius: 8px;
+          background: #fbfdfd;
+          box-shadow: 0 12px 34px rgba(15, 50, 65, .08);
+        }
+        .forty-five-hero {
+          grid-column: 1 / -1;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          min-height: 72px;
+          padding: 10px 12px;
+          overflow: hidden;
+        }
+        .forty-five-hero-copy { display: flex; align-items: center; gap: 14px; }
+        .forty-five-hero-icon {
+          width: 48px; height: 48px; border-radius: 9px; display: grid; place-items: center;
+          color: #fff; background: linear-gradient(145deg, #128778, #00675f);
+          box-shadow: 0 8px 18px rgba(0, 119, 108, .2);
+        }
+        .forty-five-title { margin: 0; color: #0c2348; font-size: clamp(22px, 2.2vw, 34px); line-height: 1; font-weight: 950; text-transform: uppercase; letter-spacing: -.8px; }
+        .forty-five-subtitle { margin-top: 8px; color: #506176; font-size: 12px; font-weight: 700; }
+        .forty-five-graphic { position: relative; display: flex; align-items: end; gap: 5px; width: 145px; height: 62px; padding: 10px 22px 6px 20px; color: #087f75; opacity: .95; }
+        .forty-five-graphic span { width: 16px; border-radius: 3px 3px 0 0; background: linear-gradient(#17b79e, #08736d); }
+        .forty-five-graphic span:nth-child(1) { height: 19px; }
+        .forty-five-graphic span:nth-child(2) { height: 31px; }
+        .forty-five-graphic span:nth-child(3) { height: 47px; }
+        .forty-five-graphic svg { position: absolute; right: 0; top: 0; }
+        .forty-five-card { border: 1px solid #dce6eb; border-radius: 8px; background: #fff; box-shadow: 0 5px 14px rgba(15, 50, 65, .055); overflow: hidden; }
+        .forty-five-generator { padding: 18px; }
+        .forty-five-periods { padding: 14px; overflow-x: auto; }
+        .forty-five-evaluation { grid-column: 1 / -1; padding: 16px; }
+        .forty-five-section-title { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; color: #075e59; font-size: 14px; font-weight: 950; text-transform: uppercase; }
+        .forty-five-section-title svg { color: #07877d; }
+        .forty-five-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: end; }
+        .forty-five-generate-button { grid-column: 1 / -1; justify-content: center; background: #087d73 !important; border-color: #087d73 !important; }
+        .forty-five-note { display: flex; gap: 9px; align-items: flex-start; margin-top: 18px; color: #51657a; font-size: 11px; font-weight: 700; line-height: 1.45; }
+        .forty-five-note::before { content: 'ⓘ'; color: #2563eb; font-size: 14px; }
+        .forty-five-page .data-table { border-collapse: separate; border-spacing: 0; border: 0 !important; }
+        .forty-five-page .data-table thead th { padding: 12px 10px; border-color: #e1e8ee; color: #405269; font-size: 10px; font-weight: 950; text-transform: uppercase; letter-spacing: .25px; }
+        .forty-five-page .data-table tbody td { padding: 12px 10px; border-color: #e7edf1; color: #223148; font-size: 12px; }
+        .forty-five-periods .data-table thead th { color: #fff; background: #087d73; border: 0; }
+        .forty-five-periods .data-table { width: 100%; min-width: 0 !important; table-layout: fixed; }
+        .forty-five-periods .data-table thead th,
+        .forty-five-periods .data-table tbody td { padding: 10px 7px; font-size: 9px; white-space: normal; overflow-wrap: anywhere; }
+        .forty-five-periods .data-table th:nth-child(1) { width: 18%; }
+        .forty-five-periods .data-table th:nth-child(2) { width: 9%; }
+        .forty-five-periods .data-table th:nth-child(3),
+        .forty-five-periods .data-table th:nth-child(4),
+        .forty-five-periods .data-table th:nth-child(5) { width: 15%; }
+        .forty-five-periods .data-table th:nth-child(6) { width: 16%; }
+        .forty-five-periods .data-table th:nth-child(7) { width: 12%; }
+        .forty-five-periods .data-table thead th:first-child { border-radius: 6px 0 0 0; }
+        .forty-five-periods .data-table thead th:last-child { border-radius: 0 6px 0 0; }
+        .forty-five-periods .status-badge { border: 0; background: #fff1cc; color: #b56a00; }
+        .forty-five-actions { display: grid; gap: 7px; min-width: 110px; }
+        .forty-five-actions .btn { min-height: 32px; justify-content: center; padding: 6px 10px; font-size: 11px; }
+        .forty-five-lock { color: #fff !important; background: #0d1f3a !important; border-color: #0d1f3a !important; }
+        .forty-five-eval-header { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+        .forty-five-tabs { display: flex; gap: 5px; overflow-x: auto; padding: 0 !important; margin: 0 0 10px !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; }
+        .forty-five-tabs .btn { min-width: 205px; justify-content: center; border-radius: 6px 6px 0 0; color: #17345b; background: #fff; border-color: #d9e3eb; }
+        .forty-five-tabs .btn.btn-primary { color: #fff; background: linear-gradient(90deg, #087d73, #006b65); border-color: #087d73; }
+        .forty-five-info { padding: 11px 14px; border: 1px solid #dbeafe; border-radius: 6px; background: #f0f7ff; color: #465c74 !important; font-size: 11px !important; }
+        .forty-five-rating-pill { display: inline-flex; align-items: center; gap: 7px; max-width: 170px; padding: 7px 10px; border: 1px solid; border-radius: 6px; font-size: 10px; font-weight: 900; line-height: 1.25; }
+        .forty-five-rating-dot { width: 18px; height: 18px; flex: 0 0 18px; display: grid; place-items: center; border: 1px solid currentColor; border-radius: 50%; font-size: 10px; }
+        .forty-five-progress { width: 82px; height: 5px; margin: 7px 0 0 auto; border-radius: 999px; overflow: hidden; background: #dfe7ed; }
+        .forty-five-progress > span { display: block; height: 100%; border-radius: inherit; }
+        .forty-five-formula { margin-top: 10px; padding: 9px 14px; border: 1px solid #d8efeb; border-radius: 6px; color: #3c5b68; background: linear-gradient(90deg, #eefaf7, #f8fbfc); font-size: 11px; }
+        @media (max-width: 1100px) {
+          .forty-five-shell { grid-template-columns: 1fr; }
+          .forty-five-hero, .forty-five-evaluation { grid-column: 1; }
+        }
+        @media (max-width: 680px) {
+          .forty-five-page { padding: 6px; }
+          .forty-five-shell { padding: 7px; }
+          .forty-five-graphic { display: none; }
+          .forty-five-form-grid { grid-template-columns: 1fr; }
+          .forty-five-title { font-size: 21px; }
+        }
         @media print {
           @page { size: 8.5in 13in; margin: 0.25in; }
           body { background: #fff !important; }
@@ -1678,47 +1770,51 @@ export default function CollectorPerformance() {
             )}
 
             {activeTab === 'forty-five-days' && (
-              <div style={{ padding: 22, background: '#f8fbff' }}>
-                <div style={{ border: '1px solid #dbe4f0', borderRadius: 14, background: '#fff', boxShadow: '0 18px 40px rgba(15, 23, 42, 0.08)', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, padding: '22px 24px', flexWrap: 'wrap', borderBottom: '1px solid #dbe4f0' }}>
-                    <div>
-                      <div style={{ fontSize: 22, fontWeight: 900, color: '#08184a', textTransform: 'uppercase' }}>45-Day Performance Rating</div>
-                      <div style={{ marginTop: 5, color: '#475569', fontSize: 14, fontWeight: 700 }}>
+              <div className="forty-five-page">
+                <div className="forty-five-shell">
+                  <div className="forty-five-hero">
+                    <div className="forty-five-hero-copy">
+                      <div className="forty-five-hero-icon"><CalendarDays size={27} /></div>
+                      <div>
+                      <h2 className="forty-five-title">45-Day Performance Rating</h2>
+                      <div className="forty-five-subtitle">
                         Generate a company-selected rating period with automated collection, release, and DCR expense totals.
                       </div>
+                      </div>
                     </div>
+                    <div className="forty-five-graphic" aria-hidden="true"><span /><span /><span /><TrendingUp size={34} /></div>
                   </div>
 
-                  <div style={{ padding: 24, borderBottom: '1px solid #dbe4f0' }}>
-                    <div style={{ fontSize: 16, fontWeight: 900, color: '#08184a', marginBottom: 16 }}>Generate 45-Day Rating</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 16, alignItems: 'end' }}>
+                  <div className="forty-five-card forty-five-generator">
+                    <div className="forty-five-section-title"><CalendarDays size={19} /> Generate 45-Day Rating</div>
+                    <div className="forty-five-form-grid">
                       <label><span className="form-label">Start date</span><input className="form-control" type="date" value={ratingDateRange.start_date} onChange={e => { setRatingDateRange(current => ({ ...current, start_date: e.target.value })); setErrorMsg('') }} /></label>
                       <label><span className="form-label">End date</span><input className="form-control" type="date" value={ratingDateRange.end_date} min={ratingDateRange.start_date || undefined} onChange={e => { setRatingDateRange(current => ({ ...current, end_date: e.target.value })); setErrorMsg('') }} disabled={!ratingDateRange.start_date} /></label>
-                      <button className="btn btn-primary" type="button" onClick={generateFortyFiveDayRating} disabled={fortyFiveDayLoading || !isValidRatingRange} style={{ justifyContent: 'center' }}><CalendarDays size={16} /> Generate Rating</button>
+                      <button className="btn btn-primary forty-five-generate-button" type="button" onClick={generateFortyFiveDayRating} disabled={fortyFiveDayLoading || !isValidRatingRange}><CalendarDays size={16} /> Generate Rating</button>
                     </div>
-                    <div style={{ color: '#64748b', fontSize: 12, fontWeight: 700, marginTop: 12 }}>The company may choose any rating period. The end date only needs to be on or after the start date.</div>
+                    <div className="forty-five-note">The company may choose any rating period. The end date only needs to be on or after the start date.</div>
                   </div>
 
-                  <div style={{ overflowX: 'auto', padding: '0 18px 18px' }}>
-                    <div style={{ fontSize: 16, fontWeight: 900, color: '#08184a', margin: '22px 6px 14px' }}>Generated Periods</div>
-                    <table className="data-table" style={{ margin: 0, border: '1px solid #dbe4f0', minWidth: 900 }}>
-                      <thead><tr style={{ background: 'linear-gradient(90deg, #0f766e, #0f4c5c)' }}><th style={{ color: '#fff' }}>Date Range</th><th style={{ color: '#fff' }}>Status</th><th style={{ color: '#fff', textAlign: 'right' }}>Collections (PHP)</th><th style={{ color: '#fff', textAlign: 'right' }}>Non-Recon Releases (PHP)</th><th style={{ color: '#fff', textAlign: 'right' }}>DCR Expenses (PHP)</th><th style={{ color: '#fff' }}>Overall Rating</th><th style={{ color: '#fff' }}>Action</th></tr></thead>
+                  <div className="forty-five-card forty-five-periods">
+                    <div className="forty-five-section-title"><FileText size={19} /> Generated Periods</div>
+                    <table className="data-table" style={{ margin: 0 }}>
+                      <thead><tr><th>Date Range</th><th>Status</th><th style={{ textAlign: 'right' }}>Collections (PHP)</th><th style={{ textAlign: 'right' }}>Non-Recon Releases (PHP)</th><th style={{ textAlign: 'right' }}>DCR Expenses (PHP)</th><th>Overall Rating</th><th>Actions</th></tr></thead>
                       <tbody>{fortyFiveDayLoading && !ratingPeriods.length ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28 }}>Loading rating periods...</td></tr> : ratingPeriods.length ? ratingPeriods.map(period => (
-                        <tr key={`rating-period-${period.id}`}><td>{displayDate(period.start_date)} to {displayDate(period.end_date)}</td><td><span className="status-badge">{isFinalRatingStatus(period.status) ? 'Final' : 'Draft'}</span></td><td style={{ textAlign: 'right' }}>PHP {fmt(period.total_collection)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(period.total_release)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(period.total_expense)}</td><td style={{ fontWeight: 800 }}>{period.overall_rating}</td><td><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><button className="btn btn-secondary" type="button" onClick={() => loadRatingPeriod(period.id)}>View Rating</button>{isFinalRatingStatus(period.status) ? <button className="btn btn-secondary" type="button" onClick={() => changeRatingLock(period, false)} disabled={fortyFiveDayLoading || !hasRole('admin')} title={hasRole('admin') ? 'Reopen this rating for changes' : 'Admin permission is required'}><Unlock size={15} /> Unlock</button> : <button className="btn btn-primary" type="button" onClick={() => changeRatingLock(period, true)} disabled={fortyFiveDayLoading || !hasRole('admin')} title={hasRole('admin') ? 'Make this rating final' : 'Admin permission is required'}><Lock size={15} /> Lock Rating</button>}</div></td></tr>
+                        <tr key={`rating-period-${period.id}`}><td style={{ fontWeight: 800 }}>{displayDate(period.start_date)} to {displayDate(period.end_date)}</td><td><span className="status-badge">{isFinalRatingStatus(period.status) ? 'Final' : 'Draft'}</span></td><td style={{ textAlign: 'right' }}>PHP {fmt(period.total_collection)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(period.total_release)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(period.total_expense)}</td><td><span className="forty-five-rating-pill" style={{ color: getRatingPresentation(period.overall_rating).color, background: getRatingPresentation(period.overall_rating).background, borderColor: getRatingPresentation(period.overall_rating).border }}><span className="forty-five-rating-dot">☆</span>{period.overall_rating}</span></td><td><div className="forty-five-actions"><button className="btn btn-secondary" type="button" onClick={() => loadRatingPeriod(period.id)}>View Rating</button>{isFinalRatingStatus(period.status) ? <button className="btn btn-secondary" type="button" onClick={() => changeRatingLock(period, false)} disabled={fortyFiveDayLoading || !hasRole('admin')} title={hasRole('admin') ? 'Reopen this rating for changes' : 'Admin permission is required'}><Unlock size={15} /> Unlock</button> : <button className="btn forty-five-lock" type="button" onClick={() => changeRatingLock(period, true)} disabled={fortyFiveDayLoading || !hasRole('admin')} title={hasRole('admin') ? 'Make this rating final' : 'Admin permission is required'}><Lock size={15} /> Lock Rating</button>}</div></td></tr>
                       )) : <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28 }}>No 45-day ratings generated yet.</td></tr>}</tbody>
                     </table>
                   </div>
 
-                  {selectedRatingPeriod && <div style={{ padding: 24, borderTop: '1px solid #dbe4f0', background: '#f8fbff' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}><div><div style={{ fontSize: 18, fontWeight: 900, color: '#08184a' }}>45-Day Role Evaluation</div><div style={{ color: '#64748b', fontSize: 13, fontWeight: 700 }}>{displayDate(selectedRatingPeriod.period.start_date)} to {displayDate(selectedRatingPeriod.period.end_date)} · {isFinalRatingStatus(selectedRatingPeriod.period.status) ? 'Final and locked' : 'Draft'}</div></div><button className="btn btn-secondary" type="button" onClick={refreshRatingPeriod} disabled={fortyFiveDayLoading || isFinalRatingStatus(selectedRatingPeriod.period.status)}><RefreshCw size={16} /> Refresh automated totals</button></div>
-                    <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: 5, marginBottom: 18, background: '#fff', border: '1px solid #dbe4f0', borderRadius: 10 }}>
-                      {[['collector', 'Collector Evaluation', <User size={16} />], ['supervisor', 'Supervisor Evaluation', <Users size={16} />], ['branch-manager', 'Branch Manager Evaluation', <Building2 size={16} />], ['operations-manager', 'Operations Manager Evaluation', <Building2 size={16} />]].map(([tab, label, icon]) => <button key={tab} className={`btn ${ratingEvaluationTab === tab ? 'btn-primary' : 'btn-secondary'}`} type="button" onClick={() => setRatingEvaluationTab(tab)} style={{ flexShrink: 0 }}>{icon}{label}</button>)}
+                  {selectedRatingPeriod && <div className="forty-five-card forty-five-evaluation">
+                    <div className="forty-five-eval-header"><div><div className="forty-five-section-title" style={{ marginBottom: 5 }}><Users size={19} /> 45-Day Role Evaluation</div><div style={{ color: '#64748b', fontSize: 12, fontWeight: 700 }}>{displayDate(selectedRatingPeriod.period.start_date)} to {displayDate(selectedRatingPeriod.period.end_date)} · {isFinalRatingStatus(selectedRatingPeriod.period.status) ? 'Final and locked' : 'Draft'}</div></div><button className="btn btn-secondary" type="button" onClick={refreshRatingPeriod} disabled={fortyFiveDayLoading || isFinalRatingStatus(selectedRatingPeriod.period.status)}><RefreshCw size={16} /> Refresh automated totals</button></div>
+                    <div className="forty-five-tabs">
+                      {[['collector', 'Collector Evaluation', <User size={16} />], ['supervisor', 'Supervisor Evaluation', <Users size={16} />], ['branch-manager', 'Branch Manager Evaluation', <Building2 size={16} />], ['operations-manager', 'Operations Manager Evaluation', <TrendingUp size={16} />]].map(([tab, label, icon]) => <button key={tab} className={`btn ${ratingEvaluationTab === tab ? 'btn-primary' : 'btn-secondary'}`} type="button" onClick={() => setRatingEvaluationTab(tab)} style={{ flexShrink: 0 }}>{icon}{label}</button>)}
                     </div>
-                    <div style={{ color: '#475569', fontSize: 12, lineHeight: 1.5, marginBottom: 14 }}>
+                    <div className="forty-five-info" style={{ lineHeight: 1.5, marginBottom: 12 }}>
                       Collection is summed for Torreta, Domingono, Caballes, Jugar, Rosal, and Laude only. Recon releases are excluded. User-entered DCR expenses, excluding Short/Overages, are divided equally among these six collectors. Reported Pastdue is display-only and is not included in the formula.
                       {selectedRatingPeriod.period.reported_pastdue_period && <> Reported Pastdue period: {displayDate(selectedRatingPeriod.period.reported_pastdue_period.start_date)} to {displayDate(selectedRatingPeriod.period.reported_pastdue_period.end_date)}.</>}
                     </div>
-                    {ratingEvaluationTab === 'collector' && <div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 1100 }}><thead><tr><th>Collector</th><th style={{ textAlign: 'right' }}>Collection</th><th style={{ textAlign: 'right' }}>Non-Recon Release</th><th style={{ textAlign: 'right' }}>Expense Share</th><th style={{ textAlign: 'right' }}>Reported Pastdue</th><th style={{ textAlign: 'right' }}>Net Income</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Rating</th></tr></thead><tbody>{selectedRatingPeriod.evaluations.map(evaluation => <tr key={evaluation.id}><td style={{ fontWeight: 800 }}>{evaluation.collector_name}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.collection_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.release_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.expense_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.reported_pastdue)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.net_income)}</td><td style={{ textAlign: 'right' }}>{evaluation.accomplishment_percentage == null ? 'Not rated' : `${Number(evaluation.accomplishment_percentage).toFixed(2)}%`}</td><td style={{ fontWeight: 800 }}>{evaluation.rating}</td></tr>)}</tbody></table></div>}
+                    {ratingEvaluationTab === 'collector' && <><div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 1100 }}><thead><tr><th>Collector</th><th style={{ textAlign: 'right' }}>Collection (PHP)</th><th style={{ textAlign: 'right' }}>Non-Recon Release (PHP)</th><th style={{ textAlign: 'right' }}>Expense Share (PHP)</th><th style={{ textAlign: 'right' }}>Reported Pastdue (PHP)</th><th style={{ textAlign: 'right' }}>Net Income (PHP)</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Rating</th></tr></thead><tbody>{selectedRatingPeriod.evaluations.map(evaluation => { const ratingStyle = getRatingPresentation(evaluation.rating); const accomplishment = Number(evaluation.accomplishment_percentage || 0); return <tr key={evaluation.id}><td style={{ fontWeight: 900 }}><span style={{ display: 'inline-grid', placeItems: 'center', width: 26, height: 26, marginRight: 9, borderRadius: '50%', color: '#fff', background: '#148a7d', fontSize: 10 }}>{getCollectorInitials(evaluation.collector_name)}</span>{evaluation.collector_name}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.collection_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.release_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.expense_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(evaluation.reported_pastdue)}</td><td style={{ textAlign: 'right', color: Number(evaluation.net_income) >= 0 ? '#059669' : '#ef4444', fontWeight: 900 }}>PHP {fmt(evaluation.net_income)}</td><td style={{ textAlign: 'right', fontWeight: 800 }}>{evaluation.accomplishment_percentage == null ? 'Not rated' : <>{accomplishment.toFixed(2)}%<div className="forty-five-progress"><span style={{ width: `${Math.min(accomplishment, 100)}%`, background: accomplishment >= 100 ? '#0aa77e' : accomplishment >= 90 ? '#f59e0b' : '#ef4444' }} /></div></>}</td><td><span className="forty-five-rating-pill" style={{ color: ratingStyle.color, background: ratingStyle.background, borderColor: ratingStyle.border }}><span className="forty-five-rating-dot">☆</span>{evaluation.rating}</span></td></tr>})}</tbody></table></div><div className="forty-five-formula">💡 Net Income = Collections − Non-Recon Releases − Expense Share. Reported Pastdue is shown separately and is not included in the formula.</div></>}
                     {ratingEvaluationTab === 'supervisor' && <div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 1050 }}><thead><tr><th>Supervisor</th><th>Collectors Under Supervisor</th><th style={{ textAlign: 'right' }}>Collection</th><th style={{ textAlign: 'right' }}>Release</th><th style={{ textAlign: 'right' }}>Expense</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Overall Rating</th></tr></thead><tbody>{(selectedRatingPeriod.supervisor_evaluations || []).map(row => <tr key={row.name}><td style={{ fontWeight: 900 }}>{row.name}</td><td>{row.collectors.join(', ')}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.collection_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.release_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.expense_total)}</td><td style={{ textAlign: 'right' }}>{row.accomplishment_percentage == null ? 'Not rated' : `${Number(row.accomplishment_percentage).toFixed(2)}%`}</td><td style={{ fontWeight: 800 }}>{row.rating}</td></tr>)}</tbody></table></div>}
                     {ratingEvaluationTab === 'branch-manager' && <div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 1000 }}><thead><tr><th>Branch Manager</th><th>Supervisors Included</th><th style={{ textAlign: 'right' }}>Collection</th><th style={{ textAlign: 'right' }}>Release</th><th style={{ textAlign: 'right' }}>Expense</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Overall Rating</th></tr></thead><tbody>{(selectedRatingPeriod.branch_manager_evaluations || []).map(row => <tr key={row.name}><td style={{ fontWeight: 900 }}>{row.name}</td><td>{row.supervisors.join(', ')}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.collection_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.release_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.expense_total)}</td><td style={{ textAlign: 'right' }}>{row.accomplishment_percentage == null ? 'Not rated' : `${Number(row.accomplishment_percentage).toFixed(2)}%`}</td><td style={{ fontWeight: 800 }}>{row.rating}</td></tr>)}</tbody></table></div>}
                     {ratingEvaluationTab === 'operations-manager' && <div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 1000 }}><thead><tr><th>Branch Manager</th><th>Status</th><th style={{ textAlign: 'right' }}>Collection</th><th style={{ textAlign: 'right' }}>Release</th><th style={{ textAlign: 'right' }}>Expense</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Overall Rating</th></tr></thead><tbody>{(selectedRatingPeriod.operations_manager_evaluation?.branch_results || []).map(row => <tr key={`${row.branch_id}-${row.name}`}><td style={{ fontWeight: 900 }}>{row.name}</td><td><span className="status-badge">{isFinalRatingStatus(row.status) ? 'Final' : 'Draft'}</span></td><td style={{ textAlign: 'right' }}>PHP {fmt(row.collection_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.release_total)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(row.expense_total)}</td><td style={{ textAlign: 'right' }}>{row.accomplishment_percentage == null ? 'Not rated' : `${Number(row.accomplishment_percentage).toFixed(2)}%`}</td><td style={{ fontWeight: 800 }}>{row.rating}</td></tr>)}<tr style={{ background: '#eef6ff' }}><td colSpan={2} style={{ fontWeight: 900 }}>Operations Manager Overall</td><td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(selectedRatingPeriod.operations_manager_evaluation?.collection_total)}</td><td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(selectedRatingPeriod.operations_manager_evaluation?.release_total)}</td><td style={{ textAlign: 'right', fontWeight: 900 }}>PHP {fmt(selectedRatingPeriod.operations_manager_evaluation?.expense_total)}</td><td style={{ textAlign: 'right', fontWeight: 900 }}>{selectedRatingPeriod.operations_manager_evaluation?.accomplishment_percentage == null ? 'Not rated' : `${Number(selectedRatingPeriod.operations_manager_evaluation.accomplishment_percentage).toFixed(2)}%`}</td><td style={{ fontWeight: 900 }}>{selectedRatingPeriod.operations_manager_evaluation?.rating}</td></tr></tbody></table></div>}
