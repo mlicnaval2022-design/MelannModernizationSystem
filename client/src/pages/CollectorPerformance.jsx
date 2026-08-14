@@ -144,27 +144,49 @@ const getCollectorInitials = name => String(name || '')
   .map(part => part.charAt(0).toUpperCase())
   .join('') || 'CP'
 
-const getGeneratedCollectionInsight = (collectorName, rows, summary) => {
+const getGeneratedCollectionInsight = (collectorName, rows) => {
   const collector = String(collectorName || 'This collector').toUpperCase()
-  const paidRows = rows.filter(row => Number(row.actual || 0) > 0)
-  const zeroRows = rows.filter(row => Number(row.actual || 0) === 0)
-  const bestRow = [...rows].sort((a, b) => Number(b.actual || 0) - Number(a.actual || 0))[0]
-  const lowestPaidRow = [...paidRows].sort((a, b) => Number(a.actual || 0) - Number(b.actual || 0))[0]
-  const latestRow = rows[rows.length - 1]
-  const targetGap = Math.max(0, Number(summary.dailyTarget || 0) - Number(summary.actual || 0))
-  const zeroDates = zeroRows.map(row => shortDisplayDate(row.date)).join(', ')
-  const bestDay = `${shortDisplayDate(bestRow?.date)} (PHP ${fmt(bestRow?.actual)})`
-  const lowestPaidDay = lowestPaidRow ? `${shortDisplayDate(lowestPaidRow.date)} (PHP ${fmt(lowestPaidRow.actual)})` : 'walay posted collection'
-  const performanceFacts = `Nakolekta niya ang PHP ${fmt(summary.actual)} batok sa PHP ${fmt(summary.dailyTarget)} target, kulang ug PHP ${fmt(targetGap)} (${summary.rate.toFixed(2)}%). Naay collection sa ${paidRows.length}/${rows.length} ka operational days; ${zeroRows.length} ka adlaw ang zero collection${zeroRows.length ? ` (${zeroDates})` : ''}. Pinakataas nga collection: ${bestDay}; pinakagamay nga naay collection: ${lowestPaidDay}.`
+  const today = toDateKey(new Date())
+  const completedRows = rows.filter(row => String(row.date || '') < today)
+  const pendingRows = rows.filter(row => String(row.date || '') >= today)
 
-  if (paidRows.length === 0) {
+  if (!completedRows.length) {
     return {
-      comment: `${collector} walay bisan usa ka posted actual collection sa selected week. ${performanceFacts}`,
-      recommendation: `I-validate dayon ang tanan ${rows.length} ka operational days ug pangayoa ang route/activity proof. Himoa ug recovery list sa clients para ma-post ang unang collection sa sunod nga operation day.`
+      comment: `${collector} wala pay completed operational day nga igo gamiton para sa patas nga performance assessment. Ang current ug future dates gi-classify isip pending, dili zero collection.`,
+      recommendation: 'Hulata nga ma-complete ug ma-post ang adlaw sa Collections una mag-issue ug coaching assessment.'
     }
   }
 
-  if (summary.rate >= 100 && zeroRows.length === 0) {
+  const coachingSummary = completedRows.reduce((totals, row) => {
+    totals.target += Number(row.dailyTarget || 0)
+    totals.actual += Number(row.actual || 0)
+    totals.paymentCount += Number(row.paymentCount || 0)
+    return totals
+  }, { target: 0, actual: 0, paymentCount: 0 })
+  coachingSummary.rate = coachingSummary.target > 0 ? (coachingSummary.actual / coachingSummary.target) * 100 : 0
+  const paidRows = completedRows.filter(row => Number(row.actual || 0) > 0)
+  const zeroRows = completedRows.filter(row => Number(row.actual || 0) === 0)
+  const bestRow = [...completedRows].sort((a, b) => Number(b.actual || 0) - Number(a.actual || 0))[0]
+  const lowestPaidRow = [...paidRows].sort((a, b) => Number(a.actual || 0) - Number(b.actual || 0))[0]
+  const latestRow = completedRows[completedRows.length - 1]
+  const latestAccountRow = latestRow || {}
+  const targetGap = Math.max(0, coachingSummary.target - coachingSummary.actual)
+  const zeroDates = zeroRows.map(row => shortDisplayDate(row.date)).join(', ')
+  const bestDay = `${shortDisplayDate(bestRow?.date)} (PHP ${fmt(bestRow?.actual)})`
+  const lowestPaidDay = lowestPaidRow ? `${shortDisplayDate(lowestPaidRow.date)} (PHP ${fmt(lowestPaidRow.actual)})` : 'walay posted collection'
+  const activeAccounts = Number(latestAccountRow.activeClients || 0) + Number(latestAccountRow.overdueClients || 0)
+  const accountContext = `Latest completed account context: ${activeAccounts} active/overdue, ${Number(latestAccountRow.reconClients || 0)} recon, ug ${Number(latestAccountRow.pastdueClients || 0)} past due.`
+  const pendingNote = pendingRows.length ? ` ${pendingRows.length} ka current/future operational day ang wala giapil kay pending pa.` : ''
+  const performanceFacts = `Sa ${completedRows.length} completed operational days, nakolekta niya ang PHP ${fmt(coachingSummary.actual)} batok sa PHP ${fmt(coachingSummary.target)} regular target (${coachingSummary.rate.toFixed(2)}%), nga adunay PHP ${fmt(targetGap)} remaining gap ug ${countFmt(coachingSummary.paymentCount)} posted payments. Naay collection sa ${paidRows.length}/${completedRows.length} ka completed days; ${zeroRows.length} ka confirmed past-day zero collection${zeroRows.length ? ` (${zeroDates})` : ''}. Pinakataas nga collection: ${bestDay}; pinakagamay nga naay collection: ${lowestPaidDay}. ${accountContext}${pendingNote}`
+
+  if (paidRows.length === 0) {
+    return {
+      comment: `${collector} walay posted actual collection sa completed operational days. ${performanceFacts}`,
+      recommendation: `I-validate ang ${completedRows.length} completed days ug ang posted-payment records una mag-coaching. Kung confirmed ang zero, paghimo ug recovery list gikan sa active/overdue accounts para sa sunod nga operation day.`
+    }
+  }
+
+  if (coachingSummary.rate >= 100 && zeroRows.length === 0) {
     return {
       comment: `${collector} nalapas ang weekly target ug consistent ang collection sa tanang operational days. ${performanceFacts}`,
       recommendation: `Padayona ang daily route discipline nga nakaproduce sa ${bestDay}. I-monitor ang low-output day nga ${lowestPaidDay} aron mapadayon ang performance bisan dili pareho ang client availability.`
@@ -178,7 +200,7 @@ const getGeneratedCollectionInsight = (collectorName, rows, summary) => {
     }
   }
 
-  if (summary.rate < 85) {
+  if (coachingSummary.rate < 85) {
     return {
       comment: `${collector} adunay collection sa halos tanang adlaw apan ubos pa ang weekly accomplishment. ${performanceFacts}`,
       recommendation: `I-prioritize ang accounts nga makadugang sa PHP ${fmt(targetGap)} nga kulang. I-review ang ${lowestPaidDay} ug ilisi ang follow-up strategy didto; dili igo ang naay collection kung gamay ra ang amount.`
@@ -592,8 +614,7 @@ export default function CollectorPerformance() {
   const generateAiCoaching = () => {
     const collector = collectionRows.find(row => row.id === selectedCollectionId)
     if (!collector) return
-    const summary = getCollectorCollectionTotals(collector.rows)
-    const insight = getGeneratedCollectionInsight(collector.name, collector.rows, summary)
+    const insight = getGeneratedCollectionInsight(collector.name, collector.rows)
     setCollectorEdits(current => ({
       ...current,
       [collector.id]: {
