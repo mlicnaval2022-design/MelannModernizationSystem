@@ -20,6 +20,7 @@ import {
   RefreshCcw,
   Rocket,
   Save,
+  Settings,
   Target,
   Trash2,
   UsersRound,
@@ -597,15 +598,21 @@ export default function Reports() {
   const [fieldReleaseRows, setFieldReleaseRows] = useState([])
   const [fieldReleaseLoading, setFieldReleaseLoading] = useState(false)
   const [fieldReleaseSaving, setFieldReleaseSaving] = useState(false)
+  const [advanceManualOpen, setAdvanceManualOpen] = useState(false)
+  const [advanceManualForm, setAdvanceManualForm] = useState({ client_code: '', client: null, amount: '', searching: false, saving: false, error: '' })
+  const [advanceManualSuccess, setAdvanceManualSuccess] = useState(null)
   const [printMode, setPrintMode] = useState('detailed')
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const [expensesTab, setExpensesTab] = useState('summary')
+  const [configurationTab, setConfigurationTab] = useState('personnel')
   const [expensePersonnel, setExpensePersonnel] = useState([])
+  const [expenseCategories, setExpenseCategories] = useState([])
   const [expenseEntries, setExpenseEntries] = useState([])
   const [expenseSummary, setExpenseSummary] = useState(null)
   const [expensesLoading, setExpensesLoading] = useState(false)
   const [expenseForm, setExpenseForm] = useState({ id: '', personnel_id: '', expense_date: toDateInputValue(new Date()), category: '', description: '', amount: '', remarks: '' })
   const [personnelForm, setPersonnelForm] = useState({ id: '', employee_name: '', position: '', status: 'active' })
+  const [categoryForm, setCategoryForm] = useState({ id: '', category_name: '', status: 'active' })
 
   const openFieldReleaseModal = async () => {
     const reportDate = params.date || toDateInputValue(new Date())
@@ -644,16 +651,77 @@ export default function Reports() {
     }
   }
 
+  const openAdvanceManualModal = () => {
+    setAdvanceManualForm({ client_code: '', client: null, amount: '', searching: false, saving: false, error: '' })
+    setAdvanceManualOpen(true)
+  }
+
+  const searchAdvanceClient = async (event) => {
+    event?.preventDefault()
+    const clientCode = advanceManualForm.client_code.trim()
+    if (!clientCode) {
+      setAdvanceManualForm(prev => ({ ...prev, client: null, error: 'Enter a Client Code first.' }))
+      return
+    }
+    setAdvanceManualForm(prev => ({ ...prev, client: null, searching: true, error: '' }))
+    try {
+      const res = await API.get('/reports/collection-sheet/advance-client', { params: { client_code: clientCode } })
+      setAdvanceManualForm(prev => ({ ...prev, client: res.data, searching: false, error: '' }))
+    } catch (err) {
+      setAdvanceManualForm(prev => ({ ...prev, client: null, searching: false, error: err.response?.data?.error || 'Client lookup failed.' }))
+    }
+  }
+
+  const saveAdvanceManualEntry = async (event) => {
+    event?.preventDefault()
+    const client = advanceManualForm.client
+    const amount = Number(advanceManualForm.amount)
+    if (!client) {
+      setAdvanceManualForm(prev => ({ ...prev, error: 'Search and select a valid Client Code first.' }))
+      return
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setAdvanceManualForm(prev => ({ ...prev, error: 'Amount must be greater than zero.' }))
+      return
+    }
+
+    setAdvanceManualForm(prev => ({ ...prev, saving: true, error: '' }))
+    try {
+      const reportDate = params.date || toDateInputValue(new Date())
+      await API.post('/reports/collection-sheet/advance-manual', {
+        date: reportDate,
+        customer_id: client.customer_id,
+        loan_id: client.loan_id,
+        amount,
+      })
+      setAdvanceManualOpen(false)
+      setAdvanceManualSuccess({
+        client_name: client.customer_name,
+        loan_code: client.loan_code,
+        collector_name: client.collector_name,
+        amount,
+        date: reportDate,
+      })
+      if (active === 'collection-sheet' && String(params.collector_id) === String(client.collector_id)) {
+        await run('collection-sheet', params)
+      }
+    } catch (err) {
+      setAdvanceManualForm(prev => ({ ...prev, saving: false, error: err.response?.data?.error || 'Failed to save advance entry.' }))
+    }
+  }
+
   const loadExpensesReport = async (nextParams = params) => {
     setExpensesLoading(true)
     try {
       const query = { date_from: nextParams.date_from, date_to: nextParams.date_to }
-      const [personnelRes, entriesRes, summaryRes] = await Promise.all([
+      const [personnelRes, categoriesRes, entriesRes, summaryRes] = await Promise.all([
         API.get('/reports/expenses/personnel'),
+        API.get('/reports/expenses/categories'),
         API.get('/reports/expenses/entries', { params: query }),
         API.get('/reports/expenses/summary', { params: query }),
       ])
       setExpensePersonnel(Array.isArray(personnelRes.data) ? personnelRes.data : [])
+      setExpenseCategories(Array.isArray(categoriesRes.data) ? categoriesRes.data : [])
       setExpenseEntries(Array.isArray(entriesRes.data) ? entriesRes.data : [])
       setExpenseSummary(summaryRes.data || null)
       setData(summaryRes.data || { ready: true })
@@ -717,6 +785,29 @@ export default function Reports() {
       await loadExpensesReport()
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to save expense')
+    }
+  }
+
+  const saveCategory = async (event) => {
+    event.preventDefault()
+    const payload = {
+      category_name: categoryForm.category_name.trim(),
+      status: categoryForm.status || 'active',
+    }
+    if (!payload.category_name) {
+      alert('Category name is required.')
+      return
+    }
+    try {
+      if (categoryForm.id) {
+        await API.put(`/reports/expenses/categories/${categoryForm.id}`, payload)
+      } else {
+        await API.post('/reports/expenses/categories', payload)
+      }
+      setCategoryForm({ id: '', category_name: '', status: 'active' })
+      await loadExpensesReport()
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to save category')
     }
   }
 
@@ -869,12 +960,14 @@ export default function Reports() {
           const rowColor = section.color === CL_PDF.pastdue ? CL_PDF.pastdue : ((c.loan_type || '').toLowerCase().includes('recon') ? CL_PDF.recon : section.color)
           const penaltyNote = Number(c.reloan_penalty_note || c.penalty_collected_today || 0)
           const balanceNote = Number(c.reloan_balance_note || 0)
+          const advanceNote = Number(c.advance_manual_today || 0)
           const regularCollected = Math.max(0, Number(c.collected_today || 0) - Number(c.penalty_collected_today || 0))
 
           let collectedText = ''
           if (regularCollected > 0) collectedText += pesoFmtPdf(regularCollected)
           if (balanceNote > 0) collectedText += (collectedText ? '\n' : '') + `Bal. ${Number(balanceNote).toLocaleString('en-PH', { maximumFractionDigits: 2 })}`
           if (penaltyNote > 0) collectedText += (collectedText ? '\n' : '') + `Pen. ${Number(penaltyNote).toLocaleString('en-PH', { maximumFractionDigits: 2 })}`
+          if (advanceNote > 0) collectedText += (collectedText ? '\n' : '') + `Adv. ${Number(advanceNote).toLocaleString('en-PH', { maximumFractionDigits: 2 })}`
 
           tableBody.push([
             { content: String(totalRowCounter++), styles: { halign: 'center', fontSize: 7 } },
@@ -1653,7 +1746,7 @@ export default function Reports() {
       const tabs = [
         { key: 'summary', label: 'Summary', Icon: BarChart3 },
         { key: 'input', label: 'Input Expense', Icon: Plus },
-        { key: 'personnel', label: 'Personnel Management', Icon: UsersRound },
+        { key: 'configuration', label: 'Configuration', Icon: Settings },
       ]
       return (
         <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -1834,6 +1927,7 @@ export default function Reports() {
       const byEmployee = summary.by_employee || []
       const byCategory = summary.by_category || []
       const activePersonnel = expensePersonnel.filter(p => p.status === 'active')
+      const activeCategories = expenseCategories.filter(category => category.status === 'active')
       const totalAmount = Number(summary.total_amount || 0)
 
       if (data.error) return <div className="empty-state"><p>{data.error}</p></div>
@@ -1900,7 +1994,12 @@ export default function Reports() {
               </select>
             </div>
             <div className="form-group"><label className="form-label">Expense Date *</label><input type="date" className="form-control" value={expenseForm.expense_date} onChange={e => setExpenseForm(f => ({ ...f, expense_date: e.target.value }))} /></div>
-            <div className="form-group"><label className="form-label">Category</label><input className="form-control" value={expenseForm.category} onChange={e => setExpenseForm(f => ({ ...f, category: e.target.value }))} placeholder="Allowance, fuel, meals..." /></div>
+            <div className="form-group"><label className="form-label">Category</label>
+              <select className="form-control" value={expenseForm.category} onChange={e => setExpenseForm(f => ({ ...f, category: e.target.value }))}>
+                <option value="">Select category...</option>
+                {activeCategories.map(category => <option key={category.id} value={category.category_name}>{category.category_name}</option>)}
+              </select>
+            </div>
             <div className="form-group"><label className="form-label">Description</label><input className="form-control" value={expenseForm.description} onChange={e => setExpenseForm(f => ({ ...f, description: e.target.value }))} /></div>
             <div className="form-group"><label className="form-label">Amount *</label><input type="number" min="0" step="0.01" className="form-control" value={expenseForm.amount} onChange={e => setExpenseForm(f => ({ ...f, amount: e.target.value }))} /></div>
             <div className="form-group"><label className="form-label">Remarks</label><textarea className="form-control" rows={3} value={expenseForm.remarks} onChange={e => setExpenseForm(f => ({ ...f, remarks: e.target.value }))} /></div>
@@ -1935,8 +2034,26 @@ export default function Reports() {
         </div>
       )
 
+      const configurationTabs = [
+        { key: 'personnel', label: 'Personnel Management', Icon: UsersRound },
+        { key: 'category', label: 'Category Management', Icon: ClipboardList },
+      ]
+
       return (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+        <div>
+          <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+            {configurationTabs.map(tab => {
+              const Icon = tab.Icon
+              return (
+                <button key={tab.key} className={`btn ${configurationTab === tab.key ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setConfigurationTab(tab.key)}>
+                  <Icon size={15} /> {tab.label}
+                </button>
+              )
+            })}
+          </div>
+
+          {configurationTab === 'personnel' ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
           <form onSubmit={savePersonnel} style={{ margin: 0, border: '1px solid var(--border)', borderRadius: 8, padding: 16, background: '#fff' }}>
             <h3 style={{ margin: '0 0 12px 0', color: 'var(--blue-dark)' }}>{personnelForm.id ? 'Edit Employee' : 'Add Employee'}</h3>
             <div className="form-group"><label className="form-label">Employee Name *</label><input className="form-control" value={personnelForm.employee_name} onChange={e => setPersonnelForm(f => ({ ...f, employee_name: e.target.value }))} /></div>
@@ -1968,6 +2085,40 @@ export default function Reports() {
               </tbody>
             </table>
           </div>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+              <form onSubmit={saveCategory} style={{ margin: 0, border: '1px solid var(--border)', borderRadius: 8, padding: 16, background: '#fff' }}>
+                <h3 style={{ margin: '0 0 12px 0', color: 'var(--blue-dark)' }}>{categoryForm.id ? 'Edit Category' : 'Add Category'}</h3>
+                <div className="form-group"><label className="form-label">Category Name *</label><input className="form-control" value={categoryForm.category_name} onChange={e => setCategoryForm(f => ({ ...f, category_name: e.target.value }))} placeholder="e.g. Fuel, Meals, Allowance" /></div>
+                <div className="form-group"><label className="form-label">Status</label>
+                  <select className="form-control" value={categoryForm.status} onChange={e => setCategoryForm(f => ({ ...f, status: e.target.value }))}>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  {categoryForm.id && <button type="button" className="btn btn-secondary" onClick={() => setCategoryForm({ id: '', category_name: '', status: 'active' })}>Cancel</button>}
+                  <button type="submit" className="btn btn-primary"><Save size={15} /> Save Category</button>
+                </div>
+              </form>
+              <div>
+                <h3 style={{ margin: '0 0 10px 0', color: 'var(--blue-dark)' }}>Category List</h3>
+                <table className="data-table">
+                  <thead><tr><th>Category Name</th><th>Status</th><th>Actions</th></tr></thead>
+                  <tbody>
+                    {expenseCategories.length === 0 ? <tr><td colSpan={3} className="empty-state">No categories yet</td></tr> : expenseCategories.map(category => (
+                      <tr key={category.id}>
+                        <td className="fw-600">{category.category_name}</td>
+                        <td><span className={`badge ${category.status === 'active' ? 'badge-success' : 'badge-secondary'}`}>{category.status}</span></td>
+                        <td><button className="btn btn-secondary" style={{ padding: '5px 8px' }} onClick={() => setCategoryForm({ id: category.id, category_name: category.category_name || '', status: category.status || 'active' })} title="Edit"><Pencil size={14} /></button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )
     }
@@ -4330,7 +4481,8 @@ export default function Reports() {
         const client = entry.client || {}
         const noteUnits = [
           Number(client.reloan_balance_note || 0),
-          Number(client.reloan_penalty_note || client.penalty_collected_today || 0)
+          Number(client.reloan_penalty_note || client.penalty_collected_today || 0),
+          Number(client.advance_manual_today || 0)
         ].filter(amount => amount > 0).length * 0.65
         return (formatCollectionClientName(client).length > 24 ? 1.35 : 1) + noteUnits
       }
@@ -4384,6 +4536,7 @@ export default function Reports() {
         const rowColor = entry.color === CL.pastdue ? CL.pastdue : (isReconLoan(c) ? CL.recon : entry.color)
         const penaltyNote = Number(c.reloan_penalty_note || c.penalty_collected_today || 0)
         const balanceNote = Number(c.reloan_balance_note || 0)
+        const advanceNote = Number(c.advance_manual_today || 0)
         const regularCollected = Math.max(0, Number(c.collected_today || 0) - Number(c.penalty_collected_today || 0))
         return (<>
           <td style={{ ...cs, fontWeight: 600, fontSize: '7pt', textAlign: 'center', width: '5%' }}>{entry.rowNum}</td>
@@ -4406,7 +4559,13 @@ export default function Reports() {
                 <span style={collectionNoteAmountStyle}>{collectionAmountText(penaltyNote)}</span>
               </span>
             )}
-            {regularCollected <= 0 && balanceNote <= 0 && penaltyNote <= 0 && <div style={{ height: 12 }}></div>}
+            {advanceNote > 0 && (
+              <span style={collectionNoteStyle}>
+                <span style={collectionNoteLabelStyle}>Adv.</span>{' '}
+                <span style={collectionNoteAmountStyle}>{collectionAmountText(advanceNote)}</span>
+              </span>
+            )}
+            {regularCollected <= 0 && balanceNote <= 0 && penaltyNote <= 0 && advanceNote <= 0 && <div style={{ height: 12 }}></div>}
           </td>
         </>)
       }
@@ -4731,6 +4890,9 @@ export default function Reports() {
                         )}
                       </div>
                       <button className="btn btn-secondary" onClick={openFieldReleaseModal} disabled={loading}>Field Release</button>
+                      <button className="btn btn-secondary" onClick={openAdvanceManualModal} disabled={loading}>
+                        <Plus size={15} /> Adv. Manual Input
+                      </button>
                       <button className="btn btn-secondary" onClick={printCollectionSheet} disabled={loading}><Printer size={15} /> Print</button>
                     </>
                   ) : active === 'expenses-report' ? (
@@ -4813,6 +4975,108 @@ export default function Reports() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {advanceManualOpen && (
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && !advanceManualForm.saving && setAdvanceManualOpen(false)}>
+          <div className="modal" style={{ maxWidth: 760 }}>
+            <div className="modal-header">
+              <span className="modal-title">Advance Manual Input</span>
+              <button className="modal-close" onClick={() => setAdvanceManualOpen(false)} disabled={advanceManualForm.saving}>x</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ marginBottom: 16, padding: '10px 12px', borderRadius: 8, background: '#eff6ff', color: '#1e3a8a', fontSize: 13 }}>
+                Collection Date: <strong>{displayDate(params.date || toDateInputValue(new Date()))}</strong>
+              </div>
+              {advanceManualForm.error && (
+                <div className="login-error" style={{ marginBottom: 14 }}>{advanceManualForm.error}</div>
+              )}
+              <form onSubmit={searchAdvanceClient} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'end', marginBottom: 18 }}>
+                <div className="form-group">
+                  <label className="form-label">Search Client Code</label>
+                  <input
+                    className="form-control"
+                    value={advanceManualForm.client_code}
+                    onChange={e => setAdvanceManualForm(prev => ({ ...prev, client_code: e.target.value, client: null, error: '' }))}
+                    placeholder="Enter exact Client Code"
+                    autoFocus
+                    disabled={advanceManualForm.searching || advanceManualForm.saving}
+                  />
+                </div>
+                <button className="btn btn-secondary" type="submit" disabled={advanceManualForm.searching || advanceManualForm.saving}>
+                  {advanceManualForm.searching ? 'Searching...' : 'Search'}
+                </button>
+              </form>
+
+              {advanceManualForm.client ? (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginBottom: 18 }}>
+                    {[
+                      ['Client Name', advanceManualForm.client.customer_name],
+                      ['Loan Code', advanceManualForm.client.loan_code],
+                      ['Loan Type', advanceManualForm.client.loan_type],
+                      ['Collector', advanceManualForm.client.collector_name],
+                    ].map(([label, value]) => (
+                      <div key={label} style={{ padding: '11px 12px', border: '1px solid var(--border)', borderRadius: 8, background: '#f8fafc' }}>
+                        <div style={{ marginBottom: 4, color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{label}</div>
+                        <div style={{ color: '#0f172a', fontSize: 14, fontWeight: 800 }}>{value || '-'}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Advance Amount</label>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      className="form-control"
+                      value={advanceManualForm.amount}
+                      onChange={e => setAdvanceManualForm(prev => ({ ...prev, amount: e.target.value, error: '' }))}
+                      placeholder="0.00"
+                      style={{ maxWidth: 260, textAlign: 'right', fontWeight: 800 }}
+                      disabled={advanceManualForm.saving}
+                    />
+                  </div>
+                  <div style={{ marginTop: 12, color: '#64748b', fontSize: 12 }}>
+                    Collection Sheet entry preview: <strong style={{ color: '#D71920', fontSize: 16 }}>Adv. {Number(advanceManualForm.amount || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })}</strong>
+                  </div>
+                </>
+              ) : (
+                <div className="empty-state" style={{ minHeight: 150 }}>
+                  Enter a Client Code to display the client, active loan, and assigned collector.
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+                <button className="btn btn-secondary" onClick={() => setAdvanceManualOpen(false)} disabled={advanceManualForm.saving}>Cancel</button>
+                <button className="btn btn-primary" onClick={saveAdvanceManualEntry} disabled={!advanceManualForm.client || advanceManualForm.saving}>
+                  <Save size={15} /> {advanceManualForm.saving ? 'Saving...' : 'Save Entry'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {advanceManualSuccess && (
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setAdvanceManualSuccess(null)}>
+          <div className="modal" style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <span className="modal-title">Successful Entry</span>
+              <button className="modal-close" onClick={() => setAdvanceManualSuccess(null)}>x</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ padding: 16, border: '1px solid #a7f3d0', borderLeft: '4px solid #10b981', borderRadius: 8, background: '#ecfdf5', color: '#065f46' }}>
+                <div style={{ marginBottom: 8, fontSize: 15, fontWeight: 800 }}>Advance entry saved successfully.</div>
+                <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+                  <strong>{advanceManualSuccess.client_name}</strong><br />
+                  Loan: {advanceManualSuccess.loan_code}<br />
+                  Collector: {advanceManualSuccess.collector_name}<br />
+                  Collection Sheet: <strong>Adv. {Number(advanceManualSuccess.amount).toLocaleString('en-PH', { maximumFractionDigits: 2 })}</strong>
+                </div>
+              </div>
+              <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 18 }} onClick={() => setAdvanceManualSuccess(null)}>OK</button>
             </div>
           </div>
         </div>
