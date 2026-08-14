@@ -738,9 +738,11 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                 title: 'Credit Scoring & Evaluation',
                 fields: [
                   ['Credit Score', `${cScore} / 100 (${cRating})`],
+                  ['Payment Grade', cCreditEval?.payment_grade || cRating],
                   ['Total Loans Availed', cCreditEval ? (cCreditEval.total_loans ?? 0) : cLoans.length],
                   ['On-Time Payments', cCreditEval ? (cCreditEval.on_time_payments ?? 0) : (soaData.payments || []).filter(p => p.status === 'active').length],
                   ['Late Payments', cCreditEval ? (cCreditEval.late_payments ?? 0) : 0],
+                  ['Longest Delay', `${cCreditEval?.longest_late_days || 0} day${cCreditEval?.longest_late_days === 1 ? '' : 's'}`],
                   ['Past Due Occurrences', cCreditEval ? (cCreditEval.past_due_occurrences ?? 0) : cPastDue],
                   ['Recon History', cCreditEval ? (cCreditEval.recon_history ?? 0) : 0],
                 ]

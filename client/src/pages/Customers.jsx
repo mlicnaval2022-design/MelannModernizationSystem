@@ -1143,6 +1143,7 @@ export default function Customers() {
                 const lastPayment = sortedPayments.length > 0 ? new Date(sortedPayments[0].date_paid).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '-';
                 const nextDueDate = (printModeLoan ? [printModeLoan] : activeLoans).length > 0 && (printModeLoan || activeLoans[0]).date_maturity ? new Date((printModeLoan || activeLoans[0]).date_maturity).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '-';
                 const memberSince = soaData.created_at ? new Date(soaData.created_at).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '-';
+                const customerAddress = [soaData.address, soaData.sitio, soaData.purok, soaData.brgy, soaData.city, soaData.province, soaData.zip_code].filter(Boolean).join(', ') || '-';
                 const accountStatus = (currentLoan.id ? getLoanStatusLabel(currentLoan) : soaData.status) || '-';
                 const soaNumber = `SOA-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${soaData.customer_code || soaData.id}`;
                 const penaltyComputation = getPenaltyComputation(currentLoan);
@@ -1168,12 +1169,14 @@ export default function Customers() {
 
                 profileSections.push({
                   title: 'Credit Scoring & Evaluation',
-                  fields: [
-                    ['Credit Score', `${cScore} / 100 (${cRating})`],
-                    ['Total Loans Availed', cCreditEval ? (cCreditEval.total_loans ?? 0) : cLoans.length],
-                    ['On-Time Payments', cCreditEval ? (cCreditEval.on_time_payments ?? 0) : (soaData.payments || []).filter(p => p.status === 'active').length],
-                    ['Late Payments', cCreditEval ? (cCreditEval.late_payments ?? 0) : 0],
-                    ['Past Due Occurrences', cCreditEval ? (cCreditEval.past_due_occurrences ?? 0) : cPastDue],
+                fields: [
+                  ['Credit Score', `${cScore} / 100 (${cRating})`],
+                  ['Payment Grade', cCreditEval?.payment_grade || cRating],
+                  ['Total Loans Availed', cCreditEval ? (cCreditEval.total_loans ?? 0) : cLoans.length],
+                  ['On-Time Payments', cCreditEval ? (cCreditEval.on_time_payments ?? 0) : (soaData.payments || []).filter(p => p.status === 'active').length],
+                  ['Late Payments', cCreditEval ? (cCreditEval.late_payments ?? 0) : 0],
+                  ['Longest Delay', `${cCreditEval?.longest_late_days || 0} day${cCreditEval?.longest_late_days === 1 ? '' : 's'}`],
+                  ['Past Due Occurrences', cCreditEval ? (cCreditEval.past_due_occurrences ?? 0) : cPastDue],
                     ['Recon History', cCreditEval ? (cCreditEval.recon_history ?? 0) : 0],
                   ]
                 });
@@ -1971,6 +1974,7 @@ export default function Customers() {
                               <tbody>
                                 <tr><td>Customer Code</td><td>:</td><td className="fw-bold">{soaData.customer_code}</td></tr>
                                 <tr><td>Customer Name</td><td>:</td><td className="fw-bold text-uppercase">{soaData.full_name}</td></tr>
+                                <tr><td>Customer Address</td><td>:</td><td>{customerAddress}</td></tr>
                                 <tr><td colSpan="3" style={{height:'15px'}}></td></tr>
                                 <tr><td>Loan Code</td><td>:</td><td>{currentLoan.loan_code || '-'}</td></tr>
                                 <tr><td>Loan Type</td><td>:</td><td className="text-uppercase">{currentLoan.loan_type || '-'}</td></tr>
@@ -2012,8 +2016,10 @@ export default function Customers() {
                       }
                       score = Math.max(0, Math.min(100, score));
                       const rating = score >= 90 ? 'EXCELLENT' : score >= 80 ? 'GOOD' : score >= 70 ? 'FAIR' : score >= 60 ? 'RISKY' : 'POOR';
+                      const paymentGrade = cCreditEval?.payment_grade || rating;
                       const onTime = cCreditEval ? (cCreditEval.on_time_payments || 0) : (soaData.payments || []).filter(p => p.status === 'active').length;
                       const late = cCreditEval ? (cCreditEval.late_payments || 0) : 0;
+                      const longestLateDays = cCreditEval ? (cCreditEval.longest_late_days || 0) : 0;
                       const pdCount = cCreditEval ? (cCreditEval.past_due_occurrences || 0) : cPastDue;
                       const totalL = cCreditEval ? (cCreditEval.total_loans || 0) : cLoans.length;
 
@@ -2028,12 +2034,14 @@ export default function Customers() {
                                 <tbody>
                                   <tr><td>Credit Score</td><td>:</td><td className="fw-bold">{score} / 100</td></tr>
                                   <tr><td>Credit Rating</td><td>:</td><td className="fw-bold">{rating}</td></tr>
+                                  <tr><td>Payment Grade</td><td>:</td><td className="fw-bold">{paymentGrade}</td></tr>
                                 </tbody>
                               </table>
                               <table>
                                 <tbody>
                                   <tr><td>On-Time Payments</td><td>:</td><td className="fw-bold">{onTime}</td></tr>
                                   <tr><td>Late Payments</td><td>:</td><td>{late}</td></tr>
+                                  <tr><td>Longest Delay</td><td>:</td><td>{longestLateDays} day{longestLateDays === 1 ? '' : 's'}</td></tr>
                                 </tbody>
                               </table>
                               <table className="f-soa-no-border">

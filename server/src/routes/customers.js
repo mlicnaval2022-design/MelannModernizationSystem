@@ -612,7 +612,8 @@ router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
         COUNT(*) as total,
         SUM(CASE WHEN COALESCE(amount_paid, 0) > 0 THEN 1 ELSE 0 END) as paid_count,
         SUM(CASE WHEN COALESCE(amount_paid, 0) > 0 AND date_paid <= due_date THEN 1 ELSE 0 END) as on_time,
-        SUM(CASE WHEN COALESCE(amount_paid, 0) > 0 AND date_paid > due_date THEN 1 ELSE 0 END) as late
+        SUM(CASE WHEN COALESCE(amount_paid, 0) > 0 AND date_paid > due_date THEN 1 ELSE 0 END) as late,
+        MAX(CASE WHEN COALESCE(amount_paid, 0) > 0 AND date_paid > due_date THEN julianday(date_paid) - julianday(due_date) ELSE 0 END) as longest_late_days
       FROM tblAmortizationSchedule 
       WHERE loan_id IN (SELECT id FROM tblLoan WHERE customer_id = ?)`, [id]);
 
@@ -624,7 +625,7 @@ router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
       FROM tblLoan l
       WHERE l.customer_id = ?
         AND NOT EXISTS (SELECT 1 FROM tblAmortizationSchedule s WHERE s.loan_id = l.id)`, [id]);
-    const virtualStats = { paid_count: 0, on_time: 0, late: 0 };
+    const virtualStats = { paid_count: 0, on_time: 0, late: 0, longest_late_days: 0 };
 
     for (const loan of loansWithoutSchedule) {
       const amortization = Number(loan.amortization || 0) || Number(loan.total_amortization || 0) / getWorkingDays(loan.loan_period);
@@ -656,15 +657,19 @@ router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
 
       virtualSchedule.filter(installment => installment.amount_paid > 0).forEach(installment => {
         virtualStats.paid_count += 1;
-        if (String(installment.date_paid) > String(installment.due_date)) virtualStats.late += 1;
-        else virtualStats.on_time += 1;
+        if (String(installment.date_paid) > String(installment.due_date)) {
+          virtualStats.late += 1;
+          const lateDays = Math.round((new Date(`${installment.date_paid}T00:00:00`) - new Date(`${installment.due_date}T00:00:00`)) / 86400000);
+          virtualStats.longest_late_days = Math.max(virtualStats.longest_late_days, lateDays);
+        } else virtualStats.on_time += 1;
       });
     }
 
     const paymentStats = {
       paid_count: Number(sched?.paid_count || 0) + virtualStats.paid_count,
       on_time: Number(sched?.on_time || 0) + virtualStats.on_time,
-      late: Number(sched?.late || 0) + virtualStats.late
+      late: Number(sched?.late || 0) + virtualStats.late,
+      longest_late_days: Math.max(Number(sched?.longest_late_days || 0), virtualStats.longest_late_days)
     };
     totalPaymentCount = paymentStats.paid_count;
 
@@ -739,12 +744,21 @@ router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
       score = Math.max(0, score);
     }
 
+    let paymentGrade = 'EXCELLENT';
+    if ((pd?.past_due_occurrences || 0) > 0) paymentGrade = 'POOR';
+    else if (paymentStats.late === 0) paymentGrade = 'EXCELLENT';
+    else if (paymentStats.late <= 2 && paymentStats.longest_late_days <= 3) paymentGrade = 'GOOD';
+    else if (paymentStats.late <= 5 && paymentStats.longest_late_days <= 7) paymentGrade = 'FAIR';
+    else paymentGrade = 'RISKY';
+
     res.json({
       total_loans: stats ? stats.total_loans : 0,
       total_amount_borrowed: stats ? stats.total_amount_borrowed : 0,
       last_loan_amount: stats ? stats.last_loan_amount : 0,
       on_time_payments: paymentStats.on_time,
       late_payments: paymentStats.late,
+      longest_late_days: paymentStats.longest_late_days,
+      payment_grade: paymentGrade,
       total_payment_count: totalPaymentCount,
       past_due_occurrences: pd ? pd.past_due_occurrences : 0,
       recon_history: recon ? recon.recon_history : 0,
