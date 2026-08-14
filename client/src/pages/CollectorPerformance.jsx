@@ -638,7 +638,7 @@ export default function CollectorPerformance() {
   const selectedBeginningActive = selectedLatestRow
     ? Number(selectedLatestRow.activeClients || 0) + Number(selectedLatestRow.overdueClients || 0)
     : 0
-  const selectedEndingBalance = selectedBeginningActive
+  const selectedEndingBalance = Math.max(0, selectedBeginningActive - selectedReconClients)
   const selectedInsight = selectedCollection && selectedSummary
     ? getGeneratedCollectionInsight(selectedCollection.name, selectedCollection.rows, selectedSummary)
     : null
@@ -792,7 +792,7 @@ export default function CollectorPerformance() {
           const reconClients = Number(edit.reconClients ?? collector.rows.reduce((sum, row) => sum + Number(row.reconClients || 0), 0))
           const activeTarget = 100
           const beginningActive = Number(firstRow.activeClients || 0) + Number(firstRow.overdueClients || 0)
-          const endingBalance = beginningActive
+          const endingBalance = Math.max(0, beginningActive - reconClients)
           const lacking = Math.max(0, activeTarget - endingBalance)
           const insight = getGeneratedCollectionInsight(edit.fullName || collector.name, collector.rows, summary)
           return (
