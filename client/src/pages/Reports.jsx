@@ -625,6 +625,7 @@ export default function Reports() {
   const [selectedExpenseEmployee, setSelectedExpenseEmployee] = useState(null)
   const [expensesLoading, setExpensesLoading] = useState(false)
   const [expenseForm, setExpenseForm] = useState({ id: '', personnel_id: '', expense_date: toDateInputValue(new Date()), category: '', description: '', amount: '', remarks: '' })
+  const [expenseActionModal, setExpenseActionModal] = useState(null)
   const [personnelForm, setPersonnelForm] = useState({ id: '', employee_name: '', position: '', status: 'active' })
   const [categoryForm, setCategoryForm] = useState({ id: '', category_name: '', status: 'active' })
   const allowedReportTypes = REPORT_TYPES.filter(report => hasPermission(reportPermissionKey(report.key), 'view'))
@@ -841,7 +842,13 @@ export default function Reports() {
     }
   }
 
-  const saveExpenseEntry = async (event) => {
+  const expenseEmployeeName = personnelId => expensePersonnel.find(personnel => String(personnel.id) === String(personnelId))?.employee_name || 'Unknown Employee'
+
+  const showExpenseActionError = message => {
+    setExpenseActionModal({ phase: 'error', title: 'Unable to Continue', message })
+  }
+
+  const saveExpenseEntry = (event) => {
     event.preventDefault()
     const payload = {
       personnel_id: expenseForm.personnel_id,
@@ -852,24 +859,21 @@ export default function Reports() {
       remarks: expenseForm.remarks.trim(),
     }
     if (!payload.personnel_id) {
-      alert('Please select an employee.')
+      showExpenseActionError('Please select an employee before saving the expense entry.')
       return
     }
     if (!(payload.amount > 0)) {
-      alert('Amount must be greater than zero.')
+      showExpenseActionError('The expense amount must be greater than zero.')
       return
     }
-    try {
-      if (expenseForm.id) {
-        await API.put(`/reports/expenses/entries/${expenseForm.id}`, payload)
-      } else {
-        await API.post('/reports/expenses/entries', payload)
-      }
-      setExpenseForm({ id: '', personnel_id: payload.personnel_id, expense_date: toDateInputValue(new Date()), category: '', description: '', amount: '', remarks: '' })
-      await loadExpensesReport()
-    } catch (err) {
-      alert(err.response?.data?.error || 'Failed to save expense')
-    }
+    setExpenseActionModal({
+      phase: 'confirm',
+      action: expenseForm.id ? 'update' : 'create',
+      entryId: expenseForm.id,
+      payload,
+      entry: { employee_name: expenseEmployeeName(payload.personnel_id), ...payload },
+      busy: false,
+    })
   }
 
   const saveCategory = async (event) => {
@@ -895,7 +899,7 @@ export default function Reports() {
     }
   }
 
-  const editExpenseEntry = entry => {
+  const applyExpenseEdit = entry => {
     setExpensesTab('input')
     setExpenseForm({
       id: entry.id,
@@ -908,13 +912,49 @@ export default function Reports() {
     })
   }
 
-  const deleteExpenseEntry = async id => {
-    if (!window.confirm('Delete this expense entry?')) return
+  const editExpenseEntry = entry => {
+    setExpenseActionModal({ phase: 'confirm', action: 'edit', entry, busy: false })
+  }
+
+  const deleteExpenseEntry = entry => {
+    setExpenseActionModal({ phase: 'confirm', action: 'delete', entry, busy: false })
+  }
+
+  const confirmExpenseAction = async () => {
+    if (!expenseActionModal || expenseActionModal.busy) return
+    const { action, entry, entryId, payload } = expenseActionModal
+    if (action === 'edit') {
+      applyExpenseEdit(entry)
+      setExpenseActionModal(null)
+      return
+    }
+
+    setExpenseActionModal(current => ({ ...current, busy: true }))
     try {
-      await API.delete(`/reports/expenses/entries/${id}`)
+      if (action === 'delete') {
+        await API.delete(`/reports/expenses/entries/${entry.id}`)
+      } else if (action === 'update') {
+        await API.put(`/reports/expenses/entries/${entryId}`, payload)
+      } else {
+        await API.post('/reports/expenses/entries', payload)
+      }
+      if (action === 'create' || action === 'update') {
+        setExpenseForm({ id: '', personnel_id: payload.personnel_id, expense_date: toDateInputValue(new Date()), category: '', description: '', amount: '', remarks: '' })
+      }
       await loadExpensesReport()
+      const resultTitles = { create: 'Expense Saved', update: 'Expense Updated', delete: 'Expense Deleted' }
+      const resultMessages = {
+        create: 'The new expense entry was saved successfully.',
+        update: 'The expense entry was updated successfully.',
+        delete: 'The expense entry was removed successfully.',
+      }
+      setExpenseActionModal({ phase: 'success', title: resultTitles[action], message: resultMessages[action] })
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to delete expense')
+      setExpenseActionModal({
+        phase: 'error',
+        title: 'Action Failed',
+        message: err.response?.data?.error || `Failed to ${action === 'delete' ? 'delete' : 'save'} the expense entry. Please try again.`,
+      })
     }
   }
 
@@ -2191,8 +2231,8 @@ export default function Reports() {
                     <td className="text-right fw-700">PHP {fmtMoney(entry.amount)}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <button className="btn btn-secondary" style={{ padding: '5px 8px' }} onClick={() => editExpenseEntry(entry)} title="Edit"><Pencil size={14} /></button>
-                        <button className="btn btn-secondary" style={{ padding: '5px 8px', color: '#dc2626' }} onClick={() => deleteExpenseEntry(entry.id)} title="Delete"><Trash2 size={14} /></button>
+                        <button type="button" className="btn btn-secondary" style={{ padding: '5px 8px' }} onClick={() => editExpenseEntry(entry)} title="Edit"><Pencil size={14} /></button>
+                        <button type="button" className="btn btn-secondary" style={{ padding: '5px 8px', color: '#dc2626' }} onClick={() => deleteExpenseEntry(entry)} title="Delete"><Trash2 size={14} /></button>
                       </div>
                     </td>
                   </tr>
@@ -5394,6 +5434,63 @@ export default function Reports() {
           </div>
         </div>
       )}
+      {expenseActionModal && (() => {
+        const isConfirm = expenseActionModal.phase === 'confirm'
+        const isDelete = expenseActionModal.action === 'delete'
+        const isEdit = expenseActionModal.action === 'edit'
+        const isSuccess = expenseActionModal.phase === 'success'
+        const entry = expenseActionModal.entry
+        const modalCopy = {
+          create: { title: 'Confirm New Expense', message: 'Please review the expense details before saving.', button: 'Save Expense' },
+          update: { title: 'Confirm Expense Update', message: 'Please confirm the changes to this expense entry.', button: 'Update Expense' },
+          edit: { title: 'Edit Expense Entry?', message: 'The selected expense will be loaded into the form for editing.', button: 'Continue Editing' },
+          delete: { title: 'Delete Expense Entry?', message: 'This action cannot be undone. Please review the entry before deleting it.', button: 'Delete Expense' },
+        }
+        const copy = modalCopy[expenseActionModal.action] || {}
+        const iconColor = isSuccess ? '#15803d' : expenseActionModal.phase === 'error' || isDelete ? '#dc2626' : '#2563eb'
+        const iconBackground = isSuccess ? '#dcfce7' : expenseActionModal.phase === 'error' || isDelete ? '#fee2e2' : '#dbeafe'
+        const closeModal = () => !expenseActionModal.busy && setExpenseActionModal(null)
+        return (
+          <div className="modal-overlay" onMouseDown={event => event.target === event.currentTarget && closeModal()}>
+            <div className="modal" role="dialog" aria-modal="true" aria-labelledby="expense-action-modal-title" style={{ maxWidth: 500, borderRadius: 16, overflow: 'hidden', boxShadow: '0 24px 70px rgba(15, 23, 42, 0.24)' }}>
+              <div style={{ padding: '26px 26px 18px', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                <div style={{ width: 48, height: 48, borderRadius: 14, flex: '0 0 auto', display: 'grid', placeItems: 'center', color: iconColor, background: iconBackground }}>
+                  {isSuccess ? <CheckCircle2 size={26} /> : expenseActionModal.phase === 'error' || isDelete ? <AlertTriangle size={26} /> : isEdit ? <Pencil size={24} /> : <Save size={24} />}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h3 id="expense-action-modal-title" style={{ margin: '1px 0 6px', fontSize: 19, color: '#0f172a' }}>{isConfirm ? copy.title : expenseActionModal.title}</h3>
+                  <p style={{ margin: 0, color: '#64748b', fontSize: 14, lineHeight: 1.55 }}>{isConfirm ? copy.message : expenseActionModal.message}</p>
+                </div>
+                <button type="button" className="modal-close" aria-label="Close" disabled={expenseActionModal.busy} onClick={closeModal} style={{ marginTop: -7 }}>×</button>
+              </div>
+              {isConfirm && entry && (
+                <div style={{ margin: '0 26px', padding: 16, border: '1px solid #e2e8f0', borderRadius: 12, background: '#f8fafc' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 18px' }}>
+                    <div><div className="nav-section-label" style={{ marginBottom: 4 }}>Employee</div><div className="fw-600">{entry.employee_name || expenseEmployeeName(entry.personnel_id)}</div></div>
+                    <div><div className="nav-section-label" style={{ marginBottom: 4 }}>Amount</div><div className="fw-700" style={{ color: isDelete ? '#dc2626' : '#0f766e' }}>PHP {fmtMoney(entry.amount)}</div></div>
+                    <div><div className="nav-section-label" style={{ marginBottom: 4 }}>Category</div><div>{entry.category || 'Uncategorized'}</div></div>
+                    <div><div className="nav-section-label" style={{ marginBottom: 4 }}>Expense Date</div><div>{displayDate(dateOnly(entry.expense_date))}</div></div>
+                  </div>
+                  {entry.description && <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #e2e8f0' }}><div className="nav-section-label" style={{ marginBottom: 4 }}>Description</div><div style={{ color: '#334155' }}>{entry.description}</div></div>}
+                </div>
+              )}
+              <div style={{ padding: '22px 26px 26px', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                {isConfirm ? (
+                  <>
+                    <button type="button" className="btn btn-secondary" disabled={expenseActionModal.busy} onClick={closeModal}>Cancel</button>
+                    <button type="button" className="btn btn-primary" disabled={expenseActionModal.busy} onClick={confirmExpenseAction} style={isDelete ? { background: '#dc2626', borderColor: '#dc2626' } : undefined}>
+                      {expenseActionModal.busy ? <RefreshCcw size={15} className="spin" /> : isDelete ? <Trash2 size={15} /> : isEdit ? <Pencil size={15} /> : <Save size={15} />}
+                      {expenseActionModal.busy ? 'Processing...' : copy.button}
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="btn btn-primary" onClick={closeModal}>Done</button>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
       {selectedCollector && (
         <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setSelectedCollector(null)}>
           <div className="modal modal-print-area" id="printable-area" style={{ maxWidth: (active === 'full-paid' || active === 'past-due') ? 1180 : 980 }}>
