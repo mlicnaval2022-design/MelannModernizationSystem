@@ -71,6 +71,12 @@ test('a role can access only its selected report types', async () => {
   });
   assert.equal(userResponse.status, 201);
 
+  const rolesResponse = await api(admin.token, '/users/roles');
+  assert.equal(rolesResponse.status, 200);
+  const savedRole = (await rolesResponse.json()).find(item => item.role_key === role.role_key);
+  assert.match(savedRole.description, /view-only access to 1 of 21 modules and 1 of 10 report types/i);
+  assert.match(savedRole.description, /cannot add, edit, or delete/i);
+
   const viewer = await login('aging_viewer', 'aging123');
   assert.equal(viewer.user.permissions['report:aging-report'], 'view');
   assert.equal(viewer.user.permissions['report:collection-report'], undefined);

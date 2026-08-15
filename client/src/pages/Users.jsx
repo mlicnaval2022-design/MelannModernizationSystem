@@ -11,6 +11,25 @@ function permissionMap(items = []) {
   return Object.fromEntries(items.map(item => [item.module_key, item.access_level]))
 }
 
+function buildRoleDescription(roleName, permissions, modules, reportTypes) {
+  const name = roleName.trim() || 'This role'
+  const entries = Object.entries(permissions)
+  const selectedModules = entries.filter(([key]) => !key.startsWith('report:'))
+  const selectedReportTypes = entries.filter(([key]) => key.startsWith('report:'))
+  const moduleScope = selectedModules.length === modules.length && modules.length > 0 ? `all ${modules.length} modules` : `${selectedModules.length} of ${modules.length} modules`
+  const reportScope = selectedReportTypes.length === reportTypes.length && reportTypes.length > 0 ? `all ${reportTypes.length} report types` : `${selectedReportTypes.length} of ${reportTypes.length} report types`
+  if (entries.length === 0) return `${name} currently has no assigned module or report access.`
+
+  const counts = entries.reduce((result, [, level]) => ({ ...result, [level]: (result[level] || 0) + 1 }), {})
+  const levels = Object.keys(counts)
+  if (levels.length === 1 && levels[0] === 'view') return `${name} has view-only access to ${moduleScope} and ${reportScope}. This role can view authorized records but cannot add, edit, or delete them.`
+  if (levels.length === 1 && levels[0] === 'crud') return `${name} has full CRUD access to ${moduleScope} and ${reportScope}. This role can create, view, update, and delete records within the configured scope.`
+
+  const labels = { view: 'view-only', input: 'input-only', edit: 'edit-only', crud: 'full CRUD' }
+  const breakdown = ACCESS_LEVEL_OPTIONS.filter(level => counts[level.value]).map(level => `${counts[level.value]} ${labels[level.value]}`).join(', ')
+  return `${name} can access ${moduleScope} and ${reportScope}. Permission assignments: ${breakdown}. Access is restricted to the selected modules and report types, with actions limited by each configured access level.`
+}
+
 export default function Users() {
   const { hasPermission } = useAuth()
   const [activeTab, setActiveTab] = useState('role-description')
@@ -34,6 +53,9 @@ export default function Users() {
   const canEdit = hasPermission('user-management', 'edit')
   const canCrud = hasPermission('user-management', 'crud')
   const activeRoles = useMemo(() => roles.filter(role => role.status === 'active'), [roles])
+  const allPermissionKeys = useMemo(() => [...modules.map(module => module.key), ...reportTypes.map(reportType => reportType.key)], [modules, reportTypes])
+  const allPermissionsSelected = allPermissionKeys.length > 0 && allPermissionKeys.every(key => Boolean(roleForm.permissions[key]))
+  const generatedRoleDescription = useMemo(() => buildRoleDescription(roleForm.role_name, roleForm.permissions, modules, reportTypes), [roleForm.role_name, roleForm.permissions, modules, reportTypes])
 
   const load = async () => {
     setLoading(true)
@@ -126,6 +148,15 @@ export default function Users() {
     })
   }
 
+  const toggleAllModules = () => {
+    setRoleForm(current => {
+      if (allPermissionsSelected) return { ...current, permissions: {} }
+      const nextPermissions = { ...current.permissions }
+      allPermissionKeys.forEach(key => { nextPermissions[key] ||= 'view' })
+      return { ...current, permissions: nextPermissions }
+    })
+  }
+
   const setModuleAccess = (moduleKey, accessLevel) => {
     setRoleForm(current => ({ ...current, permissions: { ...current.permissions, [moduleKey]: accessLevel } }))
   }
@@ -136,7 +167,7 @@ export default function Users() {
     setRoleSaving(true)
     const payload = {
       role_name: roleForm.role_name,
-      description: roleForm.description,
+      description: generatedRoleDescription,
       status: roleForm.status,
       permissions: Object.entries(roleForm.permissions).map(([module_key, access_level]) => ({ module_key, access_level })),
     }
@@ -251,13 +282,13 @@ export default function Users() {
             <div className="form-grid" style={{ marginBottom: 16 }}>
               <div className="form-group"><label className="form-label">Position / Role Name *</label><input className="form-control" placeholder="e.g. Collector, Cashier, Branch Manager" value={roleForm.role_name} onChange={event => setRoleForm(current => ({ ...current, role_name: event.target.value }))} required disabled={!canCrud} /></div>
               <div className="form-group"><label className="form-label">Status</label><select className="form-control" value={roleForm.status} onChange={event => setRoleForm(current => ({ ...current, status: event.target.value }))} disabled={!canCrud || roles.find(role => role.id === roleForm.id)?.role_key === 'admin'}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
-              <div className="form-group" style={{ gridColumn: '1 / -1' }}><label className="form-label">Role Description</label><textarea className="form-control" rows={3} placeholder="Describe the responsibilities and intended users of this role..." value={roleForm.description} onChange={event => setRoleForm(current => ({ ...current, description: event.target.value }))} disabled={!canCrud} /></div>
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}><label className="form-label">Role Description <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>(Automatically Generated)</span></label><textarea className="form-control" rows={4} value={generatedRoleDescription} readOnly style={{ background: '#f8fafc', lineHeight: 1.5 }} /><div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 5 }}>This description updates automatically from the selected modules, report types, and access levels.</div></div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'end', marginBottom: 10 }}><div><div style={{ fontWeight: 800, color: 'var(--blue-dark)' }}>Module Checklist</div><div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 3 }}>Check allowed modules, then choose View Only, Input, Edit, or full CRUD.</div></div><div style={{ color: 'var(--text-muted)', fontSize: 12 }}>{Object.keys(roleForm.permissions).length} selected</div></div>
             <div className="table-wrapper" style={{ maxHeight: 430, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
               <table className="data-table">
-                <thead><tr><th style={{ width: 70 }}>Allow</th><th>Module</th><th>Section</th><th style={{ width: 180 }}>Access Level</th></tr></thead>
+                <thead><tr><th style={{ width: 120 }}><label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: canCrud ? 'pointer' : 'default' }}><input type="checkbox" checked={allPermissionsSelected} onChange={toggleAllModules} disabled={!canCrud || allPermissionKeys.length === 0} aria-label="Select all modules and report types" /> Select All</label></th><th>Module</th><th>Section</th><th style={{ width: 180 }}>Access Level</th></tr></thead>
                 <tbody>{modules.map(module => {
                   const selected = Boolean(roleForm.permissions[module.key])
                   return <Fragment key={module.key}>

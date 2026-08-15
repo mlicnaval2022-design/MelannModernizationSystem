@@ -33,6 +33,38 @@ function normalizePermissions(permissions) {
   return [...byModule].map(([module_key, access_level]) => ({ module_key, access_level }));
 }
 
+function buildRoleDescription(roleName, permissions) {
+  const name = String(roleName || 'This role').trim() || 'This role';
+  const selectedModules = permissions.filter(item => !item.module_key.startsWith('report:'));
+  const selectedReportTypes = permissions.filter(item => item.module_key.startsWith('report:'));
+  const moduleScope = selectedModules.length === ACCESS_MODULES.length
+    ? `all ${ACCESS_MODULES.length} modules`
+    : `${selectedModules.length} of ${ACCESS_MODULES.length} modules`;
+  const reportScope = selectedReportTypes.length === REPORT_TYPE_PERMISSIONS.length
+    ? `all ${REPORT_TYPE_PERMISSIONS.length} report types`
+    : `${selectedReportTypes.length} of ${REPORT_TYPE_PERMISSIONS.length} report types`;
+  if (permissions.length === 0) return `${name} currently has no assigned module or report access.`;
+
+  const counts = permissions.reduce((result, item) => {
+    result[item.access_level] = (result[item.access_level] || 0) + 1;
+    return result;
+  }, {});
+  const levels = Object.keys(counts);
+  if (levels.length === 1 && levels[0] === 'view') {
+    return `${name} has view-only access to ${moduleScope} and ${reportScope}. This role can view authorized records but cannot add, edit, or delete them.`;
+  }
+  if (levels.length === 1 && levels[0] === 'crud') {
+    return `${name} has full CRUD access to ${moduleScope} and ${reportScope}. This role can create, view, update, and delete records within the configured scope.`;
+  }
+
+  const labels = { view: 'view-only', input: 'input-only', edit: 'edit-only', crud: 'full CRUD' };
+  const breakdown = ACCESS_LEVELS
+    .filter(level => counts[level])
+    .map(level => `${counts[level]} ${labels[level]}`)
+    .join(', ');
+  return `${name} can access ${moduleScope} and ${reportScope}. Permission assignments: ${breakdown}. Access is restricted to the selected modules and report types, with actions limited by each configured access level.`;
+}
+
 async function replacePermissions(roleId, permissions) {
   await dbRun(`DELETE FROM tblRolePermission WHERE role_id = ?`, [roleId]);
   for (const permission of permissions) {
@@ -80,7 +112,10 @@ router.get('/roles', authenticateToken, requireRole('admin'), async (req, res) =
       if (!grouped.has(item.role_id)) grouped.set(item.role_id, []);
       grouped.get(item.role_id).push({ module_key: item.module_key, access_level: item.access_level });
     });
-    res.json(roles.map(role => ({ ...role, permissions: grouped.get(role.id) || [] })));
+    res.json(roles.map(role => {
+      const rolePermissions = grouped.get(role.id) || [];
+      return { ...role, description: buildRoleDescription(role.role_name, rolePermissions), permissions: rolePermissions };
+    }));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -88,7 +123,6 @@ router.post('/roles', authenticateToken, requireRole('admin'), async (req, res) 
   let transactionStarted = false;
   try {
     const roleName = String(req.body.role_name || '').trim();
-    const description = String(req.body.description || '').trim();
     const permissions = normalizePermissions(req.body.permissions);
     const roleKey = makeRoleKey(req.body.role_key || roleName);
     if (!roleName || !roleKey) return res.status(400).json({ error: 'Role name is required.' });
@@ -97,7 +131,7 @@ router.post('/roles', authenticateToken, requireRole('admin'), async (req, res) 
     transactionStarted = true;
     const result = await dbRun(
       `INSERT INTO tblRole (role_key, role_name, description, status, created_by, updated_by) VALUES (?, ?, ?, 'active', ?, ?)`,
-      [roleKey, roleName, description, req.user.id, req.user.id]
+      [roleKey, roleName, buildRoleDescription(roleName, permissions), req.user.id, req.user.id]
     );
     await replacePermissions(result.lastID, permissions);
     await dbExec('COMMIT');
@@ -116,7 +150,6 @@ router.put('/roles/:id', authenticateToken, requireRole('admin'), async (req, re
     const role = await dbGet(`SELECT * FROM tblRole WHERE id = ?`, [req.params.id]);
     if (!role) return res.status(404).json({ error: 'Role not found.' });
     const roleName = String(req.body.role_name || '').trim();
-    const description = String(req.body.description || '').trim();
     const status = req.body.status === 'inactive' ? 'inactive' : 'active';
     const permissions = normalizePermissions(req.body.permissions);
     if (!roleName) return res.status(400).json({ error: 'Role name is required.' });
@@ -126,7 +159,7 @@ router.put('/roles/:id', authenticateToken, requireRole('admin'), async (req, re
     transactionStarted = true;
     await dbRun(
       `UPDATE tblRole SET role_name=?, description=?, status=?, updated_by=?, updated_at=datetime('now') WHERE id=?`,
-      [roleName, description, status, req.user.id, role.id]
+      [roleName, buildRoleDescription(roleName, permissions), status, req.user.id, role.id]
     );
     await replacePermissions(role.id, permissions);
     await dbExec('COMMIT');
@@ -199,3 +232,4 @@ router.put('/:id', authenticateToken, requireRole('admin'), async (req, res) => 
 });
 
 module.exports = router;
+module.exports.buildRoleDescription = buildRoleDescription;

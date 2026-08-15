@@ -14,8 +14,10 @@ import {
   Bell,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   ClipboardList,
   FileText,
+  Filter,
   Pencil,
   Plus,
   Printer,
@@ -618,6 +620,8 @@ export default function Reports() {
   const [expenseCategories, setExpenseCategories] = useState([])
   const [expenseEntries, setExpenseEntries] = useState([])
   const [expenseSummary, setExpenseSummary] = useState(null)
+  const [expenseCategoryFilterOpen, setExpenseCategoryFilterOpen] = useState(false)
+  const [selectedExpenseCategories, setSelectedExpenseCategories] = useState([])
   const [selectedExpenseEmployee, setSelectedExpenseEmployee] = useState(null)
   const [expensesLoading, setExpensesLoading] = useState(false)
   const [expenseForm, setExpenseForm] = useState({ id: '', personnel_id: '', expense_date: toDateInputValue(new Date()), category: '', description: '', amount: '', remarks: '' })
@@ -800,8 +804,11 @@ export default function Reports() {
       setExpensePersonnel(Array.isArray(personnelRes.data) ? personnelRes.data : [])
       setExpenseCategories(Array.isArray(categoriesRes.data) ? categoriesRes.data : [])
       setExpenseEntries(Array.isArray(entriesRes.data) ? entriesRes.data : [])
-      setExpenseSummary(summaryRes.data || null)
-      setData(summaryRes.data || { ready: true })
+      const nextSummary = summaryRes.data || null
+      setExpenseSummary(nextSummary)
+      setSelectedExpenseCategories((nextSummary?.by_category || []).map(row => row.category))
+      setExpenseCategoryFilterOpen(false)
+      setData(nextSummary || { ready: true })
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to load expenses report')
       setData({ error: err.response?.data?.error || 'Failed to load expenses report' })
@@ -2010,6 +2017,9 @@ export default function Reports() {
       const summary = expenseSummary || {}
       const byEmployee = summary.by_employee || []
       const byCategory = summary.by_category || []
+      const filteredByCategory = byCategory.filter(row => selectedExpenseCategories.includes(row.category))
+      const filteredCategoryTotal = filteredByCategory.reduce((sum, row) => sum + Number(row.total_amount || 0), 0)
+      const allExpenseCategoriesSelected = byCategory.length > 0 && filteredByCategory.length === byCategory.length
       const netIncomeByCollector = summary.net_income_by_collector || []
       const activePersonnel = expensePersonnel.filter(p => p.status === 'active')
       const activeCategories = expenseCategories.filter(category => category.status === 'active')
@@ -2071,11 +2081,34 @@ export default function Reports() {
               </table>
             </div>
             <div>
-              <h3 style={{ margin: '0 0 10px 0', color: 'var(--blue-dark)' }}>By Category</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0, color: 'var(--blue-dark)' }}>By Category</h3>
+                <div style={{ position: 'relative' }}>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setExpenseCategoryFilterOpen(open => !open)} aria-haspopup="menu" aria-expanded={expenseCategoryFilterOpen} disabled={byCategory.length === 0}>
+                    <Filter size={14} /> {allExpenseCategoriesSelected ? 'All Categories' : `${filteredByCategory.length} Selected`} <ChevronDown size={14} />
+                  </button>
+                  {expenseCategoryFilterOpen && (
+                    <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 30, width: 250, maxHeight: 320, overflowY: 'auto', background: '#fff', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 14px 30px rgba(15, 23, 42, 0.16)', padding: 8 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 9px', borderBottom: '1px solid var(--border)', fontWeight: 700, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={allExpenseCategoriesSelected} onChange={() => setSelectedExpenseCategories(allExpenseCategoriesSelected ? [] : byCategory.map(row => row.category))} />
+                        Select All
+                      </label>
+                      {byCategory.map(row => (
+                        <label key={row.category} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 9, padding: '8px 9px', cursor: 'pointer' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}><input type="checkbox" checked={selectedExpenseCategories.includes(row.category)} onChange={() => setSelectedExpenseCategories(current => current.includes(row.category) ? current.filter(category => category !== row.category) : [...current, row.category])} />{row.category}</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>PHP {fmtMoney(row.total_amount)}</span>
+                        </label>
+                      ))}
+                      <button type="button" className="btn btn-primary btn-sm" style={{ width: '100%', marginTop: 6 }} onClick={() => setExpenseCategoryFilterOpen(false)}>Done</button>
+                    </div>
+                  )}
+                </div>
+              </div>
               <table className="data-table">
                 <thead><tr><th>Category</th><th className="text-right">Total</th></tr></thead>
                 <tbody>
-                  {byCategory.length === 0 ? <tr><td colSpan={2} className="empty-state">No expenses yet</td></tr> : byCategory.map(row => (
+                  <tr style={{ background: '#f0fdfa' }}><td className="fw-700" style={{ color: '#0f766e' }}>Overall Total</td><td className="text-right fw-700" style={{ color: '#0f766e' }}>PHP {fmtMoney(filteredCategoryTotal)}</td></tr>
+                  {byCategory.length === 0 ? <tr><td colSpan={2} className="empty-state">No expenses yet</td></tr> : filteredByCategory.length === 0 ? <tr><td colSpan={2} className="empty-state">No categories selected</td></tr> : filteredByCategory.map(row => (
                     <tr key={row.category}>
                       <td>{row.category}</td>
                       <td className="text-right fw-700">PHP {fmtMoney(row.total_amount)}</td>
