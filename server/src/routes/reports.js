@@ -16,6 +16,90 @@ const toLocalDateString = (date = new Date()) => {
 
 const toDateKey = value => String(value || '').slice(0, 10);
 
+const parseDateKey = value => {
+  const dateKey = toDateKey(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return null;
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+  return date;
+};
+
+const shiftDateKey = (dateKey, days) => {
+  const date = parseDateKey(dateKey);
+  if (!date) return '';
+  date.setDate(date.getDate() + days);
+  return toLocalDateString(date);
+};
+
+const buildCollectionTrendPeriods = (mode, endDateKey) => {
+  if (mode === 'daily') {
+    const periods = [];
+    let cursor = endDateKey;
+    while (periods.length < 7) {
+      if (!isSundayDate(cursor)) periods.unshift({ date: cursor, start_date: cursor, end_date: cursor });
+      cursor = shiftDateKey(cursor, -1);
+    }
+    return periods;
+  }
+
+  const periodDays = mode === 'weekly' ? 7 : 45;
+  const periodCount = mode === 'weekly' ? 8 : 6;
+  return Array.from({ length: periodCount }, (_, index) => {
+    const periodsBack = periodCount - index - 1;
+    const end_date = shiftDateKey(endDateKey, -(periodsBack * periodDays));
+    return {
+      date: end_date,
+      start_date: shiftDateKey(end_date, -(periodDays - 1)),
+      end_date,
+    };
+  });
+};
+
+const getCollectionTrend = async ({ mode = 'daily', endDate = toLocalDateString() } = {}) => {
+  const normalizedMode = mode === '45-days' ? mode : String(mode || '').toLowerCase();
+  if (!['daily', 'weekly', '45-days'].includes(normalizedMode)) {
+    const error = new Error('Trend mode must be daily, weekly, or 45-days');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!parseDateKey(endDate)) {
+    const error = new Error('A valid end_date in YYYY-MM-DD format is required');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const periods = buildCollectionTrendPeriods(normalizedMode, endDate);
+  const dateFrom = periods[0].start_date;
+  const dateTo = periods[periods.length - 1].end_date;
+  const payments = await dbAll(`
+    SELECT date_paid as date, SUM(amount_paid) as total
+    FROM tblPayment
+    WHERE date_paid BETWEEN ? AND ?
+      AND status IN ('active', 'penalty')
+      AND ${sqlNotSunday('date_paid')}
+    GROUP BY date_paid
+    ORDER BY date_paid
+  `, [dateFrom, dateTo]);
+
+  const rows = periods.map(period => ({
+    ...period,
+    total: payments.reduce((sum, payment) => (
+      payment.date >= period.start_date && payment.date <= period.end_date
+        ? sum + Number(payment.total || 0)
+        : sum
+    ), 0),
+  }));
+
+  return {
+    mode: normalizedMode,
+    end_date: endDate,
+    date_from: dateFrom,
+    date_to: dateTo,
+    rows,
+  };
+};
+
 const normalizeCollectorReportName = value => {
   const name = String(value || '').trim();
   if (!name) return 'Unassigned';
@@ -713,6 +797,12 @@ router.get('/customers-metrics', authenticateToken, async (req, res) => {
   } catch (err) { sendRouteError(res, err); }
 });
 
+router.get('/dashboard/collection-trend', authenticateToken, async (req, res) => {
+  try {
+    res.json(await getCollectionTrend({ mode: req.query.mode, endDate: req.query.end_date || toLocalDateString() }));
+  } catch (err) { sendRouteError(res, err); }
+});
+
 router.get('/dashboard', authenticateToken, async (req, res) => {
   try {
     const today = toLocalDateString();
@@ -730,18 +820,8 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
     const cycleStartStr = cycleStart.toISOString().split('T')[0];
     const cycleEndStr = cycleEnd.toISOString().split('T')[0];
 
-    const weekAgo = new Date(now);
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const weekAgoStr = weekAgo.toISOString().split('T')[0];
-
     res.json({
-      weekly_collection_trend: await dbAll(`
-        SELECT date_paid as date, SUM(amount_paid) as total 
-        FROM tblPayment 
-        WHERE date_paid >= ? AND date_paid <= ? AND status IN ('active', 'penalty') 
-        GROUP BY date_paid 
-        ORDER BY date_paid
-      `, [weekAgoStr, today]),
+      weekly_collection_trend: (await getCollectionTrend({ mode: 'daily', endDate: today })).rows,
       cycle_start: cycleStartStr,
       cycle_end: cycleEndStr,
       total_customers: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='active'`)).c,

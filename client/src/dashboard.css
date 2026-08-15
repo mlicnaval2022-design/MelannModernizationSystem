@@ -280,7 +280,13 @@
   letter-spacing: 1px;
   line-height: 1.2;
   text-transform: uppercase;
-  cursor: default;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.dashboard-trend-tabs button:hover:not(.active) {
+  background: #e2e8f0;
+  color: #334155;
 }
 
 .dashboard-trend-tabs button.active {
@@ -303,7 +309,14 @@
   font-size: 11px;
   font-weight: 800;
   white-space: nowrap;
-  cursor: default;
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.dashboard-trend-date-filter:hover,
+.dashboard-trend-date-filter[aria-expanded="true"] {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .dashboard-trend-date-filter svg {
@@ -311,13 +324,105 @@
   flex-shrink: 0;
 }
 
+.dashboard-trend-date-wrap {
+  position: relative;
+}
+
+.dashboard-trend-date-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  width: 280px;
+  padding: 14px;
+  border: 1px solid #dbe4f0;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+}
+
+.dashboard-trend-date-menu label {
+  display: block;
+  margin-bottom: 8px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.dashboard-trend-date-menu input {
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #0f172a;
+  font: inherit;
+}
+
+.dashboard-trend-date-actions {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.dashboard-trend-date-actions button {
+  min-height: 32px;
+  border: 1px solid #dbe4f0;
+  border-radius: 7px;
+  background: #f8fafc;
+  color: #2563eb;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.dashboard-trend-date-actions button:hover:not(:disabled) {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.dashboard-trend-date-actions button:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .dashboard-trend-chart {
+  position: relative;
   min-height: 275px;
   flex: 1;
   border: 0;
   border-radius: 0;
   background: #ffffff;
   padding: 0;
+}
+
+.dashboard-trend-feedback {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.dashboard-trend-feedback.error {
+  color: #dc2626;
+}
+
+.dashboard-trend-loading {
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(239, 246, 255, 0.94);
+  color: #2563eb;
+  font-size: 10px;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
 }
 
 .dashboard-trend-summary {

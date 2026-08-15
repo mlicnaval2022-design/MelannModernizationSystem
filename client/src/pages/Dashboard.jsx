@@ -28,8 +28,9 @@ const formatTrendDate = value => {
   return date.toLocaleDateString('en-US', { day: 'numeric', weekday: 'short' })
 }
 
-const formatTrendDateRange = trend => {
-  if (!trend || trend.length === 0) return 'No date range'
+const formatTrendDateRange = trendResult => {
+  const trend = trendResult?.rows || []
+  if (trend.length === 0) return 'No date range'
   const parse = value => {
     const text = String(value || '').slice(0, 10)
     const parts = text.split('-').map(Number)
@@ -38,12 +39,33 @@ const formatTrendDateRange = trend => {
       : new Date(value)
     return Number.isNaN(date.getTime()) ? null : date
   }
-  const start = parse(trend[0]?.date)
-  const end = parse(trend[trend.length - 1]?.date)
+  const start = parse(trendResult.date_from || trend[0]?.start_date || trend[0]?.date)
+  const end = parse(trendResult.date_to || trend[trend.length - 1]?.end_date || trend[trend.length - 1]?.date)
   if (!start || !end) return 'Collection period'
-  const startLabel = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const startLabel = start.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...(start.getFullYear() !== end.getFullYear() ? { year: 'numeric' } : {}),
+  })
   const endLabel = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  return `${startLabel} - ${endLabel} (Days of week)`
+  return `${startLabel} - ${endLabel}`
+}
+
+const formatTrendPoint = (row, mode) => {
+  if (!row) return '-'
+  if (mode === 'daily') return formatTrendDate(row.date)
+  const startYear = String(row.start_date || '').slice(0, 4)
+  const endYear = String(row.end_date || '').slice(0, 4)
+  if (startYear && endYear && startYear !== endYear) {
+    return `${formatChartDate(row.start_date)} ${startYear}–${formatChartDate(row.end_date)} ${endYear}`
+  }
+  return `${formatChartDate(row.start_date)}–${formatChartDate(row.end_date)}`
+}
+
+const trendModeCopy = {
+  daily: { average: 'Average Per Day', highest: 'Highest Day', lowest: 'Lowest Day', total: 'Days', comparison: 'vs. first day', windowDays: 8 },
+  weekly: { average: 'Average Per Week', highest: 'Highest Week', lowest: 'Lowest Week', total: 'Weeks', comparison: 'vs. first week', windowDays: 56 },
+  '45-days': { average: 'Average Per Period', highest: 'Highest 45-Day Period', lowest: 'Lowest 45-Day Period', total: 'Periods', comparison: 'vs. first period', windowDays: 270 },
 }
 
 const getCollectionTrendStats = trend => {
@@ -76,6 +98,14 @@ const toDateKey = date => {
   return `${year}-${month}-${day}`
 }
 
+const shiftDateInput = (value, days) => {
+  const [year, month, day] = String(value || '').split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  if (Number.isNaN(date.getTime())) return toDateKey(new Date())
+  date.setDate(date.getDate() + days)
+  return toDateKey(date)
+}
+
 const getYesterdayKey = () => {
   const yesterday = new Date()
   yesterday.setDate(yesterday.getDate() - 1)
@@ -91,6 +121,12 @@ export default function Dashboard() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
+  const [trendMode, setTrendMode] = useState('daily')
+  const [trendEndDate, setTrendEndDate] = useState(() => toDateKey(new Date()))
+  const [trendData, setTrendData] = useState(null)
+  const [trendLoading, setTrendLoading] = useState(true)
+  const [trendError, setTrendError] = useState('')
+  const [trendDateOpen, setTrendDateOpen] = useState(false)
 
   const fetchDashboardData = () => {
     const yesterday = getYesterdayKey()
@@ -122,11 +158,47 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [])
 
+  useEffect(() => {
+    let active = true
+    const loadCollectionTrend = () => {
+      setTrendLoading(true)
+      API.get('/reports/dashboard/collection-trend', { params: { mode: trendMode, end_date: trendEndDate } })
+        .then(response => {
+          if (!active) return
+          setTrendData(response.data)
+          setTrendError('')
+        })
+        .catch(err => {
+          if (!active) return
+          setTrendError(err.response?.data?.error || 'Could not load the collection trend.')
+        })
+        .finally(() => active && setTrendLoading(false))
+    }
+    loadCollectionTrend()
+    const interval = setInterval(loadCollectionTrend, 30000)
+    return () => {
+      active = false
+      clearInterval(interval)
+    }
+  }, [trendMode, trendEndDate])
+
   if (loading) return <div className="empty-state"><p>Loading dashboard...</p></div>
   if (errorMsg) return <div className="empty-state"><p>Could not load dashboard: {errorMsg}</p></div>
   if (!data) return <div className="empty-state"><p>Could not load dashboard data.</p></div>
 
-  const collectionTrend = getCollectionTrendStats(data.weekly_collection_trend)
+  const resolvedTrendData = trendData || {
+    mode: 'daily',
+    rows: data.weekly_collection_trend || [],
+    date_from: data.weekly_collection_trend?.[0]?.date,
+    date_to: data.weekly_collection_trend?.[data.weekly_collection_trend?.length - 1]?.date,
+  }
+  const collectionTrend = getCollectionTrendStats(resolvedTrendData.rows)
+  const activeTrendCopy = trendModeCopy[trendMode]
+  const todayKey = toDateKey(new Date())
+  const changeTrendEndDate = value => {
+    setTrendEndDate(value)
+    setTrendDateOpen(false)
+  }
 
   return (
     <div className="dashboard-v2">
@@ -305,25 +377,40 @@ export default function Dashboard() {
             </div>
             <div className="dashboard-trend-controls">
               <div className="dashboard-trend-tabs" aria-label="Collection trend range">
-                <button type="button">Weekly</button>
-                <button type="button" className="active">Daily</button>
-                <button type="button">Every 45 Days</button>
+                <button type="button" className={trendMode === 'weekly' ? 'active' : ''} onClick={() => setTrendMode('weekly')}>Weekly</button>
+                <button type="button" className={trendMode === 'daily' ? 'active' : ''} onClick={() => setTrendMode('daily')}>Daily</button>
+                <button type="button" className={trendMode === '45-days' ? 'active' : ''} onClick={() => setTrendMode('45-days')}>Every 45 Days</button>
               </div>
-              <button type="button" className="dashboard-trend-date-filter">
-                <CalendarDays size={13} />
-                <span>{formatTrendDateRange(collectionTrend.rows)}</span>
-                <ChevronDown size={13} />
-              </button>
+              <div className="dashboard-trend-date-wrap">
+                <button type="button" className="dashboard-trend-date-filter" aria-expanded={trendDateOpen} onClick={() => setTrendDateOpen(open => !open)}>
+                  <CalendarDays size={13} />
+                  <span>{formatTrendDateRange(resolvedTrendData)}</span>
+                  <ChevronDown size={13} />
+                </button>
+                {trendDateOpen && (
+                  <div className="dashboard-trend-date-menu">
+                    <label htmlFor="collection-trend-end-date">Show collections as of</label>
+                    <input id="collection-trend-end-date" type="date" value={trendEndDate} max={todayKey} onChange={event => changeTrendEndDate(event.target.value)} />
+                    <div className="dashboard-trend-date-actions">
+                      <button type="button" onClick={() => changeTrendEndDate(shiftDateInput(trendEndDate, -activeTrendCopy.windowDays))}>← Previous</button>
+                      <button type="button" onClick={() => changeTrendEndDate(todayKey)} disabled={trendEndDate === todayKey}>Today</button>
+                      <button type="button" onClick={() => changeTrendEndDate(shiftDateInput(trendEndDate, activeTrendCopy.windowDays))} disabled={trendEndDate >= todayKey}>Next →</button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <div className="dashboard-trend-chart">
-            {collectionTrend.rows.length > 0 ? (
+            {trendError ? (
+              <div className="dashboard-trend-feedback error">{trendError}</div>
+            ) : collectionTrend.rows.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={collectionTrend.rows} margin={{ top: 14, right: 18, left: 0, bottom: 8 }}>
                   <CartesianGrid vertical={false} stroke="#e9eef6" strokeDasharray="3 4" />
                   <Tooltip
                     formatter={(value) => [`₱${fmt(value)}`, 'Collection']}
-                    labelFormatter={formatChartDate}
+                    labelFormatter={(_, payload) => formatTrendPoint(payload?.[0]?.payload, trendMode)}
                     cursor={{ stroke: '#d7e0ee', strokeWidth: 1 }}
                     contentStyle={{
                       fontSize: 12,
@@ -338,7 +425,7 @@ export default function Dashboard() {
                     axisLine={false}
                     tickLine={false}
                     tick={{ fontSize: 11, fill: '#475569', fontWeight: 700 }}
-                    tickFormatter={formatTrendDate}
+                    tickFormatter={(_, index) => formatTrendPoint(collectionTrend.rows[index], trendMode)}
                     interval={0}
                     dy={8}
                   />
@@ -360,26 +447,27 @@ export default function Dashboard() {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No collection trend data</div>
+              <div className="dashboard-trend-feedback">No collection trend data</div>
             )}
+            {trendLoading && <div className="dashboard-trend-loading">Updating trend…</div>}
           </div>
           <div className="dashboard-trend-summary">
             <div>
-              <span>Average Per Day</span>
+              <span>{activeTrendCopy.average}</span>
               <strong>₱{fmt(collectionTrend.average)}</strong>
             </div>
             <div>
-              <span>Highest Day</span>
+              <span>{activeTrendCopy.highest}</span>
               <strong className="blue">₱{fmt(collectionTrend.highest.total)}</strong>
-              <small>{formatTrendDate(collectionTrend.highest.date)}</small>
+              <small>{formatTrendPoint(collectionTrend.highest, trendMode)}</small>
             </div>
             <div>
-              <span>Lowest Day</span>
+              <span>{activeTrendCopy.lowest}</span>
               <strong className="red">₱{fmt(collectionTrend.lowest.total)}</strong>
-              <small>{formatTrendDate(collectionTrend.lowest.date)}</small>
+              <small>{formatTrendPoint(collectionTrend.lowest, trendMode)}</small>
             </div>
             <div>
-              <span>Total ({collectionTrend.rows.length} Days)</span>
+              <span>Total ({collectionTrend.rows.length} {activeTrendCopy.total})</span>
               <strong>₱{fmt(collectionTrend.total)}</strong>
             </div>
             <div>
@@ -387,7 +475,7 @@ export default function Dashboard() {
               <strong className={collectionTrend.trendPct >= 0 ? 'green' : 'red'}>
                 {collectionTrend.trendPct >= 0 ? '↗' : '↘'} {Math.abs(collectionTrend.trendPct).toFixed(1)}%
               </strong>
-              <small>vs. first day</small>
+              <small>{activeTrendCopy.comparison}</small>
             </div>
           </div>
         </div>
