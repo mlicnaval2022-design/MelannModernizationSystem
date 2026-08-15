@@ -67,6 +67,7 @@ const resolvePrintablePreviousBalance = async (loan, findPriorBalancePayment = (
 const buildCollectionReleaseChargeRows = releases => releases.flatMap(loan => {
   const base = {
     loan_id: loan.id,
+    ...(loan.collector_id != null ? { collector_id: loan.collector_id } : {}),
     loan_code: loan.loan_code,
     customer_id: loan.customer_id,
     customer_code: loan.customer_code,
@@ -106,6 +107,7 @@ const getCollectionReleaseCharges = async (from, to) => {
   const releases = await dbAll(`
     SELECT
       l.id,
+      COALESCE(l.collector_id, c.collector_id) as collector_id,
       l.customer_id,
       l.loan_code,
       l.date_released,
@@ -231,6 +233,30 @@ const ensureExpensesReportTables = async () => {
 };
 
 const normalizeExpenseStatus = value => String(value || 'active').toLowerCase() === 'inactive' ? 'inactive' : 'active';
+
+const getNameAnchors = value => {
+  const tokens = String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(token => token.length > 1 && !['jr', 'sr', 'ii', 'iii', 'iv'].includes(token));
+  return tokens.length > 1 ? [tokens[0], tokens[tokens.length - 1]] : tokens;
+};
+
+const collectorNameMatchesPersonnel = (collectorName, personnelName) => {
+  const personnelAnchors = getNameAnchors(personnelName);
+  if (!personnelAnchors.length) return false;
+  const collectorTokens = new Set(String(collectorName || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean));
+  return personnelAnchors.every(anchor => collectorTokens.has(anchor));
+};
 
 const getPreviousOperationDate = (dateValue) => {
   const date = new Date(`${dateValue}T00:00:00`);
@@ -544,7 +570,9 @@ router.get('/expenses/summary', authenticateToken, async (req, res) => {
     if (dateTo) { filters.push(`date(ee.expense_date) <= date(?)`); params.push(dateTo); }
     const whereSql = filters.join(' AND ');
 
-    const [overall, byEmployee, byCategory, recent] = await Promise.all([
+    const rangeStart = dateFrom || '0001-01-01';
+    const rangeEnd = dateTo || '9999-12-31';
+    const [overall, byEmployee, byCategory, recent, configuredCollectors, systemCollectors, collectionPayments, releases, releaseCharges] = await Promise.all([
       dbGet(`
         SELECT COALESCE(SUM(amount), 0) as total_amount, COUNT(*) as expense_count
         FROM tblEmployeeExpense ee
@@ -579,7 +607,64 @@ router.get('/expenses/summary', authenticateToken, async (req, res) => {
         ORDER BY date(ee.expense_date) DESC, ee.id DESC
         LIMIT 10
       `, params),
+      dbAll(`
+        SELECT id as personnel_id, employee_name, position
+        FROM tblExpensePersonnel
+        WHERE status = 'active' AND LOWER(TRIM(COALESCE(position, ''))) = 'collector'
+        ORDER BY employee_name COLLATE NOCASE
+      `),
+      dbAll(`
+        SELECT id as collector_id,
+               TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) as collector_name
+        FROM tblCollector
+      `),
+      dbAll(`
+        SELECT COALESCE(p.collector_id, l.collector_id, c.collector_id) as collector_id,
+               COALESCE(SUM(p.amount_paid), 0) as total_amount
+        FROM tblPayment p
+        LEFT JOIN tblLoan l ON l.id = p.loan_id
+        LEFT JOIN tblCustomer c ON c.id = p.customer_id
+        WHERE date(p.date_paid) BETWEEN date(?) AND date(?)
+          AND p.status IN ('active', 'penalty')
+          AND ${sqlNotSunday('p.date_paid')}
+        GROUP BY COALESCE(p.collector_id, l.collector_id, c.collector_id)
+      `, [rangeStart, rangeEnd]),
+      dbAll(`
+        SELECT COALESCE(l.collector_id, c.collector_id) as collector_id,
+               COALESCE(SUM(l.principal), 0) as total_amount
+        FROM tblLoan l
+        LEFT JOIN tblCustomer c ON c.id = l.customer_id
+        WHERE date(l.date_released) BETWEEN date(?) AND date(?)
+          AND l.status != 'reversed'
+          AND ${sqlNotSunday('l.date_released')}
+        GROUP BY COALESCE(l.collector_id, c.collector_id)
+      `, [rangeStart, rangeEnd]),
+      getCollectionReleaseCharges(rangeStart, rangeEnd),
     ]);
+
+    const collectionByCollector = new Map(collectionPayments.map(row => [Number(row.collector_id), Number(row.total_amount || 0)]));
+    releaseCharges.forEach(row => {
+      const collectorId = Number(row.collector_id);
+      if (!collectorId) return;
+      collectionByCollector.set(collectorId, (collectionByCollector.get(collectorId) || 0) + Number(row.amount_paid || 0));
+    });
+    const releaseByCollector = new Map(releases.map(row => [Number(row.collector_id), Number(row.total_amount || 0)]));
+    const expenseByPersonnel = new Map(byEmployee.map(row => [Number(row.personnel_id), Number(row.total_amount || 0)]));
+    const netIncomeByCollector = configuredCollectors.map(personnel => {
+      const collectorIds = systemCollectors
+        .filter(collector => collectorNameMatchesPersonnel(collector.collector_name, personnel.employee_name))
+        .map(collector => Number(collector.collector_id));
+      const collectionAmount = collectorIds.reduce((sum, id) => sum + (collectionByCollector.get(id) || 0), 0);
+      const releaseAmount = collectorIds.reduce((sum, id) => sum + (releaseByCollector.get(id) || 0), 0);
+      const expenseAmount = expenseByPersonnel.get(Number(personnel.personnel_id)) || 0;
+      return {
+        ...personnel,
+        collection_amount: collectionAmount,
+        release_amount: releaseAmount,
+        expense_amount: expenseAmount,
+        net_income: collectionAmount - releaseAmount - expenseAmount,
+      };
+    });
 
     res.json({
       date_from: dateFrom,
@@ -588,6 +673,7 @@ router.get('/expenses/summary', authenticateToken, async (req, res) => {
       expense_count: Number(overall?.expense_count || 0),
       by_employee: byEmployee,
       by_category: byCategory,
+      net_income_by_collector: netIncomeByCollector,
       recent_expenses: recent,
     });
   } catch (err) { sendRouteError(res, err); }

@@ -609,6 +609,7 @@ export default function Reports() {
   const [printMode, setPrintMode] = useState('detailed')
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const [expensesTab, setExpensesTab] = useState('summary')
+  const [expenseSummaryTab, setExpenseSummaryTab] = useState('total-each-employee')
   const [configurationTab, setConfigurationTab] = useState('personnel')
   const [expensePersonnel, setExpensePersonnel] = useState([])
   const [expenseCategories, setExpenseCategories] = useState([])
@@ -1989,6 +1990,7 @@ export default function Reports() {
       const summary = expenseSummary || {}
       const byEmployee = summary.by_employee || []
       const byCategory = summary.by_category || []
+      const netIncomeByCollector = summary.net_income_by_collector || []
       const activePersonnel = expensePersonnel.filter(p => p.status === 'active')
       const activeCategories = expenseCategories.filter(category => category.status === 'active')
       const totalAmount = Number(summary.total_amount || 0)
@@ -1997,6 +1999,11 @@ export default function Reports() {
 
       if (expensesTab === 'summary') return (
         <div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+            <button type="button" className={`btn ${expenseSummaryTab === 'total-each-employee' ? 'btn-primary' : 'btn-secondary'} btn-sm`} onClick={() => setExpenseSummaryTab('total-each-employee')}>Total Each Employee</button>
+            <button type="button" className={`btn ${expenseSummaryTab === 'net-income-by-collector' ? 'btn-primary' : 'btn-secondary'} btn-sm`} onClick={() => setExpenseSummaryTab('net-income-by-collector')}>Net Income by Collector</button>
+          </div>
+          {expenseSummaryTab === 'total-each-employee' ? <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
             <div style={{ margin: 0, border: '1px solid var(--border)', borderRadius: 8, padding: 16, background: '#fff' }}>
               <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Total Expenses</div>
@@ -2043,6 +2050,37 @@ export default function Reports() {
               </table>
             </div>
           </div>
+          </> : (() => {
+            const totals = netIncomeByCollector.reduce((acc, row) => ({
+              collection: acc.collection + Number(row.collection_amount || 0),
+              release: acc.release + Number(row.release_amount || 0),
+              expense: acc.expense + Number(row.expense_amount || 0),
+              netIncome: acc.netIncome + Number(row.net_income || 0),
+            }), { collection: 0, release: 0, expense: 0, netIncome: 0 })
+            return (
+              <div>
+                <div style={{ marginBottom: 12, color: 'var(--text-muted)', fontSize: 13 }}>Net Income = Collection - Release - Expense, based on the selected date range.</div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="data-table">
+                    <thead><tr><th>Collector</th><th>Position</th><th className="text-right">Collection</th><th className="text-right">Release</th><th className="text-right">Expense</th><th className="text-right">Net Income</th></tr></thead>
+                    <tbody>
+                      {netIncomeByCollector.length === 0 ? <tr><td colSpan={6} className="empty-state">No active personnel with Collector position found</td></tr> : netIncomeByCollector.map(row => (
+                        <tr key={row.personnel_id}>
+                          <td className="fw-600">{row.employee_name}</td>
+                          <td>{row.position}</td>
+                          <td className="text-right">PHP {fmtMoney(row.collection_amount)}</td>
+                          <td className="text-right">PHP {fmtMoney(row.release_amount)}</td>
+                          <td className="text-right">PHP {fmtMoney(row.expense_amount)}</td>
+                          <td className="text-right fw-700" style={{ color: Number(row.net_income || 0) >= 0 ? '#15803d' : '#dc2626' }}>PHP {fmtMoney(row.net_income)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {netIncomeByCollector.length > 0 && <tfoot><tr><td colSpan={2} className="fw-700">Total</td><td className="text-right fw-700">PHP {fmtMoney(totals.collection)}</td><td className="text-right fw-700">PHP {fmtMoney(totals.release)}</td><td className="text-right fw-700">PHP {fmtMoney(totals.expense)}</td><td className="text-right fw-700" style={{ color: totals.netIncome >= 0 ? '#15803d' : '#dc2626' }}>PHP {fmtMoney(totals.netIncome)}</td></tr></tfoot>}
+                  </table>
+                </div>
+              </div>
+            )
+          })()}
         </div>
       )
 
