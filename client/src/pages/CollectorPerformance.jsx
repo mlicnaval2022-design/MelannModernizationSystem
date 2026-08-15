@@ -3,6 +3,7 @@ import { ArrowLeft, BarChart3, Building2, CalendarDays, CheckCircle2, ChevronRig
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import logo from '../assets/logo.png'
+import printLetterhead from '../assets/new-letter-head-logo.jpg'
 import '../dashboard.css'
 
 const fmt = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
@@ -454,14 +455,7 @@ function FortyFivePrintForm({ period, form }) {
 
   return <div className="forty-five-print-form-page">
     <header className="forty-five-form-company">
-      <img src={logo} alt="" />
-      <div>
-        <h1>Melann Lending Investor Corporation</h1>
-        <p>Lot 3 Blk 2, Brgy. San Isidro, Ormoc City</p>
-        <p>(053) 520-1138,0917-113-1000,0919-0085182</p>
-        <p>melann.lic2016@gmail.com</p>
-        <p>https://www.facebook.com/MelannInvestorCorp</p>
-      </div>
+      <img src={printLetterhead} alt="Melann Lending Investor Corporation letterhead" />
     </header>
     <div className="forty-five-form-title"><span />Forty-five (45) Day Evaluation Form<span /></div>
 
@@ -1491,39 +1485,38 @@ export default function CollectorPerformance() {
         .forty-five-print-preview .forty-five-print-form-page { box-shadow: 0 16px 46px rgba(15,23,42,.28); }
         .forty-five-print-form-layout { display: none; }
         .forty-five-print-form-page { width: 7.7in; min-height: 11.2in; padding: .22in .26in; color: #000; background: #fff; font-family: Arial, Helvetica, sans-serif; }
-        .forty-five-form-company { display: grid; grid-template-columns: 1.35in 1fr; align-items: center; gap: .08in; margin-bottom: .15in; }
-        .forty-five-form-company img { width: 1.15in; justify-self: end; }
-        .forty-five-form-company h1 { margin: 0 0 .03in; font-size: 18pt; line-height: 1; font-weight: 800; }
-        .forty-five-form-company p { margin: .02in 0; font-size: 9.4pt; line-height: 1.05; }
-        .forty-five-form-title { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: .06in; margin: .1in 0 .12in; color: #173c89; font-size: 11.5pt; font-weight: 800; text-align: center; }
+        .forty-five-form-company { margin-bottom: .12in; text-align: center; }
+        .forty-five-form-company img { display: block; width: 100%; height: auto; margin: 0 auto; }
+        .forty-five-form-title { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: .06in; margin: .1in 0 .12in; color: #173c89; font-size: 11.5pt; font-weight: 600; text-align: center; }
         .forty-five-form-title span { border-top: 2px solid #173c89; }
         .forty-five-form-meta, .forty-five-form-kpi, .forty-five-form-guide, .forty-five-form-rating-box table { width: 100%; border-collapse: collapse; table-layout: fixed; }
         .forty-five-form-meta { margin-bottom: .14in; font-size: 7.3pt; }
         .forty-five-form-meta th, .forty-five-form-meta td { border: 1.4px solid #173c89; padding: .045in .055in; text-align: left; }
-        .forty-five-form-meta th { width: 20%; background: #eef4fb; font-weight: 800; }
-        .forty-five-form-meta td { width: 30%; font-weight: 800; }
+        .forty-five-form-meta th { width: 20%; background: #eef4fb; font-weight: 600; }
+        .forty-five-form-meta td { width: 30%; font-weight: 500; }
         .forty-five-form-kpi { font-size: 7pt; text-align: center; }
-        .forty-five-form-kpi th { padding: .055in .04in; border: 1.4px solid #173c89; color: #fff; background: #173c89; font-weight: 800; }
-        .forty-five-form-kpi td { height: .25in; padding: .045in .04in; border: 1.2px solid #173c89; font-weight: 700; }
+        .forty-five-form-kpi th { padding: .055in .04in; border: 1.4px solid #173c89; color: #fff; background: #173c89; font-weight: 700; }
+        .forty-five-form-kpi td { height: .25in; padding: .045in .04in; border: 1.2px solid #173c89; font-weight: 400; }
+        .forty-five-form-kpi td strong { font-weight: 600; }
         .forty-five-form-kpi td:first-child { text-align: left; }
         .forty-five-form-kpi small { display: block; margin-top: .025in; font-size: 6pt; font-weight: 600; }
         .forty-five-form-kpi .negative { color: #d60000; }
-        .forty-five-form-empty td { color: #64748b; font-weight: 700; }
-        .forty-five-form-total td { background: #e7eef8; font-weight: 900; }
+        .forty-five-form-empty td { color: #64748b; font-weight: 400; }
+        .forty-five-form-total td { background: #e7eef8; font-weight: 600; }
         .forty-five-form-lower { display: grid; grid-template-columns: 2.75in 1fr; gap: .14in; margin-top: .16in; align-items: start; }
         .forty-five-form-guide { font-size: 6.8pt; }
         .forty-five-form-guide th, .forty-five-form-guide td { border: 1.2px solid #173c89; padding: .035in .045in; }
-        .forty-five-form-guide th { color: #fff; background: #173c89; text-align: center; }
+        .forty-five-form-guide th { color: #fff; background: #173c89; font-weight: 700; text-align: center; }
         .forty-five-form-rating-box { font-size: 7pt; }
         .forty-five-final-rating { display: flex; align-items: center; gap: .1in; margin-bottom: .05in; padding: .06in .08in; border-radius: .2in; color: #fff; background: #d70000; }
         .forty-five-final-rating strong { font-size: 8.5pt; }
-        .forty-five-final-rating span { margin-left: auto; min-width: 1.6in; padding: .045in .12in; border-radius: .16in; text-align: center; font-weight: 900; }
+        .forty-five-final-rating span { margin-left: auto; min-width: 1.6in; padding: .045in .12in; border-radius: .16in; text-align: center; font-weight: 600; }
         .forty-five-form-rating-box p { margin: .035in 0 .055in; color: #173c89; font-size: 6pt; font-style: italic; font-weight: 800; text-align: center; }
         .forty-five-form-rating-box th, .forty-five-form-rating-box td { height: .29in; border: 1.2px solid #173c89; padding: .04in; text-align: left; font-size: 6.6pt; }
-        .forty-five-form-rating-box th { width: 24%; background: #eef4fb; font-weight: 900; }
+        .forty-five-form-rating-box th { width: 24%; background: #eef4fb; font-weight: 600; }
         .forty-five-form-signatures { display: grid; grid-template-columns: repeat(4, 1fr); gap: .2in; margin-top: .3in; padding-top: .34in; border-top: 1.4px solid #6685bd; text-align: center; }
-        .forty-five-form-signatures strong { display: block; min-height: .18in; border-bottom: 1px solid #000; font-size: 6.8pt; }
-        .forty-five-form-signatures span { display: block; min-height: .25in; margin-top: .025in; font-size: 5.6pt; font-weight: 700; line-height: 1.05; }
+        .forty-five-form-signatures strong { display: block; min-height: .18in; border-bottom: 1px solid #000; font-size: 6.8pt; font-weight: 500; }
+        .forty-five-form-signatures span { display: block; min-height: .25in; margin-top: .025in; font-size: 5.6pt; font-weight: 400; line-height: 1.05; }
         .forty-five-form-signatures em { display: block; margin-top: .12in; border-bottom: 1px solid #000; font-size: 6pt; font-style: normal; text-align: left; }
         @media (max-width: 1100px) {
           .forty-five-shell { grid-template-columns: 1fr; }
