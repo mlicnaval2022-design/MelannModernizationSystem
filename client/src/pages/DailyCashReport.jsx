@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import API from '../services/api';
 import dayjs from 'dayjs';
 
@@ -11,7 +11,6 @@ export default function DailyCashReport() {
   const [checklistOpen, setChecklistOpen] = useState(false);
   const [checklistRows, setChecklistRows] = useState([]);
   const [checklistLoading, setChecklistLoading] = useState(false);
-  const [checklistSaving, setChecklistSaving] = useState(false);
   const [selectedClients, setSelectedClients] = useState(new Set());
   const [sendingTo, setSendingTo] = useState(null);
   const [ytdSaving, setYtdSaving] = useState(false);
@@ -28,6 +27,8 @@ export default function DailyCashReport() {
   const [ytdCollections, setYtdCollections] = useState(0);
   const [ytdExpenses, setYtdExpenses] = useState(0);
   const [isEditingYtd, setIsEditingYtd] = useState(false);
+  const [remarks, setRemarks] = useState('');
+  const [remarksSaving, setRemarksSaving] = useState(false);
 
   const getLoadErrorMessage = (err) => {
     if (err?.response) {
@@ -56,6 +57,7 @@ export default function DailyCashReport() {
       setYtdReleases(res.data.ytd_beg_releases_default ?? 0);
       setYtdCollections(res.data.ytd_beg_collections_default ?? 0);
       setYtdExpenses(res.data.ytd_beg_expenses_default ?? 0);
+      setRemarks(res.data.remarks || '');
 
       if (res.data.dcr) {
         setDenom({
@@ -181,6 +183,7 @@ export default function DailyCashReport() {
     csv += `Total Expenses,-${data.total_expenses.toFixed(2)}\n`;
     csv += `Total Deposits,-${data.total_deposits.toFixed(2)}\n`;
     csv += `EXPECTED ENDING CASH,${data.expected_ending_cash.toFixed(2)}\n`;
+    if (remarks) csv += `\nNOTES / REMARKS\n"${remarks.replaceAll('"', '""')}"\n`;
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -261,6 +264,20 @@ export default function DailyCashReport() {
       console.error(err);
     } finally {
       setYtdSaving(false);
+    }
+  };
+
+  const handleSaveRemarks = async () => {
+    setRemarksSaving(true);
+    try {
+      await API.post('/dcr/remarks', { date, branch_id: branchId, remarks });
+      setAlertModal({ type: 'success', title: 'Saved', message: 'DCR notes/remarks were saved successfully.' });
+      loadData();
+    } catch (err) {
+      console.error(err);
+      setAlertModal({ type: 'error', title: 'Unable to save', message: err?.response?.data?.error || 'Failed to save DCR notes/remarks.' });
+    } finally {
+      setRemarksSaving(false);
     }
   };
 
@@ -750,6 +767,25 @@ export default function DailyCashReport() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      </div>
+
+      <div className="dcr-section" style={{ marginTop: '20px' }}>
+        <h3 className="dcr-section-title">11. NOTES / REMARKS</h3>
+        <div style={{ padding: '12px 15px' }}>
+          <textarea
+            value={remarks}
+            onChange={e => setRemarks(e.target.value)}
+            rows={4}
+            maxLength={2000}
+            placeholder="Enter an explanation for any discrepancy or other DCR notes..."
+            style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', border: '1px solid #cbd5e1', borderRadius: 6, padding: 10, font: 'inherit', fontSize: 13 }}
+          />
+          <div className="dcr-actions" style={{ marginTop: 10, textAlign: 'right' }}>
+            <button type="button" onClick={handleSaveRemarks} disabled={remarksSaving}>
+              {remarksSaving ? 'Saving...' : '💾 Save Notes / Remarks'}
+            </button>
           </div>
         </div>
       </div>

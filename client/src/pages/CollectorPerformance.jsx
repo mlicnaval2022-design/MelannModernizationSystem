@@ -247,6 +247,7 @@ const getSortOrder = name => {
 }
 
 function FortyFiveEvaluationTable({ entityLabel, rows = [], childRows = () => [], childEntityLabel = 'Details', onOpenChildren, footerRow }) {
+  const showRank = entityLabel === 'Collector'
   const renderCells = row => {
     const ratingStyle = getRatingPresentation(row.rating)
     const accomplishment = Number(row.accomplishment_percentage || 0)
@@ -264,12 +265,13 @@ function FortyFiveEvaluationTable({ entityLabel, rows = [], childRows = () => []
   return <>
     <div style={{ overflowX: 'auto' }}>
       <table className="data-table forty-five-hierarchy-table" style={{ margin: 0, minWidth: 1100 }}>
-        <thead><tr><th>{entityLabel}</th><th style={{ textAlign: 'right' }}>Collection (PHP)</th><th style={{ textAlign: 'right' }}>Non-Recon Release (PHP)</th><th style={{ textAlign: 'right' }}>Expense Share (PHP)</th><th style={{ textAlign: 'right' }}>Reported Pastdue (PHP)</th><th style={{ textAlign: 'right' }}>Net Income (PHP)</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Rating</th></tr></thead>
+        <thead><tr>{showRank && <th style={{ textAlign: 'center' }}>Rank</th>}<th>{entityLabel}</th><th style={{ textAlign: 'right' }}>Collection (PHP)</th><th style={{ textAlign: 'right' }}>Non-Recon Release (PHP)</th><th style={{ textAlign: 'right' }}>Expense Share (PHP)</th><th style={{ textAlign: 'right' }}>Reported Pastdue (PHP)</th><th style={{ textAlign: 'right' }}>Net Income (PHP)</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Rating</th></tr></thead>
         <tbody>{rows.map((row, index) => {
           const name = row.collector_name || row.name
           const children = childRows(row) || []
           const rowKey = row.id || row.branch_id || name || index
           return <tr key={rowKey}>
+              {showRank && <td style={{ textAlign: 'center', fontWeight: 900, color: index < 3 ? '#b45309' : '#475569' }}>#{index + 1}</td>}
               <td style={{ fontWeight: 900 }}>
                 {onOpenChildren ? <button className="forty-five-name-button" type="button" onClick={() => onOpenChildren({ title: name, childEntityLabel, rows: children })} aria-label={`View ${childEntityLabel.toLowerCase()} under ${name}`}>
                   <ChevronRight size={15} />

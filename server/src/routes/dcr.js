@@ -175,6 +175,17 @@ router.get('/summary', authenticateToken, async (req, res) => {
     }
     const existingDcr = await dbGet(dcrQuery, dcrParams);
 
+    let remarkQuery = `SELECT remarks FROM tblDcrRemark WHERE report_date = ?`;
+    const remarkParams = [date];
+    if (branch_id) {
+      remarkQuery += ` AND branch_id = ?`;
+      remarkParams.push(branch_id);
+    } else {
+      remarkQuery += ` AND branch_id IS NULL`;
+    }
+    remarkQuery += ` ORDER BY id DESC LIMIT 1`;
+    const savedRemark = await dbGet(remarkQuery, remarkParams);
+
     // Compute totals
     const collection_breakdown = getCollectionBreakdown(collections, passbooks, penalties, collectorsOver, otherTransactions);
     const releaseChargeBreakdown = getReleaseChargeBreakdown(releases);
@@ -255,6 +266,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
     res.json({
       date,
       dcr: existingDcr,
+      remarks: savedRemark?.remarks ?? existingDcr?.remarks ?? '',
       beginning_cash,
       beginning_cash_on_bank,
       ytd_beg_releases_default,
@@ -291,6 +303,47 @@ router.get('/summary', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(err.statusCode || 500).json({ error: err.message, stack: err.statusCode ? undefined : err.stack });
+  }
+});
+
+// Save a DCR note/remark for the selected date and branch.
+router.post('/remarks', authenticateToken, async (req, res) => {
+  try {
+    const { date } = req.body;
+    const branch_id = optionalId(req.body.branch_id);
+    const remarks = String(req.body.remarks || '').trim();
+    if (!date) return res.status(400).json({ error: 'Date is required' });
+    requireOperationDate(date, 'DCR date');
+
+    let existingQuery = `SELECT id FROM tblDcrRemark WHERE report_date = ?`;
+    const existingParams = [date];
+    if (branch_id) {
+      existingQuery += ` AND branch_id = ?`;
+      existingParams.push(branch_id);
+    } else {
+      existingQuery += ` AND branch_id IS NULL`;
+    }
+    const existing = await dbGet(existingQuery, existingParams);
+    if (existing) {
+      await dbRun(`UPDATE tblDcrRemark SET remarks = ?, updated_by = ?, updated_at = datetime('now') WHERE id = ?`, [remarks, req.user.id, existing.id]);
+    } else {
+      await dbRun(`INSERT INTO tblDcrRemark (report_date, branch_id, remarks, updated_by) VALUES (?, ?, ?, ?)`, [date, branch_id, remarks, req.user.id]);
+    }
+
+    let dcrQuery = `SELECT id FROM tblDailyCashReport WHERE report_date = ?`;
+    const dcrParams = [date];
+    if (branch_id) {
+      dcrQuery += ` AND branch_id = ?`;
+      dcrParams.push(branch_id);
+    } else {
+      dcrQuery += ` AND branch_id IS NULL`;
+    }
+    const dcr = await dbGet(dcrQuery, dcrParams);
+    if (dcr) await dbRun(`UPDATE tblDailyCashReport SET remarks = ? WHERE id = ?`, [remarks, dcr.id]);
+
+    res.json({ success: true, remarks });
+  } catch (err) {
+    sendRouteError(res, err);
   }
 });
 
@@ -470,6 +523,17 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
     
     const variance = actual_cash_count - expected_ending_cash;
 
+    let remarkQuery = `SELECT remarks FROM tblDcrRemark WHERE report_date = ?`;
+    const remarkParams = [date];
+    if (branch_id) {
+      remarkQuery += ` AND branch_id = ?`;
+      remarkParams.push(branch_id);
+    } else {
+      remarkQuery += ` AND branch_id IS NULL`;
+    }
+    remarkQuery += ` ORDER BY id DESC LIMIT 1`;
+    const savedRemark = await dbGet(remarkQuery, remarkParams);
+
     // Insert DCR
     const result = await dbRun(`
       INSERT INTO tblDailyCashReport (
@@ -478,15 +542,15 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
         expected_ending_cash, ending_cash_on_bank, total_cash_position,
         total_deposits, total_withdrawals, total_bank_charges, total_bank_interest,
         count_1000, count_500, count_200, count_100, count_50, count_20, count_coins,
-        actual_cash_count, variance, status, closed_by, ytd_beg_releases, ytd_beg_collections, ytd_beg_expenses
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        actual_cash_count, variance, status, closed_by, ytd_beg_releases, ytd_beg_collections, ytd_beg_expenses, remarks
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `, [
       dcr_number, branch_id, date, beginning_cash, total_collections, cash_out_releases, total_expenses,
       other_income, other_disbursements,
       expected_ending_cash, ending_cash_on_bank, total_cash_position,
       total_deposits, total_withdrawals, total_bank_charges, total_bank_interest,
       denom.count_1000, denom.count_500, denom.count_200, denom.count_100, denom.count_50, denom.count_20, denom.count_coins,
-      actual_cash_count, variance, 'CLOSED', req.user.id, ytd_beg_releases || 0, ytd_beg_collections || 0, ytd_beg_expenses || 0
+      actual_cash_count, variance, 'CLOSED', req.user.id, ytd_beg_releases || 0, ytd_beg_collections || 0, ytd_beg_expenses || 0, savedRemark?.remarks || ''
     ]);
 
     const dcrId = result.lastID;

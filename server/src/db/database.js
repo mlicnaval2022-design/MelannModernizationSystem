@@ -655,6 +655,14 @@ async function initializeDatabase() {
       ytd_beg_expenses REAL DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS tblDcrRemark (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      report_date TEXT NOT NULL,
+      branch_id INTEGER,
+      remarks TEXT NOT NULL DEFAULT '',
+      updated_by INTEGER,
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
     CREATE TABLE IF NOT EXISTS tblDemandLetter (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       demand_type TEXT NOT NULL,
