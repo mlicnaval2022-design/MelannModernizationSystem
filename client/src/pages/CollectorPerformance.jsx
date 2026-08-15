@@ -386,7 +386,7 @@ const getPrintFormStatusLabel = (periodFinalized, row) => isRankingComplete(row)
   ? (periodFinalized ? 'Completed' : 'Pending Finalization')
   : 'Incomplete'
 
-const normalizePrintForms = (period, selectedRatingPeriod) => {
+const normalizePrintForms = (period, selectedRatingPeriod, collectorEdits = {}) => {
   const periodFinalized = isFinalRatingStatus(period.status)
   const collectors = (selectedRatingPeriod?.evaluations || []).map(row => ({
     ...row,
@@ -394,7 +394,8 @@ const normalizePrintForms = (period, selectedRatingPeriod) => {
     personName: getRankingName(row),
     displayRole: 'Collector',
     position: 'CI/Collector',
-    assignedArea: row.branch_name || 'Main Branch',
+    assignedArea: collectorEdits[row.collector_id]?.area || getCollectorArea(getRankingName(row)),
+    teamBranch: 'Ormoc',
     supervisorName: row.supervisor || 'Not encoded',
     statusLabel: getPrintFormStatusLabel(periodFinalized, row)
   }))
@@ -408,6 +409,7 @@ const normalizePrintForms = (period, selectedRatingPeriod) => {
       position: 'Supervisor',
       assignedArea: row.branch_name || row.collector_results?.[0]?.branch_name || 'Main Branch',
       branch_name: row.branch_name || row.collector_results?.[0]?.branch_name || 'Main Branch',
+      teamBranch: 'Ormoc',
       supervisorName: 'MARILYN O. RELOBA',
       statusLabel: getPrintFormStatusLabel(periodFinalized, row)
     }))
@@ -418,6 +420,7 @@ const normalizePrintForms = (period, selectedRatingPeriod) => {
     displayRole: 'Manager',
     position: 'Branch Manager',
     assignedArea: row.branch_name || 'Main Branch',
+    teamBranch: 'Ormoc',
     supervisorName: 'VICTORIO L. RELOBA JR.',
     statusLabel: getPrintFormStatusLabel(periodFinalized, row)
   }))
@@ -429,6 +432,7 @@ const normalizePrintForms = (period, selectedRatingPeriod) => {
     displayRole: 'Manager',
     position: 'Operations Manager',
     assignedArea: 'All Branches',
+    teamBranch: 'Ormoc',
     supervisorName: 'Executive Office',
     statusLabel: getPrintFormStatusLabel(periodFinalized, operationsManager)
   }] : []
@@ -463,7 +467,7 @@ function FortyFivePrintForm({ period, form }) {
       <tbody>
         <tr><th>Rating Period</th><td>{periodLabel}</td><th>Supervisor</th><td>{form.supervisorName}</td></tr>
         <tr><th>Name of Employee</th><td>{String(form.personName || '').toUpperCase()}</td><th>Assigned Area</th><td>{form.assignedArea}</td></tr>
-        <tr><th>Position/Designation</th><td>{form.position}</td><th>Team/Branch</th><td>{form.branch_name || form.assignedArea || 'Main Branch'}</td></tr>
+        <tr><th>Position/Designation</th><td>{form.position}</td><th>Team/Branch</th><td>{form.teamBranch || 'Ormoc'}</td></tr>
       </tbody>
     </table>
 
@@ -518,12 +522,12 @@ function FortyFivePrintForm({ period, form }) {
   </div>
 }
 
-function FortyFivePrintReport({ period, selectedRatingPeriod }) {
+function FortyFivePrintReport({ period, selectedRatingPeriod, collectorEdits }) {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [viewMode, setViewMode] = useState('grid')
   const [selectedPrintForm, setSelectedPrintForm] = useState(null)
-  const forms = normalizePrintForms(period, selectedRatingPeriod)
+  const forms = normalizePrintForms(period, selectedRatingPeriod, collectorEdits)
   const collectors = forms.filter(form => form.printType === 'collector')
   const supervisors = forms.filter(form => form.printType === 'supervisor')
   const managers = forms.filter(form => form.printType === 'branch-manager' || form.printType === 'operations-manager')
@@ -2444,7 +2448,7 @@ export default function CollectorPerformance() {
                       {ratingEvaluationTab === 'supervisor' && <FortyFiveEvaluationTable entityLabel="Supervisor" rows={selectedRatingPeriod.supervisor_evaluations || []} childRows={row => row.collector_results?.length ? row.collector_results : selectedRatingPeriod.evaluations.filter(evaluation => (String(evaluation.supervisor || '').trim() || 'Unassigned Supervisor') === row.name)} childEntityLabel="Collector" onOpenChildren={setRatingHierarchyModal} />}
                       {ratingEvaluationTab === 'branch-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.branch_manager_evaluations || []} childRows={row => row.supervisor_results?.length ? row.supervisor_results : (selectedRatingPeriod.supervisor_evaluations || []).filter(supervisor => (row.supervisors || []).includes(supervisor.name))} childEntityLabel="Supervisor" onOpenChildren={setRatingHierarchyModal} />}
                       {ratingEvaluationTab === 'operations-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.operations_manager_evaluation?.branch_results || []} childRows={row => row.supervisor_results} childEntityLabel="Supervisor" onOpenChildren={setRatingHierarchyModal} footerRow={selectedRatingPeriod.operations_manager_evaluation} />}
-                    </> : ratingContentTab === 'ranking' ? <FortyFiveRanking period={selectedRatingPeriod.period} collectors={selectedRatingPeriod.evaluations} supervisors={selectedRatingPeriod.supervisor_evaluations || []} /> : <FortyFivePrintReport period={selectedRatingPeriod.period} selectedRatingPeriod={selectedRatingPeriod} />}
+                    </> : ratingContentTab === 'ranking' ? <FortyFiveRanking period={selectedRatingPeriod.period} collectors={selectedRatingPeriod.evaluations} supervisors={selectedRatingPeriod.supervisor_evaluations || []} /> : <FortyFivePrintReport period={selectedRatingPeriod.period} selectedRatingPeriod={selectedRatingPeriod} collectorEdits={collectorEdits} />}
                   </div>}
                 </div>
               </div>
