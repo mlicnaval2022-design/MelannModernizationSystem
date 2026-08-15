@@ -6,6 +6,8 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import SoaModal from '../components/SoaModal'
+import { useAuth } from '../context/AuthContext'
+import { reportPermissionKey } from '../access'
 import {
   AlertTriangle,
   BarChart3,
@@ -530,8 +532,9 @@ const REPORT_TYPES = [
 ]
 
 export default function Reports() {
+  const { hasPermission } = useAuth()
   const autoLoaded = useRef(false)
-  const [active, setActive] = useState('collection-report')
+  const [active, setActive] = useState('')
   const [collectionSubTab, setCollectionSubTab] = useState('daily')
   const [releaseSubTab, setReleaseSubTab] = useState('daily')
   const [monthlySubTab, setMonthlySubTab] = useState('by-collector')
@@ -615,10 +618,20 @@ export default function Reports() {
   const [expenseCategories, setExpenseCategories] = useState([])
   const [expenseEntries, setExpenseEntries] = useState([])
   const [expenseSummary, setExpenseSummary] = useState(null)
+  const [selectedExpenseEmployee, setSelectedExpenseEmployee] = useState(null)
   const [expensesLoading, setExpensesLoading] = useState(false)
   const [expenseForm, setExpenseForm] = useState({ id: '', personnel_id: '', expense_date: toDateInputValue(new Date()), category: '', description: '', amount: '', remarks: '' })
   const [personnelForm, setPersonnelForm] = useState({ id: '', employee_name: '', position: '', status: 'active' })
   const [categoryForm, setCategoryForm] = useState({ id: '', category_name: '', status: 'active' })
+  const allowedReportTypes = REPORT_TYPES.filter(report => hasPermission(reportPermissionKey(report.key), 'view'))
+  const allowedReportKeys = allowedReportTypes.map(report => report.key).join('|')
+
+  const openExpenseEmployeeDetails = (row) => {
+    setSelectedExpenseEmployee({
+      ...row,
+      expenses: expenseEntries.filter(entry => Number(entry.personnel_id) === Number(row.personnel_id)),
+    })
+  }
 
   const openFieldReleaseModal = async () => {
     const reportDate = params.date || toDateInputValue(new Date())
@@ -1694,6 +1707,7 @@ export default function Reports() {
   }
 
   const handleSelect = (key) => {
+    if (!hasPermission(reportPermissionKey(key), 'view')) return
     setActive(key); setData(null); setSelectedCollector(null)
     setExportMenuOpen(false)
     if (key === 'collection-report') {
@@ -1726,6 +1740,10 @@ export default function Reports() {
   }
 
   const run = async (reportKey = active, reportParams = params, subTab = collectionSubTab) => {
+    if (!hasPermission(reportPermissionKey(reportKey), 'view')) {
+      setData({ error: 'Your role does not have access to this report type.' })
+      return null
+    }
     setLoading(true); setData(null); setSelectedCollector(null)
     try {
       let endpoint = reportKey
@@ -1768,10 +1786,12 @@ export default function Reports() {
   }
 
   useEffect(() => {
-    if (autoLoaded.current) return
+    const firstAllowedReport = allowedReportTypes[0]
+    if (!firstAllowedReport) return
+    if (autoLoaded.current && allowedReportTypes.some(report => report.key === active)) return
     autoLoaded.current = true
-    run('collection-report', params, 'daily')
-  }, [])
+    handleSelect(firstAllowedReport.key)
+  }, [allowedReportKeys, active])
 
   const renderSubTabs = () => {
     if (active === 'collection-report') {
@@ -2022,14 +2042,29 @@ export default function Reports() {
             <div>
               <h3 style={{ margin: '0 0 10px 0', color: 'var(--blue-dark)' }}>Total Each Employee</h3>
               <table className="data-table">
-                <thead><tr><th>Employee</th><th>Position</th><th className="text-right">Entries</th><th className="text-right">Total Expense</th></tr></thead>
+                <thead><tr><th>Employee</th><th>Position</th><th className="text-right">Entries</th><th className="text-right">Total Expense</th><th className="text-center">Action</th></tr></thead>
                 <tbody>
-                  {byEmployee.length === 0 ? <tr><td colSpan={4} className="empty-state">No employees found</td></tr> : byEmployee.map(row => (
+                  {byEmployee.length === 0 ? <tr><td colSpan={5} className="empty-state">No employees found</td></tr> : byEmployee.map(row => (
                     <tr key={row.personnel_id}>
                       <td className="fw-600">{row.employee_name}</td>
                       <td>{row.position || '-'}</td>
                       <td className="text-right">{row.expense_count || 0}</td>
                       <td className="text-right fw-700">PHP {fmtMoney(row.total_amount)}</td>
+                      <td className="text-center">
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          aria-label={`View expense details for ${row.employee_name}`}
+                          aria-haspopup="dialog"
+                          aria-expanded={selectedExpenseEmployee?.personnel_id === row.personnel_id}
+                          onClick={event => {
+                            event.stopPropagation()
+                            openExpenseEmployeeDetails(row)
+                          }}
+                        >
+                          Details
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -4941,7 +4976,8 @@ export default function Reports() {
       <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 16 }}>
         <div className="card" style={{ padding: '12px 8px', height: 'fit-content' }}>
           <div className="nav-section-label">Report Types</div>
-          {REPORT_TYPES.map(r => {
+          {allowedReportTypes.length === 0 && <div className="empty-state" style={{ padding: 16 }}>No report types are assigned to your role.</div>}
+          {allowedReportTypes.map(r => {
             const Icon = r.Icon
             const isActive = active === r.key
             return (
@@ -4972,7 +5008,7 @@ export default function Reports() {
         </div>
         <div>
           <div className="card" style={{ marginBottom: 16 }}>
-            <div className="card-title" style={{ marginBottom: 14 }}>{REPORT_TYPES.find(r => r.key === active)?.label}</div>
+            <div className="card-title" style={{ marginBottom: 14 }}>{allowedReportTypes.find(r => r.key === active)?.label || 'Reports'}</div>
             {renderSubTabs()}
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               {renderParams()}
@@ -5267,6 +5303,63 @@ export default function Reports() {
           customerId={soaCustomerId}
           onClose={() => setSoaCustomerId(null)}
         />
+      )}
+      {selectedExpenseEmployee && (
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setSelectedExpenseEmployee(null)}>
+          <div className="modal" style={{ maxWidth: 980 }}>
+            <div className="modal-header">
+              <span className="modal-title">Expense Details - {selectedExpenseEmployee.employee_name}</span>
+              <button className="modal-close" onClick={() => setSelectedExpenseEmployee(null)}>x</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 16 }}>
+                <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-soft, #f8fafc)' }}>
+                  <div className="nav-section-label" style={{ marginBottom: 4 }}>Employee</div>
+                  <div className="fw-bold">{selectedExpenseEmployee.employee_name}</div>
+                </div>
+                <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-soft, #f8fafc)' }}>
+                  <div className="nav-section-label" style={{ marginBottom: 4 }}>Position</div>
+                  <div className="fw-bold">{selectedExpenseEmployee.position || '-'}</div>
+                </div>
+                <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-soft, #f8fafc)' }}>
+                  <div className="nav-section-label" style={{ marginBottom: 4 }}>Expense Entries</div>
+                  <div className="fw-bold">{selectedExpenseEmployee.expense_count || 0}</div>
+                </div>
+                <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-soft, #f8fafc)' }}>
+                  <div className="nav-section-label" style={{ marginBottom: 4 }}>Total Expense</div>
+                  <div className="fw-bold" style={{ color: '#0f766e' }}>PHP {fmtMoney(selectedExpenseEmployee.total_amount)}</div>
+                </div>
+              </div>
+              <div style={{ marginBottom: 10, color: 'var(--text-muted)', fontSize: 12 }}>
+                Selected period: {params.date_from ? displayDate(params.date_from) : 'All dates'} to {params.date_to ? displayDate(params.date_to) : 'Present'}
+              </div>
+              <div style={{ maxHeight: '55vh', overflow: 'auto' }}>
+                <table className="data-table">
+                  <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Remarks</th><th className="text-right">Amount</th></tr></thead>
+                  <tbody>
+                    {selectedExpenseEmployee.expenses.length === 0 ? (
+                      <tr><td colSpan={5} className="empty-state">No expense entries for this employee in the selected period</td></tr>
+                    ) : selectedExpenseEmployee.expenses.map(entry => (
+                      <tr key={entry.id}>
+                        <td>{displayDate(entry.expense_date)}</td>
+                        <td>{entry.category || 'Uncategorized'}</td>
+                        <td>{entry.description || '-'}</td>
+                        <td>{entry.remarks || '-'}</td>
+                        <td className="text-right fw-700">PHP {fmtMoney(entry.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {selectedExpenseEmployee.expenses.length > 0 && (
+                    <tfoot><tr><td colSpan={4} className="fw-700">Total</td><td className="text-right fw-700">PHP {fmtMoney(selectedExpenseEmployee.total_amount)}</td></tr></tfoot>
+                  )}
+                </table>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+                <button type="button" className="btn btn-primary" onClick={() => setSelectedExpenseEmployee(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
       {selectedCollector && (
         <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setSelectedCollector(null)}>

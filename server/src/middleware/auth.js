@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 
 function authenticateToken(req, res, next) {
+  if (req.user) return next();
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -20,7 +21,7 @@ function authenticateToken(req, res, next) {
 function requireRole(...roles) {
   return (req, res, next) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    if (!roles.includes(req.user.role)) {
+    if (!roles.includes(req.user.role) && !req.modulePermission) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
     next();

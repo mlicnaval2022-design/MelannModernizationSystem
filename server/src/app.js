@@ -26,6 +26,9 @@ const demandLetterRoutes = require('./routes/demandLetters');
 const systemRoutes = require('./routes/system');
 const jcashMigrationRoutes = require('./routes/jcashMigration');
 const errorHandler = require('./middleware/errorHandler');
+const { authenticateToken } = require('./middleware/auth');
+const { authorizeModule } = require('./middleware/permissions');
+const { REPORT_TYPE_PERMISSIONS } = require('./config/accessModules');
 
 function createApp() {
   const app = express();
@@ -45,28 +48,28 @@ function createApp() {
   app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 
   app.use('/api/auth', authRoutes);
-  app.use('/api/users', userRoutes);
-  app.use('/api/customers', customerRoutes);
-  app.use('/api/loans', loanRoutes);
-  app.use('/api/payments', paymentRoutes);
-  app.use('/api/collectors', collectorRoutes);
-  app.use('/api/branches', branchRoutes);
-  app.use('/api/deposits', depositRoutes);
-  app.use('/api/transactions', transactionRoutes);
-  app.use('/api/reports', reportRoutes);
-  app.use('/api/cash', cashRoutes);
-  app.use('/api/reversals', reversalRoutes);
-  app.use('/api/audit', auditRoutes);
-  app.use('/api/dcr', dcrRoutes);
-  app.use('/api/government-compliance', governmentComplianceRoutes);
-  app.use('/api/cic', cicRoutes);
-  app.use('/api/monitoring', monitoringRoutes);
-  app.use('/api/settings', settingsRoutes);
-  app.use('/api/collector-performance', collectorPerformanceRoutes);
-  app.use('/api/forty-five-day-rating', fortyFiveDayRatingRoutes);
-  app.use('/api/demand-letters', demandLetterRoutes);
+  app.use('/api/users', authenticateToken, authorizeModule('user-management'), userRoutes);
+  app.use('/api/customers', authenticateToken, authorizeModule('customers', 'credit-scoring'), customerRoutes);
+  app.use('/api/loans', authenticateToken, authorizeModule('loans', 'credit-scoring', 'promissory-disclosure'), loanRoutes);
+  app.use('/api/payments', authenticateToken, authorizeModule('payments'), paymentRoutes);
+  app.use('/api/collectors', authenticateToken, authorizeModule('collectors'), collectorRoutes);
+  app.use('/api/branches', authenticateToken, authorizeModule('branches'), branchRoutes);
+  app.use('/api/deposits', authenticateToken, authorizeModule('deposits'), depositRoutes);
+  app.use('/api/transactions', authenticateToken, authorizeModule('transactions'), transactionRoutes);
+  app.use('/api/reports', authenticateToken, authorizeModule('reports', ...REPORT_TYPE_PERMISSIONS.map(item => item.key), 'promissory-disclosure', 'dashboard', 'credit-scoring', 'collector-performance'), reportRoutes);
+  app.use('/api/cash', authenticateToken, authorizeModule('cash'), cashRoutes);
+  app.use('/api/reversals', authenticateToken, authorizeModule('payments'), reversalRoutes);
+  app.use('/api/audit', authenticateToken, authorizeModule('audit'), auditRoutes);
+  app.use('/api/dcr', authenticateToken, authorizeModule('dcr'), dcrRoutes);
+  app.use('/api/government-compliance', authenticateToken, authorizeModule('government-compliance'), governmentComplianceRoutes);
+  app.use('/api/cic', authenticateToken, authorizeModule('government-compliance'), cicRoutes);
+  app.use('/api/monitoring', authenticateToken, authorizeModule('monitoring'), monitoringRoutes);
+  app.use('/api/settings', authenticateToken, authorizeModule('monitoring-settings'), settingsRoutes);
+  app.use('/api/collector-performance', authenticateToken, authorizeModule('collector-performance'), collectorPerformanceRoutes);
+  app.use('/api/forty-five-day-rating', authenticateToken, authorizeModule('collector-performance'), fortyFiveDayRatingRoutes);
+  app.use('/api/demand-letters', authenticateToken, authorizeModule('demand-letter'), demandLetterRoutes);
   app.use('/api/system', systemRoutes);
-  app.use('/api/jcash-migration', jcashMigrationRoutes);
+  app.use('/api/jcash-migration', authenticateToken, authorizeModule('jcash-migration'), jcashMigrationRoutes);
 
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', system: 'Melann Lending System V2', timestamp: new Date().toISOString() });
