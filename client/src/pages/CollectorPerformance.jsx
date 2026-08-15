@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, BarChart3, Building2, CalendarDays, CheckCircle2, ChevronRight, Download, Edit3, FileText, Info, Lock, MapPin, Plus, Printer, RefreshCw, Sparkles, Trash2, TrendingUp, Trophy, Unlock, User, Users, X } from 'lucide-react'
+import { ArrowLeft, BarChart3, Building2, CalendarDays, CheckCircle2, ChevronRight, Download, Edit3, FileText, Grid2X2, Info, List, Lock, MapPin, Plus, Printer, RefreshCw, Search, Sparkles, Trash2, TrendingUp, Trophy, Unlock, User, Users, X } from 'lucide-react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import logo from '../assets/logo.png'
@@ -378,6 +378,225 @@ function FortyFiveRanking({ period, collectors = [], supervisors = [] }) {
       <div className="ranking-rating-guide"><strong>Rating Guide</strong><div>{rankingGuides.map(item => <span key={item.range}><i style={{ background: item.color }} /><b>{item.range}</b><small>{item.label}</small></span>)}</div></div>
     </div>
     <div className="ranking-export"><button className="btn btn-primary" type="button" onClick={exportRanking} disabled={!rankedRows.length}><Download size={16} /> Export Ranking</button></div>
+  </section>
+}
+
+const getPrintFormStatusLabel = (periodFinalized, row) => isRankingComplete(row)
+  ? (periodFinalized ? 'Completed' : 'Pending Finalization')
+  : 'Incomplete'
+
+const normalizePrintForms = (period, selectedRatingPeriod) => {
+  const periodFinalized = isFinalRatingStatus(period.status)
+  const collectors = (selectedRatingPeriod?.evaluations || []).map(row => ({
+    ...row,
+    printType: 'collector',
+    personName: getRankingName(row),
+    displayRole: 'Collector',
+    position: 'CI/Collector',
+    assignedArea: row.branch_name || 'Main Branch',
+    supervisorName: row.supervisor || 'Not encoded',
+    statusLabel: getPrintFormStatusLabel(periodFinalized, row)
+  }))
+  const supervisors = (selectedRatingPeriod?.supervisor_evaluations || [])
+    .filter(row => !String(row.name || '').toLowerCase().startsWith('unassigned'))
+    .map(row => ({
+      ...row,
+      printType: 'supervisor',
+      personName: getRankingName(row),
+      displayRole: 'Supervisor',
+      position: 'Supervisor',
+      assignedArea: row.branch_name || row.collector_results?.[0]?.branch_name || 'Main Branch',
+      branch_name: row.branch_name || row.collector_results?.[0]?.branch_name || 'Main Branch',
+      supervisorName: 'MARILYN O. RELOBA',
+      statusLabel: getPrintFormStatusLabel(periodFinalized, row)
+    }))
+  const branchManagers = (selectedRatingPeriod?.branch_manager_evaluations || []).map(row => ({
+    ...row,
+    printType: 'branch-manager',
+    personName: 'MARILYN O. RELOBA',
+    displayRole: 'Manager',
+    position: 'Branch Manager',
+    assignedArea: row.branch_name || 'Main Branch',
+    supervisorName: 'VICTORIO L. RELOBA JR.',
+    statusLabel: getPrintFormStatusLabel(periodFinalized, row)
+  }))
+  const operationsManager = selectedRatingPeriod?.operations_manager_evaluation
+  const managers = operationsManager ? [{
+    ...operationsManager,
+    printType: 'operations-manager',
+    personName: 'VICTORIO L. RELOBA JR.',
+    displayRole: 'Manager',
+    position: 'Operations Manager',
+    assignedArea: 'All Branches',
+    supervisorName: 'Executive Office',
+    statusLabel: getPrintFormStatusLabel(periodFinalized, operationsManager)
+  }] : []
+  return [...collectors, ...supervisors, ...branchManagers, ...managers]
+}
+
+const getPrintFormStatusCategory = form => {
+  const status = String(form?.statusLabel || '').toLowerCase()
+  if (status.includes('incomplete')) return 'incomplete'
+  if (status.includes('pending')) return 'pending'
+  return 'completed'
+}
+
+function FortyFivePrintForm({ period, form }) {
+  if (!period || !form) return null
+  const formFinalized = getPrintFormStatusCategory(form) === 'completed'
+  const displayedRating = formFinalized ? (form.rating || 'Not rated') : form.statusLabel
+  const ratingStyle = formFinalized
+    ? getRatingPresentation(form.rating)
+    : getRatingPresentation('Not rated')
+  const accomplishment = isRankingComplete(form) ? Number(form.accomplishment_percentage || 0) : null
+  const netIncome = Number(form.net_income || 0)
+  const periodLabel = `${displayDate(period.start_date)} - ${displayDate(period.end_date)}`
+
+  return <div className="forty-five-print-form-page">
+    <header className="forty-five-form-company">
+      <img src={logo} alt="" />
+      <div>
+        <h1>Melann Lending Investor Corporation</h1>
+        <p>Lot 3 Blk 2, Brgy. San Isidro, Ormoc City</p>
+        <p>(053) 520-1138,0917-113-1000,0919-0085182</p>
+        <p>melann.lic2016@gmail.com</p>
+        <p>https://www.facebook.com/MelannInvestorCorp</p>
+      </div>
+    </header>
+    <div className="forty-five-form-title"><span />Forty-five (45) Day Evaluation Form<span /></div>
+
+    <table className="forty-five-form-meta">
+      <tbody>
+        <tr><th>Rating Period</th><td>{periodLabel}</td><th>Supervisor</th><td>{form.supervisorName}</td></tr>
+        <tr><th>Name of Employee</th><td>{String(form.personName || '').toUpperCase()}</td><th>Assigned Area</th><td>{form.assignedArea}</td></tr>
+        <tr><th>Position/Designation</th><td>{form.position}</td><th>Team/Branch</th><td>{form.branch_name || form.assignedArea || 'Main Branch'}</td></tr>
+      </tbody>
+    </table>
+
+    <table className="forty-five-form-kpi">
+      <thead><tr><th>Key Performance Indicator</th><th>Collection</th><th>Release</th><th>Expense</th><th>Net Income</th><th>Past Due<br />Reported</th><th>% of<br />Accomplishment</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>1. 45-Day Net Collection</strong><small>{displayDate(period.start_date)} - {displayDate(period.end_date)}</small></td>
+          <td>{rankingMoney(form.collection_total)}</td>
+          <td>{rankingMoney(form.release_total)}</td>
+          <td>{rankingMoney(form.expense_total)}</td>
+          <td className={netIncome < 0 ? 'negative' : ''}>{netIncome < 0 ? `(${rankingMoney(Math.abs(netIncome))})` : rankingMoney(netIncome)}</td>
+          <td>{rankingMoney(form.reported_pastdue)}</td>
+          <td>{accomplishment == null ? '-' : `${accomplishment.toFixed(2)}%`}</td>
+        </tr>
+        {[1, 2].map(index => <tr key={`empty-${index}`} className="forty-five-form-empty"><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>)}
+        <tr className="forty-five-form-total">
+          <td>Total</td><td>{rankingMoney(form.collection_total)}</td><td>{rankingMoney(form.release_total)}</td><td>{rankingMoney(form.expense_total)}</td>
+          <td className={netIncome < 0 ? 'negative' : ''}>{netIncome < 0 ? `(${rankingMoney(Math.abs(netIncome))})` : rankingMoney(netIncome)}</td><td>{rankingMoney(form.reported_pastdue)}</td><td>{accomplishment == null ? '-' : `${accomplishment.toFixed(2)}%`}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div className="forty-five-form-lower">
+      <table className="forty-five-form-guide">
+        <tbody>
+          <tr><th colSpan={2}>ACCOMPLISHMENT RATE GUIDE</th></tr>
+          {rankingGuides.slice(0, 6).map(item => <tr key={item.range}><td>{item.range}</td><td>{item.label}</td></tr>)}
+        </tbody>
+      </table>
+      <div className="forty-five-form-rating-box">
+        <div className="forty-five-final-rating"><strong>FINAL RATING:</strong><span style={{ color: ratingStyle.color, background: ratingStyle.background }}>{displayedRating}</span></div>
+        <p>Note: Reported Past Due excluded in the computation of accomplishment.</p>
+        <table>
+          <tbody>
+            <tr><th>RECOMMENDATION:</th><td></td><th>Schedule of<br />Follow-up</th><td></td></tr>
+            <tr><th>Assigned Coach</th><td></td><th></th><td></td></tr>
+            <tr><th>Designation of<br />Coach</th><td></td><th>Designation of<br />Coach</th><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div className="forty-five-form-signatures">
+      {[
+        [form.personName, "Ratee's Printed Name & Signature"],
+        ['MARILYN O. RELOBA', "Rater's Printed Name & Signature / Branch Head"],
+        [form.supervisorName, 'Printed Name and Signature of Supervisor'],
+        ['', 'Printed Name and Signature of Coach']
+      ].map(([name, label], index) => <div key={`sig-${index}`}><strong>{String(name || '').toUpperCase()}</strong><span>{label}</span><em>Date:</em></div>)}
+    </div>
+  </div>
+}
+
+function FortyFivePrintReport({ period, selectedRatingPeriod }) {
+  const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [viewMode, setViewMode] = useState('grid')
+  const [selectedPrintForm, setSelectedPrintForm] = useState(null)
+  const forms = normalizePrintForms(period, selectedRatingPeriod)
+  const collectors = forms.filter(form => form.printType === 'collector')
+  const supervisors = forms.filter(form => form.printType === 'supervisor')
+  const managers = forms.filter(form => form.printType === 'branch-manager' || form.printType === 'operations-manager')
+  const ratedForms = forms.filter(form => getPrintFormStatusCategory(form) === 'completed')
+  const filteredForms = forms.filter(form => {
+    const text = `${form.personName} ${form.rating} ${form.displayRole}`.toLowerCase()
+    return (!query.trim() || text.includes(query.trim().toLowerCase())) && (statusFilter === 'all' || getPrintFormStatusCategory(form) === statusFilter)
+  })
+
+  const printSelectedForm = () => {
+    document.body.classList.add('print-forty-five-form')
+    try {
+      window.print()
+    } finally {
+      document.body.classList.remove('print-forty-five-form')
+    }
+  }
+
+  return <section className="print-report-dashboard">
+    <header className="print-report-header">
+      <div className="print-report-title-icon"><Printer size={30} /></div>
+      <div><h3>Print Report</h3><p>Generate and export printable evaluation forms and logs.</p></div>
+    </header>
+    <div className="print-report-kpis">
+      {[
+        ['Total Forms', forms.length, 'All evaluations', FileText, 'blue'],
+        ['Collectors', collectors.length, 'For collector eval.', Users, 'green'],
+        ['Supervisors', supervisors.length, 'For supervisor eval.', User, 'violet'],
+        ['Managers', managers.length, 'For BM/OM eval.', Building2, 'indigo'],
+        ['Rated', ratedForms.length, 'Finalized evaluations', CheckCircle2, 'mint'],
+        ['Unrated', forms.length - ratedForms.length, 'Pending evaluations', CalendarDays, 'orange']
+      ].map(([label, value, hint, Icon, tone]) => <article className={`print-report-kpi ${tone}`} key={label}><span><Icon size={21} /></span><div><small>{label}</small><strong>{value}</strong><em>{hint}</em></div></article>)}
+    </div>
+
+    <div className="print-report-list-panel">
+      <div className="print-report-list-head">
+        <div><h4>Printable Forms</h4><p>Select an evaluation to print.</p></div>
+        <div className="print-report-controls">
+          <label className="print-report-search"><Search size={17} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search by name..." /></label>
+          <select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="all">All Status</option><option value="pending">Pending</option><option value="completed">Completed</option><option value="incomplete">Incomplete</option></select>
+          <button type="button" className={viewMode === 'grid' ? 'active' : ''} onClick={() => setViewMode('grid')} title="Grid view"><Grid2X2 size={18} /></button>
+          <button type="button" className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode('list')} title="List view"><List size={18} /></button>
+        </div>
+      </div>
+      <div className={`print-report-forms ${viewMode}`}>
+        {filteredForms.length ? filteredForms.map(form => {
+          const ratingStyle = getRatingPresentation(form.rating)
+          return <article className="print-report-form-card" key={`${form.printType}-${form.id || form.personName}`}>
+            <span className="print-report-avatar"><User size={20} /></span>
+            <div><strong>{String(form.personName || '').toUpperCase()}</strong><small style={{ color: ratingStyle.color, background: ratingStyle.background }}>{form.rating || 'Not rated'}</small></div>
+            <button type="button" onClick={() => setSelectedPrintForm(form)} title={`Print ${form.personName}`}><Printer size={19} /></button>
+          </article>
+        }) : <div className="print-report-empty">No printable forms found.</div>}
+      </div>
+    </div>
+
+    {selectedPrintForm && <div className="forty-five-print-preview-backdrop" onMouseDown={event => event.target === event.currentTarget && setSelectedPrintForm(null)}>
+      <div className="forty-five-print-preview" role="dialog" aria-modal="true" aria-label={`Print preview for ${selectedPrintForm.personName}`}>
+        <div className="forty-five-print-preview-controls">
+          <button className="btn btn-secondary" type="button" onClick={() => setSelectedPrintForm(null)}><X size={16} /> Close Preview</button>
+          <button className="btn btn-primary" type="button" onClick={printSelectedForm}><Printer size={16} /> Print</button>
+        </div>
+        <FortyFivePrintForm period={period} form={selectedPrintForm} />
+      </div>
+    </div>}
+
+    <div className="forty-five-print-form-layout"><FortyFivePrintForm period={period} form={selectedPrintForm || forms[0]} /></div>
   </section>
 }
 
@@ -1235,10 +1454,83 @@ export default function CollectorPerformance() {
         .ranking-basis { display: flex; gap: 11px; color: #1c61ed; }.ranking-basis > svg { flex: 0 0 auto; margin-top: 1px; }.ranking-basis strong { color: #102448; font-size: 10px; }.ranking-basis ol { margin: 5px 0 0; padding-left: 18px; color: #506487; font-size: 9px; line-height: 1.55; }
         .ranking-rating-guide > strong { display: block; margin-bottom: 8px; color: #506487; font-size: 9px; letter-spacing: .5px; text-transform: uppercase; }.ranking-rating-guide > div { display: grid; grid-template-columns: repeat(7, minmax(75px, 1fr)); gap: 8px; }.ranking-rating-guide span { position: relative; display: grid; grid-template-columns: 8px 1fr; column-gap: 5px; align-items: start; }.ranking-rating-guide span > i { width: 7px; height: 7px; margin-top: 2px; border-radius: 50%; }.ranking-rating-guide span > b { color: #102448; font-size: 8px; white-space: nowrap; }.ranking-rating-guide span > small { grid-column: 2; color: #506487; font-size: 7px; line-height: 1.2; }
         .ranking-export { display: flex; justify-content: flex-end; margin-top: 16px; }.ranking-export .btn { min-width: 176px; justify-content: center; padding: 11px 18px; background: #175bf1 !important; border-color: #175bf1 !important; box-shadow: 0 5px 12px rgba(23,91,241,.25); }
+        .print-report-dashboard { color: #102448; }
+        .print-report-header { display: flex; align-items: center; gap: 16px; margin-bottom: 30px; }
+        .print-report-title-icon { width: 64px; height: 64px; display: grid; place-items: center; border: 1px solid #dce6f2; border-radius: 16px; color: #1f64ff; background: #fff; box-shadow: 0 4px 10px rgba(15, 23, 42, .08); }
+        .print-report-header h3 { margin: 0; color: #102448; font-size: 24px; font-weight: 950; }
+        .print-report-header p { margin: 7px 0 0; color: #587095; font-size: 13px; }
+        .print-report-kpis { display: grid; grid-template-columns: repeat(6, minmax(130px, 1fr)); gap: 15px; margin-bottom: 23px; }
+        .print-report-kpi { display: flex; align-items: center; gap: 15px; min-height: 84px; padding: 17px; border: 1px solid #dbe4f0; border-radius: 10px; background: #fff; box-shadow: 0 3px 9px rgba(15, 23, 42, .09); }
+        .print-report-kpi > span { width: 48px; height: 48px; flex: 0 0 48px; display: grid; place-items: center; border-radius: 50%; }
+        .print-report-kpi small { display: block; color: #506487; font-size: 10px; font-weight: 950; letter-spacing: .35px; text-transform: uppercase; }
+        .print-report-kpi strong { display: block; margin-top: 2px; color: #102448; font-size: 22px; font-weight: 950; line-height: 1; }
+        .print-report-kpi em { display: block; margin-top: 4px; color: #70839e; font-size: 10px; font-style: normal; font-weight: 700; }
+        .print-report-kpi.blue > span { color: #2463ff; background: #edf5ff; }.print-report-kpi.green > span { color: #09b568; background: #ecfdf3; }.print-report-kpi.violet > span { color: #9333ea; background: #faf0ff; }.print-report-kpi.indigo > span { color: #4f6df5; background: #eef2ff; }.print-report-kpi.mint > span { color: #00ad73; background: #e9fbf3; }.print-report-kpi.orange > span { color: #f97316; background: #fff3e6; }
+        .print-report-list-panel { padding: 25px; border: 1px solid #dbe4f0; border-radius: 12px; background: #fff; box-shadow: 0 3px 9px rgba(15, 23, 42, .09); }
+        .print-report-list-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 28px; }
+        .print-report-list-head h4 { margin: 0; color: #102448; font-size: 21px; font-weight: 950; }
+        .print-report-list-head p { margin: 5px 0 0; color: #587095; font-size: 12px; }
+        .print-report-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+        .print-report-search { min-width: 258px; height: 39px; display: flex; align-items: center; gap: 10px; padding: 0 13px; border: 1px solid #d6e2ef; border-radius: 8px; color: #7c8ca5; background: #fff; }
+        .print-report-search input { width: 100%; border: 0; outline: 0; color: #102448; font: inherit; font-size: 12px; }
+        .print-report-controls select { height: 39px; min-width: 110px; padding: 0 12px; border: 1px solid #d6e2ef; border-radius: 8px; color: #43546e; background: #fff; font-size: 12px; font-weight: 700; }
+        .print-report-controls button { width: 39px; height: 39px; display: grid; place-items: center; border: 1px solid #d6e2ef; border-radius: 8px; color: #70839e; background: #f8fafc; cursor: pointer; }
+        .print-report-controls button.active { color: #1f64ff; background: #eef5ff; }
+        .print-report-forms { display: grid; grid-template-columns: repeat(3, minmax(240px, 1fr)); gap: 16px; }
+        .print-report-forms.list { grid-template-columns: 1fr; }
+        .print-report-form-card { display: grid; grid-template-columns: 38px minmax(0, 1fr) 39px; align-items: center; gap: 10px; min-height: 86px; padding: 18px 13px; border: 1px solid #e6edf5; border-radius: 12px; background: #fff; box-shadow: 0 2px 6px rgba(15, 23, 42, .04); }
+        .print-report-avatar { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: #3d73f6; }
+        .print-report-form-card strong { display: block; margin-bottom: 7px; color: #102448; font-size: 12px; font-weight: 950; line-height: 1.2; }
+        .print-report-form-card small { display: inline-block; max-width: 210px; padding: 4px 7px; border-radius: 4px; font-size: 8px; font-weight: 950; line-height: 1.15; text-transform: uppercase; }
+        .print-report-form-card button { width: 39px; height: 39px; display: grid; place-items: center; border: 0; border-radius: 8px; color: #fff; background: #245ff0; cursor: pointer; }
+        .print-report-empty { grid-column: 1 / -1; padding: 32px; color: #70839e; text-align: center; }
+        .forty-five-print-preview-backdrop { position: fixed; inset: 0; z-index: 1500; overflow: auto; padding: 22px; background: rgba(15, 23, 42, .72); backdrop-filter: blur(4px); }
+        .forty-five-print-preview { width: fit-content; margin: 0 auto; }
+        .forty-five-print-preview-controls { position: sticky; top: 0; z-index: 2; display: flex; justify-content: flex-end; gap: 10px; width: 7.7in; margin: 0 auto 10px; padding: 10px; border-radius: 10px; background: rgba(255,255,255,.96); box-shadow: 0 5px 18px rgba(15,23,42,.2); }
+        .forty-five-print-preview-controls .btn { min-width: 120px; justify-content: center; }
+        .forty-five-print-preview .forty-five-print-form-page { box-shadow: 0 16px 46px rgba(15,23,42,.28); }
+        .forty-five-print-form-layout { display: none; }
+        .forty-five-print-form-page { width: 7.7in; min-height: 11.2in; padding: .22in .26in; color: #000; background: #fff; font-family: Arial, Helvetica, sans-serif; }
+        .forty-five-form-company { display: grid; grid-template-columns: 1.35in 1fr; align-items: center; gap: .08in; margin-bottom: .15in; }
+        .forty-five-form-company img { width: 1.15in; justify-self: end; }
+        .forty-five-form-company h1 { margin: 0 0 .03in; font-size: 18pt; line-height: 1; font-weight: 800; }
+        .forty-five-form-company p { margin: .02in 0; font-size: 9.4pt; line-height: 1.05; }
+        .forty-five-form-title { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: .06in; margin: .1in 0 .12in; color: #173c89; font-size: 11.5pt; font-weight: 800; text-align: center; }
+        .forty-five-form-title span { border-top: 2px solid #173c89; }
+        .forty-five-form-meta, .forty-five-form-kpi, .forty-five-form-guide, .forty-five-form-rating-box table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .forty-five-form-meta { margin-bottom: .14in; font-size: 7.3pt; }
+        .forty-five-form-meta th, .forty-five-form-meta td { border: 1.4px solid #173c89; padding: .045in .055in; text-align: left; }
+        .forty-five-form-meta th { width: 20%; background: #eef4fb; font-weight: 800; }
+        .forty-five-form-meta td { width: 30%; font-weight: 800; }
+        .forty-five-form-kpi { font-size: 7pt; text-align: center; }
+        .forty-five-form-kpi th { padding: .055in .04in; border: 1.4px solid #173c89; color: #fff; background: #173c89; font-weight: 800; }
+        .forty-five-form-kpi td { height: .25in; padding: .045in .04in; border: 1.2px solid #173c89; font-weight: 700; }
+        .forty-five-form-kpi td:first-child { text-align: left; }
+        .forty-five-form-kpi small { display: block; margin-top: .025in; font-size: 6pt; font-weight: 600; }
+        .forty-five-form-kpi .negative { color: #d60000; }
+        .forty-five-form-empty td { color: #64748b; font-weight: 700; }
+        .forty-five-form-total td { background: #e7eef8; font-weight: 900; }
+        .forty-five-form-lower { display: grid; grid-template-columns: 2.75in 1fr; gap: .14in; margin-top: .16in; align-items: start; }
+        .forty-five-form-guide { font-size: 6.8pt; }
+        .forty-five-form-guide th, .forty-five-form-guide td { border: 1.2px solid #173c89; padding: .035in .045in; }
+        .forty-five-form-guide th { color: #fff; background: #173c89; text-align: center; }
+        .forty-five-form-rating-box { font-size: 7pt; }
+        .forty-five-final-rating { display: flex; align-items: center; gap: .1in; margin-bottom: .05in; padding: .06in .08in; border-radius: .2in; color: #fff; background: #d70000; }
+        .forty-five-final-rating strong { font-size: 8.5pt; }
+        .forty-five-final-rating span { margin-left: auto; min-width: 1.6in; padding: .045in .12in; border-radius: .16in; text-align: center; font-weight: 900; }
+        .forty-five-form-rating-box p { margin: .035in 0 .055in; color: #173c89; font-size: 6pt; font-style: italic; font-weight: 800; text-align: center; }
+        .forty-five-form-rating-box th, .forty-five-form-rating-box td { height: .29in; border: 1.2px solid #173c89; padding: .04in; text-align: left; font-size: 6.6pt; }
+        .forty-five-form-rating-box th { width: 24%; background: #eef4fb; font-weight: 900; }
+        .forty-five-form-signatures { display: grid; grid-template-columns: repeat(4, 1fr); gap: .2in; margin-top: .3in; padding-top: .34in; border-top: 1.4px solid #6685bd; text-align: center; }
+        .forty-five-form-signatures strong { display: block; min-height: .18in; border-bottom: 1px solid #000; font-size: 6.8pt; }
+        .forty-five-form-signatures span { display: block; min-height: .25in; margin-top: .025in; font-size: 5.6pt; font-weight: 700; line-height: 1.05; }
+        .forty-five-form-signatures em { display: block; margin-top: .12in; border-bottom: 1px solid #000; font-size: 6pt; font-style: normal; text-align: left; }
         @media (max-width: 1100px) {
           .forty-five-shell { grid-template-columns: 1fr; }
           .forty-five-hero, .forty-five-evaluation { grid-column: 1; }
           .ranking-kpis { grid-template-columns: repeat(2, 1fr); }
+          .print-report-kpis { grid-template-columns: repeat(3, 1fr); }
+          .print-report-forms { grid-template-columns: repeat(2, minmax(230px, 1fr)); }
           .ranking-header { flex-direction: column; }
           .ranking-guide { grid-template-columns: 1fr; }
           .ranking-rating-guide > div { grid-template-columns: repeat(4, minmax(90px, 1fr)); }
@@ -1255,6 +1547,12 @@ export default function CollectorPerformance() {
           .forty-five-modal-header h3 { font-size: 17px; }
           .forty-five-modal-table-wrap { padding: 10px; }
           .ranking-kpis { grid-template-columns: 1fr; }
+          .print-report-kpis, .print-report-forms { grid-template-columns: 1fr; }
+          .print-report-list-head { flex-direction: column; }
+          .print-report-controls { justify-content: stretch; width: 100%; }
+          .print-report-search { min-width: 0; width: 100%; }
+          .forty-five-print-preview-backdrop { padding: 10px; }
+          .forty-five-print-preview { transform: scale(.75); transform-origin: top left; }
           .ranking-period { align-items: flex-start; flex-direction: column; }
           .ranking-rating-guide > div { grid-template-columns: repeat(2, minmax(100px, 1fr)); }
         }
@@ -1305,6 +1603,26 @@ export default function CollectorPerformance() {
           }
           .performance-print-page:last-child { page-break-after: auto; }
           .performance-preview-controls { display: none !important; }
+          body.print-forty-five-form * { visibility: hidden !important; }
+          body.print-forty-five-form .forty-five-print-form-layout,
+          body.print-forty-five-form .forty-five-print-form-layout * { visibility: visible !important; }
+          body.print-forty-five-form .collector-print-layout,
+          body.print-forty-five-form .performance-print-layout { display: none !important; }
+          body.print-forty-five-form .forty-five-print-form-layout {
+            display: block !important;
+            position: absolute !important;
+            left: 0;
+            top: 0;
+            width: 100%;
+            background: #fff;
+          }
+          .forty-five-print-preview-backdrop { display: none !important; }
+          body.print-forty-five-form .forty-five-print-form-page {
+            width: 7.7in;
+            min-height: 11.2in;
+            margin: 0 auto;
+            page-break-after: always;
+          }
         }
       `}</style>
 
@@ -2118,6 +2436,7 @@ export default function CollectorPerformance() {
                     <div className="forty-five-content-tabs" role="tablist" aria-label="45-day performance view">
                       <button type="button" className={ratingContentTab === 'evaluation' ? 'active' : ''} onClick={() => setRatingContentTab('evaluation')}>Evaluation</button>
                       <button type="button" className={ratingContentTab === 'ranking' ? 'active' : ''} onClick={() => setRatingContentTab('ranking')}>Ranking</button>
+                      <button type="button" className={ratingContentTab === 'print-report' ? 'active' : ''} onClick={() => setRatingContentTab('print-report')}>Print Report</button>
                     </div>
                     {ratingContentTab === 'evaluation' ? <>
                       <div className="forty-five-eval-header"><div><div className="forty-five-section-title" style={{ marginBottom: 5 }}><Users size={19} /> 45-Day Role Evaluation</div><div style={{ color: '#64748b', fontSize: 12, fontWeight: 700 }}>{displayDate(selectedRatingPeriod.period.start_date)} to {displayDate(selectedRatingPeriod.period.end_date)} · {isFinalRatingStatus(selectedRatingPeriod.period.status) ? 'Final and locked' : 'Draft'}</div></div><button className="btn btn-secondary" type="button" onClick={refreshRatingPeriod} disabled={fortyFiveDayLoading || isFinalRatingStatus(selectedRatingPeriod.period.status)}><RefreshCw size={16} /> Refresh automated totals</button></div>
@@ -2132,7 +2451,7 @@ export default function CollectorPerformance() {
                       {ratingEvaluationTab === 'supervisor' && <FortyFiveEvaluationTable entityLabel="Supervisor" rows={selectedRatingPeriod.supervisor_evaluations || []} childRows={row => row.collector_results?.length ? row.collector_results : selectedRatingPeriod.evaluations.filter(evaluation => (String(evaluation.supervisor || '').trim() || 'Unassigned Supervisor') === row.name)} childEntityLabel="Collector" onOpenChildren={setRatingHierarchyModal} />}
                       {ratingEvaluationTab === 'branch-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.branch_manager_evaluations || []} childRows={row => row.supervisor_results?.length ? row.supervisor_results : (selectedRatingPeriod.supervisor_evaluations || []).filter(supervisor => (row.supervisors || []).includes(supervisor.name))} childEntityLabel="Supervisor" onOpenChildren={setRatingHierarchyModal} />}
                       {ratingEvaluationTab === 'operations-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.operations_manager_evaluation?.branch_results || []} childRows={row => row.supervisor_results} childEntityLabel="Supervisor" onOpenChildren={setRatingHierarchyModal} footerRow={selectedRatingPeriod.operations_manager_evaluation} />}
-                    </> : <FortyFiveRanking period={selectedRatingPeriod.period} collectors={selectedRatingPeriod.evaluations} supervisors={selectedRatingPeriod.supervisor_evaluations || []} />}
+                    </> : ratingContentTab === 'ranking' ? <FortyFiveRanking period={selectedRatingPeriod.period} collectors={selectedRatingPeriod.evaluations} supervisors={selectedRatingPeriod.supervisor_evaluations || []} /> : <FortyFivePrintReport period={selectedRatingPeriod.period} selectedRatingPeriod={selectedRatingPeriod} />}
                   </div>}
                 </div>
               </div>
