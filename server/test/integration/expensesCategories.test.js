@@ -128,6 +128,12 @@ test('expense summary calculates date-range net income for configured collectors
   const regularLoan = await insertLoan('L-NET-1', collector.lastID, '2026-08-14', 400);
   const pastDueLoan = await insertLoan('L-NET-2', pastDueCollector.lastID, '2026-08-14', 100);
   const outsideLoan = await insertLoan('L-NET-3', collector.lastID, '2026-08-10', 999);
+  await dbRun(`
+    INSERT INTO tblLoan (
+      loan_code, customer_id, collector_id, branch_id, loan_type, principal,
+      loan_period, date_released, balance, status
+    ) VALUES ('L-NET-RECON', ?, ?, ?, 'Recon', 300, 1, '2026-08-14', 300, 'active')
+  `, [customer.lastID, collector.lastID, branch.id]);
 
   const insertPayment = (loanId, collectorId, date, amount, orNumber) => dbRun(`
     INSERT INTO tblPayment (

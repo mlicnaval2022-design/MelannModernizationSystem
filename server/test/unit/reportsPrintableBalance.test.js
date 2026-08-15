@@ -3,6 +3,11 @@ const assert = require('node:assert/strict');
 
 const { __private } = require('../../src/routes/reports');
 
+test('collection report folds Pastdue aliases into the regular collector name', () => {
+  assert.equal(__private.normalizeCollectorReportName('Aldie Rosal Pastdue'), 'Aldie Rosal');
+  assert.equal(__private.normalizeCollectorReportName('Renato Domingono Past Due'), 'Renato Domingono');
+});
+
 test('recon promissory does not use loan balance as printable previous balance', async () => {
   const loan = {
     loan_type: 'Recon',

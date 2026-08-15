@@ -14,6 +14,12 @@ const toLocalDateString = (date = new Date()) => {
 
 const toDateKey = value => String(value || '').slice(0, 10);
 
+const normalizeCollectorReportName = value => {
+  const name = String(value || '').trim();
+  if (!name) return 'Unassigned';
+  return name.replace(/\s+past\s*due$/i, '').trim() || 'Unassigned';
+};
+
 const buildMonitoringEligibilityCondition = () => `
   LOWER(c.status) IN ('active', 'recon')
   AND LOWER(c.status) NOT LIKE '%pastdue%'
@@ -107,7 +113,7 @@ const getCollectionReleaseCharges = async (from, to) => {
   const releases = await dbAll(`
     SELECT
       l.id,
-      COALESCE(l.collector_id, c.collector_id) as collector_id,
+      COALESCE(c.collector_id, l.collector_id) as collector_id,
       l.customer_id,
       l.loan_code,
       l.date_released,
@@ -118,8 +124,8 @@ const getCollectionReleaseCharges = async (from, to) => {
       c.customer_code,
       c.full_name as customer_name,
       COALESCE(
-        NULLIF(TRIM(co.first_name || ' ' || co.last_name), ''),
         NULLIF(TRIM(cco.first_name || ' ' || cco.last_name), ''),
+        NULLIF(TRIM(co.first_name || ' ' || co.last_name), ''),
         'Unassigned'
       ) as collector_name,
       (
@@ -619,7 +625,7 @@ router.get('/expenses/summary', authenticateToken, async (req, res) => {
         FROM tblCollector
       `),
       dbAll(`
-        SELECT COALESCE(p.collector_id, l.collector_id, c.collector_id) as collector_id,
+        SELECT COALESCE(c.collector_id, l.collector_id, p.collector_id) as collector_id,
                COALESCE(SUM(p.amount_paid), 0) as total_amount
         FROM tblPayment p
         LEFT JOIN tblLoan l ON l.id = p.loan_id
@@ -627,17 +633,18 @@ router.get('/expenses/summary', authenticateToken, async (req, res) => {
         WHERE date(p.date_paid) BETWEEN date(?) AND date(?)
           AND p.status IN ('active', 'penalty')
           AND ${sqlNotSunday('p.date_paid')}
-        GROUP BY COALESCE(p.collector_id, l.collector_id, c.collector_id)
+        GROUP BY COALESCE(c.collector_id, l.collector_id, p.collector_id)
       `, [rangeStart, rangeEnd]),
       dbAll(`
-        SELECT COALESCE(l.collector_id, c.collector_id) as collector_id,
+        SELECT COALESCE(c.collector_id, l.collector_id) as collector_id,
                COALESCE(SUM(l.principal), 0) as total_amount
         FROM tblLoan l
         LEFT JOIN tblCustomer c ON c.id = l.customer_id
         WHERE date(l.date_released) BETWEEN date(?) AND date(?)
           AND l.status != 'reversed'
+          AND LOWER(COALESCE(l.loan_type, '')) NOT LIKE '%recon%'
           AND ${sqlNotSunday('l.date_released')}
-        GROUP BY COALESCE(l.collector_id, c.collector_id)
+        GROUP BY COALESCE(c.collector_id, l.collector_id)
       `, [rangeStart, rangeEnd]),
       getCollectionReleaseCharges(rangeStart, rangeEnd),
     ]);
@@ -859,9 +866,9 @@ router.get('/daily-collection', authenticateToken, async (req, res) => {
              c.full_name as customer_name,
              c.customer_code,
              COALESCE(
-               NULLIF(TRIM(co.first_name || ' ' || co.last_name), ''),
-               NULLIF(TRIM(lco.first_name || ' ' || lco.last_name), ''),
                NULLIF(TRIM(cco.first_name || ' ' || cco.last_name), ''),
+               NULLIF(TRIM(lco.first_name || ' ' || lco.last_name), ''),
+               NULLIF(TRIM(co.first_name || ' ' || co.last_name), ''),
                'Unassigned'
              ) as collector_name
       FROM tblPayment p
@@ -877,6 +884,7 @@ router.get('/daily-collection', authenticateToken, async (req, res) => {
     `, [from, to]);
     const releaseCharges = await getCollectionReleaseCharges(from, to);
     const collectionRows = [...payments, ...releaseCharges]
+      .map(row => ({ ...row, collector_name: normalizeCollectorReportName(row.collector_name) }))
       .sort((a, b) =>
         String(a.date_paid || '').localeCompare(String(b.date_paid || '')) ||
         String(a.collector_name || '').localeCompare(String(b.collector_name || '')) ||
@@ -1571,6 +1579,7 @@ router.__private = {
   resolvePrintablePreviousBalance,
   buildCollectionReleaseChargeRows,
   getCollectionReleaseCharges,
+  normalizeCollectorReportName,
 };
 
 module.exports = router;

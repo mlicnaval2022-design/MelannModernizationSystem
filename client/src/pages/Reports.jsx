@@ -2020,7 +2020,7 @@ export default function Reports() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
             <div>
-              <h3 style={{ margin: '0 0 10px 0', color: 'var(--blue-dark)' }}>Total Kada Employee</h3>
+              <h3 style={{ margin: '0 0 10px 0', color: 'var(--blue-dark)' }}>Total Each Employee</h3>
               <table className="data-table">
                 <thead><tr><th>Employee</th><th>Position</th><th className="text-right">Entries</th><th className="text-right">Total Expense</th></tr></thead>
                 <tbody>
@@ -2059,7 +2059,7 @@ export default function Reports() {
             }), { collection: 0, release: 0, expense: 0, netIncome: 0 })
             return (
               <div>
-                <div style={{ marginBottom: 12, color: 'var(--text-muted)', fontSize: 13 }}>Net Income = Collection - Release - Expense, based on the selected date range.</div>
+                <div style={{ marginBottom: 12, color: 'var(--text-muted)', fontSize: 13 }}>Net Income = Collection - Non-Recon Release - Expense, based on the selected date range.</div>
                 <div style={{ overflowX: 'auto' }}>
                   <table className="data-table">
                     <thead><tr><th>Collector</th><th>Position</th><th className="text-right">Collection</th><th className="text-right">Release</th><th className="text-right">Expense</th><th className="text-right">Net Income</th></tr></thead>
