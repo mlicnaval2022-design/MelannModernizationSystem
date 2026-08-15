@@ -694,6 +694,19 @@ async function initializeDatabase() {
 
   await dbExec(schema);
 
+  await dbExec(`
+    CREATE INDEX IF NOT EXISTS idx_tblPayment_report_status_date
+      ON tblPayment(status, date_paid);
+    CREATE INDEX IF NOT EXISTS idx_tblPayment_report_loan_status
+      ON tblPayment(loan_id, status);
+    CREATE INDEX IF NOT EXISTS idx_tblPayment_report_customer_date_status
+      ON tblPayment(customer_id, date_paid, status);
+    CREATE INDEX IF NOT EXISTS idx_tblLoan_report_release_date
+      ON tblLoan(date_released);
+    CREATE INDEX IF NOT EXISTS idx_tblEmployeeExpense_report_status_date
+      ON tblEmployeeExpense(status, expense_date);
+  `);
+
   // Seed default settings for Monitoring if missing
   const settingCount = await dbGet('SELECT COUNT(*) as count FROM tblSystemSettings');
   if (settingCount.count === 0) {

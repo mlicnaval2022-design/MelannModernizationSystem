@@ -111,6 +111,23 @@ const buildCollectionReleaseChargeRows = releases => releases.flatMap(loan => {
 
 const getCollectionReleaseCharges = async (from, to) => {
   const releases = await dbAll(`
+    WITH penalty_payments AS (
+      SELECT loan_id, COUNT(*) as payment_count
+      FROM tblPayment
+      WHERE status = 'penalty'
+      GROUP BY loan_id
+    ),
+    balance_payments AS (
+      SELECT customer_id, date_paid, COUNT(*) as payment_count
+      FROM tblPayment
+      WHERE status = 'active'
+        AND (
+          LOWER(COALESCE(remarks, '')) LIKE '%old balance%'
+          OR LOWER(COALESCE(remarks, '')) LIKE '%recon balance%'
+          OR LOWER(COALESCE(payment_type, '')) IN ('balance', 'recon', 'old_balance')
+        )
+      GROUP BY customer_id, date_paid
+    )
     SELECT
       l.id,
       COALESCE(c.collector_id, l.collector_id) as collector_id,
@@ -128,28 +145,16 @@ const getCollectionReleaseCharges = async (from, to) => {
         NULLIF(TRIM(co.first_name || ' ' || co.last_name), ''),
         'Unassigned'
       ) as collector_name,
-      (
-        SELECT COUNT(*)
-        FROM tblPayment pp
-        WHERE pp.loan_id = l.id
-          AND pp.status = 'penalty'
-      ) as penalty_payment_count,
-      (
-        SELECT COUNT(*)
-        FROM tblPayment pp
-        WHERE pp.customer_id = l.customer_id
-          AND pp.date_paid = l.date_released
-          AND pp.status = 'active'
-          AND (
-            LOWER(COALESCE(pp.remarks, '')) LIKE '%old balance%'
-            OR LOWER(COALESCE(pp.remarks, '')) LIKE '%recon balance%'
-            OR LOWER(COALESCE(pp.payment_type, '')) IN ('balance', 'recon', 'old_balance')
-          )
-      ) as balance_payment_count
+      COALESCE(pp.payment_count, 0) as penalty_payment_count,
+      COALESCE(bp.payment_count, 0) as balance_payment_count
     FROM tblLoan l
     LEFT JOIN tblCustomer c ON l.customer_id = c.id
     LEFT JOIN tblCollector co ON l.collector_id = co.id
     LEFT JOIN tblCollector cco ON c.collector_id = cco.id
+    LEFT JOIN penalty_payments pp ON pp.loan_id = l.id
+    LEFT JOIN balance_payments bp
+      ON bp.customer_id = l.customer_id
+     AND bp.date_paid = l.date_released
     WHERE l.date_released BETWEEN ? AND ?
       AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected')
       AND ${sqlNotSunday('l.date_released')}
@@ -630,7 +635,7 @@ router.get('/expenses/summary', authenticateToken, async (req, res) => {
         FROM tblPayment p
         LEFT JOIN tblLoan l ON l.id = p.loan_id
         LEFT JOIN tblCustomer c ON c.id = p.customer_id
-        WHERE date(p.date_paid) BETWEEN date(?) AND date(?)
+        WHERE p.date_paid BETWEEN ? AND ?
           AND p.status IN ('active', 'penalty')
           AND ${sqlNotSunday('p.date_paid')}
         GROUP BY COALESCE(c.collector_id, l.collector_id, p.collector_id)
@@ -640,7 +645,7 @@ router.get('/expenses/summary', authenticateToken, async (req, res) => {
                COALESCE(SUM(l.principal), 0) as total_amount
         FROM tblLoan l
         LEFT JOIN tblCustomer c ON c.id = l.customer_id
-        WHERE date(l.date_released) BETWEEN date(?) AND date(?)
+        WHERE l.date_released BETWEEN ? AND ?
           AND l.status != 'reversed'
           AND LOWER(COALESCE(l.loan_type, '')) NOT LIKE '%recon%'
           AND ${sqlNotSunday('l.date_released')}
@@ -858,7 +863,15 @@ router.get('/daily-collection', authenticateToken, async (req, res) => {
     const from = req.query.date_from || new Date().toISOString().split('T')[0];
     const to = req.query.date_to || from;
     const payments = await dbAll(`
-      SELECT p.*,
+      SELECT p.id,
+             p.loan_id,
+             p.customer_id,
+             p.or_number,
+             p.payment_code,
+             p.date_paid,
+             p.amount_paid,
+             p.balance_after,
+             p.payment_type,
              l.loan_code,
              l.loan_type,
              l.date_maturity,
