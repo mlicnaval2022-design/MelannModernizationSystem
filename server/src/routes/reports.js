@@ -1,9 +1,11 @@
 const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
+const { authorizeReportType } = require('../middleware/reportPermissions');
 const { runPastDueUpdate } = require('../services/pastDueUpdater');
 const { requireOperationDate, sqlNotSunday, isSundayDate } = require('../services/operationDays');
 const router = express.Router();
+router.use(authorizeReportType);
 const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
 
 const toLocalDateString = (date = new Date()) => {

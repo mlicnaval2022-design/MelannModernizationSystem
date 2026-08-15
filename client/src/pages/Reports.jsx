@@ -6,6 +6,8 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import SoaModal from '../components/SoaModal'
+import { useAuth } from '../context/AuthContext'
+import { reportPermissionKey } from '../access'
 import {
   AlertTriangle,
   BarChart3,
@@ -530,8 +532,9 @@ const REPORT_TYPES = [
 ]
 
 export default function Reports() {
+  const { hasPermission } = useAuth()
   const autoLoaded = useRef(false)
-  const [active, setActive] = useState('collection-report')
+  const [active, setActive] = useState('')
   const [collectionSubTab, setCollectionSubTab] = useState('daily')
   const [releaseSubTab, setReleaseSubTab] = useState('daily')
   const [monthlySubTab, setMonthlySubTab] = useState('by-collector')
@@ -620,6 +623,8 @@ export default function Reports() {
   const [expenseForm, setExpenseForm] = useState({ id: '', personnel_id: '', expense_date: toDateInputValue(new Date()), category: '', description: '', amount: '', remarks: '' })
   const [personnelForm, setPersonnelForm] = useState({ id: '', employee_name: '', position: '', status: 'active' })
   const [categoryForm, setCategoryForm] = useState({ id: '', category_name: '', status: 'active' })
+  const allowedReportTypes = REPORT_TYPES.filter(report => hasPermission(reportPermissionKey(report.key), 'view'))
+  const allowedReportKeys = allowedReportTypes.map(report => report.key).join('|')
 
   const openExpenseEmployeeDetails = (row) => {
     setSelectedExpenseEmployee({
@@ -1702,6 +1707,7 @@ export default function Reports() {
   }
 
   const handleSelect = (key) => {
+    if (!hasPermission(reportPermissionKey(key), 'view')) return
     setActive(key); setData(null); setSelectedCollector(null)
     setExportMenuOpen(false)
     if (key === 'collection-report') {
@@ -1734,6 +1740,10 @@ export default function Reports() {
   }
 
   const run = async (reportKey = active, reportParams = params, subTab = collectionSubTab) => {
+    if (!hasPermission(reportPermissionKey(reportKey), 'view')) {
+      setData({ error: 'Your role does not have access to this report type.' })
+      return null
+    }
     setLoading(true); setData(null); setSelectedCollector(null)
     try {
       let endpoint = reportKey
@@ -1776,10 +1786,12 @@ export default function Reports() {
   }
 
   useEffect(() => {
-    if (autoLoaded.current) return
+    const firstAllowedReport = allowedReportTypes[0]
+    if (!firstAllowedReport) return
+    if (autoLoaded.current && allowedReportTypes.some(report => report.key === active)) return
     autoLoaded.current = true
-    run('collection-report', params, 'daily')
-  }, [])
+    handleSelect(firstAllowedReport.key)
+  }, [allowedReportKeys, active])
 
   const renderSubTabs = () => {
     if (active === 'collection-report') {
@@ -4964,7 +4976,8 @@ export default function Reports() {
       <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 16 }}>
         <div className="card" style={{ padding: '12px 8px', height: 'fit-content' }}>
           <div className="nav-section-label">Report Types</div>
-          {REPORT_TYPES.map(r => {
+          {allowedReportTypes.length === 0 && <div className="empty-state" style={{ padding: 16 }}>No report types are assigned to your role.</div>}
+          {allowedReportTypes.map(r => {
             const Icon = r.Icon
             const isActive = active === r.key
             return (
@@ -4995,7 +5008,7 @@ export default function Reports() {
         </div>
         <div>
           <div className="card" style={{ marginBottom: 16 }}>
-            <div className="card-title" style={{ marginBottom: 14 }}>{REPORT_TYPES.find(r => r.key === active)?.label}</div>
+            <div className="card-title" style={{ marginBottom: 14 }}>{allowedReportTypes.find(r => r.key === active)?.label || 'Reports'}</div>
             {renderSubTabs()}
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               {renderParams()}

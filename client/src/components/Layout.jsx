@@ -203,7 +203,7 @@ export default function Layout() {
             </div>
             <div className="sidebar-user-info">
               <div className="sidebar-user-name">{user?.full_name}</div>
-              <div className="sidebar-user-role">{user?.role}</div>
+              <div className="sidebar-user-role">{user?.role_name || user?.role}</div>
             </div>
           </div>
           <button
@@ -298,7 +298,7 @@ export default function Layout() {
                 </div>
                 <div className="sidebar-user-info">
                   <div className="sidebar-user-name" style={{ color: '#1e293b' }}>{user?.full_name}</div>
-                  <div className="sidebar-user-role" style={{ color: '#64748b' }}>{user?.role}</div>
+                  <div className="sidebar-user-role" style={{ color: '#64748b' }}>{user?.role_name || user?.role}</div>
                 </div>
               </div>
             </div>

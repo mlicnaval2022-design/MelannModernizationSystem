@@ -78,6 +78,30 @@ async function initializeDatabase() {
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS tblRole (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      role_key TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      role_name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      description TEXT,
+      is_system INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'active',
+      created_by INTEGER,
+      updated_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS tblRolePermission (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      role_id INTEGER NOT NULL,
+      module_key TEXT NOT NULL,
+      access_level TEXT NOT NULL DEFAULT 'view',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(role_id, module_key),
+      FOREIGN KEY(role_id) REFERENCES tblRole(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_role_permission_role ON tblRolePermission(role_id);
+    CREATE INDEX IF NOT EXISTS idx_role_permission_module ON tblRolePermission(module_key);
     CREATE TABLE IF NOT EXISTS tblBranch (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       branch_code TEXT NOT NULL UNIQUE,
@@ -798,6 +822,67 @@ async function initializeDatabase() {
     await dbRun(`INSERT INTO tblUser (username, password, full_name, role) VALUES (?,?,?,?)`, ['admin', adminPw, 'System Administrator', 'admin']);
     await dbRun(`INSERT INTO tblUser (username, password, full_name, role) VALUES (?,?,?,?)`, ['user', userPw, 'Demo User', 'user']);
     console.log('✅ Default users seeded');
+  }
+
+  const { ACCESS_MODULES, REPORT_TYPE_PERMISSIONS } = require('../config/accessModules');
+  const existingUserRoles = await dbAll(`SELECT DISTINCT LOWER(TRIM(role)) AS role_key FROM tblUser WHERE role IS NOT NULL AND TRIM(role) <> ''`);
+  const legacyRoleKeys = new Set(['admin', 'user', ...existingUserRoles.map(row => row.role_key)]);
+  for (const roleKey of legacyRoleKeys) {
+    const roleName = roleKey === 'admin'
+      ? 'Administrator'
+      : roleKey === 'user'
+        ? 'User'
+        : roleKey.split(/[_-]+/).map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+    await dbRun(
+      `INSERT OR IGNORE INTO tblRole (role_key, role_name, description, is_system, status)
+       VALUES (?, ?, ?, ?, 'active')`,
+      [roleKey, roleName, roleKey === 'admin' ? 'Full system access and role administration.' : `${roleName} position-based access.`, roleKey === 'admin' ? 1 : 0]
+    );
+  }
+
+  const adminRole = await dbGet(`SELECT id FROM tblRole WHERE role_key = 'admin'`);
+  for (const module of ACCESS_MODULES) {
+    await dbRun(
+      `INSERT OR IGNORE INTO tblRolePermission (role_id, module_key, access_level) VALUES (?, ?, 'crud')`,
+      [adminRole.id, module.key]
+    );
+  }
+  for (const reportType of REPORT_TYPE_PERMISSIONS) {
+    await dbRun(
+      `INSERT OR IGNORE INTO tblRolePermission (role_id, module_key, access_level) VALUES (?, ?, 'crud')`,
+      [adminRole.id, reportType.key]
+    );
+  }
+
+  const legacyViewModules = new Set([
+    'dashboard', 'customers', 'credit-scoring', 'promissory-disclosure', 'monitoring',
+    'collectors', 'demand-letter', 'dcr', 'reports', 'collector-performance'
+  ]);
+  for (const roleKey of [...legacyRoleKeys].filter(key => key !== 'admin')) {
+    const role = await dbGet(`SELECT id FROM tblRole WHERE role_key = ?`, [roleKey]);
+    const permissionCount = await dbGet(`SELECT COUNT(*) AS count FROM tblRolePermission WHERE role_id = ?`, [role.id]);
+    if (permissionCount.count === 0) {
+      for (const module of ACCESS_MODULES.filter(item => legacyViewModules.has(item.key))) {
+        await dbRun(
+          `INSERT OR IGNORE INTO tblRolePermission (role_id, module_key, access_level) VALUES (?, ?, 'view')`,
+          [role.id, module.key]
+        );
+      }
+    }
+  }
+
+  const rolesWithReports = await dbAll(
+    `SELECT rp.role_id, rp.access_level
+     FROM tblRolePermission rp
+     WHERE rp.module_key = 'reports'`
+  );
+  for (const rolePermission of rolesWithReports) {
+    for (const reportType of REPORT_TYPE_PERMISSIONS) {
+      await dbRun(
+        `INSERT OR IGNORE INTO tblRolePermission (role_id, module_key, access_level) VALUES (?, ?, ?)`,
+        [rolePermission.role_id, reportType.key, rolePermission.access_level]
+      );
+    }
   }
 
   // Seed default branch
