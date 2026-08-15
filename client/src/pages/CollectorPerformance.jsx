@@ -278,6 +278,7 @@ const escapeRankingCsv = value => `"${String(value ?? '').replaceAll('"', '""')}
 
 function FortyFiveRanking({ period, collectors = [], supervisors = [] }) {
   const [rankingTab, setRankingTab] = useState('collector')
+  const periodFinalized = isFinalRatingStatus(period.status)
   const sourceRows = rankingTab === 'collector'
     ? collectors
     : supervisors.filter(row => !String(row.name || '').toLowerCase().startsWith('unassigned'))
@@ -304,7 +305,7 @@ function FortyFiveRanking({ period, collectors = [], supervisors = [] }) {
         Number(row.net_income || 0).toFixed(2),
         complete ? Number(row.accomplishment_percentage).toFixed(2) : '',
         row.rating || 'Not rated',
-        complete ? 'Complete' : 'Incomplete'
+        !complete ? 'Incomplete' : periodFinalized ? 'Complete' : 'Pending Finalization'
       ].map(escapeRankingCsv).join(',')
     })
     const csv = [
@@ -355,6 +356,8 @@ function FortyFiveRanking({ period, collectors = [], supervisors = [] }) {
           const netIncome = Number(row.net_income || 0)
           const accomplishment = complete ? Number(row.accomplishment_percentage) : 0
           const ratingStyle = getRatingPresentation(row.rating)
+          const statusClass = !complete ? 'incomplete' : periodFinalized ? 'complete' : 'pending'
+          const statusLabel = !complete ? 'Incomplete' : periodFinalized ? 'Complete' : 'Pending Finalization'
           return <tr key={row.id || `${rankingTab}-${name}`}>
             <td><span className={`ranking-rank ${index === 0 && complete ? 'ranking-rank-first' : ''}`}>{complete ? index + 1 : '—'}{index === 0 && complete && <em>◆</em>}</span></td>
             <td><div className="ranking-person"><span>{getCollectorInitials(name)}</span><strong>{name}<small>{rankingTab === 'collector' ? (row.branch_name || 'Rated Collector') : `${row.collectors?.length || row.collector_results?.length || 0} Collector(s)`}</small></strong></div></td>
@@ -364,7 +367,7 @@ function FortyFiveRanking({ period, collectors = [], supervisors = [] }) {
             <td className={`ranking-number ranking-net ${netIncome < 0 ? 'negative' : 'positive'}`}>{netIncome < 0 ? `(${rankingMoney(Math.abs(netIncome))})` : rankingMoney(netIncome)}</td>
             <td className="ranking-accomplishment">{complete ? <><strong>{accomplishment.toFixed(2)}%</strong><span><i style={{ width: `${Math.max(4, Math.min(accomplishment, 100))}%` }} /></span></> : <em>No data</em>}</td>
             <td><span className="ranking-rating" style={{ color: ratingStyle.color, background: ratingStyle.background }}>{row.rating || 'Incomplete'}</span></td>
-            <td><span className={`ranking-status ${complete ? 'complete' : 'incomplete'}`}>{complete ? <CheckCircle2 size={14} /> : <Info size={14} />}{complete ? 'Complete' : 'Incomplete'}</span></td>
+            <td><span className={`ranking-status ${statusClass}`}>{periodFinalized && complete ? <CheckCircle2 size={14} /> : <Info size={14} />}{statusLabel}</span></td>
           </tr>
         }) : <tr><td colSpan={9} className="ranking-empty">No {entityLabel.toLowerCase()} ranking data available for this period.</td></tr>}</tbody>
       </table>
@@ -1226,7 +1229,7 @@ export default function CollectorPerformance() {
         .ranking-number { text-align: center; font-size: 12px !important; font-weight: 950; }.ranking-net.positive { color: #00a957; }.ranking-net.negative { color: #ef2626; }
         .ranking-accomplishment { text-align: center; }.ranking-accomplishment strong { display: block; color: #1460f5; font-size: 10px; }.ranking-accomplishment > span { width: 45px; height: 4px; display: block; margin: 6px auto 0; overflow: hidden; border-radius: 99px; background: #e2e8f0; }.ranking-accomplishment i { display: block; height: 100%; border-radius: inherit; background: #2364f5; }.ranking-accomplishment em { color: #94a3b8; font-size: 10px; }
         .ranking-rating { display: block; max-width: 142px; margin: auto; padding: 7px 8px; border-radius: 4px; font-size: 8px; font-weight: 950; line-height: 1.2; text-align: center; text-transform: uppercase; }
-        .ranking-status { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 88px; padding: 6px 9px; border: 1px solid; border-radius: 99px; font-size: 9px; font-weight: 900; }.ranking-status.complete { border-color: #a8edc4; color: #00a957; background: #effdf5; }.ranking-status.incomplete { border-color: #d8e2ef; color: #70839e; background: #f5f7fa; }
+        .ranking-status { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 88px; padding: 6px 9px; border: 1px solid; border-radius: 99px; font-size: 9px; font-weight: 900; }.ranking-status.complete { border-color: #a8edc4; color: #00a957; background: #effdf5; }.ranking-status.pending { min-width: 112px; border-color: #f5d58a; color: #a16207; background: #fffbeb; }.ranking-status.incomplete { border-color: #d8e2ef; color: #70839e; background: #f5f7fa; }
         .ranking-empty { padding: 36px !important; color: #70839e !important; text-align: center; }
         .ranking-guide { display: grid; grid-template-columns: 190px 1fr; gap: 22px; margin-top: 24px; padding: 17px 18px; border: 1px solid #d8e2ef; border-radius: 11px; background: #f8fafc; }
         .ranking-basis { display: flex; gap: 11px; color: #1c61ed; }.ranking-basis > svg { flex: 0 0 auto; margin-top: 1px; }.ranking-basis strong { color: #102448; font-size: 10px; }.ranking-basis ol { margin: 5px 0 0; padding-left: 18px; color: #506487; font-size: 9px; line-height: 1.55; }
