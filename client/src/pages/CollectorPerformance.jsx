@@ -1216,14 +1216,15 @@ export default function CollectorPerformance() {
   const selectedCollection = collectionRows.find(collector => collector.id === selectedCollectionId)
   const selectedSummary = selectedCollection ? getCollectorCollectionTotals(selectedCollection.rows) : null
   const selectedLatestRow = selectedCollection?.rows.find(row => row.date === filters.date_to) || selectedCollection?.rows[selectedCollection?.rows.length - 1]
+  const selectedMondayRow = selectedCollection?.rows.find(row => row.date === getOperationWeek(filters.date_to)[0]) || selectedCollection?.rows[0]
   const selectedEdit = selectedCollection ? collectorEdits[selectedCollection.id] || {} : {}
   const selectedActiveTarget = 100
   const selectedNewClients = selectedCollection?.rows.reduce((sum, row) => sum + Number(row.newClients || 0), 0) || 0
   const selectedNewClientPrincipal = selectedCollection?.rows.reduce((sum, row) => sum + Number(row.newClientPrincipal || 0), 0) || 0
   const selectedReturnClients = Number(selectedEdit.returnClients ?? 0)
   const selectedReconClients = Number(selectedEdit.reconClients ?? selectedCollection?.rows.reduce((sum, row) => sum + Number(row.reconClients || 0), 0) ?? 0)
-  const selectedBeginningActive = selectedLatestRow
-    ? Number(selectedLatestRow.activeClients || 0) + Number(selectedLatestRow.overdueClients || 0)
+  const selectedBeginningActive = selectedMondayRow
+    ? Number(selectedMondayRow.activeClients || 0) + Number(selectedMondayRow.overdueClients || 0)
     : 0
   const selectedEndingBalance = Math.max(0, selectedBeginningActive - selectedReconClients)
   const performanceWeekDates = getOperationWeek(lockedCollections?.dateTo || filters.date_to)
@@ -1637,13 +1638,13 @@ export default function CollectorPerformance() {
         {(lockedCollections?.collectors || collectionRows).map(collector => {
           const summary = getCollectorCollectionTotals(collector.rows)
           const edit = collectorEdits[collector.id] || {}
-          const firstRow = collector.rows[0] || {}
+          const mondayRow = collector.rows.find(row => row.date === performanceWeekDates[0]) || collector.rows[0] || {}
           const newClients = collector.rows.reduce((sum, row) => sum + Number(row.newClients || 0), 0)
           const newPrincipal = collector.rows.reduce((sum, row) => sum + Number(row.newClientPrincipal || 0), 0)
           const returnClients = Number(edit.returnClients ?? 0)
           const reconClients = Number(edit.reconClients ?? collector.rows.reduce((sum, row) => sum + Number(row.reconClients || 0), 0))
           const activeTarget = 100
-          const beginningActive = Number(firstRow.activeClients || 0) + Number(firstRow.overdueClients || 0)
+          const beginningActive = Number(mondayRow.activeClients || 0) + Number(mondayRow.overdueClients || 0)
           const endingBalance = Math.max(0, beginningActive - reconClients)
           const lacking = Math.max(0, activeTarget - endingBalance)
           return (
