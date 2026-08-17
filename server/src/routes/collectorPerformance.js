@@ -1,13 +1,58 @@
 const express = require('express');
 const dayjs = require('dayjs');
-const { dbAll } = require('../db/database');
-const { authenticateToken } = require('../middleware/auth');
+const { dbAll, dbGet, dbRun } = require('../db/database');
+const { authenticateToken, requireRole } = require('../middleware/auth');
 const { sqlNotSunday } = require('../services/operationDays');
 
 const router = express.Router();
 
 const toAmount = value => Number(value || 0);
 const toDate = value => dayjs(value).format('YYYY-MM-DD');
+
+const validWeekStart = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) && dayjs(value).isValid() && dayjs(value).day() === 1;
+
+router.get('/week-lock', authenticateToken, async (req, res) => {
+  try {
+    const weekStart = String(req.query.week_start || '');
+    if (!validWeekStart(weekStart)) return res.status(400).json({ error: 'week_start must be a Monday.' });
+    const lock = await dbGet(`SELECT l.*, u.full_name as locked_by_name FROM tblCollectorPerformanceWeekLock l LEFT JOIN tblUser u ON u.id = l.locked_by WHERE l.week_start = ?`, [weekStart]);
+    if (!lock || lock.status !== 'Locked') return res.json({ locked: false });
+    res.json({ locked: true, lock: { ...lock, snapshot: JSON.parse(lock.snapshot_json) } });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/week-lock', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const { week_start: weekStart, week_end: weekEnd, snapshot } = req.body || {};
+    if (!validWeekStart(weekStart) || !dayjs(weekEnd).isSame(dayjs(weekStart).add(5, 'day'), 'day') || !snapshot?.collectors?.length) {
+      return res.status(400).json({ error: 'A complete Monday-to-Saturday weekly snapshot is required.' });
+    }
+    const existing = await dbGet(`SELECT id, status FROM tblCollectorPerformanceWeekLock WHERE week_start = ?`, [weekStart]);
+    if (existing?.status === 'Locked') return res.status(409).json({ error: 'This week is already locked.' });
+    const snapshotJson = JSON.stringify({ dateFrom: weekStart, dateTo: weekEnd, collectors: snapshot.collectors });
+    let lockId = existing?.id;
+    if (existing) {
+      await dbRun(`UPDATE tblCollectorPerformanceWeekLock SET week_end=?, snapshot_json=?, status='Locked', locked_by=?, locked_at=datetime('now'), unlocked_by=NULL, unlocked_at=NULL, unlock_reason=NULL WHERE id=?`, [weekEnd, snapshotJson, req.user.id, existing.id]);
+    } else {
+      const result = await dbRun(`INSERT INTO tblCollectorPerformanceWeekLock (week_start, week_end, snapshot_json, locked_by) VALUES (?, ?, ?, ?)`, [weekStart, weekEnd, snapshotJson, req.user.id]);
+      lockId = result.lastID;
+    }
+    await dbRun(`INSERT INTO tblCollectorPerformanceWeekLockAudit (week_lock_id, action, changed_by) VALUES (?, 'Lock', ?)`, [lockId, req.user.id]);
+    res.status(201).json({ locked: true, snapshot: JSON.parse(snapshotJson) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/week-lock/:weekStart/unlock', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const reason = String(req.body?.reason || '').trim();
+    if (!reason) return res.status(400).json({ error: 'An unlock reason is required.' });
+    const lock = await dbGet(`SELECT id FROM tblCollectorPerformanceWeekLock WHERE week_start=? AND status='Locked'`, [req.params.weekStart]);
+    if (!lock) return res.status(404).json({ error: 'Locked week not found.' });
+    await dbRun(`UPDATE tblCollectorPerformanceWeekLock SET status='Unlocked', unlocked_by=?, unlocked_at=datetime('now'), unlock_reason=? WHERE id=?`, [req.user.id, reason, lock.id]);
+    await dbRun(`INSERT INTO tblCollectorPerformanceWeekLockAudit (week_lock_id, action, reason, changed_by) VALUES (?, 'Unlock', ?, ?)`, [lock.id, reason, req.user.id]);
+    res.json({ locked: false });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 function resolveDateRange(query) {
   const today = dayjs();

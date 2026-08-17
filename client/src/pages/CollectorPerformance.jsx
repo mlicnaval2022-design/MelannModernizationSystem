@@ -926,6 +926,14 @@ export default function CollectorPerformance() {
     setCollectionsLoading(true)
     try {
       const weekDates = getOperationWeek(dateTo)
+      const lockResponse = await API.get('/collector-performance/week-lock', { params: { week_start: weekDates[0] } })
+      if (lockResponse.data.locked) {
+        const snapshot = lockResponse.data.lock.snapshot
+        setCollectionRows(snapshot.collectors || [])
+        setLockedCollections(snapshot)
+        setSelectedCollectionId(current => current && !snapshot.collectors?.some(collector => collector.id === current) ? null : current)
+        return
+      }
       const responses = await Promise.all(weekDates.map(date => API.get('/collector-performance/summary', {
         params: {
           date_to: date,
@@ -1102,7 +1110,7 @@ export default function CollectorPerformance() {
     }
   }
 
-  const lockWeekForPrinting = () => {
+  const lockWeekForPrinting = async () => {
     const dates = getOperationWeek(filters.date_to)
     const dateSet = new Set(dates)
     const locked = {
@@ -1115,34 +1123,39 @@ export default function CollectorPerformance() {
           .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
       }))
     }
-    setLockedCollections(locked)
-    return locked
+    const response = await API.post('/collector-performance/week-lock', {
+      week_start: locked.dateFrom,
+      week_end: locked.dateTo,
+      snapshot: locked
+    })
+    setLockedCollections(response.data.snapshot)
+    return response.data.snapshot
   }
 
-  const previewLockedPerformance = () => {
-    if (!lockedCollections) lockWeekForPrinting()
+  const previewLockedPerformance = async () => {
+    if (!lockedCollections) await lockWeekForPrinting()
     setShowPerformancePreview(true)
   }
 
-  const printLockedPerformance = () => {
-    const dates = getOperationWeek(filters.date_to)
-    if (!lockedCollections) {
-      const dateSet = new Set(dates)
-      setLockedCollections({
-        dateFrom: dates[0],
-        dateTo: dates[dates.length - 1],
-        collectors: collectionRows.map(collector => ({
-          ...collector,
-          rows: collector.rows
-            .filter(row => dateSet.has(row.date))
-            .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
-        }))
-      })
-    }
+  const printLockedPerformance = async () => {
+    if (!lockedCollections) await lockWeekForPrinting()
     document.body.classList.add('print-performance-report')
     window.print()
     document.body.classList.remove('print-performance-report')
     setShowPerformancePreview(false)
+  }
+
+  const unlockWeek = async () => {
+    const weekStart = getOperationWeek(filters.date_to)[0]
+    const reason = window.prompt('Reason for unlocking this finalized week:')
+    if (!reason?.trim()) return
+    try {
+      await API.post(`/collector-performance/week-lock/${weekStart}/unlock`, { reason: reason.trim() })
+      setLockedCollections(null)
+      await loadCollections()
+    } catch (err) {
+      setErrorMsg(err.response?.data?.error || err.message || 'Could not unlock week')
+    }
   }
 
   useEffect(() => {
@@ -1213,15 +1226,14 @@ export default function CollectorPerformance() {
   const selectedCollection = collectionRows.find(collector => collector.id === selectedCollectionId)
   const selectedSummary = selectedCollection ? getCollectorCollectionTotals(selectedCollection.rows) : null
   const selectedLatestRow = selectedCollection?.rows.find(row => row.date === filters.date_to) || selectedCollection?.rows[selectedCollection?.rows.length - 1]
-  const selectedStartRow = selectedCollection?.rows[0]
   const selectedEdit = selectedCollection ? collectorEdits[selectedCollection.id] || {} : {}
   const selectedActiveTarget = 100
   const selectedNewClients = selectedCollection?.rows.reduce((sum, row) => sum + Number(row.newClients || 0), 0) || 0
   const selectedNewClientPrincipal = selectedCollection?.rows.reduce((sum, row) => sum + Number(row.newClientPrincipal || 0), 0) || 0
   const selectedReturnClients = Number(selectedEdit.returnClients ?? 0)
   const selectedReconClients = Number(selectedEdit.reconClients ?? selectedCollection?.rows.reduce((sum, row) => sum + Number(row.reconClients || 0), 0) ?? 0)
-  const startBeginningActive = selectedStartRow
-    ? Number(selectedStartRow.beginningActive || 0)
+  const startBeginningActive = selectedLatestRow
+    ? Number(selectedLatestRow.activeClients || 0)
     : 0
   const selectedBeginningActive = selectedEdit.beginningActive !== undefined && selectedEdit.beginningActive !== ''
     ? Number(selectedEdit.beginningActive)
@@ -1230,6 +1242,7 @@ export default function CollectorPerformance() {
   const performanceWeekDates = getOperationWeek(lockedCollections?.dateTo || filters.date_to)
   const currentWeekDates = getOperationWeek(filters.date_to)
   const isWeekLocked = Boolean(lockedCollections && lockedCollections.dateFrom === currentWeekDates[0] && lockedCollections.dateTo === currentWeekDates[5])
+  const canManageWeekLock = hasRole('admin', 'manager')
   const isValidRatingRange = Boolean(ratingDateRange.start_date && ratingDateRange.end_date && ratingDateRange.end_date >= ratingDateRange.start_date)
 
   return (
@@ -2053,7 +2066,7 @@ export default function CollectorPerformance() {
                     <button className="btn btn-secondary" type="button" onClick={loadCollections} disabled={collectionsLoading || isWeekLocked}>
                       <RefreshCw size={16} /> {collectionsLoading ? 'Syncing...' : 'Sync Dates'}
                     </button>
-                    <button className={`btn ${isWeekLocked ? 'btn-success' : 'btn-secondary'}`} type="button" onClick={() => isWeekLocked ? setLockedCollections(null) : lockWeekForPrinting()} disabled={collectionsLoading || !collectionRows.length}>
+                    <button className={`btn ${isWeekLocked ? 'btn-success' : 'btn-secondary'}`} type="button" onClick={() => isWeekLocked ? unlockWeek() : lockWeekForPrinting()} disabled={collectionsLoading || !collectionRows.length || !canManageWeekLock} title={!canManageWeekLock ? 'Only managers and administrators can lock or unlock a week.' : undefined}>
                       {isWeekLocked ? <Unlock size={16} /> : <Lock size={16} />} {isWeekLocked ? 'Unlock Week' : 'Lock Week'}
                     </button>
                     <button className="btn btn-secondary" type="button" onClick={previewLockedPerformance} disabled={collectionsLoading || !collectionRows.length}>

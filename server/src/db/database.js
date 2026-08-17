@@ -731,6 +731,33 @@ async function initializeDatabase() {
       ON tblEmployeeExpense(status, expense_date);
   `);
 
+  await dbExec(`
+    CREATE TABLE IF NOT EXISTS tblCollectorPerformanceWeekLock (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      week_start TEXT NOT NULL UNIQUE,
+      week_end TEXT NOT NULL,
+      snapshot_json TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'Locked',
+      locked_by INTEGER NOT NULL,
+      locked_at TEXT DEFAULT (datetime('now')),
+      unlocked_by INTEGER,
+      unlocked_at TEXT,
+      unlock_reason TEXT,
+      FOREIGN KEY (locked_by) REFERENCES tblUser(id),
+      FOREIGN KEY (unlocked_by) REFERENCES tblUser(id)
+    );
+    CREATE TABLE IF NOT EXISTS tblCollectorPerformanceWeekLockAudit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      week_lock_id INTEGER NOT NULL,
+      action TEXT NOT NULL,
+      reason TEXT,
+      changed_by INTEGER NOT NULL,
+      changed_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (week_lock_id) REFERENCES tblCollectorPerformanceWeekLock(id),
+      FOREIGN KEY (changed_by) REFERENCES tblUser(id)
+    );
+  `);
+
   // Seed default settings for Monitoring if missing
   const settingCount = await dbGet('SELECT COUNT(*) as count FROM tblSystemSettings');
   if (settingCount.count === 0) {
