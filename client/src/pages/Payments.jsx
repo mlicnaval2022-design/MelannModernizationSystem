@@ -31,8 +31,10 @@ const collectorLabel = collector =>
   [collector.collector_code, `${collector.first_name} ${collector.last_name}`.trim()].filter(Boolean).join(' - ')
 
 export default function Payments() {
-  const { hasRole } = useAuth()
-  const canReversePayment = hasRole('admin', 'manager')
+  const { hasRole, hasPermission } = useAuth()
+  // Reversals are a destructive payment action, so expose them to legacy
+  // manager roles and to any role explicitly granted Payments CRUD access.
+  const canReversePayment = hasRole('admin', 'manager') || hasPermission('payments', 'crud')
   const [activeTab, setActiveTab] = useState('encode')
   const [collectors, setCollectors] = useState([])
   const [recentPayments, setRecentPayments] = useState([])
