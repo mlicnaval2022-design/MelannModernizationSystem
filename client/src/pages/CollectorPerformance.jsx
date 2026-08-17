@@ -169,6 +169,11 @@ const getCollectorInitials = name => String(name || '')
   .map(part => part.charAt(0).toUpperCase())
   .join('') || 'CP'
 
+const coachingVariant = (seed, variants) => {
+  const hash = Array.from(String(seed || '')).reduce((total, character) => total + character.charCodeAt(0), 0)
+  return variants[hash % variants.length]
+}
+
 const getGeneratedCollectionInsight = (collectorName, rows) => {
   const collector = String(collectorName || 'This collector').toUpperCase()
   const today = toDateKey(new Date())
@@ -203,6 +208,7 @@ const getGeneratedCollectionInsight = (collectorName, rows) => {
   const accountContext = `Latest completed account context: ${activeAccounts} active/overdue, ${Number(latestAccountRow.reconClients || 0)} recon, ug ${Number(latestAccountRow.pastdueClients || 0)} past due.`
   const pendingNote = pendingRows.length ? ` ${pendingRows.length} ka current/future operational day ang wala giapil kay pending pa.` : ''
   const performanceFacts = `Sa ${completedRows.length} completed operational days, nakolekta niya ang PHP ${fmt(coachingSummary.actual)} batok sa PHP ${fmt(coachingSummary.target)} regular target (${coachingSummary.rate.toFixed(2)}%), nga adunay PHP ${fmt(targetGap)} remaining gap ug ${countFmt(coachingSummary.paymentCount)} posted payments. Naay collection sa ${paidRows.length}/${completedRows.length} ka completed days; ${zeroRows.length} ka confirmed past-day zero collection${zeroRows.length ? ` (${zeroDates})` : ''}. Pinakataas nga collection: ${bestDay}; pinakagamay nga naay collection: ${lowestPaidDay}. ${accountContext}${pendingNote}`
+  const variantSeed = `${collector}-${bestRow?.date}-${lowestPaidRow?.date}-${zeroRows.length}`
 
   if (paidRows.length === 0) {
     return {
@@ -219,16 +225,26 @@ const getGeneratedCollectionInsight = (collectorName, rows) => {
   }
 
   if (zeroRows.length >= 2) {
+    const recoveryFocus = coachingVariant(variantSeed, [
+      `I-audit ang route ug client list sa ${zeroDates} aron mahibal-an kung unsang follow-up ang na-miss.`,
+      `I-compare ang route execution sa zero days batok sa successful day nga ${bestDay}.`,
+      `Unaha ang missed clients sa ${zeroDates}, dayon i-confirm ang commitment date ug amount sa matag account.`
+    ])
     return {
       comment: `${collector} adunay inconsistent nga collection pattern tungod sa ${zeroRows.length} ka zero-collection days. ${performanceFacts}`,
-      recommendation: `Unaha ang follow-up sa zero-collection dates (${zeroDates}) ug pangitaa ang clients nga na-miss sa maong routes. Gamita ang ${bestDay} nga adlaw isip reference sa clients o ruta nga mahimong ma-repeat para mabawasan ang PHP ${fmt(targetGap)} nga gap.`
+      recommendation: `${recoveryFocus} Gamita ang ${bestDay} isip reference aron mabawasan ang PHP ${fmt(targetGap)} nga gap.`
     }
   }
 
   if (coachingSummary.rate < 85) {
+    const improvementFocus = coachingVariant(variantSeed, [
+      `Ang priority mao ang accounts nga makahatag og dako nga portion sa PHP ${fmt(targetGap)} nga gap.`,
+      `I-review ang ${lowestPaidDay} kay mao kini ang pinakamahinay nga paid day ug pangitaa ang specific missed or partial accounts.`,
+      `I-replicate ang follow-up pattern sa ${bestDay}, unya i-apply una sa active/overdue accounts nga adunay taas nga chance mobayad.`
+    ])
     return {
-      comment: `${collector} adunay collection sa halos tanang adlaw apan ubos pa ang weekly accomplishment. ${performanceFacts}`,
-      recommendation: `I-prioritize ang accounts nga makadugang sa PHP ${fmt(targetGap)} nga kulang. I-review ang ${lowestPaidDay} ug ilisi ang follow-up strategy didto; dili igo ang naay collection kung gamay ra ang amount.`
+      comment: `${collector} naka-collect sa ${paidRows.length} sa ${completedRows.length} completed days, pero ang weekly accomplishment nagpabilin ubos sa target. ${performanceFacts}`,
+      recommendation: `${improvementFocus} Dili igo ang naay collection kada adlaw kung dili mahabol ang target amount.`
     }
   }
 
