@@ -206,15 +206,15 @@ const getGeneratedCollectionInsight = (collectorName, rows) => {
 
   if (paidRows.length === 0) {
     return {
-      comment: `${collector}, zero collection sa tibuok period nagpasabot nga napakyas ang route execution ug follow-up. Dili mahimong walay resulta ang completed workdays; kinahanglan ma-account ang missed clients ug ang kulang nga collections.`,
-      recommendation: `Sa sunod nga adlaw, sugdi sa missed clients: tawagi, i-confirm ang bayranan ug oras sa pagbayad, ug hatagi og committed amount ang matag account. I-submit ang recovery list before end of day.`
+      comment: `${collector}, zero collection sa tibuok period nagpasabot nga napakyas ang route execution ug follow-up. Dili mahimong walay resulta ang completed workdays; kinahanglan ma-account ang missed clients ug ang kulang nga collections. Wala pa’y ebidensya nga na-convert ang client commitments ngadto sa actual payment, busa kinahanglan ug immediate correction sa field execution.`,
+      recommendation: `Sa sunod nga adlaw, sugdi sa missed clients: tawagi, i-confirm ang bayranan ug oras sa pagbayad, ug hatagi og committed amount ang matag account. I-prioritize ang clients nga adunay capacity mobayad ug i-escalate dayon ang walay clear commitment. I-submit ang recovery list before end of day.`
     }
   }
 
   if (coachingSummary.rate >= 100 && zeroRows.length === 0) {
     return {
-      comment: `${collector}, strong ang execution kay na-hit ang target ug walay zero day. Ayaw lang kompyansa—ang challenge karon mao ang pagpadayon ani nga discipline bisan sa low-output routes.`,
-      recommendation: `I-repeat ang follow-up style nga ni-work sa ${bestDay}, ug hatagi og minimum collection commitment ang routes nga pareho sa ${lowestPaidDay}.`
+      comment: `${collector}, strong ang execution kay na-hit ang target ug walay zero day. Ayaw lang kompyansa—ang challenge karon mao ang pagpadayon ani nga discipline bisan sa low-output routes. Ang maayong result kinahanglan magpabilin nga standard, dili mahimong isolated nga maayo nga semana.`,
+      recommendation: `I-repeat ang follow-up style nga ni-work sa ${bestDay}, ug hatagi og minimum collection commitment ang routes nga pareho sa ${lowestPaidDay}. I-monitor ang daily output aron masayran dayon kung adunay route nga nagsugod ug kahinay.`
     }
   }
 
@@ -225,8 +225,8 @@ const getGeneratedCollectionInsight = (collectorName, rows) => {
       `Unaha ang missed clients sa ${zeroDates}, dayon i-confirm ang commitment date ug amount sa matag account.`
     ])
     return {
-      comment: `${collector}, adunay ${zeroRows.length} ka zero-collection days. Kana dili lang “low performance”; failure na sa follow-up conversion ug route control. Kinahanglan ma-explain ang missed clients ug ang walay na-collect nga adlaw.`,
-      recommendation: `${recoveryFocus} Mag-submit og missed-client list, reason sa non-payment, ug next collection commitment per client.`
+      comment: `${collector}, adunay ${zeroRows.length} ka zero-collection days. Kana dili lang “low performance”; failure na sa follow-up conversion ug route control. Kinahanglan ma-explain ang missed clients ug ang walay na-collect nga adlaw. Kung walay documented reason ug recovery plan, pareho ra gihapon ang resulta sa sunod nga route cycle.`,
+      recommendation: `${recoveryFocus} Mag-submit og missed-client list, reason sa non-payment, ug next collection commitment per client. I-review kini before field deployment aron dili na mausab ang zero-output day.`
     }
   }
 
@@ -237,13 +237,13 @@ const getGeneratedCollectionInsight = (collectorName, rows) => {
       `I-replicate ang follow-up pattern sa ${bestDay}, unya i-apply una sa active/overdue accounts nga adunay taas nga chance mobayad.`
     ])
     return {
-      comment: `${collector}, adunay effort ug naay collection, pero ang output dili sapat para ma-hit ang target. Ang issue dili ang kadaghan sa adlaw nga naay collection—ang issue kay kulang ang amount ug walay kusog nga conversion sa priority accounts.`,
-      recommendation: `${improvementFocus} I-set ang daily catch-up amount, i-rank ang high-probability accounts, ug i-check before end of day kung na-hit ba ang client commitments.`
+      comment: `${collector}, adunay effort ug naay collection, pero ang output dili sapat para ma-hit ang target. Ang issue dili ang kadaghan sa adlaw nga naay collection—ang issue kay kulang ang amount ug walay kusog nga conversion sa priority accounts. Kinahanglan mas disciplined ang pagpili sa accounts ug mas klaro ang daily collection objective, dili lang basta adunay ma-collect.`,
+      recommendation: `${improvementFocus} I-set ang daily catch-up amount, i-rank ang high-probability accounts, ug i-check before end of day kung na-hit ba ang client commitments. Ang partial payers kinahanglan adunay specific follow-up date, amount, ug owner.`
     }
   }
 
   return {
-    comment: `${collector}, duol na sa target pero wala gihapon na-close ang commitment. Kung consistent ang follow-up, dapat nahabol ang final gap; kinahanglan mas higpit ang pag-convert sa partial ug missed payments.`,
+    comment: `${collector}, duol na sa target pero wala gihapon na-close ang commitment. Kung consistent ang follow-up, dapat nahabol ang final gap; kinahanglan mas higpit ang pag-convert sa partial ug missed payments. Ang close-to-target result dili pa successful kung ang kulang walay assigned recovery action.`,
     recommendation: Number(latestRow?.actual || 0) === 0
       ? `I-address una ang latest zero-collection day (${shortDisplayDate(latestRow.date)}), unya mag-assign og high-probability paying clients nga maka-cover sa PHP ${fmt(targetGap)} nga gap.`
       : `Maintain ang follow-up nga nakahatag sa ${bestDay}, unya kuhaa ang PHP ${fmt(targetGap)} nga remaining gap gikan sa ranked accounts nga partial o missed ang bayad, adunay specific commitment amount ug due date.`
