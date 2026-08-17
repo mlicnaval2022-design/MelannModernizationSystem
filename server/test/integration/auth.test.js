@@ -737,4 +737,5 @@ test('collector performance summary excludes Recon loans released on target date
   assert.equal(res.status, 200);
   assert.ok(foundCollector);
   assert.equal(foundCollector.actual_collection, 848);
+  assert.equal(foundCollector.beginning_active_clients, 1);
 });

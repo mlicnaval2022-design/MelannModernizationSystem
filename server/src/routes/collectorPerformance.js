@@ -45,6 +45,39 @@ function classifyCollectionLoan(loan) {
   return 'active';
 }
 
+// This is intentionally calculated from dated loan/payment records instead of
+// the loan's current status.  A weekly report must keep the active-client base
+// that existed when the week opened, even after a client pays in full later in
+// that same week.
+async function getBeginningActiveClientCount(collectorId, weekStart) {
+  const rows = await dbAll(`
+    SELECT l.id, l.customer_id, l.loan_type, l.date_maturity
+    FROM tblLoan l
+    WHERE l.collector_id = ?
+      AND date(l.date_released) < date(?)
+      AND LOWER(COALESCE(l.status, '')) NOT IN ('rejected', 'cancelled', 'reversed', 'closed')
+      AND NOT EXISTS (
+        SELECT 1
+        FROM tblPayment p
+        WHERE p.loan_id = l.id
+          AND date(p.date_paid) < date(?)
+          AND p.status != 'reversed'
+          AND COALESCE(p.balance_after, 0) <= 0
+      )
+  `, [collectorId, weekStart, weekStart]);
+
+  const activeCustomers = new Set();
+  for (const loan of rows) {
+    const maturityDate = loan.date_maturity ? dayjs(toDate(loan.date_maturity)) : null;
+    const isPastDue = maturityDate && dayjs(weekStart).diff(maturityDate, 'day') >= 45;
+    const isRecon = String(loan.loan_type || '').toLowerCase().includes('recon');
+
+    if (!isPastDue && !isRecon) activeCustomers.add(loan.customer_id);
+  }
+
+  return activeCustomers.size;
+}
+
 async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
   const loans = await dbAll(`
     SELECT
@@ -256,11 +289,15 @@ router.get('/summary', authenticateToken, async (req, res) => {
     `);
 
     const dates = eachOperationDate(from, to);
+    const targetDay = dayjs(targetDate);
+    const weekStart = (targetDay.day() === 0 ? targetDay.subtract(6, 'day') : targetDay.startOf('week').add(1, 'day'))
+      .format('YYYY-MM-DD');
     const trendMap = new Map(dates.map(date => [date, 0]));
     const collectorRows = [];
 
     for (const collector of collectors) {
       const sheetStats = await getCollectorSheetStats(collector.id, targetDate, pastdueCutoff);
+      const beginningActiveClients = await getBeginningActiveClientCount(collector.id, weekStart);
       const row = {
         ...collector,
         target: 0,
@@ -277,6 +314,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
         pastdue_clients: sheetStats.pastdue_clients,
         new_clients: 0,
         new_client_principal: 0,
+        beginning_active_clients: beginningActiveClients,
         active_loans: sheetStats.active_clients + sheetStats.overdue_clients
       };
 
@@ -383,6 +421,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
         pastdue_clients: toAmount(row.pastdue_clients),
         new_clients: toAmount(row.new_clients),
         new_client_principal: toAmount(row.new_client_principal),
+        beginning_active_clients: toAmount(row.beginning_active_clients),
         payment_count: toAmount(row.payment_count),
         achievement_rate: toAmount(row.target) > 0 ? Math.round((toAmount(row.collected) / toAmount(row.target)) * 100) : 0
       })),

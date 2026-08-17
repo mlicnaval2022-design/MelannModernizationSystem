@@ -120,6 +120,13 @@ const getCollectionRemark = rate => {
   return 'NEEDS IMPROVEMENT'
 }
 
+const shiftOperationWeek = (dateKey, weeks) => {
+  const week = getOperationWeek(dateKey)
+  const shifted = new Date(`${week[5]}T00:00:00`)
+  shifted.setDate(shifted.getDate() + (weeks * 7))
+  return toDateKey(shifted)
+}
+
 const printDate = value => {
   if (!value) return ''
   return new Date(`${value}T00:00:00`).toLocaleDateString('en-US', {
@@ -886,6 +893,7 @@ export default function CollectorPerformance() {
           pastdueClients: Number(collector.pastdue_clients || 0),
           newClients: Number(collector.new_clients || 0),
           newClientPrincipal: Number(collector.new_client_principal || 0),
+          beginningActive: Number(collector.beginning_active_clients || 0),
           rate,
           remark: getCollectionRemark(rate)
         })
@@ -900,10 +908,10 @@ export default function CollectorPerformance() {
       }))
   }
 
-  const loadCollections = async () => {
+  const loadCollections = async (dateTo = filters.date_to) => {
     setCollectionsLoading(true)
     try {
-      const weekDates = getOperationWeek(filters.date_to)
+      const weekDates = getOperationWeek(dateTo)
       const responses = await Promise.all(weekDates.map(date => API.get('/collector-performance/summary', {
         params: {
           date_to: date,
@@ -995,6 +1003,15 @@ export default function CollectorPerformance() {
     } finally {
       setCollectionsLoading(false)
     }
+  }
+
+  const changeCollectionWeek = async weeks => {
+    const dateTo = shiftOperationWeek(filters.date_to, weeks)
+    setSelectedCollectionId(null)
+    setNewCollectionDate(dateTo)
+    setLockedCollections(null)
+    setFilters(current => ({ ...current, date_to: dateTo }))
+    await loadCollections(dateTo)
   }
 
   const deleteCollectionDate = date => {
@@ -1190,7 +1207,7 @@ export default function CollectorPerformance() {
   const selectedReturnClients = Number(selectedEdit.returnClients ?? 0)
   const selectedReconClients = Number(selectedEdit.reconClients ?? selectedCollection?.rows.reduce((sum, row) => sum + Number(row.reconClients || 0), 0) ?? 0)
   const startBeginningActive = selectedStartRow
-    ? Number(selectedStartRow.activeClients || 0) + Number(selectedStartRow.overdueClients || 0)
+    ? Number(selectedStartRow.beginningActive || 0)
     : 0
   const selectedBeginningActive = selectedEdit.beginningActive !== undefined && selectedEdit.beginningActive !== ''
     ? Number(selectedEdit.beginningActive)
@@ -2006,9 +2023,17 @@ export default function CollectorPerformance() {
                 }}>
                   <div>
                     <div className="card-v2-title" style={{ marginBottom: 4, textTransform: 'uppercase' }}>Collection Performance</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase' }}>Daily audit & metric tracking</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase' }}>
+                      Week: {shortDisplayDate(getOperationWeek(filters.date_to)[0])} – {shortDisplayDate(getOperationWeek(filters.date_to)[5])}
+                    </div>
                   </div>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button className="btn btn-secondary" type="button" onClick={() => changeCollectionWeek(-1)} disabled={collectionsLoading}>
+                      Previous Week
+                    </button>
+                    <button className="btn btn-secondary" type="button" onClick={() => changeCollectionWeek(1)} disabled={collectionsLoading}>
+                      Next Week
+                    </button>
                     <button className="btn btn-secondary" type="button" onClick={loadCollections} disabled={collectionsLoading}>
                       <RefreshCw size={16} /> {collectionsLoading ? 'Syncing...' : 'Sync Dates'}
                     </button>
