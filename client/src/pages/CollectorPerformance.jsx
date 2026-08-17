@@ -321,7 +321,7 @@ function FortyFiveRanking({ period, collectors = [], supervisors = [] }) {
     : 0
 
   const exportRanking = () => {
-    const headers = ['Rank', entityLabel, 'Total Collection', 'Total Release', 'Total Expense', 'Net Income', '% Accomplishment', 'Rating', 'Status']
+    const headers = ['Rank', entityLabel, 'Total Collection', 'Total Release', 'Total Expense', 'Reported Pastdue', 'Net Income', '% Accomplishment', 'Rating', 'Status']
     const csvRows = rankedRows.map((row, index) => {
       const complete = isRankingComplete(row)
       return [
@@ -330,6 +330,7 @@ function FortyFiveRanking({ period, collectors = [], supervisors = [] }) {
         Number(row.collection_total || 0).toFixed(2),
         Number(row.release_total || 0).toFixed(2),
         Number(row.expense_total || 0).toFixed(2),
+        Number(row.reported_pastdue || 0).toFixed(2),
         Number(row.net_income || 0).toFixed(2),
         complete ? Number(row.accomplishment_percentage).toFixed(2) : '',
         row.rating || 'Not rated',
@@ -377,7 +378,7 @@ function FortyFiveRanking({ period, collectors = [], supervisors = [] }) {
 
     <div className="ranking-table-wrap">
       <table className="ranking-table">
-        <thead><tr><th>Rank</th><th>{entityLabel}</th><th>Total<br />Collection</th><th>Total<br />Release</th><th>Total<br />Expense</th><th>Net<br />Income</th><th>%<br />Accomp.</th><th>Rating</th><th>Status</th></tr></thead>
+        <thead><tr><th>Rank</th><th>{entityLabel}</th><th>Total<br />Collection</th><th>Total<br />Release</th><th>Total<br />Expense</th><th>Reported<br />Pastdue</th><th>Net<br />Income</th><th>%<br />Accomp.</th><th>Rating</th><th>Status</th></tr></thead>
         <tbody>{rankedRows.length ? rankedRows.map((row, index) => {
           const complete = isRankingComplete(row)
           const name = getRankingName(row)
@@ -392,12 +393,13 @@ function FortyFiveRanking({ period, collectors = [], supervisors = [] }) {
             <td className="ranking-number">{rankingMoney(row.collection_total)}</td>
             <td className="ranking-number">{rankingMoney(row.release_total)}</td>
             <td className="ranking-number">{rankingMoney(row.expense_total)}</td>
+            <td className="ranking-number">{rankingMoney(row.reported_pastdue)}</td>
             <td className={`ranking-number ranking-net ${netIncome < 0 ? 'negative' : 'positive'}`}>{netIncome < 0 ? `(${rankingMoney(Math.abs(netIncome))})` : rankingMoney(netIncome)}</td>
             <td className="ranking-accomplishment">{complete ? <><strong>{accomplishment.toFixed(2)}%</strong><span><i style={{ width: `${Math.max(4, Math.min(accomplishment, 100))}%` }} /></span></> : <em>No data</em>}</td>
             <td><span className="ranking-rating" style={{ color: ratingStyle.color, background: ratingStyle.background }}>{row.rating || 'Incomplete'}</span></td>
             <td><span className={`ranking-status ${statusClass}`}>{periodFinalized && complete ? <CheckCircle2 size={14} /> : <Info size={14} />}{statusLabel}</span></td>
           </tr>
-        }) : <tr><td colSpan={9} className="ranking-empty">No {entityLabel.toLowerCase()} ranking data available for this period.</td></tr>}</tbody>
+        }) : <tr><td colSpan={10} className="ranking-empty">No {entityLabel.toLowerCase()} ranking data available for this period.</td></tr>}</tbody>
       </table>
     </div>
 
