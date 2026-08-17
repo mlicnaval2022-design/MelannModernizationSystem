@@ -1228,6 +1228,8 @@ export default function CollectorPerformance() {
     : startBeginningActive
   const selectedEndingBalance = Math.max(0, selectedBeginningActive + selectedNewClients + selectedReturnClients - selectedReconClients)
   const performanceWeekDates = getOperationWeek(lockedCollections?.dateTo || filters.date_to)
+  const currentWeekDates = getOperationWeek(filters.date_to)
+  const isWeekLocked = Boolean(lockedCollections && lockedCollections.dateFrom === currentWeekDates[0] && lockedCollections.dateTo === currentWeekDates[5])
   const isValidRatingRange = Boolean(ratingDateRange.start_date && ratingDateRange.end_date && ratingDateRange.end_date >= ratingDateRange.start_date)
 
   return (
@@ -1852,7 +1854,7 @@ export default function CollectorPerformance() {
               <div style={{ display: 'flex', alignItems: 'end', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <div className="form-group" style={{ minWidth: 150, marginBottom: 0 }}>
                   <label className="form-label">Collection Sheet Date</label>
-                  <input className="form-control" type="date" value={filters.date_to} onChange={e => {
+                  <input className="form-control" type="date" value={filters.date_to} disabled={activeTab === 'collections' && isWeekLocked} onChange={e => {
                     const nextDate = e.target.value
                     setNewCollectionDate(nextDate)
                     setLockedCollections(null)
@@ -1867,7 +1869,7 @@ export default function CollectorPerformance() {
                   <label className="form-label">Pastdue Cutoff</label>
                   <input className="form-control" type="date" value={filters.pastdue_cutoff || ''} onChange={e => setFilters(current => ({ ...current, pastdue_cutoff: e.target.value }))} />
                 </div>
-                <button className="btn btn-primary" type="button" onClick={applyFilters} disabled={loading || collectionsLoading}>
+                <button className="btn btn-primary" type="button" onClick={applyFilters} disabled={loading || collectionsLoading || (activeTab === 'collections' && isWeekLocked)}>
                   {loading || collectionsLoading ? 'Loading...' : 'Apply'}
                 </button>
                 <button className="btn btn-secondary" type="button" onClick={() => {
@@ -2042,17 +2044,17 @@ export default function CollectorPerformance() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <button className="btn btn-secondary" type="button" onClick={() => changeCollectionWeek(-1)} disabled={collectionsLoading}>
+                    <button className="btn btn-secondary" type="button" onClick={() => changeCollectionWeek(-1)} disabled={collectionsLoading || isWeekLocked}>
                       Previous Week
                     </button>
-                    <button className="btn btn-secondary" type="button" onClick={() => changeCollectionWeek(1)} disabled={collectionsLoading}>
+                    <button className="btn btn-secondary" type="button" onClick={() => changeCollectionWeek(1)} disabled={collectionsLoading || isWeekLocked}>
                       Next Week
                     </button>
-                    <button className="btn btn-secondary" type="button" onClick={loadCollections} disabled={collectionsLoading}>
+                    <button className="btn btn-secondary" type="button" onClick={loadCollections} disabled={collectionsLoading || isWeekLocked}>
                       <RefreshCw size={16} /> {collectionsLoading ? 'Syncing...' : 'Sync Dates'}
                     </button>
-                    <button className="btn btn-secondary" type="button" onClick={lockWeekForPrinting} disabled={collectionsLoading || !collectionRows.length}>
-                      Lock Week
+                    <button className={`btn ${isWeekLocked ? 'btn-success' : 'btn-secondary'}`} type="button" onClick={() => isWeekLocked ? setLockedCollections(null) : lockWeekForPrinting()} disabled={collectionsLoading || !collectionRows.length}>
+                      {isWeekLocked ? <Unlock size={16} /> : <Lock size={16} />} {isWeekLocked ? 'Unlock Week' : 'Lock Week'}
                     </button>
                     <button className="btn btn-secondary" type="button" onClick={previewLockedPerformance} disabled={collectionsLoading || !collectionRows.length}>
                       Preview Performance
@@ -2069,14 +2071,19 @@ export default function CollectorPerformance() {
                         max={getOperationWeek(filters.date_to)[5]}
                         value={newCollectionDate}
                         onChange={e => setNewCollectionDate(e.target.value)}
+                        disabled={isWeekLocked}
                         style={{ width: 150 }}
                       />
-                      <button className="btn btn-success" type="button" onClick={addCollectionDate} disabled={collectionsLoading || !newCollectionDate}>
+                      <button className="btn btn-success" type="button" onClick={addCollectionDate} disabled={collectionsLoading || isWeekLocked || !newCollectionDate}>
                         <Plus size={16} /> Add Date
                       </button>
                     </div>
                   </div>
                 </div>
+
+                {isWeekLocked && <div style={{ margin: '16px 24px 0', padding: '12px 16px', borderRadius: 8, background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857', fontWeight: 800 }}>
+                  <Lock size={16} style={{ verticalAlign: 'text-bottom', marginRight: 8 }} /> Week locked for preview and printing. Unlock it to change dates or collection entries.
+                </div>}
 
                 {selectedCollection && selectedSummary && selectedLatestRow ? (
                   <div style={{ padding: 24 }}>
@@ -2161,6 +2168,7 @@ export default function CollectorPerformance() {
                                   min="0"
                                   value={selectedReturnClients}
                                   onChange={e => updateCollectorEdit(selectedCollection.id, 'returnClients', e.target.value)}
+                                  disabled={isWeekLocked}
                                   style={{ maxWidth: 90, margin: '0 auto', textAlign: 'center', fontWeight: 900 }}
                                 />
                               </td>
@@ -2171,6 +2179,7 @@ export default function CollectorPerformance() {
                                   min="0"
                                   value={selectedReconClients}
                                   onChange={e => updateCollectorEdit(selectedCollection.id, 'reconClients', e.target.value)}
+                                  disabled={isWeekLocked}
                                   style={{ maxWidth: 90, margin: '0 auto', textAlign: 'center', fontWeight: 900 }}
                                 />
                               </td>
@@ -2220,7 +2229,7 @@ export default function CollectorPerformance() {
                                   <td style={{ textAlign: 'center' }}><div style={{ color: row.rate >= 85 ? '#059669' : '#e11d48', fontWeight: 900, fontSize: 18 }}>{row.rate.toFixed(2)}%</div><div style={{ width: 84, height: 5, borderRadius: 999, background: '#e8edf4', margin: '8px auto 0', overflow: 'hidden' }}><div style={{ width: `${Math.min(row.rate, 100)}%`, height: '100%', background: row.rate >= 85 ? '#10b981' : '#e11d48' }} /></div></td>
                                   <td style={{ textAlign: 'center' }}><span style={{ display: 'inline-flex', justifyContent: 'center', minWidth: 118, padding: '9px 13px', border: `1px solid ${rowRemarkStyle.borderColor}`, borderRadius: 8, fontSize: 11, fontWeight: 900, letterSpacing: 1.1, textTransform: 'uppercase', ...rowRemarkStyle }}>{row.remark}</span></td>
                                   <td style={{ textAlign: 'center' }}>
-                                    <button className="btn btn-secondary" type="button" title={`Delete ${displayDate(row.date)}`} aria-label={`Delete ${displayDate(row.date)}`} onClick={() => deleteCollectionDate(row.date)} style={{ padding: 8, color: '#dc2626' }}>
+                                    <button className="btn btn-secondary" type="button" title={`Delete ${displayDate(row.date)}`} aria-label={`Delete ${displayDate(row.date)}`} onClick={() => deleteCollectionDate(row.date)} disabled={isWeekLocked} style={{ padding: 8, color: '#dc2626' }}>
                                       <Trash2 size={16} />
                                     </button>
                                   </td>
@@ -2352,8 +2361,9 @@ export default function CollectorPerformance() {
                                 setLockedCollections(null)
                                 setFilters(current => ({ ...current, date_to: dateTo }))
                               }}
+                              disabled={isWeekLocked}
                             />
-                            <button className="btn btn-primary" type="button" onClick={e => { e.stopPropagation(); loadCollections() }} disabled={collectionsLoading}>Load</button>
+                            <button className="btn btn-primary" type="button" onClick={e => { e.stopPropagation(); loadCollections() }} disabled={collectionsLoading || isWeekLocked}>Load</button>
                           </div>
                         </div>
 
