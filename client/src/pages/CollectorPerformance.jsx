@@ -18,6 +18,7 @@ const getRatingPresentation = rating => {
 const countFmt = value => Number(value || 0).toLocaleString('en-PH')
 const printAmount = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const COLLECTOR_EDITS_STORAGE_KEY = 'collectorPerformanceEdits'
+const PASTDUE_CUTOFF_STORAGE_KEY = 'collectorPerformancePastdueCutoff'
 const MAX_PROFILE_PHOTO_DIMENSION = 320
 const COMPANY_PERIOD_PRESETS = [
   { label: 'Jan 01 – Feb 15', start: '-01-01', end: '-02-15' },
@@ -84,7 +85,9 @@ const getDefaultRange = () => {
   const to = new Date()
   if (to.getDay() === 0) to.setDate(to.getDate() - 1)
   const dateKey = toDateKey(to)
-  return { date_to: dateKey, pastdue_cutoff: `${to.getFullYear()}-05-15` }
+  let savedCutoff = ''
+  try { savedCutoff = localStorage.getItem(PASTDUE_CUTOFF_STORAGE_KEY) || '' } catch {}
+  return { date_to: dateKey, pastdue_cutoff: /^\d{4}-\d{2}-\d{2}$/.test(savedCutoff) ? savedCutoff : `${to.getFullYear()}-05-15` }
 }
 
 const displayDate = value => {
@@ -752,6 +755,11 @@ export default function CollectorPerformance() {
   const [loading, setLoading] = useState(true)
   const [fortyFiveDayLoading, setFortyFiveDayLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+
+  const updatePastdueCutoff = cutoff => {
+    setFilters(current => ({ ...current, pastdue_cutoff: cutoff }))
+    try { localStorage.setItem(PASTDUE_CUTOFF_STORAGE_KEY, cutoff) } catch {}
+  }
 
   const buildFallbackSummary = async () => {
     const dashboardRes = await API.get('/reports/dashboard', { params: { date: filters.date_to } })
@@ -1934,14 +1942,13 @@ export default function CollectorPerformance() {
                     setLockedCollections(null)
                     setFilters(current => ({
                       ...current,
-                      date_to: nextDate,
-                      pastdue_cutoff: current.pastdue_cutoff || `${new Date(`${nextDate}T00:00:00`).getFullYear()}-05-15`
+                      date_to: nextDate
                     }))
                   }} />
                 </div>
                 <div className="form-group" style={{ minWidth: 150, marginBottom: 0 }}>
                   <label className="form-label">Pastdue Cutoff</label>
-                  <input className="form-control" type="date" value={filters.pastdue_cutoff || ''} onChange={e => setFilters(current => ({ ...current, pastdue_cutoff: e.target.value }))} />
+                  <input className="form-control" type="date" value={filters.pastdue_cutoff || ''} onChange={e => updatePastdueCutoff(e.target.value)} />
                 </div>
                 <button className="btn btn-primary" type="button" onClick={applyFilters} disabled={loading || collectionsLoading || (activeTab === 'collections' && isWeekLocked)}>
                   {loading || collectionsLoading ? 'Loading...' : 'Apply'}
