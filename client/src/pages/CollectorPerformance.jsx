@@ -893,7 +893,11 @@ export default function CollectorPerformance() {
           pastdueClients: Number(collector.pastdue_clients || 0),
           newClients: Number(collector.new_clients || 0),
           newClientPrincipal: Number(collector.new_client_principal || 0),
-          beginningActive: Number(collector.beginning_active_clients || 0),
+          // Keep historical weeks usable while an already-running API has not
+          // yet been restarted to serve the new weekly snapshot field.
+          beginningActive: collector.beginning_active_clients == null
+            ? Number(collector.active_clients || 0) + Number(collector.overdue_clients || 0)
+            : Number(collector.beginning_active_clients),
           rate,
           remark: getCollectionRemark(rate)
         })
