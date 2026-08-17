@@ -1303,7 +1303,7 @@ export default function CollectorPerformance() {
   const currentWeekDates = getOperationWeek(filters.date_to)
   const isWeekLocked = Boolean(lockedCollections && lockedCollections.dateFrom === currentWeekDates[0] && lockedCollections.dateTo === currentWeekDates[5])
   const canManageWeekLock = hasRole('admin', 'manager')
-  const canManageManualExpenses = hasRole('admin', 'manager', 'accounting')
+  const canManageManualExpenses = hasRole('admin', 'manager', 'accounting', 'it', 'it_accounting_clerk')
   const isValidRatingRange = Boolean(ratingDateRange.start_date && ratingDateRange.end_date && ratingDateRange.end_date >= ratingDateRange.start_date)
 
   return (
