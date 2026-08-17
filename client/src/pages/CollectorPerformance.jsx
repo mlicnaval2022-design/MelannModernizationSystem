@@ -2327,7 +2327,18 @@ export default function CollectorPerformance() {
                         <div style={{ marginTop: 26 }}>
                           <label className="form-label">Date</label>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 68px', gap: 10 }}>
-                            <input className="form-control" type="date" value={filters.date_to} readOnly />
+                            <input
+                              className="form-control"
+                              type="date"
+                              aria-label="Collection performance date"
+                              value={filters.date_to}
+                              onChange={e => {
+                                const dateTo = e.target.value
+                                setNewCollectionDate(dateTo)
+                                setLockedCollections(null)
+                                setFilters(current => ({ ...current, date_to: dateTo }))
+                              }}
+                            />
                             <button className="btn btn-primary" type="button" onClick={e => { e.stopPropagation(); loadCollections() }} disabled={collectionsLoading}>Load</button>
                           </div>
                         </div>
