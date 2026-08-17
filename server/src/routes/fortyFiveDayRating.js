@@ -101,7 +101,7 @@ router.get('/manual-expenses', authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.post('/manual-expenses', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+router.post('/manual-expenses', authenticateToken, requireRole('admin', 'manager', 'accounting'), async (req, res) => {
   try {
     const result = validateManualExpense(req.body || {});
     if (result.error) return res.status(400).json({ error: result.error });
@@ -114,7 +114,7 @@ router.post('/manual-expenses', authenticateToken, requireRole('admin', 'manager
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.delete('/manual-expenses/:id', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+router.delete('/manual-expenses/:id', authenticateToken, requireRole('admin', 'manager', 'accounting'), async (req, res) => {
   try {
     const branch = getBranchFilter(req.user.branch_id);
     const deleted = await dbRun(`DELETE FROM tblFortyFiveDayManualExpense WHERE id = ?${branch.sql}`, [req.params.id, ...branch.params]);
