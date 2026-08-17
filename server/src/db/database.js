@@ -417,6 +417,23 @@ async function initializeDatabase() {
       changed_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (period_id) REFERENCES tblFortyFiveDayRatingPeriod(id) ON DELETE CASCADE
     );
+    CREATE TABLE IF NOT EXISTS tblFortyFiveDayManualExpense (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      branch_id INTEGER,
+      expense_date TEXT NOT NULL,
+      category TEXT NOT NULL,
+      description TEXT,
+      amount REAL NOT NULL CHECK(amount > 0),
+      created_by INTEGER NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_by INTEGER,
+      updated_at TEXT,
+      FOREIGN KEY (branch_id) REFERENCES tblBranch(id),
+      FOREIGN KEY (created_by) REFERENCES tblUser(id),
+      FOREIGN KEY (updated_by) REFERENCES tblUser(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_forty_five_manual_expense_date_branch
+      ON tblFortyFiveDayManualExpense(expense_date, branch_id);
     CREATE TABLE IF NOT EXISTS tblCollectionFieldRelease (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       collector_id INTEGER NOT NULL,

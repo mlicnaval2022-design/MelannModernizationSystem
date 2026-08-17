@@ -19,6 +19,11 @@ const companyPeriods = [
 
 const asAmount = value => Number(value || 0);
 const isFinalStatus = status => ['final', 'finalized'].includes(String(status || '').toLowerCase());
+const validDateRange = (startDate, endDate) => {
+  const start = dayjs(startDate);
+  const end = dayjs(endDate);
+  return start.isValid() && end.isValid() && !end.isBefore(start, 'day');
+};
 const ratingFor = accomplishment => {
   if (!Number.isFinite(accomplishment)) return 'Not rated';
   if (accomplishment >= 115) return 'Outstanding Performance';
@@ -64,6 +69,59 @@ function getSupervisorEvaluations(evaluations) {
 function getBranchFilter(branchId, column = 'branch_id') {
   return branchId ? { sql: ` AND ${column} = ?`, params: [branchId] } : { sql: '', params: [] };
 }
+
+function validateManualExpense(body) {
+  const start = dayjs(body.start_date);
+  const end = dayjs(body.end_date);
+  const expenseDate = dayjs(body.expense_date);
+  const category = String(body.category || '').trim();
+  const description = String(body.description || '').trim();
+  const amount = Number(body.amount);
+  if (!validDateRange(body.start_date, body.end_date)) return { error: 'Select a valid 45-day period.' };
+  if (!expenseDate.isValid() || expenseDate.isBefore(start, 'day') || expenseDate.isAfter(end, 'day')) return { error: 'Expense date must be within the selected 45-day period.' };
+  if (!category || category.length > 120) return { error: 'Select a valid expense category.' };
+  if (description.length > 500) return { error: 'Description must not exceed 500 characters.' };
+  if (!Number.isFinite(amount) || amount <= 0) return { error: 'Enter an expense amount greater than zero.' };
+  return { value: { expense_date: expenseDate.format('YYYY-MM-DD'), category, description: description || null, amount } };
+}
+
+router.get('/manual-expenses', authenticateToken, async (req, res) => {
+  try {
+    const { start_date: startDate, end_date: endDate } = req.query;
+    if (!validDateRange(startDate, endDate)) return res.status(400).json({ error: 'Select a valid 45-day period.' });
+    const branch = getBranchFilter(req.user.branch_id, 'm.branch_id');
+    const expenses = await dbAll(`
+      SELECT m.*, u.full_name AS created_by_name
+      FROM tblFortyFiveDayManualExpense m
+      LEFT JOIN tblUser u ON u.id = m.created_by
+      WHERE date(m.expense_date) BETWEEN date(?) AND date(?)${branch.sql}
+      ORDER BY m.expense_date DESC, m.id DESC
+    `, [startDate, endDate, ...branch.params]);
+    res.json({ expenses, total: expenses.reduce((sum, expense) => sum + asAmount(expense.amount), 0) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/manual-expenses', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const result = validateManualExpense(req.body || {});
+    if (result.error) return res.status(400).json({ error: result.error });
+    const expense = result.value;
+    const created = await dbRun(`
+      INSERT INTO tblFortyFiveDayManualExpense (branch_id, expense_date, category, description, amount, created_by)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [req.user.branch_id || null, expense.expense_date, expense.category, expense.description, expense.amount, req.user.id]);
+    res.status(201).json({ id: created.lastID, ...expense });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/manual-expenses/:id', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const branch = getBranchFilter(req.user.branch_id);
+    const deleted = await dbRun(`DELETE FROM tblFortyFiveDayManualExpense WHERE id = ?${branch.sql}`, [req.params.id, ...branch.params]);
+    if (!deleted.changes) return res.status(404).json({ error: 'Manual expense not found.' });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 function getPreviousCompanyPeriod(startDate) {
   const start = dayjs(startDate).startOf('day');

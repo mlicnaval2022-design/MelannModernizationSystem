@@ -93,3 +93,43 @@ test('forty-five-day-rating calculate returns on-the-fly evaluations for date ra
   assert.ok(Array.isArray(data.branch_manager_evaluations));
   assert.ok(data.operations_manager_evaluation);
 });
+
+test('manual expenses stay within the selected period and do not change the 45-day grade', async () => {
+  const beforeResponse = await api('/forty-five-day-rating/calculate?start_date=2026-07-01&end_date=2026-08-15');
+  const before = await beforeResponse.json();
+  const beforeTorreta = before.evaluations.find(e => e.collector_name.includes('Torreta'));
+
+  const createResponse = await api('/forty-five-day-rating/manual-expenses', {
+    method: 'POST',
+    body: JSON.stringify({
+      start_date: '2026-07-01',
+      end_date: '2026-08-15',
+      expense_date: '2026-07-20',
+      category: 'Office Expenses — Office Supplies',
+      description: 'Manual office purchase',
+      amount: 1250.5,
+    }),
+  });
+  assert.equal(createResponse.status, 201);
+
+  const listResponse = await api('/forty-five-day-rating/manual-expenses?start_date=2026-07-01&end_date=2026-08-15');
+  const list = await listResponse.json();
+  assert.equal(list.total, 1250.5);
+  assert.equal(list.expenses.length, 1);
+  assert.equal(list.expenses[0].description, 'Manual office purchase');
+
+  const afterResponse = await api('/forty-five-day-rating/calculate?start_date=2026-07-01&end_date=2026-08-15');
+  const after = await afterResponse.json();
+  const afterTorreta = after.evaluations.find(e => e.collector_name.includes('Torreta'));
+  assert.equal(afterTorreta.expense_total, beforeTorreta.expense_total);
+  assert.equal(afterTorreta.accomplishment_percentage, beforeTorreta.accomplishment_percentage);
+
+  const outsidePeriodResponse = await api('/forty-five-day-rating/manual-expenses', {
+    method: 'POST',
+    body: JSON.stringify({
+      start_date: '2026-07-01', end_date: '2026-08-15', expense_date: '2026-08-16',
+      category: 'Office Expenses — Office Supplies', amount: 100,
+    }),
+  });
+  assert.equal(outsidePeriodResponse.status, 400);
+});
