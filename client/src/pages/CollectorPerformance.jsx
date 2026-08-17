@@ -840,12 +840,12 @@ export default function CollectorPerformance() {
     }
   }
 
-  const loadData = async () => {
+  const loadData = async (dateTo = filters.date_to) => {
     setLoading(true)
     try {
       const res = await API.get('/collector-performance/summary', {
         params: {
-          date_to: filters.date_to,
+          date_to: dateTo,
           pastdue_cutoff: filters.pastdue_cutoff
         }
       })
@@ -1035,7 +1035,7 @@ export default function CollectorPerformance() {
     setNewCollectionDate(dateTo)
     setLockedCollections(null)
     setFilters(current => ({ ...current, date_to: dateTo }))
-    await loadCollections(dateTo)
+    await Promise.all([loadData(dateTo), loadCollections(dateTo)])
   }
 
   const deleteCollectionDate = date => {
@@ -1235,7 +1235,7 @@ export default function CollectorPerformance() {
   const selectedReturnClients = Number(selectedEdit.returnClients ?? 0)
   const selectedReconClients = Number(selectedEdit.reconClients ?? selectedCollection?.rows.reduce((sum, row) => sum + Number(row.reconClients || 0), 0) ?? 0)
   const startBeginningActive = selectedLatestRow
-    ? Number(selectedLatestRow.activeClients || 0)
+    ? Number(selectedLatestRow.activeClients || 0) + Number(selectedLatestRow.overdueClients || 0)
     : 0
   const selectedBeginningActive = selectedEdit.beginningActive !== undefined && selectedEdit.beginningActive !== ''
     ? Number(selectedEdit.beginningActive)
@@ -2378,7 +2378,7 @@ export default function CollectorPerformance() {
                               }}
                               disabled={isWeekLocked}
                             />
-                            <button className="btn btn-primary" type="button" onClick={e => { e.stopPropagation(); loadCollections() }} disabled={collectionsLoading || isWeekLocked}>Load</button>
+                            <button className="btn btn-primary" type="button" onClick={e => { e.stopPropagation(); applyFilters() }} disabled={collectionsLoading || loading || isWeekLocked}>Load</button>
                           </div>
                         </div>
 
