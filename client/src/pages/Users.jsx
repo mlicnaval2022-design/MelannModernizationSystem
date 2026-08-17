@@ -31,7 +31,7 @@ function buildRoleDescription(roleName, permissions, modules, reportTypes) {
 }
 
 export default function Users() {
-  const { hasPermission } = useAuth()
+  const { hasPermission, refreshUser } = useAuth()
   const [activeTab, setActiveTab] = useState('role-description')
   const [rows, setRows] = useState([])
   const [branches, setBranches] = useState([])
@@ -176,6 +176,7 @@ export default function Users() {
       else await API.post('/users/roles', payload)
       newRole()
       await load()
+      await refreshUser().catch(() => {})
     } catch (err) {
       setRoleError(err.response?.data?.error || 'Error saving role configuration.')
     } finally {

@@ -825,6 +825,9 @@ async function initializeDatabase() {
   }
 
   const { ACCESS_MODULES, REPORT_TYPE_PERMISSIONS } = require('../config/accessModules');
+  // Daily Target remains part of the Collection Sheet workflow. Its former
+  // standalone permission key is retired and must not affect role counts.
+  await dbRun(`DELETE FROM tblRolePermission WHERE module_key = 'report:daily-target'`);
   const existingUserRoles = await dbAll(`SELECT DISTINCT LOWER(TRIM(role)) AS role_key FROM tblUser WHERE role IS NOT NULL AND TRIM(role) <> ''`);
   const legacyRoleKeys = new Set(['admin', 'user', ...existingUserRoles.map(row => row.role_key)]);
   for (const roleKey of legacyRoleKeys) {
@@ -877,11 +880,23 @@ async function initializeDatabase() {
      WHERE rp.module_key = 'reports'`
   );
   for (const rolePermission of rolesWithReports) {
-    for (const reportType of REPORT_TYPE_PERMISSIONS) {
-      await dbRun(
-        `INSERT OR IGNORE INTO tblRolePermission (role_id, module_key, access_level) VALUES (?, ?, ?)`,
-        [rolePermission.role_id, reportType.key, rolePermission.access_level]
-      );
+    const placeholders = REPORT_TYPE_PERMISSIONS.map(() => '?').join(', ');
+    const currentReportPermissionCount = await dbGet(
+      `SELECT COUNT(*) AS count
+       FROM tblRolePermission
+       WHERE role_id = ? AND module_key IN (${placeholders})`,
+      [rolePermission.role_id, ...REPORT_TYPE_PERMISSIONS.map(item => item.key)]
+    );
+
+    // Backfill legacy roles once. A partial set means an administrator has
+    // already configured report-level access and must never be expanded here.
+    if (currentReportPermissionCount.count === 0) {
+      for (const reportType of REPORT_TYPE_PERMISSIONS) {
+        await dbRun(
+          `INSERT OR IGNORE INTO tblRolePermission (role_id, module_key, access_level) VALUES (?, ?, ?)`,
+          [rolePermission.role_id, reportType.key, rolePermission.access_level]
+        );
+      }
     }
   }
 

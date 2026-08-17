@@ -97,24 +97,32 @@ router.get('/roles', authenticateToken, requireRole('admin'), async (req, res) =
   try {
     const roles = await dbAll(
       `SELECT r.id, r.role_key, r.role_name, r.description, r.is_system, r.status, r.created_at,
-              COUNT(DISTINCT u.id) AS user_count,
-              COUNT(DISTINCT CASE WHEN rp.module_key NOT LIKE 'report:%' THEN rp.module_key END) AS module_count,
-              COUNT(DISTINCT CASE WHEN rp.module_key LIKE 'report:%' THEN rp.module_key END) AS report_type_count
+              COUNT(DISTINCT u.id) AS user_count
        FROM tblRole r
        LEFT JOIN tblUser u ON u.role = r.role_key
-       LEFT JOIN tblRolePermission rp ON rp.role_id = r.id
        GROUP BY r.id
        ORDER BY CASE WHEN r.role_key = 'admin' THEN 0 ELSE 1 END, r.role_name`
     );
     const permissions = await dbAll(`SELECT role_id, module_key, access_level FROM tblRolePermission ORDER BY role_id, module_key`);
+    const validPermissionKeys = new Set([
+      ...ACCESS_MODULES.map(item => item.key),
+      ...REPORT_TYPE_PERMISSIONS.map(item => item.key),
+    ]);
     const grouped = new Map();
     permissions.forEach(item => {
+      if (!validPermissionKeys.has(item.module_key)) return;
       if (!grouped.has(item.role_id)) grouped.set(item.role_id, []);
       grouped.get(item.role_id).push({ module_key: item.module_key, access_level: item.access_level });
     });
     res.json(roles.map(role => {
       const rolePermissions = grouped.get(role.id) || [];
-      return { ...role, description: buildRoleDescription(role.role_name, rolePermissions), permissions: rolePermissions };
+      return {
+        ...role,
+        module_count: rolePermissions.filter(item => !item.module_key.startsWith('report:')).length,
+        report_type_count: rolePermissions.filter(item => item.module_key.startsWith('report:')).length,
+        description: buildRoleDescription(role.role_name, rolePermissions),
+        permissions: rolePermissions,
+      };
     }));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
