@@ -9,13 +9,17 @@ export function AuthProvider({ children }) {
     try { return JSON.parse(localStorage.getItem('melann_user')); } catch { return null; }
   });
 
+  const refreshUser = useCallback(async () => {
+    if (!localStorage.getItem('melann_token')) return null;
+    const { data } = await API.get('/auth/me');
+    localStorage.setItem('melann_user', JSON.stringify(data));
+    setUser(data);
+    return data;
+  }, []);
+
   useEffect(() => {
-    if (!localStorage.getItem('melann_token')) return
-    API.get('/auth/me').then(({ data }) => {
-      localStorage.setItem('melann_user', JSON.stringify(data))
-      setUser(data)
-    }).catch(() => {})
-  }, [])
+    refreshUser().catch(() => {});
+  }, [refreshUser]);
 
   const login = useCallback(async (username, password) => {
     const { data } = await API.post('/auth/login', { username, password });
@@ -35,7 +39,7 @@ export function AuthProvider({ children }) {
   const hasPermission = useCallback((moduleKey, action = 'view') => hasModuleAccess(user, moduleKey, action), [user]);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, hasRole, hasPermission }}>
+    <AuthContext.Provider value={{ user, login, logout, refreshUser, hasRole, hasPermission }}>
       {children}
     </AuthContext.Provider>
   );

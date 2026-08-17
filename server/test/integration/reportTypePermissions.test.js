@@ -8,7 +8,7 @@ process.env.DB_PATH = join(mkdtempSync(join(tmpdir(), 'melann-report-permissions
 process.env.JWT_SECRET = 'report-permissions-test-secret';
 
 const { createApp } = require('../../src/app');
-const { closeDb, initializeDatabase } = require('../../src/db/database');
+const { closeDb, initializeDatabase, dbRun } = require('../../src/db/database');
 
 let server;
 let baseUrl;
@@ -76,6 +76,21 @@ test('a role can access only its selected report types', async () => {
   const savedRole = (await rolesResponse.json()).find(item => item.role_key === role.role_key);
   assert.match(savedRole.description, /view-only access to 1 of 21 modules and 1 of \d+ report types/i);
   assert.match(savedRole.description, /cannot add, edit, or delete/i);
+
+  await dbRun(
+    `INSERT INTO tblRolePermission (role_id, module_key, access_level) VALUES (?, 'report:daily-target', 'view')`,
+    [role.id]
+  );
+  await initializeDatabase();
+
+  const rolesAfterRestartResponse = await api(admin.token, '/users/roles');
+  assert.equal(rolesAfterRestartResponse.status, 200);
+  const roleAfterRestart = (await rolesAfterRestartResponse.json()).find(item => item.role_key === role.role_key);
+  assert.equal(roleAfterRestart.report_type_count, 1);
+  assert.deepEqual(
+    roleAfterRestart.permissions.filter(item => item.module_key.startsWith('report:')),
+    [{ module_key: 'report:aging-report', access_level: 'view' }]
+  );
 
   const viewer = await login('aging_viewer', 'aging123');
   assert.equal(viewer.user.permissions['report:aging-report'], 'view');
