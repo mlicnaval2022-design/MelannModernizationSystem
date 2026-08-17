@@ -14,7 +14,7 @@ function permissionKeysForReportPath(pathname) {
     '/maturity-check': ['report:past-due'],
     '/payments-reversed': ['report:payments-reversed'],
     '/full-paid': ['report:full-paid'],
-    '/collection-sheet': ['report:collection-sheet', 'report:daily-target'],
+    '/collection-sheet': ['report:collection-sheet'],
     '/disclosure-statement': ['report:disclosure-statement'],
     '/aging-report': ['report:aging-report'],
   };

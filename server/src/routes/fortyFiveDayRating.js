@@ -95,19 +95,23 @@ async function getActualCollectionTotal(collectorId, startDate, endDate) {
   return asAmount(paymentRow?.total);
 }
 
-async function buildPeriodEvaluations(period) {
-  const collectorBranch = getBranchFilter(period.branch_id, 'co.branch_id');
+async function computeEvaluations({ branch_id, start_date, end_date }) {
+  const start = dayjs(start_date).format('YYYY-MM-DD');
+  const end = dayjs(end_date).format('YYYY-MM-DD');
+  const collectorBranch = getBranchFilter(branch_id, 'co.branch_id');
   const collectors = await dbAll(`
-    SELECT co.id, co.first_name || ' ' || co.last_name AS name
+    SELECT co.id, co.first_name || ' ' || co.last_name AS name,
+      co.supervisor, co.branch_id, b.branch_name
     FROM tblCollector co
+    LEFT JOIN tblBranch b ON b.id = co.branch_id
     WHERE co.is_active = 1
       AND LOWER(TRIM(co.last_name)) IN (${ratedCollectorLastNames.map(() => '?').join(', ')})${collectorBranch.sql}
     ORDER BY co.last_name, co.first_name
   `, [...ratedCollectorLastNames, ...collectorBranch.params]);
-  const expenseBranchSql = period.branch_id
+  const expenseBranchSql = branch_id
     ? ` AND (t.branch_id = ? OR t.branch_id = '' OR t.branch_id IS NULL)`
     : '';
-  const expenseBranchParams = period.branch_id ? [period.branch_id] : [];
+  const expenseBranchParams = branch_id ? [branch_id] : [];
   const expenseRow = await dbGet(`
     SELECT COALESCE(SUM(t.amount), 0) AS total
     FROM tblTransaction t
@@ -116,12 +120,12 @@ async function buildPeriodEvaluations(period) {
       AND LOWER(COALESCE(t.transaction_type, 'expense')) = 'expense'
       AND LOWER(TRIM(COALESCE(t.category, ''))) NOT IN ('short overage', 'short/overage', 'shortage', 'overage')
       AND LOWER(TRIM(COALESCE(t.description, ''))) NOT IN ('short overage', 'short/overage', 'shortage', 'overage')${expenseBranchSql}
-  `, [period.start_date, period.end_date, ...expenseBranchParams]);
+  `, [start, end, ...expenseBranchParams]);
   const expenseShare = collectors.length ? asAmount(expenseRow?.total) / collectors.length : 0;
-  const previousPeriod = getPreviousCompanyPeriod(period.start_date);
+  const previousPeriod = getPreviousCompanyPeriod(start);
   const reportedPastdueByCollector = new Map();
   if (previousPeriod) {
-    const pastdueBranch = getBranchFilter(period.branch_id, 'l.branch_id');
+    const pastdueBranch = getBranchFilter(branch_id, 'l.branch_id');
     const pastdueRows = await dbAll(`
       SELECT l.collector_id, COALESCE(SUM(l.balance), 0) AS total
       FROM tblLoan l
@@ -133,7 +137,7 @@ async function buildPeriodEvaluations(period) {
     pastdueRows.forEach(row => reportedPastdueByCollector.set(Number(row.collector_id), asAmount(row.total)));
   }
 
-  await dbRun('DELETE FROM tblFortyFiveDayRatingEvaluation WHERE period_id = ?', [period.id]);
+  const evaluations = [];
   for (const collector of collectors) {
     const releaseRow = await dbGet(`
       SELECT COALESCE(SUM(l.principal), 0) AS total
@@ -147,19 +151,99 @@ async function buildPeriodEvaluations(period) {
           OR LOWER(COALESCE(l.loan_type, '')) LIKE '%re-loan%'
           OR LOWER(COALESCE(l.loan_type, '')) NOT LIKE '%recon%'
         )
-    `, [collector.id, period.start_date, period.end_date]);
-    const collectionTotal = await getActualCollectionTotal(collector.id, period.start_date, period.end_date);
+    `, [collector.id, start, end]);
+    const collectionTotal = await getActualCollectionTotal(collector.id, start, end);
     const releaseTotal = asAmount(releaseRow?.total);
     const netIncome = collectionTotal - releaseTotal - expenseShare;
     const denominator = releaseTotal + expenseShare;
     const accomplishment = denominator > 0 ? (collectionTotal / denominator) * 100 : null;
+    evaluations.push({
+      collector_id: collector.id,
+      collector_name: collector.name,
+      supervisor: collector.supervisor,
+      branch_id: collector.branch_id,
+      branch_name: collector.branch_name,
+      collection_total: collectionTotal,
+      release_total: releaseTotal,
+      expense_total: expenseShare,
+      reported_pastdue: reportedPastdueByCollector.get(Number(collector.id)) || 0,
+      net_income: netIncome,
+      accomplishment_percentage: accomplishment,
+      rating: ratingFor(accomplishment)
+    });
+  }
+
+  evaluations.sort((a, b) => (b.accomplishment_percentage || 0) - (a.accomplishment_percentage || 0) || a.collector_name.localeCompare(b.collector_name));
+  const supervisor_evaluations = getSupervisorEvaluations(evaluations);
+  const branchName = evaluations[0]?.branch_name || (branch_id ? (await dbGet('SELECT branch_name FROM tblBranch WHERE id = ?', [branch_id]))?.branch_name : null) || 'Current Branch';
+  const branch_manager_evaluations = [aggregateRating(`${branchName} Branch Manager`, evaluations, {
+    branch_id: branch_id || null,
+    branch_name: branchName,
+    supervisors: supervisor_evaluations.map(row => row.name),
+    supervisor_results: supervisor_evaluations
+  })];
+  const operations_manager_evaluation = aggregateRating('Operations Manager', branch_manager_evaluations, {
+    branches: [branchName],
+    branch_results: branch_manager_evaluations
+  });
+
+  return {
+    period: {
+      start_date: start,
+      end_date: end,
+      reported_pastdue_period: previousPeriod
+    },
+    evaluations,
+    supervisor_evaluations,
+    branch_manager_evaluations,
+    operations_manager_evaluation
+  };
+}
+
+async function buildPeriodEvaluations(period) {
+  const result = await computeEvaluations({
+    branch_id: period.branch_id,
+    start_date: period.start_date,
+    end_date: period.end_date
+  });
+  await dbRun('DELETE FROM tblFortyFiveDayRatingEvaluation WHERE period_id = ?', [period.id]);
+  for (const evaluation of result.evaluations) {
     await dbRun(`
       INSERT INTO tblFortyFiveDayRatingEvaluation
         (period_id, collector_id, collection_total, release_total, expense_total, reported_pastdue, net_income, accomplishment_percentage, rating)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [period.id, collector.id, collectionTotal, releaseTotal, expenseShare, reportedPastdueByCollector.get(Number(collector.id)) || 0, netIncome, accomplishment, ratingFor(accomplishment)]);
+    `, [
+      period.id,
+      evaluation.collector_id,
+      evaluation.collection_total,
+      evaluation.release_total,
+      evaluation.expense_total,
+      evaluation.reported_pastdue,
+      evaluation.net_income,
+      evaluation.accomplishment_percentage,
+      evaluation.rating
+    ]);
   }
 }
+
+router.get('/calculate', authenticateToken, async (req, res) => {
+  try {
+    const { start_date, end_date } = req.query;
+    const start = dayjs(start_date);
+    const end = dayjs(end_date);
+    if (!start.isValid() || !end.isValid() || end.isBefore(start, 'day')) {
+      return res.status(400).json({ error: 'Please select a valid start date and end date.' });
+    }
+    const result = await computeEvaluations({
+      branch_id: req.user.branch_id,
+      start_date: start.format('YYYY-MM-DD'),
+      end_date: end.format('YYYY-MM-DD')
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 router.get('/periods', authenticateToken, async (req, res) => {
   try {
@@ -307,7 +391,6 @@ router.post('/periods/:id/unlock', authenticateToken, requireRole('admin'), asyn
     const branch = getBranchFilter(req.user.branch_id, 'branch_id');
     const period = await dbGet(`SELECT * FROM tblFortyFiveDayRatingPeriod WHERE id = ?${branch.sql}`, [req.params.id, ...branch.params]);
     if (!period) return res.status(404).json({ error: 'Rating period not found.' });
-    if (!isFinalStatus(period.status)) return res.status(409).json({ error: 'Only a final rating period can be unlocked.' });
     await dbRun(`UPDATE tblFortyFiveDayRatingPeriod
       SET status = 'Draft', reopened_by = ?, reopened_at = datetime('now'), reopen_reason = ?
       WHERE id = ?`, [req.user.id, reason, period.id]);
@@ -315,6 +398,23 @@ router.post('/periods/:id/unlock', authenticateToken, requireRole('admin'), asyn
       VALUES (?, 'Unlock', ?, 'Draft', ?, ?)`, [period.id, period.status, reason, req.user.id]);
     res.json({ success: true, status: 'Draft' });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/periods/:id', authenticateToken, async (req, res) => {
+  try {
+    const branch = getBranchFilter(req.user.branch_id, 'branch_id');
+    const period = await dbGet(`SELECT * FROM tblFortyFiveDayRatingPeriod WHERE id = ?${branch.sql}`, [req.params.id, ...branch.params]);
+    if (!period) return res.status(404).json({ error: 'Rating period not found.' });
+    if (isFinalStatus(period.status) && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only administrators can delete a final/locked rating period.' });
+    }
+    await dbRun('DELETE FROM tblFortyFiveDayRatingAudit WHERE period_id = ?', [period.id]);
+    await dbRun('DELETE FROM tblFortyFiveDayRatingEvaluation WHERE period_id = ?', [period.id]);
+    await dbRun('DELETE FROM tblFortyFiveDayRatingPeriod WHERE id = ?', [period.id]);
+    res.json({ success: true, message: 'Rating period deleted successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

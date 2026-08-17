@@ -36,7 +36,6 @@ export const REPORT_TYPE_PERMISSIONS = [
   { key: 'report:payments-reversed', reportKey: 'payments-reversed', label: 'Payments Reversed' },
   { key: 'report:full-paid', reportKey: 'full-paid', label: 'Fully Paid Loans' },
   { key: 'report:collection-sheet', reportKey: 'collection-sheet', label: 'Collection Sheet' },
-  { key: 'report:daily-target', reportKey: 'daily-target', label: 'Daily Target' },
   { key: 'report:disclosure-statement', reportKey: 'disclosure-statement', label: 'Disclosure Statement' },
   { key: 'report:aging-report', reportKey: 'aging-report', label: 'Aging Report' },
   { key: 'report:expenses-report', reportKey: 'expenses-report', label: 'Expenses Reports' },

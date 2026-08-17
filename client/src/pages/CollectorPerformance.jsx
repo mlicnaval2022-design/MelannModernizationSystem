@@ -19,6 +19,16 @@ const countFmt = value => Number(value || 0).toLocaleString('en-PH')
 const printAmount = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const COLLECTOR_EDITS_STORAGE_KEY = 'collectorPerformanceEdits'
 const MAX_PROFILE_PHOTO_DIMENSION = 320
+const COMPANY_PERIOD_PRESETS = [
+  { label: 'Jan 01 – Feb 15', start: '-01-01', end: '-02-15' },
+  { label: 'Feb 16 – Mar 31', start: '-02-16', end: '-03-31' },
+  { label: 'Apr 01 – May 15', start: '-04-01', end: '-05-15' },
+  { label: 'May 16 – Jun 30', start: '-05-16', end: '-06-30' },
+  { label: 'Jul 01 – Aug 15', start: '-07-01', end: '-08-15' },
+  { label: 'Aug 16 – Sep 30', start: '-08-16', end: '-09-30' },
+  { label: 'Oct 01 – Nov 15', start: '-10-01', end: '-11-15' },
+  { label: 'Nov 16 – Dec 31', start: '-11-16', end: '-12-31' }
+]
 
 const compressProfilePhoto = source => new Promise(resolve => {
   const image = new Image()
@@ -688,7 +698,6 @@ export default function CollectorPerformance() {
   const defaultRange = useMemo(() => getDefaultRange(), [])
   const [filters, setFilters] = useState(defaultRange)
   const [data, setData] = useState(null)
-  const [ratingPeriods, setRatingPeriods] = useState([])
   const [ratingDateRange, setRatingDateRange] = useState({ start_date: '', end_date: '' })
   const [selectedRatingPeriod, setSelectedRatingPeriod] = useState(null)
   const [ratingEvaluationTab, setRatingEvaluationTab] = useState('collector')
@@ -912,84 +921,39 @@ export default function CollectorPerformance() {
     }
   }
 
-  const loadFortyFiveDayData = async () => {
-    setFortyFiveDayLoading(true)
-    try {
-      const response = await API.get('/forty-five-day-rating/periods')
-      setRatingPeriods(response.data)
-      setErrorMsg('')
-    } catch (err) {
-      setErrorMsg(err.response?.data?.error || err.message || 'Could not load 45 days performance')
-    } finally {
-      setFortyFiveDayLoading(false)
-    }
-  }
-
-  const loadRatingPeriod = async id => {
-    setFortyFiveDayLoading(true)
-    try {
-      const response = await API.get(`/forty-five-day-rating/periods/${id}`)
-      setSelectedRatingPeriod(response.data)
-      setRatingHierarchyModal(null)
-      setErrorMsg('')
-    } catch (err) {
-      setErrorMsg(err.response?.data?.error || err.message || 'Could not load rating period')
-    } finally {
-      setFortyFiveDayLoading(false)
-    }
-  }
-
-  const changeRatingLock = async (period, shouldLock) => {
-    if (!period?.id || !hasRole('admin')) return
-    let reason
-    if (shouldLock) {
-      if (!window.confirm('Lock this 45-day rating? Its automated totals will become final and read-only.')) return
-    } else {
-      reason = window.prompt('Reason for unlocking this final 45-day rating:')?.trim()
-      if (!reason) return
-    }
-    setFortyFiveDayLoading(true)
-    try {
-      await API.post(`/forty-five-day-rating/periods/${period.id}/${shouldLock ? 'lock' : 'unlock'}`, shouldLock ? {} : { reason })
-      await loadFortyFiveDayData()
-      await loadRatingPeriod(period.id)
-    } catch (err) {
-      setErrorMsg(err.response?.data?.error || err.message || `Could not ${shouldLock ? 'lock' : 'unlock'} rating period`)
-    } finally {
-      setFortyFiveDayLoading(false)
-    }
-  }
-
-  const generateFortyFiveDayRating = async () => {
-    if (!ratingDateRange.start_date || !ratingDateRange.end_date || ratingDateRange.end_date < ratingDateRange.start_date) {
-      setErrorMsg('Select a valid rating period. The end date cannot be before the start date.')
+  const loadFortyFiveDayEvaluation = async (startDate, endDate) => {
+    const from = startDate || ratingDateRange.start_date
+    const to = endDate || ratingDateRange.end_date
+    if (!from || !to || to < from) {
+      setErrorMsg('Please select a valid start date and end date.')
       return
     }
     setFortyFiveDayLoading(true)
     try {
-      const response = await API.post('/forty-five-day-rating/periods', ratingDateRange)
-      setRatingDateRange({ start_date: '', end_date: '' })
-      await loadFortyFiveDayData()
-      await loadRatingPeriod(response.data.id)
+      const response = await API.get('/forty-five-day-rating/calculate', {
+        params: { start_date: from, end_date: to }
+      })
+      setSelectedRatingPeriod(response.data)
+      setRatingHierarchyModal(null)
+      setErrorMsg('')
     } catch (err) {
-      setErrorMsg(err.response?.data?.error || err.message || 'Could not generate 45-day rating')
+      setErrorMsg(err.response?.data?.error || err.message || 'Could not calculate 45-day performance')
     } finally {
       setFortyFiveDayLoading(false)
     }
   }
 
+  const handleSelectPresetPeriod = (startStr, endStr) => {
+    const currentYear = dayjs().year()
+    const from = `${currentYear}${startStr}`
+    const to = `${currentYear}${endStr}`
+    setRatingDateRange({ start_date: from, end_date: to })
+    loadFortyFiveDayEvaluation(from, to)
+  }
+
   const refreshRatingPeriod = async () => {
-    if (!selectedRatingPeriod?.period?.id) return
-    setFortyFiveDayLoading(true)
-    try {
-      await API.post(`/forty-five-day-rating/periods/${selectedRatingPeriod.period.id}/refresh`)
-      await loadFortyFiveDayData()
-      await loadRatingPeriod(selectedRatingPeriod.period.id)
-    } catch (err) {
-      setErrorMsg(err.response?.data?.error || err.message || 'Could not refresh rating totals')
-    } finally {
-      setFortyFiveDayLoading(false)
-    }
+    if (!selectedRatingPeriod?.period?.start_date || !selectedRatingPeriod?.period?.end_date) return
+    await loadFortyFiveDayEvaluation(selectedRatingPeriod.period.start_date, selectedRatingPeriod.period.end_date)
   }
 
   const addCollectionDate = async () => {
@@ -1165,7 +1129,9 @@ export default function CollectorPerformance() {
 
   useEffect(() => {
     if (activeTab === 'collections') loadCollections()
-    if (activeTab === 'forty-five-days') loadFortyFiveDayData()
+    if (activeTab === 'forty-five-days' && ratingDateRange.start_date && ratingDateRange.end_date) {
+      loadFortyFiveDayEvaluation(ratingDateRange.start_date, ratingDateRange.end_date)
+    }
   }, [activeTab])
 
   const collectors = (data?.collectors || [])
@@ -1342,36 +1308,22 @@ export default function CollectorPerformance() {
         .forty-five-graphic span:nth-child(3) { height: 47px; }
         .forty-five-graphic svg { position: absolute; right: 0; top: 0; }
         .forty-five-card { border: 1px solid #dce6eb; border-radius: 8px; background: #fff; box-shadow: 0 5px 14px rgba(15, 50, 65, .055); overflow: hidden; }
-        .forty-five-generator { grid-column: 1; width: min(760px, 100%); padding: 18px; }
-        .forty-five-periods { grid-column: 1; width: 100%; padding: 14px; overflow-x: auto; }
+        .forty-five-generator { grid-column: 1 / -1; width: 100%; padding: 18px; }
         .forty-five-evaluation { grid-column: 1 / -1; padding: 16px; }
         .forty-five-section-title { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; color: #075e59; font-size: 14px; font-weight: 950; text-transform: uppercase; }
         .forty-five-section-title svg { color: #07877d; }
-        .forty-five-form-grid { display: grid; grid-template-columns: minmax(190px, 240px) minmax(190px, 240px) minmax(170px, 210px); gap: 12px; align-items: end; }
+        .forty-five-form-grid { display: grid; grid-template-columns: minmax(190px, 240px) minmax(190px, 240px) minmax(180px, 220px); gap: 12px; align-items: end; }
         .forty-five-generate-button { grid-column: auto; justify-content: center; background: #087d73 !important; border-color: #087d73 !important; }
-        .forty-five-note { display: flex; gap: 9px; align-items: flex-start; margin-top: 18px; color: #51657a; font-size: 11px; font-weight: 700; line-height: 1.45; }
+        .forty-five-presets-label { margin-top: 14px; font-size: 11px; font-weight: 800; color: #51657a; text-transform: uppercase; letter-spacing: .4px; }
+        .forty-five-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+        .forty-five-preset-chip { padding: 6px 11px; border: 1px solid #d2e4e0; border-radius: 6px; background: #f2f8f6; color: #086b62; font-size: 11px; font-weight: 800; cursor: pointer; transition: all .15s ease; }
+        .forty-five-preset-chip:hover { background: #087d73; color: #fff; border-color: #087d73; }
+        .forty-five-preset-chip.active { background: #087d73; color: #fff; border-color: #087d73; box-shadow: 0 2px 6px rgba(8, 125, 115, 0.25); }
+        .forty-five-note { display: flex; gap: 9px; align-items: flex-start; margin-top: 14px; color: #51657a; font-size: 11px; font-weight: 700; line-height: 1.45; }
         .forty-five-note::before { content: 'ⓘ'; color: #2563eb; font-size: 14px; }
         .forty-five-page .data-table { border-collapse: separate; border-spacing: 0; border: 0 !important; }
         .forty-five-page .data-table thead th { padding: 12px 10px; border-color: #e1e8ee; color: #405269; font-size: 10px; font-weight: 950; text-transform: uppercase; letter-spacing: .25px; }
         .forty-five-page .data-table tbody td { padding: 12px 10px; border-color: #e7edf1; color: #223148; font-size: 12px; }
-        .forty-five-periods .data-table thead th { color: #fff; background: #087d73; border: 0; }
-        .forty-five-periods .data-table { width: 100%; min-width: 0 !important; table-layout: fixed; }
-        .forty-five-periods .data-table thead th { padding: 12px 9px; font-size: 11px; line-height: 1.3; white-space: normal; overflow-wrap: anywhere; }
-        .forty-five-periods .data-table tbody td { padding: 13px 9px; font-size: 12px; line-height: 1.4; white-space: normal; overflow-wrap: anywhere; }
-        .forty-five-periods .data-table th:nth-child(1) { width: 18%; }
-        .forty-five-periods .data-table th:nth-child(2) { width: 9%; }
-        .forty-five-periods .data-table th:nth-child(3),
-        .forty-five-periods .data-table th:nth-child(4),
-        .forty-five-periods .data-table th:nth-child(5) { width: 15%; }
-        .forty-five-periods .data-table th:nth-child(6) { width: 16%; }
-        .forty-five-periods .data-table th:nth-child(7) { width: 12%; }
-        .forty-five-periods .data-table thead th:first-child { border-radius: 6px 0 0 0; }
-        .forty-five-periods .data-table thead th:last-child { border-radius: 0 6px 0 0; }
-        .forty-five-periods .status-badge { border: 0; background: #fff1cc; color: #b56a00; font-size: 12px; }
-        .forty-five-periods .forty-five-rating-pill { font-size: 11px; }
-        .forty-five-actions { display: grid; gap: 7px; min-width: 110px; }
-        .forty-five-actions .btn { min-height: 34px; justify-content: center; padding: 7px 10px; font-size: 12px; }
-        .forty-five-lock { color: #fff !important; background: #0d1f3a !important; border-color: #0d1f3a !important; }
         .forty-five-eval-header { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
         .forty-five-tabs { display: flex; gap: 5px; overflow-x: auto; padding: 0 !important; margin: 0 0 10px !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; }
         .forty-five-tabs .btn { min-width: 205px; justify-content: center; border-radius: 6px 6px 0 0; color: #17345b; background: #fff; border-color: #d9e3eb; }
@@ -2401,56 +2353,135 @@ export default function CollectorPerformance() {
                     <div className="forty-five-hero-copy">
                       <div className="forty-five-hero-icon"><CalendarDays size={27} /></div>
                       <div>
-                      <h2 className="forty-five-title">45-Day Performance Rating</h2>
-                      <div className="forty-five-subtitle">
-                        Generate a company-selected rating period with automated collection, release, and DCR expense totals.
-                      </div>
+                        <h2 className="forty-five-title">45-Day Performance Rating</h2>
+                        <div className="forty-five-subtitle">
+                          Select an evaluation date range to view automated collection, release, and expense ratings.
+                        </div>
                       </div>
                     </div>
                     <div className="forty-five-graphic" aria-hidden="true"><span /><span /><span /><TrendingUp size={34} /></div>
                   </div>
 
                   <div className="forty-five-card forty-five-generator">
-                    <div className="forty-five-section-title"><CalendarDays size={19} /> Generate 45-Day Rating</div>
+                    <div className="forty-five-section-title"><CalendarDays size={19} /> Select 45-Day Period</div>
                     <div className="forty-five-form-grid">
-                      <label><span className="form-label">Start date</span><input className="form-control" type="date" value={ratingDateRange.start_date} onChange={e => { setRatingDateRange(current => ({ ...current, start_date: e.target.value })); setErrorMsg('') }} /></label>
-                      <label><span className="form-label">End date</span><input className="form-control" type="date" value={ratingDateRange.end_date} min={ratingDateRange.start_date || undefined} onChange={e => { setRatingDateRange(current => ({ ...current, end_date: e.target.value })); setErrorMsg('') }} disabled={!ratingDateRange.start_date} /></label>
-                      <button className="btn btn-primary forty-five-generate-button" type="button" onClick={generateFortyFiveDayRating} disabled={fortyFiveDayLoading || !isValidRatingRange}><CalendarDays size={16} /> Generate Rating</button>
+                      <label>
+                        <span className="form-label">Start date</span>
+                        <input
+                          className="form-control"
+                          type="date"
+                          value={ratingDateRange.start_date}
+                          onChange={e => {
+                            setRatingDateRange(current => ({ ...current, start_date: e.target.value }))
+                            setErrorMsg('')
+                          }}
+                        />
+                      </label>
+                      <label>
+                        <span className="form-label">End date</span>
+                        <input
+                          className="form-control"
+                          type="date"
+                          value={ratingDateRange.end_date}
+                          min={ratingDateRange.start_date || undefined}
+                          onChange={e => {
+                            setRatingDateRange(current => ({ ...current, end_date: e.target.value }))
+                            setErrorMsg('')
+                          }}
+                          disabled={!ratingDateRange.start_date}
+                        />
+                      </label>
+                      <button
+                        className="btn btn-primary forty-five-generate-button"
+                        type="button"
+                        onClick={() => loadFortyFiveDayEvaluation(ratingDateRange.start_date, ratingDateRange.end_date)}
+                        disabled={fortyFiveDayLoading || !isValidRatingRange}
+                      >
+                        <CalendarDays size={16} /> Calculate Performance
+                      </button>
                     </div>
-                    <div className="forty-five-note">The company may choose any rating period. The end date only needs to be on or after the start date.</div>
+
+                    <div className="forty-five-presets-label">Official Company Periods (Quick Select):</div>
+                    <div className="forty-five-presets">
+                      {COMPANY_PERIOD_PRESETS.map(preset => {
+                        const currentYear = dayjs().year()
+                        const pStart = `${currentYear}${preset.start}`
+                        const pEnd = `${currentYear}${preset.end}`
+                        const isSelected = ratingDateRange.start_date === pStart && ratingDateRange.end_date === pEnd
+                        return (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            className={`forty-five-preset-chip ${isSelected ? 'active' : ''}`}
+                            onClick={() => handleSelectPresetPeriod(preset.start, preset.end)}
+                          >
+                            {preset.label}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
 
-                  <div className="forty-five-card forty-five-periods">
-                    <div className="forty-five-section-title"><FileText size={19} /> Generated Periods</div>
-                    <table className="data-table" style={{ margin: 0 }}>
-                      <thead><tr><th>Date Range</th><th>Status</th><th style={{ textAlign: 'right' }}>Collections (PHP)</th><th style={{ textAlign: 'right' }}>Non-Recon Releases (PHP)</th><th style={{ textAlign: 'right' }}>DCR Expenses (PHP)</th><th>Overall Rating</th><th>Actions</th></tr></thead>
-                      <tbody>{fortyFiveDayLoading && !ratingPeriods.length ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28 }}>Loading rating periods...</td></tr> : ratingPeriods.length ? ratingPeriods.map(period => (
-                        <tr key={`rating-period-${period.id}`}><td style={{ fontWeight: 800 }}>{displayDate(period.start_date)} to {displayDate(period.end_date)}</td><td><span className="status-badge">{isFinalRatingStatus(period.status) ? 'Final' : 'Draft'}</span></td><td style={{ textAlign: 'right' }}>PHP {fmt(period.total_collection)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(period.total_release)}</td><td style={{ textAlign: 'right' }}>PHP {fmt(period.total_expense)}</td><td><span className="forty-five-rating-pill" style={{ color: getRatingPresentation(period.overall_rating).color, background: getRatingPresentation(period.overall_rating).background, borderColor: getRatingPresentation(period.overall_rating).border }}><span className="forty-five-rating-dot">☆</span>{period.overall_rating}</span></td><td><div className="forty-five-actions"><button className="btn btn-secondary" type="button" onClick={() => loadRatingPeriod(period.id)}>View Rating</button>{isFinalRatingStatus(period.status) ? <button className="btn btn-secondary" type="button" onClick={() => changeRatingLock(period, false)} disabled={fortyFiveDayLoading || !hasRole('admin')} title={hasRole('admin') ? 'Reopen this rating for changes' : 'Admin permission is required'}><Unlock size={15} /> Unlock</button> : <button className="btn forty-five-lock" type="button" onClick={() => changeRatingLock(period, true)} disabled={fortyFiveDayLoading || !hasRole('admin')} title={hasRole('admin') ? 'Make this rating final' : 'Admin permission is required'}><Lock size={15} /> Lock Rating</button>}</div></td></tr>
-                      )) : <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28 }}>No 45-day ratings generated yet.</td></tr>}</tbody>
-                    </table>
-                  </div>
-
-                  {selectedRatingPeriod && <div className="forty-five-card forty-five-evaluation">
-                    <div className="forty-five-content-tabs" role="tablist" aria-label="45-day performance view">
-                      <button type="button" className={ratingContentTab === 'evaluation' ? 'active' : ''} onClick={() => setRatingContentTab('evaluation')}>Evaluation</button>
-                      <button type="button" className={ratingContentTab === 'ranking' ? 'active' : ''} onClick={() => setRatingContentTab('ranking')}>Ranking</button>
-                      <button type="button" className={ratingContentTab === 'print-report' ? 'active' : ''} onClick={() => setRatingContentTab('print-report')}>Print Report</button>
+                  {fortyFiveDayLoading && (
+                    <div className="forty-five-card" style={{ padding: '36px 20px', textAlign: 'center', color: '#087d73', fontWeight: 800, fontSize: 14 }}>
+                      <RefreshCw size={20} className="spin" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: 8 }} />
+                      Calculating 45-day performance ratings...
                     </div>
-                    {ratingContentTab === 'evaluation' ? <>
-                      <div className="forty-five-eval-header"><div><div className="forty-five-section-title" style={{ marginBottom: 5 }}><Users size={19} /> 45-Day Role Evaluation</div><div style={{ color: '#64748b', fontSize: 12, fontWeight: 700 }}>{displayDate(selectedRatingPeriod.period.start_date)} to {displayDate(selectedRatingPeriod.period.end_date)} · {isFinalRatingStatus(selectedRatingPeriod.period.status) ? 'Final and locked' : 'Draft'}</div></div><button className="btn btn-secondary" type="button" onClick={refreshRatingPeriod} disabled={fortyFiveDayLoading || isFinalRatingStatus(selectedRatingPeriod.period.status)}><RefreshCw size={16} /> Refresh automated totals</button></div>
-                      <div className="forty-five-tabs">
-                        {[['collector', 'Collector Evaluation', <User size={16} />], ['supervisor', 'Supervisor Evaluation', <Users size={16} />], ['branch-manager', 'Branch Manager Evaluation', <Building2 size={16} />], ['operations-manager', 'Operations Manager Evaluation', <TrendingUp size={16} />]].map(([tab, label, icon]) => <button key={tab} className={`btn ${ratingEvaluationTab === tab ? 'btn-primary' : 'btn-secondary'}`} type="button" onClick={() => setRatingEvaluationTab(tab)} style={{ flexShrink: 0 }}>{icon}{label}</button>)}
+                  )}
+
+                  {!fortyFiveDayLoading && selectedRatingPeriod && (
+                    <div className="forty-five-card forty-five-evaluation">
+                      <div className="forty-five-content-tabs" role="tablist" aria-label="45-day performance view">
+                        <button type="button" className={ratingContentTab === 'evaluation' ? 'active' : ''} onClick={() => setRatingContentTab('evaluation')}>Evaluation</button>
+                        <button type="button" className={ratingContentTab === 'ranking' ? 'active' : ''} onClick={() => setRatingContentTab('ranking')}>Ranking</button>
+                        <button type="button" className={ratingContentTab === 'print-report' ? 'active' : ''} onClick={() => setRatingContentTab('print-report')}>Print Report</button>
                       </div>
-                      <div className="forty-five-info" style={{ lineHeight: 1.5, marginBottom: 12 }}>
-                        Collection is summed for Torreta, Domingono, Caballes, Jugar, Rosal, and Laude only. Recon releases are excluded. User-entered DCR expenses, excluding Short/Overages, are divided equally among these six collectors. Reported Pastdue is display-only and is not included in the formula.
-                        {selectedRatingPeriod.period.reported_pastdue_period && <> Reported Pastdue period: {displayDate(selectedRatingPeriod.period.reported_pastdue_period.start_date)} to {displayDate(selectedRatingPeriod.period.reported_pastdue_period.end_date)}.</>}
+                      {ratingContentTab === 'evaluation' ? (
+                        <>
+                          <div className="forty-five-eval-header">
+                            <div>
+                              <div className="forty-five-section-title" style={{ marginBottom: 5 }}><Users size={19} /> 45-Day Role Evaluation</div>
+                              <div style={{ color: '#64748b', fontSize: 12, fontWeight: 700 }}>
+                                {displayDate(selectedRatingPeriod.period.start_date)} to {displayDate(selectedRatingPeriod.period.end_date)}
+                              </div>
+                            </div>
+                            <button className="btn btn-secondary" type="button" onClick={refreshRatingPeriod} disabled={fortyFiveDayLoading}>
+                              <RefreshCw size={16} /> Refresh automated totals
+                            </button>
+                          </div>
+                          <div className="forty-five-tabs">
+                            {[['collector', 'Collector Evaluation', <User size={16} />], ['supervisor', 'Supervisor Evaluation', <Users size={16} />], ['branch-manager', 'Branch Manager Evaluation', <Building2 size={16} />], ['operations-manager', 'Operations Manager Evaluation', <TrendingUp size={16} />]].map(([tab, label, icon]) => (
+                              <button key={tab} className={`btn ${ratingEvaluationTab === tab ? 'btn-primary' : 'btn-secondary'}`} type="button" onClick={() => setRatingEvaluationTab(tab)} style={{ flexShrink: 0 }}>
+                                {icon}{label}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="forty-five-info" style={{ lineHeight: 1.5, marginBottom: 12 }}>
+                            Collection is summed for Torreta, Domingono, Caballes, Jugar, Rosal, and Laude only. Recon releases are excluded. User-entered DCR expenses, excluding Short/Overages, are divided equally among these six collectors. Reported Pastdue is display-only and is not included in the formula.
+                            {selectedRatingPeriod.period.reported_pastdue_period && <> Reported Pastdue period: {displayDate(selectedRatingPeriod.period.reported_pastdue_period.start_date)} to {displayDate(selectedRatingPeriod.period.reported_pastdue_period.end_date)}.</>}
+                          </div>
+                          {ratingEvaluationTab === 'collector' && <FortyFiveEvaluationTable entityLabel="Collector" rows={selectedRatingPeriod.evaluations} />}
+                          {ratingEvaluationTab === 'supervisor' && <FortyFiveEvaluationTable entityLabel="Supervisor" rows={selectedRatingPeriod.supervisor_evaluations || []} childRows={row => row.collector_results?.length ? row.collector_results : selectedRatingPeriod.evaluations.filter(evaluation => (String(evaluation.supervisor || '').trim() || 'Unassigned Supervisor') === row.name)} childEntityLabel="Collector" onOpenChildren={setRatingHierarchyModal} />}
+                          {ratingEvaluationTab === 'branch-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.branch_manager_evaluations || []} childRows={row => row.supervisor_results?.length ? row.supervisor_results : (selectedRatingPeriod.supervisor_evaluations || []).filter(supervisor => (row.supervisors || []).includes(supervisor.name))} childEntityLabel="Supervisor" onOpenChildren={setRatingHierarchyModal} />}
+                          {ratingEvaluationTab === 'operations-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.operations_manager_evaluation?.branch_results || []} childRows={row => row.supervisor_results} childEntityLabel="Supervisor" onOpenChildren={setRatingHierarchyModal} footerRow={selectedRatingPeriod.operations_manager_evaluation} />}
+                        </>
+                      ) : ratingContentTab === 'ranking' ? (
+                        <FortyFiveRanking period={selectedRatingPeriod.period} collectors={selectedRatingPeriod.evaluations} supervisors={selectedRatingPeriod.supervisor_evaluations || []} />
+                      ) : (
+                        <FortyFivePrintReport period={selectedRatingPeriod.period} selectedRatingPeriod={selectedRatingPeriod} collectorEdits={collectorEdits} />
+                      )}
+                    </div>
+                  )}
+
+                  {!fortyFiveDayLoading && !selectedRatingPeriod && (
+                    <div className="forty-five-card" style={{ padding: '44px 24px', textAlign: 'center', color: '#64748b' }}>
+                      <CalendarDays size={42} style={{ margin: '0 auto 14px', color: '#087d73', opacity: 0.65 }} />
+                      <div style={{ fontSize: 16, fontWeight: 900, color: '#0c2348' }}>Select a 45-Day Period</div>
+                      <div style={{ fontSize: 13, marginTop: 6, color: '#64748b' }}>
+                        Choose a start date and end date above, or click one of the company preset periods to compute 45-day performance ratings.
                       </div>
-                      {ratingEvaluationTab === 'collector' && <FortyFiveEvaluationTable entityLabel="Collector" rows={selectedRatingPeriod.evaluations} />}
-                      {ratingEvaluationTab === 'supervisor' && <FortyFiveEvaluationTable entityLabel="Supervisor" rows={selectedRatingPeriod.supervisor_evaluations || []} childRows={row => row.collector_results?.length ? row.collector_results : selectedRatingPeriod.evaluations.filter(evaluation => (String(evaluation.supervisor || '').trim() || 'Unassigned Supervisor') === row.name)} childEntityLabel="Collector" onOpenChildren={setRatingHierarchyModal} />}
-                      {ratingEvaluationTab === 'branch-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.branch_manager_evaluations || []} childRows={row => row.supervisor_results?.length ? row.supervisor_results : (selectedRatingPeriod.supervisor_evaluations || []).filter(supervisor => (row.supervisors || []).includes(supervisor.name))} childEntityLabel="Supervisor" onOpenChildren={setRatingHierarchyModal} />}
-                      {ratingEvaluationTab === 'operations-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.operations_manager_evaluation?.branch_results || []} childRows={row => row.supervisor_results} childEntityLabel="Supervisor" onOpenChildren={setRatingHierarchyModal} footerRow={selectedRatingPeriod.operations_manager_evaluation} />}
-                    </> : ratingContentTab === 'ranking' ? <FortyFiveRanking period={selectedRatingPeriod.period} collectors={selectedRatingPeriod.evaluations} supervisors={selectedRatingPeriod.supervisor_evaluations || []} /> : <FortyFivePrintReport period={selectedRatingPeriod.period} selectedRatingPeriod={selectedRatingPeriod} collectorEdits={collectorEdits} />}
-                  </div>}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
