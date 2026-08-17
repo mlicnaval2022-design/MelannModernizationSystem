@@ -944,7 +944,7 @@ export default function CollectorPerformance() {
   }
 
   const handleSelectPresetPeriod = (startStr, endStr) => {
-    const currentYear = dayjs().year()
+    const currentYear = new Date().getFullYear()
     const from = `${currentYear}${startStr}`
     const to = `${currentYear}${endStr}`
     setRatingDateRange({ start_date: from, end_date: to })
@@ -1182,16 +1182,19 @@ export default function CollectorPerformance() {
   const selectedCollection = collectionRows.find(collector => collector.id === selectedCollectionId)
   const selectedSummary = selectedCollection ? getCollectorCollectionTotals(selectedCollection.rows) : null
   const selectedLatestRow = selectedCollection?.rows.find(row => row.date === filters.date_to) || selectedCollection?.rows[selectedCollection?.rows.length - 1]
-  const selectedMondayRow = selectedCollection?.rows.find(row => row.date === getOperationWeek(filters.date_to)[0]) || selectedCollection?.rows[0]
+  const selectedStartRow = selectedCollection?.rows[0]
   const selectedEdit = selectedCollection ? collectorEdits[selectedCollection.id] || {} : {}
   const selectedActiveTarget = 100
   const selectedNewClients = selectedCollection?.rows.reduce((sum, row) => sum + Number(row.newClients || 0), 0) || 0
   const selectedNewClientPrincipal = selectedCollection?.rows.reduce((sum, row) => sum + Number(row.newClientPrincipal || 0), 0) || 0
   const selectedReturnClients = Number(selectedEdit.returnClients ?? 0)
   const selectedReconClients = Number(selectedEdit.reconClients ?? selectedCollection?.rows.reduce((sum, row) => sum + Number(row.reconClients || 0), 0) ?? 0)
-  const selectedBeginningActive = selectedMondayRow
-    ? Number(selectedMondayRow.activeClients || 0) + Number(selectedMondayRow.overdueClients || 0)
+  const startBeginningActive = selectedStartRow
+    ? Number(selectedStartRow.activeClients || 0) + Number(selectedStartRow.overdueClients || 0)
     : 0
+  const selectedBeginningActive = selectedEdit.beginningActive !== undefined && selectedEdit.beginningActive !== ''
+    ? Number(selectedEdit.beginningActive)
+    : startBeginningActive
   const selectedEndingBalance = Math.max(0, selectedBeginningActive - selectedReconClients)
   const performanceWeekDates = getOperationWeek(lockedCollections?.dateTo || filters.date_to)
   const isValidRatingRange = Boolean(ratingDateRange.start_date && ratingDateRange.end_date && ratingDateRange.end_date >= ratingDateRange.start_date)
@@ -2404,7 +2407,7 @@ export default function CollectorPerformance() {
                     <div className="forty-five-presets-label">Official Company Periods (Quick Select):</div>
                     <div className="forty-five-presets">
                       {COMPANY_PERIOD_PRESETS.map(preset => {
-                        const currentYear = dayjs().year()
+                        const currentYear = new Date().getFullYear()
                         const pStart = `${currentYear}${preset.start}`
                         const pEnd = `${currentYear}${preset.end}`
                         const isSelected = ratingDateRange.start_date === pStart && ratingDateRange.end_date === pEnd
