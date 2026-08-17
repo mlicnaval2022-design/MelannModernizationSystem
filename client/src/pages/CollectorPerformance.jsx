@@ -1226,7 +1226,7 @@ export default function CollectorPerformance() {
   const selectedBeginningActive = selectedEdit.beginningActive !== undefined && selectedEdit.beginningActive !== ''
     ? Number(selectedEdit.beginningActive)
     : startBeginningActive
-  const selectedEndingBalance = Math.max(0, selectedBeginningActive - selectedReconClients)
+  const selectedEndingBalance = Math.max(0, selectedBeginningActive + selectedNewClients + selectedReturnClients - selectedReconClients)
   const performanceWeekDates = getOperationWeek(lockedCollections?.dateTo || filters.date_to)
   const isValidRatingRange = Boolean(ratingDateRange.start_date && ratingDateRange.end_date && ratingDateRange.end_date >= ratingDateRange.start_date)
 
