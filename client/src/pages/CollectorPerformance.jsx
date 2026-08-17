@@ -2570,6 +2570,7 @@ export default function CollectorPerformance() {
                     <div className="forty-five-card forty-five-evaluation">
                       <div className="forty-five-content-tabs" role="tablist" aria-label="45-day performance view">
                         <button type="button" className={ratingContentTab === 'evaluation' ? 'active' : ''} onClick={() => setRatingContentTab('evaluation')}>Evaluation</button>
+                        <button type="button" className={ratingContentTab === 'expense-share' ? 'active' : ''} onClick={() => setRatingContentTab('expense-share')}>Expense Share</button>
                         <button type="button" className={ratingContentTab === 'ranking' ? 'active' : ''} onClick={() => setRatingContentTab('ranking')}>Ranking</button>
                         <button type="button" className={ratingContentTab === 'print-report' ? 'active' : ''} onClick={() => setRatingContentTab('print-report')}>Print Report</button>
                       </div>
@@ -2583,9 +2584,6 @@ export default function CollectorPerformance() {
                               </div>
                             </div>
                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                              {canManageManualExpenses && <button className="btn btn-secondary" type="button" onClick={openManualExpenseModal} disabled={fortyFiveDayLoading}>
-                                <Plus size={16} /> Manual Expense
-                              </button>}
                               <button className="btn btn-secondary" type="button" onClick={refreshRatingPeriod} disabled={fortyFiveDayLoading}>
                                 <RefreshCw size={16} /> Refresh automated totals
                               </button>
@@ -2599,29 +2597,26 @@ export default function CollectorPerformance() {
                             ))}
                           </div>
                           <div className="forty-five-info" style={{ lineHeight: 1.5, marginBottom: 12 }}>
-                            Collection is summed for Torreta, Domingono, Caballes, Jugar, Rosal, and Laude only. Recon releases are excluded. User-entered DCR expenses, excluding Short/Overages, are divided equally among these six collectors. Manual expenses are display-only and are excluded from the 45-day grade. Reported Pastdue is display-only and is not included in the formula.
+                            Collection is summed for Torreta, Domingono, Caballes, Jugar, Rosal, and Laude only. Recon releases are excluded. Expense Share is taken only from the saved entries in the Expense Share tab and divided equally among the collectors in this 45-day evaluation. Reported Pastdue is display-only and is not included in the formula.
                             {selectedRatingPeriod.period.reported_pastdue_period && <> Reported Pastdue period: {displayDate(selectedRatingPeriod.period.reported_pastdue_period.start_date)} to {displayDate(selectedRatingPeriod.period.reported_pastdue_period.end_date)}.</>}
-                          </div>
-                          <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, padding: '12px 16px', background: '#f8fafc', alignItems: 'center' }}>
-                              <div><strong style={{ color: '#0c2348' }}>Manual Expenses</strong><div style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>Recorded for this period; excluded from performance grading.</div></div>
-                              <strong style={{ color: '#c2410c' }}>PHP {fmt(manualExpensesTotal)}</strong>
-                            </div>
-                            <div style={{ overflowX: 'auto' }}>
-                              <table className="data-table" style={{ margin: 0, minWidth: 680 }}>
-                                <thead><tr><th>Date</th><th>Category</th><th>Description</th><th style={{ textAlign: 'right' }}>Amount (PHP)</th>{canManageManualExpenses && <th />}</tr></thead>
-                                <tbody>{manualExpenses.length ? manualExpenses.map(expense => <tr key={expense.id}>
-                                  <td>{displayDate(expense.expense_date)}</td><td style={{ fontWeight: 700 }}>{expense.category}</td><td>{expense.description || '—'}</td><td style={{ textAlign: 'right', color: '#c2410c', fontWeight: 800 }}>PHP {fmt(expense.amount)}</td>
-                                  {canManageManualExpenses && <td style={{ textAlign: 'center' }}><button className="btn btn-secondary btn-sm" type="button" onClick={() => deleteManualExpense(expense.id)} title="Delete manual expense"><Trash2 size={14} /></button></td>}
-                                </tr>) : <tr><td colSpan={canManageManualExpenses ? 5 : 4} style={{ textAlign: 'center', color: '#64748b', padding: 16 }}>No manual expenses recorded for this period.</td></tr>}</tbody>
-                              </table>
-                            </div>
                           </div>
                           {ratingEvaluationTab === 'collector' && <FortyFiveEvaluationTable entityLabel="Collector" rows={selectedRatingPeriod.evaluations} />}
                           {ratingEvaluationTab === 'supervisor' && <FortyFiveEvaluationTable entityLabel="Supervisor" rows={selectedRatingPeriod.supervisor_evaluations || []} childRows={row => row.collector_results?.length ? row.collector_results : selectedRatingPeriod.evaluations.filter(evaluation => (String(evaluation.supervisor || '').trim() || 'Unassigned Supervisor') === row.name)} childEntityLabel="Collector" onOpenChildren={setRatingHierarchyModal} />}
                           {ratingEvaluationTab === 'branch-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.branch_manager_evaluations || []} childRows={row => row.supervisor_results?.length ? row.supervisor_results : (selectedRatingPeriod.supervisor_evaluations || []).filter(supervisor => (row.supervisors || []).includes(supervisor.name))} childEntityLabel="Supervisor" onOpenChildren={setRatingHierarchyModal} />}
                           {ratingEvaluationTab === 'operations-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.operations_manager_evaluation?.branch_results || []} childRows={row => row.supervisor_results} childEntityLabel="Supervisor" onOpenChildren={setRatingHierarchyModal} footerRow={selectedRatingPeriod.operations_manager_evaluation} />}
                         </>
+                      ) : ratingContentTab === 'expense-share' ? (
+                        <div style={{ padding: 20 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
+                            <div><div className="forty-five-section-title"><FileText size={19} /> Expense Share</div><div style={{ color: '#64748b', fontSize: 13, marginTop: 6 }}>Saved expense total is divided equally among {selectedRatingPeriod.evaluations.length} collector{selectedRatingPeriod.evaluations.length === 1 ? '' : 's'} in this 45-day evaluation.</div></div>
+                            {canManageManualExpenses && <button className="btn btn-primary" type="button" onClick={openManualExpenseModal}><Plus size={16} /> Input Expense</button>}
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14, marginBottom: 18 }}>
+                            <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, padding: 16, background: '#f8fafc' }}><div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Saved Expenses</div><strong style={{ display: 'block', marginTop: 5, color: '#c2410c', fontSize: 22 }}>PHP {fmt(manualExpensesTotal)}</strong></div>
+                            <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, padding: 16, background: '#f8fafc' }}><div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Expense Share per Collector</div><strong style={{ display: 'block', marginTop: 5, color: '#6d28d9', fontSize: 22 }}>PHP {fmt(selectedRatingPeriod.evaluations.length ? manualExpensesTotal / selectedRatingPeriod.evaluations.length : 0)}</strong></div>
+                          </div>
+                          <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, overflow: 'hidden' }}><div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 680 }}><thead><tr><th>Date</th><th>Category</th><th>Description</th><th style={{ textAlign: 'right' }}>Amount (PHP)</th>{canManageManualExpenses && <th />}</tr></thead><tbody>{manualExpenses.length ? manualExpenses.map(expense => <tr key={expense.id}><td>{displayDate(expense.expense_date)}</td><td style={{ fontWeight: 700 }}>{expense.category}</td><td>{expense.description || '—'}</td><td style={{ textAlign: 'right', color: '#c2410c', fontWeight: 800 }}>PHP {fmt(expense.amount)}</td>{canManageManualExpenses && <td style={{ textAlign: 'center' }}><button className="btn btn-secondary btn-sm" type="button" onClick={() => deleteManualExpense(expense.id)} title="Delete expense"><Trash2 size={14} /></button></td>}</tr>) : <tr><td colSpan={canManageManualExpenses ? 5 : 4} style={{ textAlign: 'center', color: '#64748b', padding: 22 }}>No saved expenses. Expense Share is PHP 0.00.</td></tr>}</tbody></table></div></div>
+                        </div>
                       ) : ratingContentTab === 'ranking' ? (
                         <FortyFiveRanking period={selectedRatingPeriod.period} collectors={selectedRatingPeriod.evaluations} supervisors={selectedRatingPeriod.supervisor_evaluations || []} />
                       ) : (
@@ -2710,7 +2705,7 @@ export default function CollectorPerformance() {
       {showManualExpenseModal && selectedRatingPeriod && <div className="forty-five-modal-backdrop" onMouseDown={event => event.target === event.currentTarget && setShowManualExpenseModal(false)}>
         <form className="forty-five-modal" onSubmit={saveManualExpense} style={{ maxWidth: 560 }}>
           <header className="forty-five-modal-header">
-            <div><span className="forty-five-modal-eyebrow">Display-only</span><h3>Manual Expense</h3><p>Excluded from the 45-day performance grade.</p></div>
+            <div><span className="forty-five-modal-eyebrow">Expense Share</span><h3>Input Expense</h3><p>Saved total is divided equally among this period's collectors.</p></div>
             <button type="button" className="forty-five-modal-close" onClick={() => setShowManualExpenseModal(false)} aria-label="Close manual expense form"><X size={19} /></button>
           </header>
           <div style={{ display: 'grid', gap: 16, padding: 20 }}>
@@ -2718,7 +2713,7 @@ export default function CollectorPerformance() {
             <label className="form-group"><span className="form-label">Category</span><select className="form-control" required value={manualExpenseForm.category} onChange={event => setManualExpenseForm(current => ({ ...current, category: event.target.value }))}><option value="">Select expense category</option>{MANUAL_EXPENSE_CATEGORIES.map(([group, categories]) => <optgroup key={group} label={group}>{categories.map(category => <option key={`${group}-${category}`} value={`${group} — ${category}`}>{category}</option>)}</optgroup>)}</select></label>
             <label className="form-group"><span className="form-label">Amount</span><input className="form-control" type="number" required min="0.01" step="0.01" placeholder="0.00" value={manualExpenseForm.amount} onChange={event => setManualExpenseForm(current => ({ ...current, amount: event.target.value }))} /></label>
             <label className="form-group"><span className="form-label">Description / Particulars <small>(optional)</small></span><textarea className="form-control" rows="3" maxLength="500" value={manualExpenseForm.description} onChange={event => setManualExpenseForm(current => ({ ...current, description: event.target.value }))} /></label>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}><button className="btn btn-secondary" type="button" onClick={() => setShowManualExpenseModal(false)}>Cancel</button><button className="btn btn-primary" type="submit" disabled={manualExpenseSaving}>{manualExpenseSaving ? 'Saving...' : 'Save Manual Expense'}</button></div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}><button className="btn btn-secondary" type="button" onClick={() => setShowManualExpenseModal(false)}>Cancel</button><button className="btn btn-primary" type="submit" disabled={manualExpenseSaving}>{manualExpenseSaving ? 'Saving...' : 'Save Changes'}</button></div>
           </div>
         </form>
       </div>}

@@ -94,7 +94,7 @@ test('forty-five-day-rating calculate returns on-the-fly evaluations for date ra
   assert.ok(data.operations_manager_evaluation);
 });
 
-test('manual expenses stay within the selected period and do not change the 45-day grade', async () => {
+test('manual expenses are divided among collectors and only accepted inside the selected period', async () => {
   const beforeResponse = await api('/forty-five-day-rating/calculate?start_date=2026-07-01&end_date=2026-08-15');
   const before = await beforeResponse.json();
   const beforeTorreta = before.evaluations.find(e => e.collector_name.includes('Torreta'));
@@ -121,8 +121,9 @@ test('manual expenses stay within the selected period and do not change the 45-d
   const afterResponse = await api('/forty-five-day-rating/calculate?start_date=2026-07-01&end_date=2026-08-15');
   const after = await afterResponse.json();
   const afterTorreta = after.evaluations.find(e => e.collector_name.includes('Torreta'));
-  assert.equal(afterTorreta.expense_total, beforeTorreta.expense_total);
-  assert.equal(afterTorreta.accomplishment_percentage, beforeTorreta.accomplishment_percentage);
+  assert.equal(beforeTorreta.expense_total, 0);
+  assert.equal(afterTorreta.expense_total, 1250.5);
+  assert.notEqual(afterTorreta.accomplishment_percentage, beforeTorreta.accomplishment_percentage);
 
   const outsidePeriodResponse = await api('/forty-five-day-rating/manual-expenses', {
     method: 'POST',

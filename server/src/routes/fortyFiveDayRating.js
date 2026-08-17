@@ -153,6 +153,16 @@ async function getActualCollectionTotal(collectorId, startDate, endDate) {
   return asAmount(paymentRow?.total);
 }
 
+async function getManualExpenseTotal(branchId, startDate, endDate) {
+  const branch = getBranchFilter(branchId, 'branch_id');
+  const total = await dbGet(`
+    SELECT COALESCE(SUM(amount), 0) AS total
+    FROM tblFortyFiveDayManualExpense
+    WHERE date(expense_date) BETWEEN date(?) AND date(?)${branch.sql}
+  `, [startDate, endDate, ...branch.params]);
+  return asAmount(total?.total);
+}
+
 async function computeEvaluations({ branch_id, start_date, end_date }) {
   const start = dayjs(start_date).format('YYYY-MM-DD');
   const end = dayjs(end_date).format('YYYY-MM-DD');
@@ -166,20 +176,10 @@ async function computeEvaluations({ branch_id, start_date, end_date }) {
       AND LOWER(TRIM(co.last_name)) IN (${ratedCollectorLastNames.map(() => '?').join(', ')})${collectorBranch.sql}
     ORDER BY co.last_name, co.first_name
   `, [...ratedCollectorLastNames, ...collectorBranch.params]);
-  const expenseBranchSql = branch_id
-    ? ` AND (t.branch_id = ? OR t.branch_id = '' OR t.branch_id IS NULL)`
-    : '';
-  const expenseBranchParams = branch_id ? [branch_id] : [];
-  const expenseRow = await dbGet(`
-    SELECT COALESCE(SUM(t.amount), 0) AS total
-    FROM tblTransaction t
-    WHERE date(t.transaction_date) BETWEEN date(?) AND date(?)
-      AND t.status = 'active'
-      AND LOWER(COALESCE(t.transaction_type, 'expense')) = 'expense'
-      AND LOWER(TRIM(COALESCE(t.category, ''))) NOT IN ('short overage', 'short/overage', 'shortage', 'overage')
-      AND LOWER(TRIM(COALESCE(t.description, ''))) NOT IN ('short overage', 'short/overage', 'shortage', 'overage')${expenseBranchSql}
-  `, [start, end, ...expenseBranchParams]);
-  const expenseShare = collectors.length ? asAmount(expenseRow?.total) / collectors.length : 0;
+  // Expense Share is controlled from the 45-Day Performance Expense Share tab.
+  // This prevents unrelated DCR expenses from affecting collector ratings.
+  const manualExpenseTotal = await getManualExpenseTotal(branch_id, start, end);
+  const expenseShare = collectors.length ? manualExpenseTotal / collectors.length : 0;
   const previousPeriod = getPreviousCompanyPeriod(start);
   const reportedPastdueByCollector = new Map();
   if (previousPeriod) {
