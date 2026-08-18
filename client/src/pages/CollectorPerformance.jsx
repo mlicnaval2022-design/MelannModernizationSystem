@@ -2692,7 +2692,7 @@ export default function CollectorPerformance() {
                                       </button>
                                     </td>
                                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}><strong style={{ color: group.total ? '#c2410c' : '#64748b' }}>PHP {fmt(group.total)}</strong></td>
-                                    <td><span style={{ color: group.expenses.length ? '#0f766e' : '#94a3b8', fontSize: 12, fontWeight: 800, padding: '5px 8px', borderRadius: 5, background: group.expenses.length ? '#ecfdf5' : 'transparent' }}>{group.expenses.length} {group.expenses.length === 1 ? 'item' : 'items'}</span></td>
+                                    <td><button type="button" onClick={() => setExpandedExpenseDates(current => ({ ...current, [group.date]: !current[group.date] }))} aria-expanded={isExpanded} disabled={!group.expenses.length} style={{ color: group.expenses.length ? '#0f766e' : '#94a3b8', fontSize: 12, fontWeight: 800, padding: '5px 8px', border: 0, borderRadius: 5, background: group.expenses.length ? '#ecfdf5' : 'transparent', cursor: group.expenses.length ? 'pointer' : 'default' }}>{group.expenses.length} {group.expenses.length === 1 ? 'item' : 'items'}</button></td>
                                     <td>{canManageManualExpenses && <button className="btn btn-secondary btn-sm" type="button" onClick={() => openManualExpenseModal(group.date)}><Plus size={14} /> Add Expense</button>}</td>
                                   </tr>
                                   {isExpanded && <tr><td colSpan={4} style={{ padding: '0 16px 16px', background: '#f8fffd' }}>
