@@ -1116,7 +1116,11 @@ export default function CollectorPerformance() {
         API.get('/forty-five-day-rating/calculate', { params: { start_date: from, end_date: to } }),
         API.get('/forty-five-day-rating/manual-expenses', { params: { start_date: from, end_date: to } })
       ])
-      setSelectedRatingPeriod(response.data)
+      const lockedPeriodId = isFinalRatingStatus(response.data?.period?.status) && response.data?.period?.id
+      const ratingPeriodData = lockedPeriodId
+        ? (await API.get(`/forty-five-day-rating/periods/${lockedPeriodId}`)).data
+        : response.data
+      setSelectedRatingPeriod(ratingPeriodData)
       setManualExpenses(manualExpenseResponse.data.expenses || [])
       setExpenseCellDrafts({})
       setRatingHierarchyModal(null)
@@ -2922,12 +2926,18 @@ export default function CollectorPerformance() {
 
                   {!fortyFiveDayLoading && selectedRatingPeriod && (
                     <div className="forty-five-card forty-five-evaluation">
-                      <div className="forty-five-content-tabs" role="tablist" aria-label="45-day performance view">
-                        <button type="button" className={ratingContentTab === 'evaluation' ? 'active' : ''} onClick={() => setRatingContentTab('evaluation')}>Evaluation</button>
-                        <button type="button" className={ratingContentTab === 'expense-share' ? 'active' : ''} onClick={() => setRatingContentTab('expense-share')}>Expense Share</button>
-                        <button type="button" className={ratingContentTab === 'ranking' ? 'active' : ''} onClick={() => setRatingContentTab('ranking')}>Ranking</button>
-                        <button type="button" className={ratingContentTab === 'print-report' ? 'active' : ''} onClick={() => setRatingContentTab('print-report')}>Print Report</button>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap', marginBottom: 12 }}>
+                        <div className="forty-five-content-tabs" role="tablist" aria-label="45-day performance view" style={{ marginBottom: 0 }}>
+                          <button type="button" className={ratingContentTab === 'evaluation' ? 'active' : ''} onClick={() => setRatingContentTab('evaluation')}>Evaluation</button>
+                          <button type="button" className={ratingContentTab === 'expense-share' ? 'active' : ''} onClick={() => setRatingContentTab('expense-share')}>Expense Share</button>
+                          <button type="button" className={ratingContentTab === 'ranking' ? 'active' : ''} onClick={() => setRatingContentTab('ranking')}>Ranking</button>
+                          <button type="button" className={ratingContentTab === 'print-report' ? 'active' : ''} onClick={() => setRatingContentTab('print-report')}>Print Report</button>
+                        </div>
+                        <button className={`btn ${isRatingPeriodLocked ? 'btn-success' : 'btn-secondary'}`} type="button" onClick={isRatingPeriodLocked ? unlockRatingPeriod : lockRatingPeriod} disabled={fortyFiveDayLoading || !canManageRatingLock} title={!canManageRatingLock ? 'Only administrators can finalize or unlock a 45-day period.' : undefined}>
+                          {isRatingPeriodLocked ? <Unlock size={16} /> : <Lock size={16} />} {isRatingPeriodLocked ? 'Unlock Period' : 'Finalize / Lock Period'}
+                        </button>
                       </div>
+                      {isRatingPeriodLocked && ratingContentTab !== 'print-report' && <div className="forty-five-info" style={{ marginBottom: 12 }}><Lock size={15} style={{ verticalAlign: 'text-bottom', marginRight: 7 }} /> This 45-day period is finalized/locked. Evaluation, ranking, and expense share are view-only until unlocked.</div>}
                       {ratingContentTab === 'evaluation' ? (
                         <>
                           <div className="forty-five-eval-header">
@@ -2938,7 +2948,7 @@ export default function CollectorPerformance() {
                               </div>
                             </div>
                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                              <button className="btn btn-secondary" type="button" onClick={refreshRatingPeriod} disabled={fortyFiveDayLoading}>
+                              <button className="btn btn-secondary" type="button" onClick={refreshRatingPeriod} disabled={fortyFiveDayLoading || isRatingPeriodLocked}>
                                 <RefreshCw size={16} /> Refresh automated totals
                               </button>
                             </div>
@@ -2963,7 +2973,7 @@ export default function CollectorPerformance() {
                         <div className="expense-share-panel" style={{ padding: 20 }}>
                           <div className="expense-share-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
                             <div><div className="forty-five-section-title"><FileText size={19} /> Expense Share</div><div style={{ color: '#64748b', fontSize: 13, marginTop: 6 }}>Office expenses are divided equally among {selectedRatingPeriod.evaluations.length} collector{selectedRatingPeriod.evaluations.length === 1 ? '' : 's'} in this 45-day evaluation. Misc expenses are shown for reference only.</div></div>
-                            {canManageManualExpenses && <button type="button" className="btn btn-primary" disabled={!pendingExpenseCellCount || expenseCellsSaving} onClick={saveExpenseCellDrafts}>
+                            {canEditRatingPeriod && <button type="button" className="btn btn-primary" disabled={!pendingExpenseCellCount || expenseCellsSaving} onClick={saveExpenseCellDrafts}>
                               <Save size={16} /> {expenseCellsSaving ? 'Saving...' : pendingExpenseCellCount ? `Save changes (${pendingExpenseCellCount})` : 'Save changes'}
                             </button>}
                           </div>
@@ -2998,17 +3008,17 @@ export default function CollectorPerformance() {
                                       ...expenseGroup.categories.map(category => {
                                         const categoryName = `${expenseGroup.source} — ${category}`
                                         const cellKey = `${group.date}:${categoryName}`
-                                        return <ExpenseShareGridCell key={`${expenseGroup.key}:${category}`} initialValue={group.categoryTotals[`${expenseGroup.key}:${category}`]} value={expenseCellDrafts[cellKey]?.value} readOnly={!canManageManualExpenses} saving={expenseCellsSaving} onChange={value => setExpenseCellDraft(group.date, categoryName, value, group.categoryTotals[`${expenseGroup.key}:${category}`])} />
+                                        return <ExpenseShareGridCell key={`${expenseGroup.key}:${category}`} initialValue={group.categoryTotals[`${expenseGroup.key}:${category}`]} value={expenseCellDrafts[cellKey]?.value} readOnly={!canEditRatingPeriod} saving={expenseCellsSaving} onChange={value => setExpenseCellDraft(group.date, categoryName, value, group.categoryTotals[`${expenseGroup.key}:${category}`])} />
                                       }),
                                       <td key={`${expenseGroup.key}:total`} className={`expense-tabulation-amount expense-tabulation-total ${expenseGroup.section}`}>PHP {fmt(group.totals[expenseGroup.key])}</td>
                                     ])}
                                   </tr>
                                   {isExpanded && <tr><td colSpan={EXPENSE_TABULATION_COLUMN_COUNT} style={{ padding: '0 16px 16px', background: '#f8fffd' }}>
                                     <div style={{ display: 'grid', gap: 8, paddingTop: 10 }}>
-                                      {group.expenses.length ? group.expenses.map(expense => <div key={expense.id} style={{ display: 'grid', gridTemplateColumns: canManageManualExpenses ? 'minmax(0, 1fr) minmax(120px, auto) auto' : 'minmax(0, 1fr) minmax(120px, auto)', alignItems: 'center', gap: 14, padding: '12px 14px', border: '1px solid #d9eee9', borderRadius: 8, background: '#fff' }}>
+                                      {group.expenses.length ? group.expenses.map(expense => <div key={expense.id} style={{ display: 'grid', gridTemplateColumns: canEditRatingPeriod ? 'minmax(0, 1fr) minmax(120px, auto) auto' : 'minmax(0, 1fr) minmax(120px, auto)', alignItems: 'center', gap: 14, padding: '12px 14px', border: '1px solid #d9eee9', borderRadius: 8, background: '#fff' }}>
                                         <div><div style={{ color: '#0f766e', fontSize: 11, fontWeight: 900, textTransform: 'uppercase' }}>{EXPENSE_TABULATION_GROUPS.find(item => item.key === tabulationGroupForExpense(expense.category))?.label}</div><div style={{ marginTop: 3, color: '#263b57', fontSize: 13, fontWeight: 800 }}>{expense.category}</div>{expense.description && <div style={{ marginTop: 4, color: '#64748b', fontSize: 12 }}>{expense.description}</div>}</div>
                                         <strong style={{ color: '#c2410c', textAlign: 'right', whiteSpace: 'nowrap' }}>PHP {fmt(expense.amount)}</strong>
-                                        {canManageManualExpenses && <div style={{ display: 'flex', gap: 6 }}>
+                                        {canEditRatingPeriod && <div style={{ display: 'flex', gap: 6 }}>
                                           <button className="btn btn-secondary btn-sm" type="button" onClick={() => openManualExpenseEditor(expense)} title="Edit expense"><Edit3 size={14} /></button>
                                           <button className="btn btn-secondary btn-sm" type="button" onClick={() => requestManualExpenseDeletion(expense)} title="Delete expense"><Trash2 size={14} /></button>
                                         </div>}
