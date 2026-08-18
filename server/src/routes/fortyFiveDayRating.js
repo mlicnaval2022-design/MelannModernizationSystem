@@ -16,10 +16,13 @@ const companyPeriods = [
   ['10-01', '11-15'],
   ['11-16', '12-31']
 ];
-const performanceExcludedExpensePrefixes = [
-  "president's expenses",
-  "evp's expenses",
-  'miscellaneous expense'
+const performanceOfficeExpensePrefixes = [
+  'government dues',
+  'transportation expenses',
+  'mlic bills payments',
+  'employees benefits / incentives',
+  'office expenses',
+  'loans payable'
 ];
 
 const asAmount = value => Number(value || 0);
@@ -176,19 +179,19 @@ async function getActualCollectionTotal(collectorId, startDate, endDate) {
 
 async function getManualExpenseTotal(branchId, startDate, endDate) {
   const branch = getBranchFilter(branchId, 'branch_id');
-  const excludedExpenseSql = performanceExcludedExpensePrefixes
-    .map(() => "LOWER(COALESCE(category, '')) NOT LIKE ?")
-    .join(' AND ');
+  const officeExpenseSql = performanceOfficeExpensePrefixes
+    .map(() => "LOWER(COALESCE(category, '')) LIKE ?")
+    .join(' OR ');
   const total = await dbGet(`
     SELECT COALESCE(SUM(amount), 0) AS total
     FROM tblFortyFiveDayManualExpense
     WHERE date(expense_date) BETWEEN date(?) AND date(?)${branch.sql}
-      AND ${excludedExpenseSql}
+      AND (${officeExpenseSql})
   `, [
     startDate,
     endDate,
     ...branch.params,
-    ...performanceExcludedExpensePrefixes.map(prefix => `${prefix}%`)
+    ...performanceOfficeExpensePrefixes.map(prefix => `${prefix}%`)
   ]);
   return asAmount(total?.total);
 }
