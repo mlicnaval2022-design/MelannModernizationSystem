@@ -1533,6 +1533,8 @@ export default function CollectorPerformance() {
         .forty-five-content-tabs { display: inline-flex; gap: 4px; margin-bottom: 16px; padding: 4px; border: 1px solid #dbe4f0; border-radius: 9px; background: #eef3f8; }
         .forty-five-content-tabs button { min-width: 128px; padding: 9px 16px; border: 0; border-radius: 6px; color: #51657a; background: transparent; font-size: 12px; font-weight: 900; cursor: pointer; }
         .forty-five-content-tabs button.active { color: #fff; background: #2355dc; box-shadow: 0 4px 12px rgba(35,85,220,.22); }
+        .expense-share-table-wrap { overflow: visible; }
+        .expense-share-table thead th { position: sticky; top: 0; z-index: 5; background: #f8fafc; box-shadow: 0 1px 0 #dbe4f0, 0 5px 10px rgba(15, 23, 42, .06); }
         .ranking-dashboard { color: #102448; }
         .ranking-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding: 6px 0 14px; }
         .ranking-header h3 { margin: 0; color: #102448; font-size: 21px; font-weight: 950; }
@@ -2674,8 +2676,8 @@ export default function CollectorPerformance() {
                             <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, padding: 16, background: '#f8fafc' }}><div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Saved Expenses</div><strong style={{ display: 'block', marginTop: 5, color: '#c2410c', fontSize: 22 }}>PHP {fmt(manualExpensesTotal)}</strong></div>
                             <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, padding: 16, background: '#f8fafc' }}><div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Expense Share per Collector</div><strong style={{ display: 'block', marginTop: 5, color: '#6d28d9', fontSize: 22 }}>PHP {fmt(selectedRatingPeriod.evaluations.length ? manualExpensesTotal / selectedRatingPeriod.evaluations.length : 0)}</strong></div>
                           </div>
-                          <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, overflow: 'hidden' }}>
-                            <table className="data-table" style={{ margin: 0, width: '100%' }}>
+                          <div className="expense-share-table-wrap" style={{ border: '1px solid #dbe4f0', borderRadius: 10 }}>
+                            <table className="data-table expense-share-table" style={{ margin: 0, width: '100%' }}>
                               <thead><tr><th>Date</th><th style={{ textAlign: 'right' }}>Total Amount (PHP)</th><th>Breakdown Items</th><th>Action</th></tr></thead>
                               <tbody>{manualExpenseGroups.length ? manualExpenseGroups.map(group => {
                                 const isExpanded = Boolean(expandedExpenseDates[group.date])
