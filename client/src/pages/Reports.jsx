@@ -683,7 +683,7 @@ export default function Reports() {
   const [expenseMatrix, setExpenseMatrix] = useState(null)
   const [activeCollectorSheetId, setActiveCollectorSheetId] = useState(null)
   const [expenseCategoryFilterOpen, setExpenseCategoryFilterOpen] = useState(false)
-  const [selectedExpenseCategories, setSelectedExpenseCategories] = useState([])
+  const [selectedExpenseCategories, setSelectedExpenseCategories] = useState(null)
   const [selectedExpenseEmployee, setSelectedExpenseEmployee] = useState(null)
   const [expensesLoading, setExpensesLoading] = useState(false)
   const [expenseForm, setExpenseForm] = useState({ id: '', personnel_id: '', expense_date: toDateInputValue(new Date()), category: '', description: '', amount: '', remarks: '' })
@@ -880,7 +880,7 @@ export default function Reports() {
           return matrixData.sheets[0].personnel_id
         })
       }
-      setSelectedExpenseCategories((nextSummary?.by_category || []).map(row => row.category))
+      setSelectedExpenseCategories(null)
       setExpenseCategoryFilterOpen(false)
       setData(nextSummary || { ready: true })
     } catch (err) {
@@ -2200,9 +2200,12 @@ export default function Reports() {
       const summary = expenseSummary || {}
       const byEmployee = summary.by_employee || []
       const byCategory = summary.by_category || []
-      const filteredByCategory = byCategory.filter(row => selectedExpenseCategories.includes(row.category))
+      const isAllSelected = selectedExpenseCategories === null || (byCategory.length > 0 && selectedExpenseCategories.length === byCategory.length)
+      const filteredByCategory = selectedExpenseCategories === null
+        ? byCategory
+        : byCategory.filter(row => selectedExpenseCategories.includes(row.category))
       const filteredCategoryTotal = filteredByCategory.reduce((sum, row) => sum + Number(row.total_amount || 0), 0)
-      const allExpenseCategoriesSelected = byCategory.length > 0 && filteredByCategory.length === byCategory.length
+      const allExpenseCategoriesSelected = isAllSelected
       const netIncomeByCollector = summary.net_income_by_collector || []
       const activePersonnel = expensePersonnel.filter(p => p.status === 'active')
       const activeCategories = expenseCategories.filter(category => category.status === 'active')
@@ -2273,15 +2276,29 @@ export default function Reports() {
                   {expenseCategoryFilterOpen && (
                     <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 30, width: 250, maxHeight: 320, overflowY: 'auto', background: '#fff', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 14px 30px rgba(15, 23, 42, 0.16)', padding: 8 }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 9px', borderBottom: '1px solid var(--border)', fontWeight: 700, cursor: 'pointer' }}>
-                        <input type="checkbox" checked={allExpenseCategoriesSelected} onChange={() => setSelectedExpenseCategories(allExpenseCategoriesSelected ? [] : byCategory.map(row => row.category))} />
+                        <input type="checkbox" checked={allExpenseCategoriesSelected} onChange={() => setSelectedExpenseCategories(allExpenseCategoriesSelected ? [] : null)} />
                         Select All
                       </label>
-                      {byCategory.map(row => (
-                        <label key={row.category} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 9, padding: '8px 9px', cursor: 'pointer' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}><input type="checkbox" checked={selectedExpenseCategories.includes(row.category)} onChange={() => setSelectedExpenseCategories(current => current.includes(row.category) ? current.filter(category => category !== row.category) : [...current, row.category])} />{row.category}</span>
-                          <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>PHP {fmtMoney(row.total_amount)}</span>
-                        </label>
-                      ))}
+                      {byCategory.map(row => {
+                        const isChecked = selectedExpenseCategories === null ? true : selectedExpenseCategories.includes(row.category)
+                        return (
+                          <label key={row.category} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 9, padding: '8px 9px', cursor: 'pointer' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {
+                                  const currentList = selectedExpenseCategories === null ? byCategory.map(r => r.category) : selectedExpenseCategories
+                                  const nextList = isChecked ? currentList.filter(c => c !== row.category) : [...currentList, row.category]
+                                  setSelectedExpenseCategories(nextList.length === byCategory.length ? null : nextList)
+                                }}
+                              />
+                              {row.category}
+                            </span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>PHP {fmtMoney(row.total_amount)}</span>
+                          </label>
+                        )
+                      })}
                       <button type="button" className="btn btn-primary btn-sm" style={{ width: '100%', marginTop: 6 }} onClick={() => setExpenseCategoryFilterOpen(false)}>Done</button>
                     </div>
                   )}
