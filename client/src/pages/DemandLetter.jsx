@@ -477,6 +477,10 @@ export default function DemandLetter() {
   const [demandUpdates, setDemandUpdates] = useState([])
   const [demandUpdateCount, setDemandUpdateCount] = useState(0)
   const [demandTodayCount, setDemandTodayCount] = useState(0)
+  const [demandDueCount, setDemandDueCount] = useState(0)
+  const [demandOverdueCount, setDemandOverdueCount] = useState(0)
+  const [demandPendingReceiptCount, setDemandPendingReceiptCount] = useState(0)
+  const [demandFilterTab, setDemandFilterTab] = useState('all')
   const [demandUpdatesLoading, setDemandUpdatesLoading] = useState(false)
   const [demandUpdatesError, setDemandUpdatesError] = useState('')
   const [savingRecord, setSavingRecord] = useState(false)
@@ -633,11 +637,17 @@ export default function DemandLetter() {
       setDemandUpdates(activeNotifications)
       setDemandUpdateCount(activeNotifications.length)
       const today = toDateInputValue(new Date())
-      setDemandTodayCount(activeNotifications.filter(row => {
+
+      const dueRows = activeNotifications.filter(row => {
         const status = getDemandStatus(row)
-        const relevantDate = ['Sent', 'Awaiting Receipt'].includes(status) ? row.date_sent : row.follow_up_date
-        return String(relevantDate || '').slice(0, 10) === today
-      }).length)
+        return status === 'Follow-up Due' || status === 'Urgent Action Require' || Boolean(row.date_received && row.follow_up_date && String(row.follow_up_date).slice(0, 10) <= today)
+      })
+      const pendingRows = activeNotifications.filter(row => !dueRows.includes(row))
+
+      setDemandDueCount(dueRows.length)
+      setDemandTodayCount(dueRows.filter(row => String(row.follow_up_date || '').slice(0, 10) === today).length)
+      setDemandOverdueCount(dueRows.filter(row => String(row.follow_up_date || '').slice(0, 10) < today).length)
+      setDemandPendingReceiptCount(pendingRows.length)
     } catch (err) {
       setDemandUpdatesError(err.response?.data?.error || 'Failed to load demand updates')
     } finally {
@@ -905,12 +915,30 @@ export default function DemandLetter() {
     }
   }
 
+  const filteredDemandUpdates = useMemo(() => {
+    const today = toDateInputValue(new Date())
+    if (demandFilterTab === 'due') {
+      return demandUpdates.filter(row => {
+        const status = getDemandStatus(row)
+        return status === 'Follow-up Due' || status === 'Urgent Action Require' || Boolean(row.date_received && row.follow_up_date && String(row.follow_up_date).slice(0, 10) <= today)
+      })
+    }
+    if (demandFilterTab === 'pending') {
+      return demandUpdates.filter(row => {
+        const status = getDemandStatus(row)
+        const isDue = status === 'Follow-up Due' || status === 'Urgent Action Require' || Boolean(row.date_received && row.follow_up_date && String(row.follow_up_date).slice(0, 10) <= today)
+        return !isDue
+      })
+    }
+    return demandUpdates
+  }, [demandUpdates, demandFilterTab])
+
   return (
     <div className="demand-letter-page">
       <div className="demand-module-tabs">
         <button className={activeTab === 'updates' ? 'active' : ''} onClick={() => setActiveTab('updates')}>
           Demand Update
-          {demandUpdateCount > 0 && <span className="demand-tab-badge">{demandTodayCount || demandUpdateCount}</span>}
+          {demandUpdateCount > 0 && <span className="demand-tab-badge">{demandDueCount > 0 ? demandDueCount : demandUpdateCount}</span>}
         </button>
         <button className={activeTab === 'generate' ? 'active' : ''} onClick={() => setActiveTab('generate')}>Generate Demand</button>
         <button className={activeTab === 'monitoring' ? 'active' : ''} onClick={() => setActiveTab('monitoring')}>Monitoring</button>
@@ -920,8 +948,8 @@ export default function DemandLetter() {
         <div className="card demand-update-card">
           <div className="card-header">
             <div>
-              <div className="card-title">Demand Update</div>
-              <div className="card-subtitle">Demand letters with follow-up due today or overdue</div>
+              <div className="card-title">Demand Update & Action Center</div>
+              <div className="card-subtitle">Track demand letters with follow-up due or pending receipt confirmation</div>
             </div>
             <button className="btn btn-secondary" onClick={loadDemandUpdates} disabled={demandUpdatesLoading}>
               <RefreshCw size={14} /> {demandUpdatesLoading ? 'Loading...' : 'Refresh'}
@@ -930,22 +958,86 @@ export default function DemandLetter() {
 
           {demandUpdatesError && <div className="login-error" style={{ marginBottom: 12 }}>{demandUpdatesError}</div>}
 
-          <div className="demand-update-summary">
-            <div className="summary-card-today">
-              <div className="summary-icon"><Bell size={20} color="#3b82f6" /></div>
+          <div className="demand-update-summary" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+            <div
+              className={`summary-card-due ${demandFilterTab === 'due' ? 'active-filter' : ''}`}
+              onClick={() => setDemandFilterTab(curr => curr === 'due' ? 'all' : 'due')}
+              style={{ cursor: 'pointer', border: demandFilterTab === 'due' ? '2px solid #ef4444' : '1px solid rgba(239,68,68,0.2)', background: 'linear-gradient(135deg, #fff 0%, #fff1f2 100%)' }}
+            >
+              <div className="summary-icon" style={{ background: '#fee2e2' }}><AlertTriangle size={20} color="#dc2626" /></div>
               <div className="summary-details">
-                <span>Notifications Today</span>
-                <strong>{demandTodayCount}</strong>
+                <span style={{ color: '#dc2626' }}>Follow-up Due</span>
+                <strong style={{ color: '#991b1b' }}>{demandDueCount}</strong>
+                <small style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                  {demandDueCount === 0 ? 'No due follow-ups' : `${demandTodayCount} Today • ${demandOverdueCount} Overdue`}
+                </small>
               </div>
             </div>
-            <div className="summary-card-total">
-              <div className="summary-icon"><Calendar size={20} color="#2563eb" /></div>
+
+            <div
+              className={`summary-card-pending ${demandFilterTab === 'pending' ? 'active-filter' : ''}`}
+              onClick={() => setDemandFilterTab(curr => curr === 'pending' ? 'all' : 'pending')}
+              style={{ cursor: 'pointer', border: demandFilterTab === 'pending' ? '2px solid #3b82f6' : '1px solid rgba(59,130,246,0.2)', background: 'linear-gradient(135deg, #fff 0%, #eff6ff 100%)' }}
+            >
+              <div className="summary-icon" style={{ background: '#dbeafe' }}><Send size={20} color="#2563eb" /></div>
               <div className="summary-details">
-                <span>Total Due Updates</span>
-                <strong>{demandUpdateCount}</strong>
+                <span style={{ color: '#2563eb' }}>Pending Receipt</span>
+                <strong style={{ color: '#1e40af' }}>{demandPendingReceiptCount}</strong>
+                <small style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                  Awaiting signed receipt
+                </small>
+              </div>
+            </div>
+
+            <div
+              className={`summary-card-total ${demandFilterTab === 'all' ? 'active-filter' : ''}`}
+              onClick={() => setDemandFilterTab('all')}
+              style={{ cursor: 'pointer', border: demandFilterTab === 'all' ? '2px solid #0f766e' : '1px solid rgba(15,118,110,0.2)', background: 'linear-gradient(135deg, #fff 0%, #f0fdfa 100%)' }}
+            >
+              <div className="summary-icon" style={{ background: '#ccfbf1' }}><Calendar size={20} color="#0f766e" /></div>
+              <div className="summary-details">
+                <span style={{ color: '#0f766e' }}>Total Updates</span>
+                <strong style={{ color: '#115e59' }}>{demandUpdateCount}</strong>
+                <small style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                  All actionable demands
+                </small>
               </div>
             </div>
           </div>
+
+          {/* Filter Tabs */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12, padding: '0 4px' }}>
+            <div style={{ display: 'inline-flex', gap: 6, background: '#f1f5f9', padding: 4, borderRadius: 8 }}>
+              <button
+                type="button"
+                className={`btn btn-sm ${demandFilterTab === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: 12, padding: '5px 14px', borderRadius: 6 }}
+                onClick={() => setDemandFilterTab('all')}
+              >
+                All Updates ({demandUpdateCount})
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${demandFilterTab === 'due' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: 12, padding: '5px 14px', borderRadius: 6, color: demandFilterTab === 'due' ? '#fff' : (demandDueCount > 0 ? '#dc2626' : undefined), fontWeight: demandDueCount > 0 ? 800 : undefined }}
+                onClick={() => setDemandFilterTab('due')}
+              >
+                Follow-up Due ({demandDueCount})
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${demandFilterTab === 'pending' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: 12, padding: '5px 14px', borderRadius: 6 }}
+                onClick={() => setDemandFilterTab('pending')}
+              >
+                Awaiting Receipt ({demandPendingReceiptCount})
+              </button>
+            </div>
+            <div style={{ fontSize: 12, color: '#64748b' }}>
+              Showing <strong>{filteredDemandUpdates.length}</strong> of <strong>{demandUpdateCount}</strong> record{demandUpdateCount !== 1 ? 's' : ''}
+            </div>
+          </div>
+
           <div className="table-wrapper">
             <table className="data-table demand-update-table">
               <thead>
@@ -962,38 +1054,58 @@ export default function DemandLetter() {
               <tbody>
                 {demandUpdatesLoading ? (
                   <tr className="loading-row"><td colSpan={7}>Loading demand updates...</td></tr>
-                ) : demandUpdates.length === 0 ? (
-                  <tr><td colSpan={7} className="empty-state">No demand letter follow-up notifications today.</td></tr>
-                ) : demandUpdates.map(row => (
-                  <tr key={row.id}>
-                    <td>{DEMAND_TYPES[row.demand_type]?.label || row.demand_type}</td>
-                    <td className="fw-600">{row.client_name}</td>
-                    <td>{row.collector_name || '-'}</td>
-                    <td>
-                      <span className="demand-update-date">
-                        {formatDateLong(row.follow_up_date || row.date_sent || row.date_generated)}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`demand-status-badge ${getStatusClassName(getDemandStatus(row))}`}>
-                        {getDemandStatus(row)}
-                      </span>
-                    </td>
-                    <td className="demand-next-action-cell">{getDemandNextAction(row)}</td>
-                    <td>
-                      <div className="demand-action-group">
-                        <button className="btn btn-secondary demand-received-btn" onClick={() => openReceivedModal(row)}>
-                          {getDemandStatus(row) === 'Awaiting Receipt' ? 'Receive' : 'Update'}
-                        </button>
-                        {getNextDemandType(row.demand_type) && !['Awaiting Receipt', 'Sent'].includes(getDemandStatus(row)) && (
-                          <button className="btn btn-primary demand-advance-btn" onClick={() => openProgressionModal(row)}>
-                            <ArrowRightCircle size={14} /> Advance
-                          </button>
-                        )}
-                      </div>
+                ) : filteredDemandUpdates.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="empty-state">
+                      {demandFilterTab === 'due'
+                        ? 'No demand letters currently due for follow-up.'
+                        : demandFilterTab === 'pending'
+                        ? 'No demand letters currently pending receipt confirmation.'
+                        : 'No demand letter follow-up notifications or pending updates.'}
                     </td>
                   </tr>
-                ))}
+                ) : filteredDemandUpdates.map(row => {
+                  const today = toDateInputValue(new Date())
+                  const status = getDemandStatus(row)
+                  const isDue = status === 'Follow-up Due' || status === 'Urgent Action Require' || Boolean(row.date_received && row.follow_up_date && String(row.follow_up_date).slice(0, 10) <= today)
+
+                  return (
+                    <tr key={row.id}>
+                      <td>{DEMAND_TYPES[row.demand_type]?.label || row.demand_type}</td>
+                      <td className="fw-600">{row.client_name}</td>
+                      <td>{row.collector_name || '-'}</td>
+                      <td>
+                        {isDue ? (
+                          <span className="demand-update-date" style={{ background: '#fee2e2', color: '#dc2626', fontWeight: 800 }}>
+                            Due: {formatDateLong(row.follow_up_date)}
+                          </span>
+                        ) : (
+                          <span className="demand-update-date" style={{ background: '#eff6ff', color: '#2563eb', fontWeight: 700 }}>
+                            Sent: {formatDateLong(row.date_sent || row.date_generated)}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <span className={`demand-status-badge ${getStatusClassName(status)}`}>
+                          {status}
+                        </span>
+                      </td>
+                      <td className="demand-next-action-cell">{getDemandNextAction(row)}</td>
+                      <td>
+                        <div className="demand-action-group">
+                          <button className="btn btn-secondary demand-received-btn" onClick={() => openReceivedModal(row)}>
+                            {status === 'Awaiting Receipt' ? 'Receive' : 'Update'}
+                          </button>
+                          {getNextDemandType(row.demand_type) && !['Awaiting Receipt', 'Sent'].includes(status) && (
+                            <button className="btn btn-primary demand-advance-btn" onClick={() => openProgressionModal(row)}>
+                              <ArrowRightCircle size={14} /> Advance
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

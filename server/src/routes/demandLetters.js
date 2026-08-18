@@ -339,17 +339,39 @@ router.get('/notifications', authenticateToken, async (req, res) => {
           'Draft', 'Closed', 'Superseded',
           'Settled(Recon)', 'Settled(Reloan)', 'Settled(Fully Paid)'
         )
-      ORDER BY follow_up_date ASC, id DESC
-    `, [today]);
+      ORDER BY 
+        CASE 
+          WHEN follow_up_date != '' AND follow_up_date <= ? THEN 0
+          ELSE 1
+        END,
+        follow_up_date ASC,
+        id DESC
+    `, [today, today]);
 
     const enrichedRows = await enrichDemandRows(rows);
     const activeRows = enrichedRows.filter(row => !String(row.status || '').toLowerCase().startsWith('settled('));
-    const todayCount = activeRows.filter(row => {
-      const status = String(row.status || '').trim();
-      const relevantDate = ['Sent', 'Awaiting Receipt'].includes(status) ? row.date_sent : row.follow_up_date;
-      return String(relevantDate || '').slice(0, 10) === today;
-    }).length;
-    res.json({ count: activeRows.length, today_count: todayCount, notifications: activeRows });
+    
+    const dueFollowups = activeRows.filter(row => {
+      const followUpDate = String(row.follow_up_date || '').slice(0, 10);
+      return Boolean(row.date_received && followUpDate && followUpDate <= today);
+    });
+
+    const awaitingReceipt = activeRows.filter(row => {
+      const isDue = Boolean(row.date_received && String(row.follow_up_date || '').slice(0, 10) <= today);
+      return !isDue;
+    });
+
+    const dueTodayCount = dueFollowups.filter(row => String(row.follow_up_date || '').slice(0, 10) === today).length;
+    const overdueCount = dueFollowups.filter(row => String(row.follow_up_date || '').slice(0, 10) < today).length;
+
+    res.json({
+      count: activeRows.length,
+      today_count: dueTodayCount,
+      due_count: dueFollowups.length,
+      overdue_count: overdueCount,
+      awaiting_receipt_count: awaitingReceipt.length,
+      notifications: activeRows,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
