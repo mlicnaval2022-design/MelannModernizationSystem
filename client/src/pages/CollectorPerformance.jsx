@@ -44,22 +44,27 @@ const MANUAL_EXPENSE_CATEGORIES = [
   ['Miscellaneous Expense', ['Electric', 'Water', 'Telephone', "Rom's Medicine", 'LOAD Maria/Rom', 'Maria SSS', 'Lindsay SSS', "Cyril's SSS/PHIC", "Melanie's Salary/SSS", 'Tiya Nida', "Kids' Savings", 'Donations', 'Emergency Loan of Employees', 'Others (Specify)']]
 ]
 
-const EXPENSE_TABULATION_GROUPS = [
-  { key: 'government', label: 'Government Dues', source: 'Government Dues', section: 'office' },
-  { key: 'transportation', label: 'Transportation', source: 'Transportation Expenses', section: 'office' },
-  { key: 'mlic', label: 'MLIC Bills', source: 'MLIC Bills Payments', section: 'office' },
-  { key: 'benefits', label: 'Benefits', source: 'Employees Benefits / Incentives', section: 'office' },
-  { key: 'officeExpenses', label: 'Office Expenses', source: 'Office Expenses', section: 'office' },
-  { key: 'loansPayable', label: 'Loans Payable', source: 'Loans Payable', section: 'office' },
-  { key: 'president', label: "President's", source: "President's Expenses", section: 'misc' },
-  { key: 'evp', label: "EVP's", source: "EVP's Expenses", section: 'misc' },
-  { key: 'miscellaneous', label: 'Miscellaneous', source: 'Miscellaneous Expense', section: 'misc' }
-]
+const MISC_EXPENSE_GROUPS = new Set(["President's Expenses", "EVP's Expenses", 'Miscellaneous Expense'])
+const tabulationKey = value => String(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+const EXPENSE_TABULATION_GROUPS = MANUAL_EXPENSE_CATEGORIES.map(([source, categories]) => ({
+  key: tabulationKey(source),
+  label: source,
+  source,
+  categories,
+  section: MISC_EXPENSE_GROUPS.has(source) ? 'misc' : 'office'
+}))
+const EXPENSE_TABULATION_COLUMNS = EXPENSE_TABULATION_GROUPS.flatMap(group => group.categories.map(category => ({
+  key: `${group.key}:${category}`,
+  category,
+  groupKey: group.key
+})))
+const EXPENSE_TABULATION_COLUMN_COUNT = 1 + 3 + EXPENSE_TABULATION_COLUMNS.length + EXPENSE_TABULATION_GROUPS.length + 1
 
 const tabulationGroupForExpense = category => {
   const name = String(category || '').split(' — ')[0].trim()
-  return EXPENSE_TABULATION_GROUPS.find(group => group.source === name)?.key || 'miscellaneous'
+  return EXPENSE_TABULATION_GROUPS.find(group => group.source === name)?.key || 'miscellaneous-expense'
 }
+const tabulationCategoryForExpense = category => String(category || '').split(' — ').slice(1).join(' — ').trim()
 
 const compressProfilePhoto = source => new Promise(resolve => {
   const image = new Image()
@@ -804,12 +809,17 @@ export default function CollectorPerformance() {
 
   const expenseTabulationRows = useMemo(() => manualExpenseGroups.map(group => {
     const totals = Object.fromEntries(EXPENSE_TABULATION_GROUPS.map(expenseGroup => [expenseGroup.key, 0]))
+    const categoryTotals = Object.fromEntries(EXPENSE_TABULATION_COLUMNS.map(column => [column.key, 0]))
     group.expenses.forEach(expense => {
-      totals[tabulationGroupForExpense(expense.category)] += Number(expense.amount || 0)
+      const groupKey = tabulationGroupForExpense(expense.category)
+      const category = tabulationCategoryForExpense(expense.category)
+      const column = EXPENSE_TABULATION_COLUMNS.find(item => item.groupKey === groupKey && item.category === category)
+      totals[groupKey] += Number(expense.amount || 0)
+      if (column) categoryTotals[column.key] += Number(expense.amount || 0)
     })
     const officeTotal = EXPENSE_TABULATION_GROUPS.filter(group => group.section === 'office').reduce((sum, group) => sum + totals[group.key], 0)
     const miscTotal = EXPENSE_TABULATION_GROUPS.filter(group => group.section === 'misc').reduce((sum, group) => sum + totals[group.key], 0)
-    return { ...group, totals, officeTotal, miscTotal, grandTotal: officeTotal + miscTotal }
+    return { ...group, totals, categoryTotals, officeTotal, miscTotal, grandTotal: officeTotal + miscTotal }
   }), [manualExpenseGroups])
 
   const expenseTabulationTotals = useMemo(() => expenseTabulationRows.reduce((summary, row) => ({
@@ -1619,7 +1629,7 @@ export default function CollectorPerformance() {
         .expense-tabulation-kpi.grand strong { color: #c55d0a; }
         .expense-tabulation-kpi.share { border-top: 3px solid #7847c7; background: linear-gradient(135deg, #faf7ff, #fff); }
         .expense-tabulation-kpi.share strong { color: #6d28d9; }
-        .expense-tabulation-table { min-width: 1570px !important; }
+        .expense-tabulation-table { min-width: 6900px !important; }
         .expense-tabulation-table thead tr:first-child th { top: 0; z-index: 7; height: 36px; color: #fff; text-align: center; vertical-align: middle; }
         .expense-tabulation-table thead tr:first-child th:not(.expense-tabulation-section) { background: #23455e; }
         .expense-tabulation-table thead tr:nth-child(2) th { top: 36px; z-index: 6; min-width: 112px; white-space: normal; text-align: center; }
@@ -2759,7 +2769,7 @@ export default function CollectorPerformance() {
                             ))}
                           </div>
                           <div className="forty-five-info" style={{ lineHeight: 1.5, marginBottom: 12 }}>
-                            Collection is summed for Torreta, Domingono, Caballes, Jugar, Rosal, and Laude only. Recon releases are excluded. Expense Share is taken only from the saved entries in the Expense Share tab and divided equally among the collectors in this 45-day evaluation. Reported Pastdue is display-only and is not included in the formula.
+                            Collection is summed for Torreta, Domingono, Caballes, Jugar, Rosal, and Laude only. Recon releases are excluded. Expense Share uses Office expenses only and is divided equally among the collectors in this 45-day evaluation; President's, EVP's, and Miscellaneous expenses are excluded. Reported Pastdue is display-only and is not included in the formula.
                             {selectedRatingPeriod.period.reported_pastdue_period && <> Reported Pastdue period: {displayDate(selectedRatingPeriod.period.reported_pastdue_period.start_date)} to {displayDate(selectedRatingPeriod.period.reported_pastdue_period.end_date)}.</>}
                           </div>
                           {ratingEvaluationTab === 'collector' && <FortyFiveEvaluationTable entityLabel="Collector" rows={selectedRatingPeriod.evaluations} />}
@@ -2770,20 +2780,23 @@ export default function CollectorPerformance() {
                       ) : ratingContentTab === 'expense-share' ? (
                         <div className="expense-share-panel" style={{ padding: 20 }}>
                           <div className="expense-share-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
-                            <div><div className="forty-five-section-title"><FileText size={19} /> Expense Share</div><div style={{ color: '#64748b', fontSize: 13, marginTop: 6 }}>Saved expense total is divided equally among {selectedRatingPeriod.evaluations.length} collector{selectedRatingPeriod.evaluations.length === 1 ? '' : 's'} in this 45-day evaluation.</div></div>
+                            <div><div className="forty-five-section-title"><FileText size={19} /> Expense Share</div><div style={{ color: '#64748b', fontSize: 13, marginTop: 6 }}>Office expenses are divided equally among {selectedRatingPeriod.evaluations.length} collector{selectedRatingPeriod.evaluations.length === 1 ? '' : 's'} in this 45-day evaluation. Misc expenses are shown for reference only.</div></div>
                             {canManageManualExpenses && <button className="btn btn-primary" type="button" onClick={openManualExpenseModal}><Plus size={16} /> Input Expense</button>}
                           </div>
                           <div className="expense-tabulation-summary">
                             <div className="expense-tabulation-kpi office"><span>Office Total</span><strong>PHP {fmt(expenseTabulationTotals.office)}</strong></div>
                             <div className="expense-tabulation-kpi misc"><span>Misc Total</span><strong>PHP {fmt(expenseTabulationTotals.misc)}</strong></div>
                             <div className="expense-tabulation-kpi grand"><span>Grand Total Expenses</span><strong>PHP {fmt(expenseTabulationTotals.grand)}</strong><small>Office + Misc</small></div>
-                            <div className="expense-tabulation-kpi share"><span>Share per Collector</span><strong>PHP {fmt(selectedRatingPeriod.evaluations.length ? expenseTabulationTotals.grand / selectedRatingPeriod.evaluations.length : 0)}</strong><small>{selectedRatingPeriod.evaluations.length || 0} collector{selectedRatingPeriod.evaluations.length === 1 ? '' : 's'}</small></div>
+                            <div className="expense-tabulation-kpi share"><span>45-Day Share per Collector</span><strong>PHP {fmt(selectedRatingPeriod.evaluations.length ? expenseTabulationTotals.office / selectedRatingPeriod.evaluations.length : 0)}</strong><small>Office total only · {selectedRatingPeriod.evaluations.length || 0} collector{selectedRatingPeriod.evaluations.length === 1 ? '' : 's'}</small></div>
                           </div>
                           <div ref={expenseShareTableRef} className="expense-share-table-wrap" style={{ border: '1px solid #dbe4f0', borderRadius: 10 }}>
                             <table className="data-table expense-share-table expense-tabulation-table" style={{ margin: 0, width: '100%' }}>
                               <thead>
-                                <tr><th rowSpan={2}>Date</th><th className="expense-tabulation-section office" colSpan={6}>Office</th><th className="expense-tabulation-section misc" colSpan={3}>Misc</th><th className="expense-tabulation-section grand" colSpan={3}>Grand Total of Expenses</th><th rowSpan={2}>Action</th></tr>
-                                <tr>{EXPENSE_TABULATION_GROUPS.map(group => <th key={group.key} title={group.label}>{group.label}</th>)}<th className="expense-tabulation-total office">Office</th><th className="expense-tabulation-total misc">Misc</th><th className="expense-tabulation-total grand">Total</th></tr>
+                                <tr><th rowSpan={2}>Date</th><th className="expense-tabulation-section grand" colSpan={3}>Grand Total of Expenses</th>{EXPENSE_TABULATION_GROUPS.map(group => <th key={group.key} className={`expense-tabulation-section ${group.section}`} colSpan={group.categories.length + 1}>{group.label}</th>)}<th rowSpan={2}>Action</th></tr>
+                                <tr><th className="expense-tabulation-total office">Office</th><th className="expense-tabulation-total misc">Misc</th><th className="expense-tabulation-total grand">Total</th>{EXPENSE_TABULATION_GROUPS.flatMap(group => [
+                                  ...group.categories.map(category => <th key={`${group.key}:${category}`} title={`${group.label} — ${category}`}>{category}</th>),
+                                  <th key={`${group.key}:total`} className={`expense-tabulation-total ${group.section}`}>Total</th>
+                                ])}</tr>
                               </thead>
                               <tbody>{expenseTabulationRows.length ? expenseTabulationRows.map(group => {
                                 const isExpanded = Boolean(expandedExpenseDates[group.date])
@@ -2795,13 +2808,16 @@ export default function CollectorPerformance() {
                                         {displayDate(group.date)}
                                       </button>
                                     </td>
-                                    {EXPENSE_TABULATION_GROUPS.map(expenseGroup => <td key={expenseGroup.key} className="expense-tabulation-amount">{group.totals[expenseGroup.key] ? `PHP ${fmt(group.totals[expenseGroup.key])}` : '—'}</td>)}
                                     <td className="expense-tabulation-amount expense-tabulation-total office">PHP {fmt(group.officeTotal)}</td>
                                     <td className="expense-tabulation-amount expense-tabulation-total misc">PHP {fmt(group.miscTotal)}</td>
                                     <td className="expense-tabulation-amount expense-tabulation-total grand"><button type="button" onClick={() => setExpandedExpenseDates(current => ({ ...current, [group.date]: !current[group.date] }))} aria-expanded={isExpanded} disabled={!group.expenses.length} className="expense-tabulation-total-button">PHP {fmt(group.grandTotal)} <small>{group.expenses.length} item{group.expenses.length === 1 ? '' : 's'}</small></button></td>
+                                    {EXPENSE_TABULATION_GROUPS.flatMap(expenseGroup => [
+                                      ...expenseGroup.categories.map(category => <td key={`${expenseGroup.key}:${category}`} className="expense-tabulation-amount">{group.categoryTotals[`${expenseGroup.key}:${category}`] ? `PHP ${fmt(group.categoryTotals[`${expenseGroup.key}:${category}`])}` : '—'}</td>),
+                                      <td key={`${expenseGroup.key}:total`} className={`expense-tabulation-amount expense-tabulation-total ${expenseGroup.section}`}>PHP {fmt(group.totals[expenseGroup.key])}</td>
+                                    ])}
                                     <td>{canManageManualExpenses && <button className="btn btn-secondary btn-sm" type="button" onClick={() => openManualExpenseModal(group.date)}><Plus size={14} /> Add Expense</button>}</td>
                                   </tr>
-                                  {isExpanded && <tr><td colSpan={14} style={{ padding: '0 16px 16px', background: '#f8fffd' }}>
+                                  {isExpanded && <tr><td colSpan={EXPENSE_TABULATION_COLUMN_COUNT} style={{ padding: '0 16px 16px', background: '#f8fffd' }}>
                                     <div style={{ display: 'grid', gap: 8, paddingTop: 10 }}>
                                       {group.expenses.length ? group.expenses.map(expense => <div key={expense.id} style={{ display: 'grid', gridTemplateColumns: canManageManualExpenses ? 'minmax(0, 1fr) minmax(120px, auto) auto' : 'minmax(0, 1fr) minmax(120px, auto)', alignItems: 'center', gap: 14, padding: '12px 14px', border: '1px solid #d9eee9', borderRadius: 8, background: '#fff' }}>
                                         <div><div style={{ color: '#0f766e', fontSize: 11, fontWeight: 900, textTransform: 'uppercase' }}>{EXPENSE_TABULATION_GROUPS.find(item => item.key === tabulationGroupForExpense(expense.category))?.label}</div><div style={{ marginTop: 3, color: '#263b57', fontSize: 13, fontWeight: 800 }}>{expense.category}</div>{expense.description && <div style={{ marginTop: 4, color: '#64748b', fontSize: 12 }}>{expense.description}</div>}</div>
@@ -2814,7 +2830,7 @@ export default function CollectorPerformance() {
                                     </div>
                                   </td></tr>}
                                 </Fragment>
-                              }) : <tr><td colSpan={14} style={{ textAlign: 'center', color: '#64748b', padding: 22 }}>Select a period to view daily expenses.</td></tr>}</tbody>
+                              }) : <tr><td colSpan={EXPENSE_TABULATION_COLUMN_COUNT} style={{ textAlign: 'center', color: '#64748b', padding: 22 }}>Select a period to view daily expenses.</td></tr>}</tbody>
                             </table>
                           </div>
                         </div>

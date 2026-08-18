@@ -16,6 +16,11 @@ const companyPeriods = [
   ['10-01', '11-15'],
   ['11-16', '12-31']
 ];
+const performanceExcludedExpensePrefixes = [
+  "president's expenses",
+  "evp's expenses",
+  'miscellaneous expense'
+];
 
 const asAmount = value => Number(value || 0);
 const isFinalStatus = status => ['final', 'finalized'].includes(String(status || '').toLowerCase());
@@ -171,11 +176,20 @@ async function getActualCollectionTotal(collectorId, startDate, endDate) {
 
 async function getManualExpenseTotal(branchId, startDate, endDate) {
   const branch = getBranchFilter(branchId, 'branch_id');
+  const excludedExpenseSql = performanceExcludedExpensePrefixes
+    .map(() => "LOWER(COALESCE(category, '')) NOT LIKE ?")
+    .join(' AND ');
   const total = await dbGet(`
     SELECT COALESCE(SUM(amount), 0) AS total
     FROM tblFortyFiveDayManualExpense
     WHERE date(expense_date) BETWEEN date(?) AND date(?)${branch.sql}
-  `, [startDate, endDate, ...branch.params]);
+      AND ${excludedExpenseSql}
+  `, [
+    startDate,
+    endDate,
+    ...branch.params,
+    ...performanceExcludedExpensePrefixes.map(prefix => `${prefix}%`)
+  ]);
   return asAmount(total?.total);
 }
 
