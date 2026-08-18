@@ -658,6 +658,252 @@ router.delete('/expenses/entries/:id', authenticateToken, async (req, res) => {
   } catch (err) { sendRouteError(res, err); }
 });
 
+router.get('/expenses/collector-matrix', authenticateToken, async (req, res) => {
+  try {
+    await ensureExpensesReportTables();
+    let dateFrom = req.query.date_from || '';
+    let dateTo = req.query.date_to || '';
+
+    if (!dateTo) {
+      dateTo = toLocalDateString();
+    }
+    if (!dateFrom) {
+      const [year, month] = dateTo.split('-');
+      dateFrom = `${year}-${month}-01`;
+    }
+
+    const rangeStart = dateFrom;
+    const rangeEnd = dateTo;
+
+    const dates = [];
+    const cur = new Date(`${dateFrom}T00:00:00Z`);
+    const end = new Date(`${dateTo}T00:00:00Z`);
+    while (cur <= end) {
+      dates.push(cur.toISOString().slice(0, 10));
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+
+    const [personnelList, categoryList, systemCollectors, paymentRows, loanRows, releaseCharges, expenseRows] = await Promise.all([
+      dbAll(`
+        SELECT id, employee_name, position, status
+        FROM tblExpensePersonnel
+        WHERE status = 'active'
+        ORDER BY CASE WHEN LOWER(TRIM(COALESCE(position, ''))) = 'collector' THEN 0 ELSE 1 END, employee_name COLLATE NOCASE
+      `),
+      dbAll(`
+        SELECT id, category_name, status
+        FROM tblExpenseCategory
+        WHERE status = 'active'
+        ORDER BY id ASC
+      `),
+      dbAll(`
+        SELECT id as collector_id,
+               collector_code,
+               TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) as collector_name
+        FROM tblCollector
+      `),
+      dbAll(`
+        SELECT COALESCE(c.collector_id, l.collector_id, p.collector_id) as collector_id,
+               date(p.date_paid) as payment_date,
+               COALESCE(SUM(p.amount_paid), 0) as total_amount
+        FROM tblPayment p
+        LEFT JOIN tblLoan l ON l.id = p.loan_id
+        LEFT JOIN tblCustomer c ON c.id = p.customer_id
+        WHERE date(p.date_paid) BETWEEN date(?) AND date(?)
+          AND p.status IN ('active', 'penalty')
+          AND ${sqlNotSunday('p.date_paid')}
+        GROUP BY COALESCE(c.collector_id, l.collector_id, p.collector_id), date(p.date_paid)
+      `, [rangeStart, rangeEnd]),
+      dbAll(`
+        SELECT COALESCE(c.collector_id, l.collector_id) as collector_id,
+               date(l.date_released) as release_date,
+               COALESCE(SUM(l.principal), 0) as total_amount
+        FROM tblLoan l
+        LEFT JOIN tblCustomer c ON c.id = l.customer_id
+        WHERE date(l.date_released) BETWEEN date(?) AND date(?)
+          AND l.status != 'reversed'
+          AND LOWER(COALESCE(l.loan_type, '')) NOT LIKE '%recon%'
+          AND ${sqlNotSunday('l.date_released')}
+        GROUP BY COALESCE(c.collector_id, l.collector_id), date(l.date_released)
+      `, [rangeStart, rangeEnd]),
+      getCollectionReleaseCharges(rangeStart, rangeEnd),
+      dbAll(`
+        SELECT id, personnel_id, date(expense_date) as expense_date, category, amount, description, remarks
+        FROM tblEmployeeExpense
+        WHERE status = 'active'
+          AND date(expense_date) BETWEEN date(?) AND date(?)
+      `, [rangeStart, rangeEnd])
+    ]);
+
+    const dailyCollectionMap = new Map();
+    paymentRows.forEach(row => {
+      const key = `${Number(row.collector_id)}_${row.payment_date}`;
+      dailyCollectionMap.set(key, (dailyCollectionMap.get(key) || 0) + Number(row.total_amount || 0));
+    });
+    releaseCharges.forEach(row => {
+      const collectorId = Number(row.collector_id);
+      if (!collectorId) return;
+      const chargeDate = row.date_paid || row.date_released;
+      if (!chargeDate) return;
+      const key = `${collectorId}_${chargeDate}`;
+      dailyCollectionMap.set(key, (dailyCollectionMap.get(key) || 0) + Number(row.amount_paid || 0));
+    });
+
+    const dailyReleaseMap = new Map();
+    loanRows.forEach(row => {
+      const key = `${Number(row.collector_id)}_${row.release_date}`;
+      dailyReleaseMap.set(key, (dailyReleaseMap.get(key) || 0) + Number(row.total_amount || 0));
+    });
+
+    const dailyExpenseMap = new Map();
+    expenseRows.forEach(row => {
+      const key = `${Number(row.personnel_id)}_${row.expense_date}_${String(row.category || '').trim().toLowerCase()}`;
+      dailyExpenseMap.set(key, row);
+    });
+
+    const categories = categoryList.map(c => c.category_name);
+
+    const sheets = personnelList.map(person => {
+      const matchingCollectors = systemCollectors.filter(c =>
+        collectorNameMatchesPersonnel(c.collector_name, person.employee_name)
+      );
+      const collectorIds = matchingCollectors.map(c => Number(c.collector_id));
+
+      const days = {};
+      const totals = {
+        collection: 0,
+        release: 0,
+        categories: {},
+        total_expense: 0,
+        net: 0,
+      };
+      categories.forEach(cat => { totals.categories[cat] = 0; });
+
+      dates.forEach(d => {
+        let col = 0;
+        let rel = 0;
+        collectorIds.forEach(cid => {
+          col += (dailyCollectionMap.get(`${cid}_${d}`) || 0);
+          rel += (dailyReleaseMap.get(`${cid}_${d}`) || 0);
+        });
+
+        const dayExpenses = {};
+        let dayTotalExpense = 0;
+
+        categories.forEach(cat => {
+          const entry = dailyExpenseMap.get(`${Number(person.id)}_${d}_${cat.toLowerCase()}`);
+          if (entry) {
+            const amt = Number(entry.amount || 0);
+            dayExpenses[cat] = {
+              id: entry.id,
+              amount: amt,
+              description: entry.description || '',
+              remarks: entry.remarks || '',
+            };
+            dayTotalExpense += amt;
+            totals.categories[cat] = (totals.categories[cat] || 0) + amt;
+          } else {
+            dayExpenses[cat] = {
+              id: null,
+              amount: 0,
+              description: '',
+              remarks: '',
+            };
+          }
+        });
+
+        const dayNet = col - rel - dayTotalExpense;
+        totals.collection += col;
+        totals.release += rel;
+        totals.total_expense += dayTotalExpense;
+        totals.net += dayNet;
+
+        days[d] = {
+          date: d,
+          collection: col,
+          release: rel,
+          expenses: dayExpenses,
+          total_expense: dayTotalExpense,
+          net: dayNet,
+        };
+      });
+
+      return {
+        personnel_id: person.id,
+        employee_name: person.employee_name,
+        position: person.position,
+        collector_codes: matchingCollectors.map(c => c.collector_code).filter(Boolean),
+        totals,
+        days,
+      };
+    });
+
+    res.json({
+      date_from: dateFrom,
+      date_to: dateTo,
+      dates,
+      categories: categoryList,
+      personnel: personnelList,
+      sheets,
+    });
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.post('/expenses/cell-update', authenticateToken, async (req, res) => {
+  try {
+    await ensureExpensesReportTables();
+    const personnelId = Number(req.body.personnel_id);
+    const expenseDate = req.body.expense_date;
+    const category = String(req.body.category || '').trim();
+    const amount = Number(req.body.amount || 0);
+
+    if (!personnelId || !expenseDate || !category) {
+      return res.status(400).json({ error: 'Personnel ID, expense date, and category are required' });
+    }
+
+    const existing = await dbGet(`
+      SELECT * FROM tblEmployeeExpense
+      WHERE personnel_id = ? AND date(expense_date) = date(?) AND category = ? COLLATE NOCASE AND status = 'active'
+      ORDER BY id DESC LIMIT 1
+    `, [personnelId, expenseDate, category]);
+
+    if (amount <= 0) {
+      if (existing) {
+        await dbRun(`
+          UPDATE tblEmployeeExpense
+          SET status = 'deleted', updated_by = ?, updated_at = datetime('now')
+          WHERE id = ?
+        `, [req.user.id, existing.id]);
+      }
+      return res.json({ success: true, deleted: true, id: existing?.id || null, amount: 0 });
+    }
+
+    const configuredCategory = await dbGet(`
+      SELECT id FROM tblExpenseCategory WHERE category_name = ? COLLATE NOCASE AND status = 'active'
+    `, [category]);
+    if (!configuredCategory) {
+      return res.status(400).json({ error: 'Please select an active expense category' });
+    }
+
+    if (existing) {
+      await dbRun(`
+        UPDATE tblEmployeeExpense
+        SET amount = ?, description = COALESCE(?, description), remarks = COALESCE(?, remarks), updated_by = ?, updated_at = datetime('now')
+        WHERE id = ?
+      `, [amount, req.body.description || null, req.body.remarks || null, req.user.id, existing.id]);
+      const updated = await dbGet(`SELECT * FROM tblEmployeeExpense WHERE id = ?`, [existing.id]);
+      return res.json({ success: true, entry: updated });
+    } else {
+      const result = await dbRun(`
+        INSERT INTO tblEmployeeExpense (personnel_id, expense_date, category, description, amount, remarks, created_by, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `, [personnelId, expenseDate, category, req.body.description || null, amount, req.body.remarks || null, req.user.id, req.user.id]);
+      const inserted = await dbGet(`SELECT * FROM tblEmployeeExpense WHERE id = ?`, [result.lastID]);
+      return res.status(201).json({ success: true, entry: inserted });
+    }
+  } catch (err) { sendRouteError(res, err); }
+});
+
 router.get('/expenses/summary', authenticateToken, async (req, res) => {
   try {
     await ensureExpensesReportTables();

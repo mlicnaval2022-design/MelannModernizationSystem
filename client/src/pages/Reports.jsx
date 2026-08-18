@@ -57,6 +57,68 @@ const toDisplayCase = value => String(value || '')
   .replace(/\bIii\b/g, 'III')
   .replace(/\bIv\b/g, 'IV')
   .replace(/\bVi\b/g, 'VI')
+const formatExcelDate = dateStr => {
+  if (!dateStr) return '-'
+  const [y, m, d] = dateStr.split('-')
+  if (!y || !m || !d) return dateStr
+  return `${parseInt(m, 10)}/${parseInt(d, 10)}/${y}`
+}
+
+function ExpenseGridCell({ initialValue, onSave }) {
+  const [val, setVal] = useState(initialValue > 0 ? String(initialValue) : '')
+  const [isFocused, setIsFocused] = useState(false)
+
+  useEffect(() => {
+    if (!isFocused) {
+      setVal(initialValue > 0 ? String(initialValue) : '')
+    }
+  }, [initialValue, isFocused])
+
+  const commit = () => {
+    setIsFocused(false)
+    const num = Math.max(0, parseFloat(val) || 0)
+    const prev = Math.max(0, parseFloat(initialValue) || 0)
+    if (num !== prev) {
+      onSave(num)
+    }
+  }
+
+  return (
+    <td style={{ padding: 0, background: isFocused ? '#eff6ff' : 'transparent', minWidth: 95, border: '1px solid #cbd5e1', textAlign: 'right' }}>
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        value={val}
+        placeholder="-"
+        onFocus={() => setIsFocused(true)}
+        onBlur={commit}
+        onKeyDown={e => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            e.target.blur()
+          }
+        }}
+        onChange={e => setVal(e.target.value)}
+        style={{
+          width: '100%',
+          height: '100%',
+          border: isFocused ? '2px solid #0f766e' : '1px solid transparent',
+          textAlign: 'right',
+          padding: '6px 8px',
+          background: 'transparent',
+          fontSize: '12px',
+          fontWeight: val && Number(val) > 0 ? '700' : 'normal',
+          outline: 'none',
+          boxSizing: 'border-box',
+          fontFamily: 'inherit',
+          color: val && Number(val) > 0 ? '#0D1B3D' : '#94a3b8',
+        }}
+      />
+    </td>
+  )
+}
+
 const middleInitial = value => {
   const middle = String(value || '').trim()
   if (!middle) return ''
@@ -618,6 +680,8 @@ export default function Reports() {
   const [expenseCategories, setExpenseCategories] = useState([])
   const [expenseEntries, setExpenseEntries] = useState([])
   const [expenseSummary, setExpenseSummary] = useState(null)
+  const [expenseMatrix, setExpenseMatrix] = useState(null)
+  const [activeCollectorSheetId, setActiveCollectorSheetId] = useState(null)
   const [expenseCategoryFilterOpen, setExpenseCategoryFilterOpen] = useState(false)
   const [selectedExpenseCategories, setSelectedExpenseCategories] = useState([])
   const [selectedExpenseEmployee, setSelectedExpenseEmployee] = useState(null)
@@ -794,17 +858,28 @@ export default function Reports() {
     setExpensesLoading(true)
     try {
       const query = { date_from: nextParams.date_from, date_to: nextParams.date_to }
-      const [personnelRes, categoriesRes, entriesRes, summaryRes] = await Promise.all([
+      const [personnelRes, categoriesRes, entriesRes, summaryRes, matrixRes] = await Promise.all([
         API.get('/reports/expenses/personnel'),
         API.get('/reports/expenses/categories'),
         API.get('/reports/expenses/entries', { params: query }),
         API.get('/reports/expenses/summary', { params: query }),
+        API.get('/reports/expenses/collector-matrix', { params: query }),
       ])
       setExpensePersonnel(Array.isArray(personnelRes.data) ? personnelRes.data : [])
       setExpenseCategories(Array.isArray(categoriesRes.data) ? categoriesRes.data : [])
       setExpenseEntries(Array.isArray(entriesRes.data) ? entriesRes.data : [])
       const nextSummary = summaryRes.data || null
       setExpenseSummary(nextSummary)
+      const matrixData = matrixRes.data || null
+      setExpenseMatrix(matrixData)
+      if (matrixData?.sheets?.length) {
+        setActiveCollectorSheetId(current => {
+          if (current && matrixData.sheets.some(s => Number(s.personnel_id) === Number(current))) {
+            return current
+          }
+          return matrixData.sheets[0].personnel_id
+        })
+      }
       setSelectedExpenseCategories((nextSummary?.by_category || []).map(row => row.category))
       setExpenseCategoryFilterOpen(false)
       setData(nextSummary || { ready: true })
@@ -813,6 +888,76 @@ export default function Reports() {
       setData({ error: err.response?.data?.error || 'Failed to load expenses report' })
     } finally {
       setExpensesLoading(false)
+    }
+  }
+
+  const handleExpenseCellChange = async (personnelId, dateStr, category, value) => {
+    const numVal = Math.max(0, Number(value) || 0)
+    setExpenseMatrix(prev => {
+      if (!prev || !prev.sheets) return prev
+      const newSheets = prev.sheets.map(sheet => {
+        if (Number(sheet.personnel_id) !== Number(personnelId)) return sheet
+        const prevDay = sheet.days?.[dateStr] || { collection: 0, release: 0, expenses: {}, total_expense: 0, net: 0 }
+        const prevCatAmt = Number(prevDay.expenses?.[category]?.amount || 0)
+        const diff = numVal - prevCatAmt
+
+        const newExpenses = {
+          ...prevDay.expenses,
+          [category]: {
+            ...prevDay.expenses?.[category],
+            amount: numVal,
+          }
+        }
+        const newTotalExpense = Object.values(newExpenses).reduce((s, e) => s + (Number(e?.amount) || 0), 0)
+        const newNet = Number(prevDay.collection || 0) - Number(prevDay.release || 0) - newTotalExpense
+
+        const newCatTotals = {
+          ...sheet.totals.categories,
+          [category]: (sheet.totals.categories[category] || 0) + diff
+        }
+        const newSheetTotalExpense = (sheet.totals.total_expense || 0) + diff
+        const newSheetNet = (sheet.totals.net || 0) - diff
+
+        return {
+          ...sheet,
+          totals: {
+            ...sheet.totals,
+            categories: newCatTotals,
+            total_expense: newSheetTotalExpense,
+            net: newSheetNet,
+          },
+          days: {
+            ...sheet.days,
+            [dateStr]: {
+              ...prevDay,
+              expenses: newExpenses,
+              total_expense: newTotalExpense,
+              net: newNet,
+            }
+          }
+        }
+      })
+      return { ...prev, sheets: newSheets }
+    })
+
+    try {
+      await API.post('/reports/expenses/cell-update', {
+        personnel_id: personnelId,
+        expense_date: dateStr,
+        category,
+        amount: numVal,
+      })
+      const query = { date_from: params.date_from, date_to: params.date_to }
+      const [entriesRes, summaryRes] = await Promise.all([
+        API.get('/reports/expenses/entries', { params: query }),
+        API.get('/reports/expenses/summary', { params: query }),
+      ])
+      setExpenseEntries(Array.isArray(entriesRes.data) ? entriesRes.data : [])
+      setExpenseSummary(summaryRes.data || null)
+    } catch (err) {
+      console.error('Failed to update expense cell:', err)
+      alert(err.response?.data?.error || 'Failed to save expense entry')
+      loadExpensesReport(params)
     }
   }
 
@@ -2190,56 +2335,232 @@ export default function Reports() {
         </div>
       )
 
-      if (expensesTab === 'input') return (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-          <form onSubmit={saveExpenseEntry} style={{ margin: 0, border: '1px solid var(--border)', borderRadius: 8, padding: 16, background: '#fff' }}>
-            <h3 style={{ margin: '0 0 12px 0', color: 'var(--blue-dark)' }}>{expenseForm.id ? 'Edit Expense' : 'Input Expense'}</h3>
-            <div className="form-group"><label className="form-label">Employee *</label>
-              <select className="form-control" value={expenseForm.personnel_id} onChange={e => setExpenseForm(f => ({ ...f, personnel_id: e.target.value }))}>
-                <option value="">Select employee...</option>
-                {activePersonnel.map(p => <option key={p.id} value={p.id}>{p.employee_name}</option>)}
-              </select>
+      if (expensesTab === 'input') {
+        const sheets = expenseMatrix?.sheets || []
+        const activeSheet = sheets.find(s => Number(s.personnel_id) === Number(activeCollectorSheetId)) || sheets[0]
+        const categories = expenseCategories.filter(c => c.status === 'active')
+        const dates = expenseMatrix?.dates || []
+
+        if (!activeSheet || sheets.length === 0) {
+          return (
+            <div className="empty-state" style={{ padding: 40, textAlign: 'center', background: '#fff', border: '1px solid var(--border)', borderRadius: 8 }}>
+              <UsersRound size={40} style={{ color: '#0f766e', marginBottom: 12 }} />
+              <h3 style={{ margin: '0 0 8px 0', color: 'var(--blue-dark)' }}>No Employees Configured</h3>
+              <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>Please configure active employees or collectors first to use the Excel Expense Sheet.</p>
+              <button type="button" className="btn btn-primary" onClick={() => { setExpensesTab('configuration'); setConfigurationTab('personnel') }}>
+                <Plus size={15} /> Go to Personnel Configuration
+              </button>
             </div>
-            <div className="form-group"><label className="form-label">Expense Date *</label><input type="date" className="form-control" value={expenseForm.expense_date} onChange={e => setExpenseForm(f => ({ ...f, expense_date: e.target.value }))} /></div>
-            <div className="form-group"><label className="form-label">Category</label>
-              <select className="form-control" value={expenseForm.category} onChange={e => setExpenseForm(f => ({ ...f, category: e.target.value }))}>
-                <option value="">Select category...</option>
-                {activeCategories.map(category => <option key={category.id} value={category.category_name}>{category.category_name}</option>)}
-              </select>
+          )
+        }
+
+        return (
+          <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+            {/* Header Banner */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', background: 'linear-gradient(135deg, #0f766e 0%, #115e59 100%)', color: '#fff', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.85 }}>Collector Sheet / Expense Matrix</div>
+                <h2 style={{ margin: '2px 0 0 0', fontSize: 20, fontWeight: 800, color: '#ffffff', letterSpacing: '0.5px' }}>
+                  {activeSheet.employee_name.toUpperCase()}
+                  {activeSheet.position && <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.95, marginLeft: 8, background: 'rgba(255,255,255,0.22)', padding: '2px 8px', borderRadius: 4 }}>{activeSheet.position}</span>}
+                </h2>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 12, opacity: 0.95, background: 'rgba(0,0,0,0.22)', padding: '6px 12px', borderRadius: 6 }}>
+                  Period: <strong>{expenseMatrix?.date_from ? formatExcelDate(expenseMatrix.date_from) : '-'}</strong> to <strong>{expenseMatrix?.date_to ? formatExcelDate(expenseMatrix.date_to) : '-'}</strong>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  style={{ background: '#ffffff', color: '#0f766e', fontWeight: 700, border: 'none' }}
+                  onClick={() => { setExpensesTab('configuration'); setConfigurationTab('category') }}
+                >
+                  <Plus size={14} /> Add Category
+                </button>
+              </div>
             </div>
-            <div className="form-group"><label className="form-label">Description</label><input className="form-control" value={expenseForm.description} onChange={e => setExpenseForm(f => ({ ...f, description: e.target.value }))} /></div>
-            <div className="form-group"><label className="form-label">Amount *</label><input type="number" min="0" step="0.01" className="form-control" value={expenseForm.amount} onChange={e => setExpenseForm(f => ({ ...f, amount: e.target.value }))} /></div>
-            <div className="form-group"><label className="form-label">Remarks</label><textarea className="form-control" rows={3} value={expenseForm.remarks} onChange={e => setExpenseForm(f => ({ ...f, remarks: e.target.value }))} /></div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              {expenseForm.id && <button type="button" className="btn btn-secondary" onClick={() => setExpenseForm({ id: '', personnel_id: '', expense_date: toDateInputValue(new Date()), category: '', description: '', amount: '', remarks: '' })}>Cancel</button>}
-              <button type="submit" className="btn btn-primary"><Save size={15} /> Save Expense</button>
+
+            {/* Excel Sheet Tabs (Top) */}
+            <div style={{ display: 'flex', gap: 3, alignItems: 'center', background: '#f1f5f9', padding: '8px 12px 0', borderBottom: '1px solid #cbd5e1', overflowX: 'auto' }}>
+              {sheets.map(sheet => {
+                const isActive = Number(activeSheet.personnel_id) === Number(sheet.personnel_id)
+                return (
+                  <button
+                    key={sheet.personnel_id}
+                    type="button"
+                    onClick={() => setActiveCollectorSheetId(sheet.personnel_id)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '8px 16px',
+                      fontSize: '12px',
+                      fontWeight: isActive ? '800' : '600',
+                      color: isActive ? '#0f766e' : '#475569',
+                      background: isActive ? '#ffffff' : '#e2e8f0',
+                      border: '1px solid #cbd5e1',
+                      borderBottom: isActive ? '2px solid #0f766e' : '1px solid #cbd5e1',
+                      borderRadius: '6px 6px 0 0',
+                      marginBottom: isActive ? '-1px' : '0',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      boxShadow: isActive ? '0 -1px 3px rgba(0,0,0,0.05)' : 'none',
+                    }}
+                  >
+                    <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: isActive ? '#0f766e' : '#94a3b8' }} />
+                    {sheet.employee_name.toUpperCase()}
+                  </button>
+                )
+              })}
             </div>
-          </form>
-          <div>
-            <h3 style={{ margin: '0 0 10px 0', color: 'var(--blue-dark)' }}>Expense Entries</h3>
-            <table className="data-table">
-              <thead><tr><th>Date</th><th>Employee</th><th>Category</th><th>Description</th><th className="text-right">Amount</th><th>Actions</th></tr></thead>
-              <tbody>
-                {expenseEntries.length === 0 ? <tr><td colSpan={6} className="empty-state">No expense entries for the selected period</td></tr> : expenseEntries.map(entry => (
-                  <tr key={entry.id}>
-                    <td>{shortDate(entry.expense_date)}</td>
-                    <td className="fw-600">{entry.employee_name}</td>
-                    <td>{entry.category || '-'}</td>
-                    <td>{entry.description || '-'}</td>
-                    <td className="text-right fw-700">PHP {fmtMoney(entry.amount)}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button type="button" className="btn btn-secondary" style={{ padding: '5px 8px' }} onClick={() => editExpenseEntry(entry)} title="Edit"><Pencil size={14} /></button>
-                        <button type="button" className="btn btn-secondary" style={{ padding: '5px 8px', color: '#dc2626' }} onClick={() => deleteExpenseEntry(entry)} title="Delete"><Trash2 size={14} /></button>
-                      </div>
+
+            {/* Instruction strip */}
+            <div style={{ padding: '6px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 11, color: '#64748b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <span>💡 <strong>Tip:</strong> Click on any category cell to input or edit expenses. Values save automatically on Enter or blur.</span>
+              <span style={{ fontSize: 11, color: '#0f766e', fontWeight: 600 }}>Releases automatically count Reloan & New only (excluding Recon)</span>
+            </div>
+
+            {/* Excel Sheet Table Grid */}
+            <div style={{ overflowX: 'auto', maxHeight: '680px', position: 'relative' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: 800 }}>
+                <thead>
+                  <tr>
+                    <th rowSpan={2} style={{ position: 'sticky', top: 0, zIndex: 3, background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '10px 12px', fontWeight: 800, fontSize: 11, textAlign: 'left', minWidth: 90, letterSpacing: '0.5px' }}>
+                      DATE
+                    </th>
+                    <th rowSpan={2} style={{ position: 'sticky', top: 0, zIndex: 3, background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '10px 12px', fontWeight: 800, fontSize: 11, textAlign: 'right', minWidth: 110, letterSpacing: '0.5px' }}>
+                      COLLECTION
+                    </th>
+                    <th rowSpan={2} style={{ position: 'sticky', top: 0, zIndex: 3, background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '10px 12px', fontWeight: 800, fontSize: 11, textAlign: 'right', minWidth: 110, letterSpacing: '0.5px' }}>
+                      RELEASE
+                    </th>
+                    <th colSpan={Math.max(1, categories.length)} style={{ position: 'sticky', top: 0, zIndex: 3, background: '#ccfbf1', color: '#0f766e', border: '1px solid #cbd5e1', padding: '8px 12px', fontWeight: 900, fontSize: 12, textAlign: 'center', letterSpacing: '1px' }}>
+                      EXPENSES
+                    </th>
+                    <th rowSpan={2} style={{ position: 'sticky', top: 0, zIndex: 3, background: '#f8fafc', border: '1px solid #cbd5e1', padding: '10px 14px', fontWeight: 900, fontSize: 12, textAlign: 'right', minWidth: 120, letterSpacing: '0.5px', color: '#0f172a' }}>
+                      NET
+                    </th>
+                  </tr>
+                  <tr>
+                    {categories.length === 0 ? (
+                      <th style={{ position: 'sticky', top: 35, zIndex: 3, background: '#f8fafc', border: '1px solid #cbd5e1', padding: '6px 10px', fontSize: 10, fontWeight: 700, color: '#94a3b8', textAlign: 'center' }}>
+                        No categories (Add in Config)
+                      </th>
+                    ) : (
+                      categories.map(cat => (
+                        <th key={cat.id} style={{ position: 'sticky', top: 35, zIndex: 3, background: '#f8fafc', border: '1px solid #cbd5e1', padding: '6px 10px', fontSize: 10, fontWeight: 800, textAlign: 'right', minWidth: 95, whiteSpace: 'nowrap', color: '#334155' }}>
+                          {cat.category_name.toUpperCase()}
+                        </th>
+                      ))
+                    )}
+                  </tr>
+
+                  {/* Grand Totals Summary Row */}
+                  <tr style={{ position: 'sticky', top: 66, zIndex: 2, background: '#fff1f2', borderBottom: '2px solid #fda4af' }}>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontWeight: 900, color: '#b91c1c', fontSize: 12 }}>
+                      TOTAL
+                    </td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', textAlign: 'right', fontWeight: 900, color: '#b91c1c', fontSize: 12 }}>
+                      {fmtMoney(activeSheet.totals.collection)}
+                    </td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', textAlign: 'right', fontWeight: 900, color: '#b91c1c', fontSize: 12 }}>
+                      {fmtMoney(activeSheet.totals.release)}
+                    </td>
+                    {categories.length === 0 ? (
+                      <td style={{ border: '1px solid #cbd5e1', padding: '8px 10px', textAlign: 'center', color: '#94a3b8' }}>-</td>
+                    ) : (
+                      categories.map(cat => (
+                        <td key={cat.id} style={{ border: '1px solid #cbd5e1', padding: '8px 10px', textAlign: 'right', fontWeight: 900, color: '#b91c1c', fontSize: 12 }}>
+                          {activeSheet.totals.categories?.[cat.category_name] ? fmtMoney(activeSheet.totals.categories[cat.category_name]) : '-'}
+                        </td>
+                      ))
+                    )}
+                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 14px', textAlign: 'right', fontWeight: 900, fontSize: 13, color: activeSheet.totals.net >= 0 ? '#15803d' : '#dc2626' }}>
+                      {activeSheet.totals.net < 0 ? `-${fmtMoney(Math.abs(activeSheet.totals.net))}` : fmtMoney(activeSheet.totals.net)}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+
+                <tbody>
+                  {dates.length === 0 ? (
+                    <tr>
+                      <td colSpan={4 + Math.max(1, categories.length)} className="empty-state" style={{ padding: 24, textAlign: 'center' }}>
+                        No dates in selected range.
+                      </td>
+                    </tr>
+                  ) : (
+                    dates.map(d => {
+                      const day = activeSheet.days?.[d] || { collection: 0, release: 0, expenses: {}, total_expense: 0, net: 0 }
+                      const isNeg = day.net < 0
+                      const hasActivity = day.collection > 0 || day.release > 0 || day.total_expense > 0
+
+                      return (
+                        <tr key={d} style={{ background: '#ffffff', transition: 'background 0.1s ease' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = '#ffffff'}>
+                          <td style={{ border: '1px solid #cbd5e1', padding: '6px 12px', fontWeight: 600, fontSize: 12, color: '#475569', whiteSpace: 'nowrap' }}>
+                            {formatExcelDate(d)}
+                          </td>
+                          <td style={{ border: '1px solid #cbd5e1', padding: '6px 12px', textAlign: 'right', fontSize: 12, fontWeight: day.collection > 0 ? 700 : 'normal', color: day.collection > 0 ? '#0f172a' : '#94a3b8' }}>
+                            {day.collection > 0 ? fmtMoney(day.collection) : '-'}
+                          </td>
+                          <td style={{ border: '1px solid #cbd5e1', padding: '6px 12px', textAlign: 'right', fontSize: 12, fontWeight: day.release > 0 ? 700 : 'normal', color: day.release > 0 ? '#0f172a' : '#94a3b8' }}>
+                            {day.release > 0 ? fmtMoney(day.release) : '-'}
+                          </td>
+                          {categories.length === 0 ? (
+                            <td style={{ border: '1px solid #cbd5e1', padding: '6px 10px', textAlign: 'center', color: '#cbd5e1' }}>-</td>
+                          ) : (
+                            categories.map(cat => (
+                              <ExpenseGridCell
+                                key={cat.id}
+                                initialValue={day.expenses?.[cat.category_name]?.amount || 0}
+                                onSave={val => handleExpenseCellChange(activeSheet.personnel_id, d, cat.category_name, val)}
+                              />
+                            ))
+                          )}
+                          <td style={{ border: '1px solid #cbd5e1', padding: '6px 14px', textAlign: 'right', fontSize: 12, fontWeight: 800, color: !hasActivity ? '#94a3b8' : isNeg ? '#dc2626' : '#15803d' }}>
+                            {hasActivity ? (isNeg ? `-${fmtMoney(Math.abs(day.net))}` : fmtMoney(day.net)) : '-'}
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Bottom Sheet Tabs Bar (Excel Workbook Style) */}
+            <div style={{ display: 'flex', gap: 3, alignItems: 'center', background: '#e2e8f0', padding: '6px 12px 0', borderTop: '1px solid #cbd5e1', overflowX: 'auto' }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', marginRight: 6, textTransform: 'uppercase' }}>SHEETS:</span>
+              {sheets.map(sheet => {
+                const isActive = Number(activeSheet.personnel_id) === Number(sheet.personnel_id)
+                return (
+                  <button
+                    key={sheet.personnel_id}
+                    type="button"
+                    onClick={() => setActiveCollectorSheetId(sheet.personnel_id)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '6px 14px',
+                      fontSize: '11px',
+                      fontWeight: isActive ? '800' : '600',
+                      color: isActive ? '#0f766e' : '#64748b',
+                      background: isActive ? '#ffffff' : '#f1f5f9',
+                      border: '1px solid #cbd5e1',
+                      borderBottom: isActive ? '2px solid #0f766e' : '1px solid #cbd5e1',
+                      borderRadius: '4px 4px 0 0',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <span>{sheet.employee_name.toUpperCase()}</span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        </div>
-      )
+        )
+      }
 
       const configurationTabs = [
         { key: 'personnel', label: 'Personnel Management', Icon: UsersRound },
