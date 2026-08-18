@@ -762,6 +762,7 @@ export default function CollectorPerformance() {
   const [ratingHierarchyModal, setRatingHierarchyModal] = useState(null)
   const [manualExpenses, setManualExpenses] = useState([])
   const [showManualExpenseModal, setShowManualExpenseModal] = useState(false)
+  const [inlineExpenseDate, setInlineExpenseDate] = useState(null)
   const [manualExpenseForm, setManualExpenseForm] = useState({ expense_date: '', category: '', description: '', amount: '' })
   const [manualExpenseEditing, setManualExpenseEditing] = useState(null)
   const [manualExpenseSaving, setManualExpenseSaving] = useState(false)
@@ -1127,6 +1128,19 @@ export default function CollectorPerformance() {
     setShowManualExpenseModal(true)
   }
 
+  const openInlineExpenseForm = expenseDate => {
+    if (!expenseDate) return
+    setManualExpenseForm({ expense_date: expenseDate, category: '', description: '', amount: '' })
+    setManualExpenseEditing(null)
+    setInlineExpenseDate(expenseDate)
+    setExpandedExpenseDates(current => ({ ...current, [expenseDate]: true }))
+  }
+
+  const closeInlineExpenseForm = () => {
+    setInlineExpenseDate(null)
+    setManualExpenseForm({ expense_date: '', category: '', description: '', amount: '' })
+  }
+
   const openManualExpenseEditor = expense => {
     setManualExpenseForm({
       expense_date: expense.expense_date,
@@ -1154,6 +1168,7 @@ export default function CollectorPerformance() {
       else await API.post('/forty-five-day-rating/manual-expenses', payload)
       setShowManualExpenseModal(false)
       setManualExpenseEditing(null)
+      setInlineExpenseDate(null)
       setExpandedExpenseDates(current => ({ ...current, [payload.expense_date]: true }))
       await loadFortyFiveDayEvaluation(period.start_date, period.end_date)
     } catch (err) {
@@ -1629,10 +1644,11 @@ export default function CollectorPerformance() {
         .expense-tabulation-kpi.grand strong { color: #c55d0a; }
         .expense-tabulation-kpi.share { border-top: 3px solid #7847c7; background: linear-gradient(135deg, #faf7ff, #fff); }
         .expense-tabulation-kpi.share strong { color: #6d28d9; }
-        .expense-tabulation-table { min-width: 6900px !important; }
-        .expense-tabulation-table thead tr:first-child th { top: 0; z-index: 7; height: 36px; color: #fff; text-align: center; vertical-align: middle; }
+        .expense-tabulation-table { min-width: 5400px !important; }
+        .expense-tabulation-table > tbody > tr > td { padding: 7px 6px; font-size: 10px; }
+        .expense-tabulation-table thead tr:first-child th { top: 0; z-index: 7; height: 32px; padding: 6px 5px; color: #fff; text-align: center; vertical-align: middle; font-size: 10px; }
         .expense-tabulation-table thead tr:first-child th:not(.expense-tabulation-section) { background: #23455e; }
-        .expense-tabulation-table thead tr:nth-child(2) th { top: 36px; z-index: 6; min-width: 112px; white-space: normal; text-align: center; }
+        .expense-tabulation-table thead tr:nth-child(2) th { top: 32px; z-index: 6; min-width: 78px; padding: 6px 4px; white-space: normal; text-align: center; font-size: 9px; line-height: 1.15; }
         .expense-tabulation-table thead .expense-tabulation-section.office { background: #087d73; }
         .expense-tabulation-table thead .expense-tabulation-section.misc { background: #315cb9; }
         .expense-tabulation-table thead .expense-tabulation-section.grand { background: #c55d0a; }
@@ -1640,10 +1656,16 @@ export default function CollectorPerformance() {
         .expense-tabulation-table .expense-tabulation-total.office { color: #087d73; }
         .expense-tabulation-table .expense-tabulation-total.misc { color: #315cb9; }
         .expense-tabulation-table .expense-tabulation-total.grand { color: #c55d0a; background: #fff7ed; }
-        .expense-tabulation-amount { color: #475569; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-        .expense-tabulation-total-button { display: grid; gap: 2px; min-width: 112px; padding: 0; border: 0; color: inherit; background: transparent; font: inherit; font-weight: 900; text-align: right; cursor: pointer; }
+        .expense-tabulation-amount { min-width: 78px; color: #475569; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+        .expense-tabulation-total-button { display: grid; gap: 2px; min-width: 78px; padding: 0; border: 0; color: inherit; background: transparent; font: inherit; font-weight: 900; text-align: right; cursor: pointer; }
         .expense-tabulation-total-button small { color: #94a3b8; font-size: 10px; font-weight: 800; }
         .expense-tabulation-total-button:disabled { cursor: default; }
+        .expense-inline-form { display: grid; grid-template-columns: minmax(230px, 1.5fr) minmax(120px, .65fr) minmax(240px, 1.2fr) auto; align-items: end; gap: 10px; padding: 12px; border: 1px solid #b9ded7; border-radius: 9px; background: #effaf7; }
+        .expense-inline-form .form-group { margin: 0; min-width: 0; }
+        .expense-inline-form .form-label { margin-bottom: 5px; font-size: 10px; }
+        .expense-inline-form .form-control { min-height: 34px; padding: 7px 9px; font-size: 12px; }
+        .expense-inline-form-actions { display: flex; gap: 7px; white-space: nowrap; }
+        @media (max-width: 760px) { .expense-inline-form { grid-template-columns: 1fr; } .expense-inline-form-actions { justify-content: flex-end; } }
         .ranking-dashboard { color: #102448; }
         .ranking-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding: 6px 0 14px; }
         .ranking-header h3 { margin: 0; color: #102448; font-size: 21px; font-weight: 950; }
@@ -2815,10 +2837,16 @@ export default function CollectorPerformance() {
                                       ...expenseGroup.categories.map(category => <td key={`${expenseGroup.key}:${category}`} className="expense-tabulation-amount">{group.categoryTotals[`${expenseGroup.key}:${category}`] ? `PHP ${fmt(group.categoryTotals[`${expenseGroup.key}:${category}`])}` : '—'}</td>),
                                       <td key={`${expenseGroup.key}:total`} className={`expense-tabulation-amount expense-tabulation-total ${expenseGroup.section}`}>PHP {fmt(group.totals[expenseGroup.key])}</td>
                                     ])}
-                                    <td>{canManageManualExpenses && <button className="btn btn-secondary btn-sm" type="button" onClick={() => openManualExpenseModal(group.date)}><Plus size={14} /> Add Expense</button>}</td>
+                                    <td>{canManageManualExpenses && <button className="btn btn-secondary btn-sm" type="button" onClick={() => openInlineExpenseForm(group.date)}><Plus size={14} /> Add Expense</button>}</td>
                                   </tr>
                                   {isExpanded && <tr><td colSpan={EXPENSE_TABULATION_COLUMN_COUNT} style={{ padding: '0 16px 16px', background: '#f8fffd' }}>
                                     <div style={{ display: 'grid', gap: 8, paddingTop: 10 }}>
+                                      {inlineExpenseDate === group.date && <form className="expense-inline-form" onSubmit={saveManualExpense}>
+                                        <label className="form-group"><span className="form-label">Category</span><select className="form-control" required autoFocus value={manualExpenseForm.category} onChange={event => setManualExpenseForm(current => ({ ...current, category: event.target.value }))}><option value="">Select expense category</option>{MANUAL_EXPENSE_CATEGORIES.map(([expenseGroup, categories]) => <optgroup key={expenseGroup} label={expenseGroup}>{categories.map(category => <option key={`${expenseGroup}-${category}`} value={`${expenseGroup} — ${category}`}>{category}</option>)}</optgroup>)}</select></label>
+                                        <label className="form-group"><span className="form-label">Amount (PHP)</span><input className="form-control" type="number" required min="0.01" step="0.01" inputMode="decimal" placeholder="0.00" value={manualExpenseForm.amount} onWheel={event => event.currentTarget.blur()} onChange={event => setManualExpenseForm(current => ({ ...current, amount: event.target.value }))} /></label>
+                                        <label className="form-group"><span className="form-label">Description / Particulars <small>(optional)</small></span><input className="form-control" maxLength="500" value={manualExpenseForm.description} onChange={event => setManualExpenseForm(current => ({ ...current, description: event.target.value }))} /></label>
+                                        <div className="expense-inline-form-actions"><button className="btn btn-secondary btn-sm" type="button" onClick={closeInlineExpenseForm} disabled={manualExpenseSaving}>Cancel</button><button className="btn btn-primary btn-sm" type="submit" disabled={manualExpenseSaving}>{manualExpenseSaving ? 'Saving...' : 'Save'}</button></div>
+                                      </form>}
                                       {group.expenses.length ? group.expenses.map(expense => <div key={expense.id} style={{ display: 'grid', gridTemplateColumns: canManageManualExpenses ? 'minmax(0, 1fr) minmax(120px, auto) auto' : 'minmax(0, 1fr) minmax(120px, auto)', alignItems: 'center', gap: 14, padding: '12px 14px', border: '1px solid #d9eee9', borderRadius: 8, background: '#fff' }}>
                                         <div><div style={{ color: '#0f766e', fontSize: 11, fontWeight: 900, textTransform: 'uppercase' }}>{EXPENSE_TABULATION_GROUPS.find(item => item.key === tabulationGroupForExpense(expense.category))?.label}</div><div style={{ marginTop: 3, color: '#263b57', fontSize: 13, fontWeight: 800 }}>{expense.category}</div>{expense.description && <div style={{ marginTop: 4, color: '#64748b', fontSize: 12 }}>{expense.description}</div>}</div>
                                         <strong style={{ color: '#c2410c', textAlign: 'right', whiteSpace: 'nowrap' }}>PHP {fmt(expense.amount)}</strong>
@@ -2928,7 +2956,7 @@ export default function CollectorPerformance() {
           <div style={{ display: 'grid', gap: 16, padding: 20 }}>
             <label className="form-group"><span className="form-label">Expense Date</span><input className="form-control" type="date" required min={selectedRatingPeriod.period.start_date} max={selectedRatingPeriod.period.end_date} value={manualExpenseForm.expense_date} onChange={event => setManualExpenseForm(current => ({ ...current, expense_date: event.target.value }))} /></label>
             <label className="form-group"><span className="form-label">Category</span><select className="form-control" required value={manualExpenseForm.category} onChange={event => setManualExpenseForm(current => ({ ...current, category: event.target.value }))}><option value="">Select expense category</option>{MANUAL_EXPENSE_CATEGORIES.map(([group, categories]) => <optgroup key={group} label={group}>{categories.map(category => <option key={`${group}-${category}`} value={`${group} — ${category}`}>{category}</option>)}</optgroup>)}</select></label>
-            <label className="form-group"><span className="form-label">Amount</span><input className="form-control" type="number" required min="0.01" step="0.01" placeholder="0.00" value={manualExpenseForm.amount} onChange={event => setManualExpenseForm(current => ({ ...current, amount: event.target.value }))} /></label>
+            <label className="form-group"><span className="form-label">Amount</span><input className="form-control" type="number" required min="0.01" step="0.01" inputMode="decimal" placeholder="0.00" value={manualExpenseForm.amount} onWheel={event => event.currentTarget.blur()} onChange={event => setManualExpenseForm(current => ({ ...current, amount: event.target.value }))} /></label>
             <label className="form-group"><span className="form-label">Description / Particulars <small>(optional)</small></span><textarea className="form-control" rows="3" maxLength="500" value={manualExpenseForm.description} onChange={event => setManualExpenseForm(current => ({ ...current, description: event.target.value }))} /></label>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}><button className="btn btn-secondary" type="button" onClick={() => { setShowManualExpenseModal(false); setManualExpenseEditing(null) }}>Cancel</button><button className="btn btn-primary" type="submit" disabled={manualExpenseSaving}>{manualExpenseSaving ? 'Saving...' : manualExpenseEditing ? 'Save Changes' : 'Save Expense'}</button></div>
           </div>
