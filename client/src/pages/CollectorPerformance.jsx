@@ -44,6 +44,23 @@ const MANUAL_EXPENSE_CATEGORIES = [
   ['Miscellaneous Expense', ['Electric', 'Water', 'Telephone', "Rom's Medicine", 'LOAD Maria/Rom', 'Maria SSS', 'Lindsay SSS', "Cyril's SSS/PHIC", "Melanie's Salary/SSS", 'Tiya Nida', "Kids' Savings", 'Donations', 'Emergency Loan of Employees', 'Others (Specify)']]
 ]
 
+const EXPENSE_TABULATION_GROUPS = [
+  { key: 'government', label: 'Government Dues', source: 'Government Dues', section: 'office' },
+  { key: 'transportation', label: 'Transportation', source: 'Transportation Expenses', section: 'office' },
+  { key: 'mlic', label: 'MLIC Bills', source: 'MLIC Bills Payments', section: 'office' },
+  { key: 'benefits', label: 'Benefits', source: 'Employees Benefits / Incentives', section: 'office' },
+  { key: 'officeExpenses', label: 'Office Expenses', source: 'Office Expenses', section: 'office' },
+  { key: 'loansPayable', label: 'Loans Payable', source: 'Loans Payable', section: 'office' },
+  { key: 'president', label: "President's", source: "President's Expenses", section: 'misc' },
+  { key: 'evp', label: "EVP's", source: "EVP's Expenses", section: 'misc' },
+  { key: 'miscellaneous', label: 'Miscellaneous', source: 'Miscellaneous Expense', section: 'misc' }
+]
+
+const tabulationGroupForExpense = category => {
+  const name = String(category || '').split(' — ')[0].trim()
+  return EXPENSE_TABULATION_GROUPS.find(group => group.source === name)?.key || 'miscellaneous'
+}
+
 const compressProfilePhoto = source => new Promise(resolve => {
   const image = new Image()
 
@@ -739,7 +756,6 @@ export default function CollectorPerformance() {
   const [ratingContentTab, setRatingContentTab] = useState('evaluation')
   const [ratingHierarchyModal, setRatingHierarchyModal] = useState(null)
   const [manualExpenses, setManualExpenses] = useState([])
-  const [manualExpensesTotal, setManualExpensesTotal] = useState(0)
   const [showManualExpenseModal, setShowManualExpenseModal] = useState(false)
   const [manualExpenseForm, setManualExpenseForm] = useState({ expense_date: '', category: '', description: '', amount: '' })
   const [manualExpenseEditing, setManualExpenseEditing] = useState(null)
@@ -785,6 +801,22 @@ export default function CollectorPerformance() {
     }
     return rows.reverse()
   }, [manualExpenses, selectedRatingPeriod?.period?.start_date, selectedRatingPeriod?.period?.end_date])
+
+  const expenseTabulationRows = useMemo(() => manualExpenseGroups.map(group => {
+    const totals = Object.fromEntries(EXPENSE_TABULATION_GROUPS.map(expenseGroup => [expenseGroup.key, 0]))
+    group.expenses.forEach(expense => {
+      totals[tabulationGroupForExpense(expense.category)] += Number(expense.amount || 0)
+    })
+    const officeTotal = EXPENSE_TABULATION_GROUPS.filter(group => group.section === 'office').reduce((sum, group) => sum + totals[group.key], 0)
+    const miscTotal = EXPENSE_TABULATION_GROUPS.filter(group => group.section === 'misc').reduce((sum, group) => sum + totals[group.key], 0)
+    return { ...group, totals, officeTotal, miscTotal, grandTotal: officeTotal + miscTotal }
+  }), [manualExpenseGroups])
+
+  const expenseTabulationTotals = useMemo(() => expenseTabulationRows.reduce((summary, row) => ({
+    office: summary.office + row.officeTotal,
+    misc: summary.misc + row.miscTotal,
+    grand: summary.grand + row.grandTotal
+  }), { office: 0, misc: 0, grand: 0 }), [expenseTabulationRows])
 
   const preserveExpenseSharePosition = () => {
     const table = expenseShareTableRef.current
@@ -1055,7 +1087,6 @@ export default function CollectorPerformance() {
       ])
       setSelectedRatingPeriod(response.data)
       setManualExpenses(manualExpenseResponse.data.expenses || [])
-      setManualExpensesTotal(Number(manualExpenseResponse.data.total || 0))
       setRatingHierarchyModal(null)
       setErrorMsg('')
     } catch (err) {
@@ -1575,6 +1606,34 @@ export default function CollectorPerformance() {
         .expense-share-header { position: sticky; top: 0; z-index: 12; padding: 14px 0; background: #fff; box-shadow: 0 8px 12px -14px rgba(15, 23, 42, .4); }
         .expense-share-table-wrap { max-height: min(56vh, 620px); overflow: auto; }
         .expense-share-table thead th { position: sticky; top: 0; z-index: 5; background: #f8fafc; box-shadow: 0 1px 0 #dbe4f0, 0 5px 10px rgba(15, 23, 42, .06); }
+        .expense-tabulation-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+        .expense-tabulation-kpi { min-width: 0; padding: 14px 16px; border: 1px solid #dbe4f0; border-radius: 10px; background: #fff; }
+        .expense-tabulation-kpi span, .expense-tabulation-kpi small { display: block; color: #64748b; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .35px; }
+        .expense-tabulation-kpi strong { display: block; margin-top: 6px; color: #15365a; font-size: 19px; line-height: 1.15; white-space: nowrap; }
+        .expense-tabulation-kpi small { margin-top: 5px; font-size: 10px; text-transform: none; letter-spacing: 0; }
+        .expense-tabulation-kpi.office { border-top: 3px solid #16806f; background: linear-gradient(135deg, #f4fcfa, #fff); }
+        .expense-tabulation-kpi.office strong { color: #087d73; }
+        .expense-tabulation-kpi.misc { border-top: 3px solid #5279d8; background: linear-gradient(135deg, #f5f8ff, #fff); }
+        .expense-tabulation-kpi.misc strong { color: #315cb9; }
+        .expense-tabulation-kpi.grand { border-top: 3px solid #df7e17; background: linear-gradient(135deg, #fff9ef, #fff); }
+        .expense-tabulation-kpi.grand strong { color: #c55d0a; }
+        .expense-tabulation-kpi.share { border-top: 3px solid #7847c7; background: linear-gradient(135deg, #faf7ff, #fff); }
+        .expense-tabulation-kpi.share strong { color: #6d28d9; }
+        .expense-tabulation-table { min-width: 1570px !important; }
+        .expense-tabulation-table thead tr:first-child th { top: 0; z-index: 7; height: 36px; color: #fff; text-align: center; vertical-align: middle; }
+        .expense-tabulation-table thead tr:first-child th:not(.expense-tabulation-section) { background: #23455e; }
+        .expense-tabulation-table thead tr:nth-child(2) th { top: 36px; z-index: 6; min-width: 112px; white-space: normal; text-align: center; }
+        .expense-tabulation-table thead .expense-tabulation-section.office { background: #087d73; }
+        .expense-tabulation-table thead .expense-tabulation-section.misc { background: #315cb9; }
+        .expense-tabulation-table thead .expense-tabulation-section.grand { background: #c55d0a; }
+        .expense-tabulation-table .expense-tabulation-total { font-weight: 900; background: #f7fafc; }
+        .expense-tabulation-table .expense-tabulation-total.office { color: #087d73; }
+        .expense-tabulation-table .expense-tabulation-total.misc { color: #315cb9; }
+        .expense-tabulation-table .expense-tabulation-total.grand { color: #c55d0a; background: #fff7ed; }
+        .expense-tabulation-amount { color: #475569; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+        .expense-tabulation-total-button { display: grid; gap: 2px; min-width: 112px; padding: 0; border: 0; color: inherit; background: transparent; font: inherit; font-weight: 900; text-align: right; cursor: pointer; }
+        .expense-tabulation-total-button small { color: #94a3b8; font-size: 10px; font-weight: 800; }
+        .expense-tabulation-total-button:disabled { cursor: default; }
         .ranking-dashboard { color: #102448; }
         .ranking-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding: 6px 0 14px; }
         .ranking-header h3 { margin: 0; color: #102448; font-size: 21px; font-weight: 950; }
@@ -1709,6 +1768,7 @@ export default function CollectorPerformance() {
           .forty-five-modal-header h3 { font-size: 17px; }
           .forty-five-modal-table-wrap { padding: 10px; }
           .expense-share-table-wrap { max-height: 52vh; }
+          .expense-tabulation-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .ranking-kpis { grid-template-columns: 1fr; }
           .print-report-kpis, .print-report-forms { grid-template-columns: 1fr; }
           .print-report-list-head { flex-direction: column; }
@@ -2713,14 +2773,19 @@ export default function CollectorPerformance() {
                             <div><div className="forty-five-section-title"><FileText size={19} /> Expense Share</div><div style={{ color: '#64748b', fontSize: 13, marginTop: 6 }}>Saved expense total is divided equally among {selectedRatingPeriod.evaluations.length} collector{selectedRatingPeriod.evaluations.length === 1 ? '' : 's'} in this 45-day evaluation.</div></div>
                             {canManageManualExpenses && <button className="btn btn-primary" type="button" onClick={openManualExpenseModal}><Plus size={16} /> Input Expense</button>}
                           </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14, marginBottom: 18 }}>
-                            <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, padding: 16, background: '#f8fafc' }}><div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Saved Expenses</div><strong style={{ display: 'block', marginTop: 5, color: '#c2410c', fontSize: 22 }}>PHP {fmt(manualExpensesTotal)}</strong></div>
-                            <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, padding: 16, background: '#f8fafc' }}><div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Expense Share per Collector</div><strong style={{ display: 'block', marginTop: 5, color: '#6d28d9', fontSize: 22 }}>PHP {fmt(selectedRatingPeriod.evaluations.length ? manualExpensesTotal / selectedRatingPeriod.evaluations.length : 0)}</strong></div>
+                          <div className="expense-tabulation-summary">
+                            <div className="expense-tabulation-kpi office"><span>Office Total</span><strong>PHP {fmt(expenseTabulationTotals.office)}</strong></div>
+                            <div className="expense-tabulation-kpi misc"><span>Misc Total</span><strong>PHP {fmt(expenseTabulationTotals.misc)}</strong></div>
+                            <div className="expense-tabulation-kpi grand"><span>Grand Total Expenses</span><strong>PHP {fmt(expenseTabulationTotals.grand)}</strong><small>Office + Misc</small></div>
+                            <div className="expense-tabulation-kpi share"><span>Share per Collector</span><strong>PHP {fmt(selectedRatingPeriod.evaluations.length ? expenseTabulationTotals.grand / selectedRatingPeriod.evaluations.length : 0)}</strong><small>{selectedRatingPeriod.evaluations.length || 0} collector{selectedRatingPeriod.evaluations.length === 1 ? '' : 's'}</small></div>
                           </div>
                           <div ref={expenseShareTableRef} className="expense-share-table-wrap" style={{ border: '1px solid #dbe4f0', borderRadius: 10 }}>
-                            <table className="data-table expense-share-table" style={{ margin: 0, width: '100%' }}>
-                              <thead><tr><th>Date</th><th style={{ textAlign: 'right' }}>Total Amount (PHP)</th><th>Breakdown Items</th><th>Action</th></tr></thead>
-                              <tbody>{manualExpenseGroups.length ? manualExpenseGroups.map(group => {
+                            <table className="data-table expense-share-table expense-tabulation-table" style={{ margin: 0, width: '100%' }}>
+                              <thead>
+                                <tr><th rowSpan={2}>Date</th><th className="expense-tabulation-section office" colSpan={6}>Office</th><th className="expense-tabulation-section misc" colSpan={3}>Misc</th><th className="expense-tabulation-section grand" colSpan={3}>Grand Total of Expenses</th><th rowSpan={2}>Action</th></tr>
+                                <tr>{EXPENSE_TABULATION_GROUPS.map(group => <th key={group.key} title={group.label}>{group.label}</th>)}<th className="expense-tabulation-total office">Office</th><th className="expense-tabulation-total misc">Misc</th><th className="expense-tabulation-total grand">Total</th></tr>
+                              </thead>
+                              <tbody>{expenseTabulationRows.length ? expenseTabulationRows.map(group => {
                                 const isExpanded = Boolean(expandedExpenseDates[group.date])
                                 return <Fragment key={group.date}>
                                   <tr data-expense-date={group.date} style={{ background: isExpanded ? '#f0fdfa' : '#fff' }}>
@@ -2730,14 +2795,16 @@ export default function CollectorPerformance() {
                                         {displayDate(group.date)}
                                       </button>
                                     </td>
-                                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}><strong style={{ color: group.total ? '#c2410c' : '#64748b' }}>PHP {fmt(group.total)}</strong></td>
-                                    <td><button type="button" onClick={() => setExpandedExpenseDates(current => ({ ...current, [group.date]: !current[group.date] }))} aria-expanded={isExpanded} disabled={!group.expenses.length} style={{ color: group.expenses.length ? '#0f766e' : '#94a3b8', fontSize: 12, fontWeight: 800, padding: '5px 8px', border: 0, borderRadius: 5, background: group.expenses.length ? '#ecfdf5' : 'transparent', cursor: group.expenses.length ? 'pointer' : 'default' }}>{group.expenses.length} {group.expenses.length === 1 ? 'item' : 'items'}</button></td>
+                                    {EXPENSE_TABULATION_GROUPS.map(expenseGroup => <td key={expenseGroup.key} className="expense-tabulation-amount">{group.totals[expenseGroup.key] ? `PHP ${fmt(group.totals[expenseGroup.key])}` : '—'}</td>)}
+                                    <td className="expense-tabulation-amount expense-tabulation-total office">PHP {fmt(group.officeTotal)}</td>
+                                    <td className="expense-tabulation-amount expense-tabulation-total misc">PHP {fmt(group.miscTotal)}</td>
+                                    <td className="expense-tabulation-amount expense-tabulation-total grand"><button type="button" onClick={() => setExpandedExpenseDates(current => ({ ...current, [group.date]: !current[group.date] }))} aria-expanded={isExpanded} disabled={!group.expenses.length} className="expense-tabulation-total-button">PHP {fmt(group.grandTotal)} <small>{group.expenses.length} item{group.expenses.length === 1 ? '' : 's'}</small></button></td>
                                     <td>{canManageManualExpenses && <button className="btn btn-secondary btn-sm" type="button" onClick={() => openManualExpenseModal(group.date)}><Plus size={14} /> Add Expense</button>}</td>
                                   </tr>
-                                  {isExpanded && <tr><td colSpan={4} style={{ padding: '0 16px 16px', background: '#f8fffd' }}>
+                                  {isExpanded && <tr><td colSpan={14} style={{ padding: '0 16px 16px', background: '#f8fffd' }}>
                                     <div style={{ display: 'grid', gap: 8, paddingTop: 10 }}>
                                       {group.expenses.length ? group.expenses.map(expense => <div key={expense.id} style={{ display: 'grid', gridTemplateColumns: canManageManualExpenses ? 'minmax(0, 1fr) minmax(120px, auto) auto' : 'minmax(0, 1fr) minmax(120px, auto)', alignItems: 'center', gap: 14, padding: '12px 14px', border: '1px solid #d9eee9', borderRadius: 8, background: '#fff' }}>
-                                        <div><div style={{ color: '#263b57', fontSize: 13, fontWeight: 800 }}>{expense.category}</div>{expense.description && <div style={{ marginTop: 4, color: '#64748b', fontSize: 12 }}>{expense.description}</div>}</div>
+                                        <div><div style={{ color: '#0f766e', fontSize: 11, fontWeight: 900, textTransform: 'uppercase' }}>{EXPENSE_TABULATION_GROUPS.find(item => item.key === tabulationGroupForExpense(expense.category))?.label}</div><div style={{ marginTop: 3, color: '#263b57', fontSize: 13, fontWeight: 800 }}>{expense.category}</div>{expense.description && <div style={{ marginTop: 4, color: '#64748b', fontSize: 12 }}>{expense.description}</div>}</div>
                                         <strong style={{ color: '#c2410c', textAlign: 'right', whiteSpace: 'nowrap' }}>PHP {fmt(expense.amount)}</strong>
                                         {canManageManualExpenses && <div style={{ display: 'flex', gap: 6 }}>
                                           <button className="btn btn-secondary btn-sm" type="button" onClick={() => openManualExpenseEditor(expense)} title="Edit expense"><Edit3 size={14} /></button>
@@ -2747,7 +2814,7 @@ export default function CollectorPerformance() {
                                     </div>
                                   </td></tr>}
                                 </Fragment>
-                              }) : <tr><td colSpan={4} style={{ textAlign: 'center', color: '#64748b', padding: 22 }}>Select a period to view daily expenses.</td></tr>}</tbody>
+                              }) : <tr><td colSpan={14} style={{ textAlign: 'center', color: '#64748b', padding: 22 }}>Select a period to view daily expenses.</td></tr>}</tbody>
                             </table>
                           </div>
                         </div>
