@@ -93,6 +93,19 @@ function validateManualExpense(body) {
   return { value: { expense_date: expenseDate.format('YYYY-MM-DD'), category, description: description || null, amount } };
 }
 
+async function getRatingPeriodByRange(branchId, startDate, endDate) {
+  return dbGet(
+    'SELECT * FROM tblFortyFiveDayRatingPeriod WHERE branch_id IS ? AND start_date = ? AND end_date = ?',
+    [branchId || null, dayjs(startDate).format('YYYY-MM-DD'), dayjs(endDate).format('YYYY-MM-DD')]
+  );
+}
+
+async function ensureManualExpensePeriodEditable(branchId, startDate, endDate) {
+  const period = await getRatingPeriodByRange(branchId, startDate, endDate);
+  if (period && isFinalStatus(period.status)) return { error: 'This 45-day period is finalized/locked. Unlock it before editing expenses.' };
+  return { period };
+}
+
 router.get('/manual-expenses', authenticateToken, async (req, res) => {
   try {
     const { start_date: startDate, end_date: endDate } = req.query;
@@ -113,6 +126,8 @@ router.post('/manual-expenses', authenticateToken, requireRole('admin', 'manager
   try {
     const result = validateManualExpense(req.body || {});
     if (result.error) return res.status(400).json({ error: result.error });
+    const lockCheck = await ensureManualExpensePeriodEditable(req.user.branch_id, req.body.start_date, req.body.end_date);
+    if (lockCheck.error) return res.status(409).json({ error: lockCheck.error });
     const expense = result.value;
     const created = await dbRun(`
       INSERT INTO tblFortyFiveDayManualExpense (branch_id, expense_date, category, description, amount, created_by)
@@ -126,6 +141,8 @@ router.put('/manual-expenses/:id', authenticateToken, requireRole('admin', 'mana
   try {
     const result = validateManualExpense(req.body || {});
     if (result.error) return res.status(400).json({ error: result.error });
+    const lockCheck = await ensureManualExpensePeriodEditable(req.user.branch_id, req.body.start_date, req.body.end_date);
+    if (lockCheck.error) return res.status(409).json({ error: lockCheck.error });
     const expense = result.value;
     const branch = getBranchFilter(req.user.branch_id);
     const updated = await dbRun(`
@@ -141,6 +158,15 @@ router.put('/manual-expenses/:id', authenticateToken, requireRole('admin', 'mana
 router.delete('/manual-expenses/:id', authenticateToken, requireRole('admin', 'manager', 'accounting', 'it', 'it_accounting_clerk'), async (req, res) => {
   try {
     const branch = getBranchFilter(req.user.branch_id);
+    const expense = await dbGet(`SELECT * FROM tblFortyFiveDayManualExpense WHERE id = ?${branch.sql}`, [req.params.id, ...branch.params]);
+    if (!expense) return res.status(404).json({ error: 'Manual expense not found.' });
+    const finalPeriod = await dbGet(`
+      SELECT * FROM tblFortyFiveDayRatingPeriod
+      WHERE branch_id IS ? AND date(?) BETWEEN date(start_date) AND date(end_date)
+      ORDER BY start_date DESC
+      LIMIT 1
+    `, [req.user.branch_id || null, expense.expense_date]);
+    if (finalPeriod && isFinalStatus(finalPeriod.status)) return res.status(409).json({ error: 'This 45-day period is finalized/locked. Unlock it before deleting expenses.' });
     const deleted = await dbRun(`DELETE FROM tblFortyFiveDayManualExpense WHERE id = ?${branch.sql}`, [req.params.id, ...branch.params]);
     if (!deleted.changes) return res.status(404).json({ error: 'Manual expense not found.' });
     res.json({ success: true });
@@ -330,6 +356,8 @@ router.get('/calculate', authenticateToken, async (req, res) => {
       start_date: start.format('YYYY-MM-DD'),
       end_date: end.format('YYYY-MM-DD')
     });
+    const existingPeriod = await getRatingPeriodByRange(req.user.branch_id, start.format('YYYY-MM-DD'), end.format('YYYY-MM-DD'));
+    if (existingPeriod) result.period = { ...result.period, ...existingPeriod };
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

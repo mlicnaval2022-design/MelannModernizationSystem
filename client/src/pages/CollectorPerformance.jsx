@@ -758,6 +758,7 @@ export default function CollectorPerformance() {
   const [filters, setFilters] = useState(defaultRange)
   const [data, setData] = useState(null)
   const [ratingDateRange, setRatingDateRange] = useState({ start_date: '', end_date: '' })
+  const [ratingPresetYear, setRatingPresetYear] = useState(new Date().getFullYear())
   const [selectedRatingPeriod, setSelectedRatingPeriod] = useState(null)
   const [ratingEvaluationTab, setRatingEvaluationTab] = useState('collector')
   const [ratingContentTab, setRatingContentTab] = useState('evaluation')
@@ -1128,9 +1129,8 @@ export default function CollectorPerformance() {
   }
 
   const handleSelectPresetPeriod = (startStr, endStr) => {
-    const currentYear = new Date().getFullYear()
-    const from = `${currentYear}${startStr}`
-    const to = `${currentYear}${endStr}`
+    const from = `${ratingPresetYear}${startStr}`
+    const to = `${ratingPresetYear}${endStr}`
     setRatingDateRange({ start_date: from, end_date: to })
     loadFortyFiveDayEvaluation(from, to)
   }
@@ -1138,6 +1138,51 @@ export default function CollectorPerformance() {
   const refreshRatingPeriod = async () => {
     if (!selectedRatingPeriod?.period?.start_date || !selectedRatingPeriod?.period?.end_date) return
     await loadFortyFiveDayEvaluation(selectedRatingPeriod.period.start_date, selectedRatingPeriod.period.end_date)
+  }
+
+  const ensureRatingPeriodRecord = async () => {
+    const period = selectedRatingPeriod?.period
+    if (!period?.start_date || !period?.end_date) return null
+    if (period.id) return period
+    try {
+      const response = await API.post('/forty-five-day-rating/periods', {
+        start_date: period.start_date,
+        end_date: period.end_date
+      })
+      await loadFortyFiveDayEvaluation(period.start_date, period.end_date)
+      return response.data
+    } catch (err) {
+      if (err.response?.status !== 409) throw err
+      const periodsResponse = await API.get('/forty-five-day-rating/periods')
+      const matchedPeriod = (periodsResponse.data || []).find(item => item.start_date === period.start_date && item.end_date === period.end_date)
+      if (!matchedPeriod) throw err
+      await loadFortyFiveDayEvaluation(period.start_date, period.end_date)
+      return matchedPeriod
+    }
+  }
+
+  const lockRatingPeriod = async () => {
+    try {
+      const period = await ensureRatingPeriodRecord()
+      if (!period?.id) return
+      await API.post(`/forty-five-day-rating/periods/${period.id}/lock`)
+      await loadFortyFiveDayEvaluation(period.start_date, period.end_date)
+    } catch (err) {
+      setErrorMsg(err.response?.data?.error || err.message || 'Could not lock 45-day period')
+    }
+  }
+
+  const unlockRatingPeriod = async () => {
+    const period = selectedRatingPeriod?.period
+    if (!period?.id) return
+    const reason = window.prompt('Reason for unlocking this finalized 45-day period:')
+    if (!reason?.trim()) return
+    try {
+      await API.post(`/forty-five-day-rating/periods/${period.id}/unlock`, { reason: reason.trim() })
+      await loadFortyFiveDayEvaluation(period.start_date, period.end_date)
+    } catch (err) {
+      setErrorMsg(err.response?.data?.error || err.message || 'Could not unlock 45-day period')
+    }
   }
 
   const openManualExpenseEditor = expense => {
@@ -1538,7 +1583,14 @@ export default function CollectorPerformance() {
   const isWeekLocked = Boolean(lockedCollections && lockedCollections.dateFrom === currentWeekDates[0] && lockedCollections.dateTo === currentWeekDates[5])
   const canManageWeekLock = hasRole('admin', 'manager')
   const canManageManualExpenses = hasRole('admin', 'manager', 'accounting', 'it', 'it_accounting_clerk')
+  const canManageRatingLock = hasRole('admin')
+  const isRatingPeriodLocked = isFinalRatingStatus(selectedRatingPeriod?.period?.status)
+  const canEditRatingPeriod = canManageManualExpenses && !isRatingPeriodLocked
   const isValidRatingRange = Boolean(ratingDateRange.start_date && ratingDateRange.end_date && ratingDateRange.end_date >= ratingDateRange.start_date)
+  const ratingPresetYears = useMemo(() => {
+    const currentYear = new Date().getFullYear()
+    return Array.from({ length: 5 }, (_, index) => currentYear - 2 + index)
+  }, [])
 
   return (
     <div className="dashboard-v2">
@@ -2836,12 +2888,16 @@ export default function CollectorPerformance() {
                       </button>
                     </div>
 
-                    <div className="forty-five-presets-label">Official Company Periods (Quick Select):</div>
+                    <div className="forty-five-presets-label" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      <span>Official Company Periods (Quick Select):</span>
+                      <select className="form-control" value={ratingPresetYear} onChange={event => setRatingPresetYear(Number(event.target.value))} style={{ width: 112, height: 32, padding: '4px 9px', fontSize: 12 }}>
+                        {ratingPresetYears.map(year => <option key={year} value={year}>{year}</option>)}
+                      </select>
+                    </div>
                     <div className="forty-five-presets">
                       {COMPANY_PERIOD_PRESETS.map(preset => {
-                        const currentYear = new Date().getFullYear()
-                        const pStart = `${currentYear}${preset.start}`
-                        const pEnd = `${currentYear}${preset.end}`
+                        const pStart = `${ratingPresetYear}${preset.start}`
+                        const pEnd = `${ratingPresetYear}${preset.end}`
                         const isSelected = ratingDateRange.start_date === pStart && ratingDateRange.end_date === pEnd
                         return (
                           <button
