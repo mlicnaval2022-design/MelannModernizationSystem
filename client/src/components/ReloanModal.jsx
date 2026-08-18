@@ -358,36 +358,8 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
                   <div className="reloan-section-title">Loan Details</div>
                   <label className="reloan-field"><span>Loan Type <b>*</b></span><select value={form.loanType} onChange={e => updateForm('loanType', e.target.value)}><option value="">Select Loan Type</option><option value="NEW">NEW</option><option value="RELOAN">RELOAN</option><option value="RECON">RECON</option></select></label>
                   <label className="reloan-field"><span>Loan Date <b>*</b></span><input type="date" value={form.loanDate} onChange={e => updateForm('loanDate', e.target.value)} /></label>
-                  <section className="maturity-date-card" aria-label="Maturity date calculator">
-                    <div className="maturity-date-card-heading">
-                      <span>Maturity Date</span>
-                      <strong>{computed.dueDate || 'Select a release date'}</strong>
-                    </div>
-                    <div className="maturity-term-options" role="group" aria-label="Loan term">
-                      {dayOptions.map(days => (
-                        <button
-                          type="button"
-                          key={days}
-                          className={String(form.days) === days ? 'active' : ''}
-                          aria-pressed={String(form.days) === days}
-                          onClick={() => updateForm('days', days)}
-                        >
-                          {days} days
-                        </button>
-                      ))}
-                    </div>
-                    <label className="maturity-custom-days">
-                      <span>Long due / custom days</span>
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        placeholder="e.g. 120"
-                        value={isCustomDays ? form.days : ''}
-                        onChange={e => updateForm('days', e.target.value)}
-                      />
-                    </label>
-                  </section>
+                  <label className="reloan-field"><span>Number of Days <b>*</b></span><select value={isCustomDays ? 'OTHER' : form.days} onChange={e => updateForm('days', e.target.value === 'OTHER' ? '' : e.target.value)}><option value="30">30 Days</option><option value="45">45 Days</option><option value="60">60 Days</option><option value="OTHER">Others</option></select></label>
+                  {(isCustomDays || form.days === '') && <label className="reloan-field"><span>Custom Days <b>*</b></span><input type="number" min="1" step="1" placeholder="Enter number of days" value={form.days} onChange={e => updateForm('days', e.target.value)} /></label>}
                   <label className="reloan-field"><span>Principal Amount <b>*</b></span><input type="number" min="1" step="0.01" value={form.principal} onChange={e => updateForm('principal', e.target.value)} /></label>
                   <label className="reloan-field"><span>Interest Rate</span><input type="number" min="0" step="0.01" value={form.interestRate} onChange={e => updateForm('interestRate', e.target.value)} readOnly={!canOverride && false} /></label>
                   <label className="reloan-field"><span>Payment Frequency</span><select value={form.paymentFrequency} onChange={e => updateForm('paymentFrequency', e.target.value)}><option>Daily</option><option>Weekly</option><option>Monthly</option></select></label>
@@ -401,6 +373,7 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
                   <label className="reloan-field"><span>Penalty</span><input type="number" min="0" step="0.01" value={form.penalty} onChange={e => updateForm('penalty', e.target.value)} /></label>
                   <label className="reloan-field"><span>Passbook</span><input type="number" min="0" step="0.01" value={form.passbook} onChange={e => updateForm('passbook', e.target.value)} /></label>
                   <label className="reloan-field"><span>Net Release Amount</span><input value={peso(computed.netRelease)} readOnly /></label>
+                  <label className="reloan-field"><span>Due Date</span><input type="date" value={computed.dueDate} readOnly /></label>
                 </section>
                 <aside className="reloan-side">
                   <section className="reloan-side-card breakdown">
