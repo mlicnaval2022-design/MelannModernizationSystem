@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, BarChart3, Building2, CalendarDays, CheckCircle2, ChevronRight, Download, Edit3, FileText, Grid2X2, Info, List, Lock, MapPin, Plus, Printer, RefreshCw, Search, Sparkles, Trash2, TrendingUp, Trophy, Unlock, User, Users, X } from 'lucide-react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import ConfirmModal from '../components/ConfirmModal'
 import logo from '../assets/logo.png'
 import printLetterhead from '../assets/new-letter-head-logo.jpg'
 import '../dashboard.css'
@@ -742,6 +743,8 @@ export default function CollectorPerformance() {
   const [showManualExpenseModal, setShowManualExpenseModal] = useState(false)
   const [manualExpenseForm, setManualExpenseForm] = useState({ expense_date: '', category: '', description: '', amount: '' })
   const [manualExpenseSaving, setManualExpenseSaving] = useState(false)
+  const [manualExpenseToDelete, setManualExpenseToDelete] = useState(null)
+  const [manualExpenseDeleting, setManualExpenseDeleting] = useState(false)
   const [activeTab, setActiveTab] = useState('targets')
   const [collectionRows, setCollectionRows] = useState([])
   const [newCollectionDate, setNewCollectionDate] = useState(defaultRange.date_to)
@@ -1043,14 +1046,23 @@ export default function CollectorPerformance() {
     }
   }
 
-  const deleteManualExpense = async expenseId => {
+  const requestManualExpenseDeletion = expense => {
+    setManualExpenseToDelete(expense)
+  }
+
+  const deleteManualExpense = async () => {
     const period = selectedRatingPeriod?.period
-    if (!period || !window.confirm('Delete this manual expense?')) return
+    const expenseId = manualExpenseToDelete?.id
+    if (!period || !expenseId) return
+    setManualExpenseDeleting(true)
     try {
       await API.delete(`/forty-five-day-rating/manual-expenses/${expenseId}`)
+      setManualExpenseToDelete(null)
       await loadFortyFiveDayEvaluation(period.start_date, period.end_date)
     } catch (err) {
       setErrorMsg(err.response?.data?.error || err.message || 'Could not delete manual expense')
+    } finally {
+      setManualExpenseDeleting(false)
     }
   }
 
@@ -2622,7 +2634,7 @@ export default function CollectorPerformance() {
                             <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, padding: 16, background: '#f8fafc' }}><div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Saved Expenses</div><strong style={{ display: 'block', marginTop: 5, color: '#c2410c', fontSize: 22 }}>PHP {fmt(manualExpensesTotal)}</strong></div>
                             <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, padding: 16, background: '#f8fafc' }}><div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Expense Share per Collector</div><strong style={{ display: 'block', marginTop: 5, color: '#6d28d9', fontSize: 22 }}>PHP {fmt(selectedRatingPeriod.evaluations.length ? manualExpensesTotal / selectedRatingPeriod.evaluations.length : 0)}</strong></div>
                           </div>
-                          <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, overflow: 'hidden' }}><div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 680 }}><thead><tr><th>Date</th><th>Category</th><th>Description</th><th style={{ textAlign: 'right' }}>Amount (PHP)</th>{canManageManualExpenses && <th />}</tr></thead><tbody>{manualExpenses.length ? manualExpenses.map(expense => <tr key={expense.id}><td>{displayDate(expense.expense_date)}</td><td style={{ fontWeight: 700 }}>{expense.category}</td><td>{expense.description || '—'}</td><td style={{ textAlign: 'right', color: '#c2410c', fontWeight: 800 }}>PHP {fmt(expense.amount)}</td>{canManageManualExpenses && <td style={{ textAlign: 'center' }}><button className="btn btn-secondary btn-sm" type="button" onClick={() => deleteManualExpense(expense.id)} title="Delete expense"><Trash2 size={14} /></button></td>}</tr>) : <tr><td colSpan={canManageManualExpenses ? 5 : 4} style={{ textAlign: 'center', color: '#64748b', padding: 22 }}>No saved expenses. Expense Share is PHP 0.00.</td></tr>}</tbody></table></div></div>
+                          <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, overflow: 'hidden' }}><div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 680 }}><thead><tr><th>Date</th><th>Category</th><th>Description</th><th style={{ textAlign: 'right' }}>Amount (PHP)</th>{canManageManualExpenses && <th />}</tr></thead><tbody>{manualExpenses.length ? manualExpenses.map(expense => <tr key={expense.id}><td>{displayDate(expense.expense_date)}</td><td style={{ fontWeight: 700 }}>{expense.category}</td><td>{expense.description || '—'}</td><td style={{ textAlign: 'right', color: '#c2410c', fontWeight: 800 }}>PHP {fmt(expense.amount)}</td>{canManageManualExpenses && <td style={{ textAlign: 'center' }}><button className="btn btn-secondary btn-sm" type="button" onClick={() => requestManualExpenseDeletion(expense)} title="Delete expense"><Trash2 size={14} /></button></td>}</tr>) : <tr><td colSpan={canManageManualExpenses ? 5 : 4} style={{ textAlign: 'center', color: '#64748b', padding: 22 }}>No saved expenses. Expense Share is PHP 0.00.</td></tr>}</tbody></table></div></div>
                         </div>
                       ) : ratingContentTab === 'ranking' ? (
                         <FortyFiveRanking period={selectedRatingPeriod.period} collectors={selectedRatingPeriod.evaluations} supervisors={selectedRatingPeriod.supervisor_evaluations || []} />
@@ -2724,6 +2736,20 @@ export default function CollectorPerformance() {
           </div>
         </form>
       </div>}
+
+      <ConfirmModal
+        isOpen={Boolean(manualExpenseToDelete)}
+        title="Delete expense?"
+        message="This expense will be removed from the current 45-day evaluation."
+        badgeText={manualExpenseToDelete ? `PHP ${fmt(manualExpenseToDelete.amount)}` : undefined}
+        subMessage={manualExpenseToDelete?.category}
+        type="danger"
+        confirmText="Delete expense"
+        cancelText="Keep expense"
+        loading={manualExpenseDeleting}
+        onConfirm={deleteManualExpense}
+        onCancel={() => !manualExpenseDeleting && setManualExpenseToDelete(null)}
+      />
 
       {showSavedModal && (
         <div style={{
