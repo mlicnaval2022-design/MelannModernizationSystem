@@ -1755,6 +1755,10 @@ export default function CollectorPerformance() {
         .expense-tabulation-table tbody .expense-freeze-office { z-index: 4; background: #f7fafc; }
         .expense-tabulation-table tbody .expense-freeze-misc { z-index: 4; background: #f7fafc; }
         .expense-tabulation-table tbody .expense-freeze-grand { z-index: 5; background: #fff7ed; box-shadow: 7px 0 10px -10px rgba(15, 23, 42, .45); }
+        .expense-tabulation-table tbody .expense-tabulation-amount.expense-freeze-office,
+        .expense-tabulation-table tbody .expense-tabulation-amount.expense-freeze-misc,
+        .expense-tabulation-table tbody .expense-tabulation-amount.expense-freeze-grand { font-size: 9px; }
+        .expense-tabulation-table tbody .expense-freeze-grand .expense-tabulation-total-button small { font-size: 9px; }
         .expense-tabulation-table tbody tr[style*="f0fdfa"] .expense-freeze-date { background: #f0fdfa; }
         .expense-tabulation-table tbody tr[style*="f0fdfa"] .expense-freeze-office,
         .expense-tabulation-table tbody tr[style*="f0fdfa"] .expense-freeze-misc { background: #ecfdf5; }
@@ -2933,8 +2937,7 @@ export default function CollectorPerformance() {
                                 return <Fragment key={group.date}>
                                   <tr data-expense-date={group.date} style={{ background: isExpanded ? '#f0fdfa' : '#fff' }}>
                                     <td className="expense-freeze-date">
-                                      <button type="button" onClick={() => setExpandedExpenseDates(current => ({ ...current, [group.date]: !current[group.date] }))} aria-expanded={isExpanded} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: 0, border: 0, color: '#0f766e', background: 'transparent', font: 'inherit', fontWeight: 900, cursor: 'pointer' }}>
-                                        <ChevronRight size={18} style={{ transition: 'transform .18s ease', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }} />
+                                      <button type="button" onClick={() => setExpandedExpenseDates(current => ({ ...current, [group.date]: !current[group.date] }))} aria-expanded={isExpanded} style={{ display: 'inline-flex', alignItems: 'center', padding: 0, border: 0, color: '#0f766e', background: 'transparent', font: 'inherit', fontWeight: 900, cursor: 'pointer' }}>
                                         {displayDate(group.date)}
                                       </button>
                                     </td>
