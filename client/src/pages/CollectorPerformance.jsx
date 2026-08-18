@@ -761,13 +761,28 @@ export default function CollectorPerformance() {
   const [fortyFiveDayLoading, setFortyFiveDayLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
-  const manualExpenseGroups = useMemo(() => Object.values(manualExpenses.reduce((groups, expense) => {
-    const date = expense.expense_date
-    if (!groups[date]) groups[date] = { date, expenses: [], total: 0 }
-    groups[date].expenses.push(expense)
-    groups[date].total += Number(expense.amount || 0)
-    return groups
-  }, {})), [manualExpenses])
+  const manualExpenseGroups = useMemo(() => {
+    const groups = manualExpenses.reduce((byDate, expense) => {
+      const date = expense.expense_date
+      if (!byDate[date]) byDate[date] = { date, expenses: [], total: 0 }
+      byDate[date].expenses.push(expense)
+      byDate[date].total += Number(expense.amount || 0)
+      return byDate
+    }, {})
+    const period = selectedRatingPeriod?.period
+    if (!period?.start_date || !period?.end_date) return Object.values(groups)
+
+    // Include zero-expense days so accounting can review the entire selected range at once.
+    const rows = []
+    const current = new Date(`${period.start_date}T00:00:00Z`)
+    const end = new Date(`${period.end_date}T00:00:00Z`)
+    while (current <= end) {
+      const date = current.toISOString().slice(0, 10)
+      rows.push(groups[date] || { date, expenses: [], total: 0 })
+      current.setUTCDate(current.getUTCDate() + 1)
+    }
+    return rows.reverse()
+  }, [manualExpenses, selectedRatingPeriod?.period?.start_date, selectedRatingPeriod?.period?.end_date])
 
   const updatePastdueCutoff = cutoff => {
     setFilters(current => ({ ...current, pastdue_cutoff: cutoff }))
@@ -1029,10 +1044,10 @@ export default function CollectorPerformance() {
     await loadFortyFiveDayEvaluation(selectedRatingPeriod.period.start_date, selectedRatingPeriod.period.end_date)
   }
 
-  const openManualExpenseModal = () => {
+  const openManualExpenseModal = (expenseDate) => {
     const period = selectedRatingPeriod?.period
     if (!period) return
-    setManualExpenseForm({ expense_date: period.start_date, category: '', description: '', amount: '' })
+    setManualExpenseForm({ expense_date: expenseDate || period.start_date, category: '', description: '', amount: '' })
     setManualExpenseEditing(null)
     setShowManualExpenseModal(true)
   }
@@ -2661,33 +2676,35 @@ export default function CollectorPerformance() {
                           </div>
                           <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, overflow: 'hidden' }}>
                             <table className="data-table" style={{ margin: 0, width: '100%' }}>
-                              <thead><tr><th>Date</th><th>Entries</th><th style={{ textAlign: 'right' }}>Total (PHP)</th></tr></thead>
+                              <thead><tr><th>Date</th><th style={{ textAlign: 'right' }}>Total Amount (PHP)</th><th>Breakdown Items</th><th>Action</th></tr></thead>
                               <tbody>{manualExpenseGroups.length ? manualExpenseGroups.map(group => {
                                 const isExpanded = Boolean(expandedExpenseDates[group.date])
                                 return <Fragment key={group.date}>
                                   <tr style={{ background: isExpanded ? '#f0fdfa' : '#fff' }}>
-                                    <td colSpan={2}>
+                                    <td>
                                       <button type="button" onClick={() => setExpandedExpenseDates(current => ({ ...current, [group.date]: !current[group.date] }))} aria-expanded={isExpanded} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: 0, border: 0, color: '#0f766e', background: 'transparent', font: 'inherit', fontWeight: 900, cursor: 'pointer' }}>
                                         <ChevronRight size={18} style={{ transition: 'transform .18s ease', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }} />
                                         {displayDate(group.date)}
                                       </button>
                                     </td>
-                                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}><span style={{ color: '#64748b', fontSize: 12, fontWeight: 700 }}>{group.expenses.length} {group.expenses.length === 1 ? 'entry' : 'entries'}</span><strong style={{ marginLeft: 14, color: '#c2410c' }}>PHP {fmt(group.total)}</strong></td>
+                                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}><strong style={{ color: group.total ? '#c2410c' : '#64748b' }}>PHP {fmt(group.total)}</strong></td>
+                                    <td><span style={{ color: group.expenses.length ? '#0f766e' : '#94a3b8', fontSize: 12, fontWeight: 800, padding: '5px 8px', borderRadius: 5, background: group.expenses.length ? '#ecfdf5' : 'transparent' }}>{group.expenses.length} {group.expenses.length === 1 ? 'item' : 'items'}</span></td>
+                                    <td>{canManageManualExpenses && <button className="btn btn-secondary btn-sm" type="button" onClick={() => openManualExpenseModal(group.date)}><Plus size={14} /> Add Expense</button>}</td>
                                   </tr>
-                                  {isExpanded && <tr><td colSpan={3} style={{ padding: '0 16px 16px', background: '#f8fffd' }}>
+                                  {isExpanded && <tr><td colSpan={4} style={{ padding: '0 16px 16px', background: '#f8fffd' }}>
                                     <div style={{ display: 'grid', gap: 8, paddingTop: 10 }}>
-                                      {group.expenses.map(expense => <div key={expense.id} style={{ display: 'grid', gridTemplateColumns: canManageManualExpenses ? 'minmax(0, 1fr) minmax(120px, auto) auto' : 'minmax(0, 1fr) minmax(120px, auto)', alignItems: 'center', gap: 14, padding: '12px 14px', border: '1px solid #d9eee9', borderRadius: 8, background: '#fff' }}>
+                                      {group.expenses.length ? group.expenses.map(expense => <div key={expense.id} style={{ display: 'grid', gridTemplateColumns: canManageManualExpenses ? 'minmax(0, 1fr) minmax(120px, auto) auto' : 'minmax(0, 1fr) minmax(120px, auto)', alignItems: 'center', gap: 14, padding: '12px 14px', border: '1px solid #d9eee9', borderRadius: 8, background: '#fff' }}>
                                         <div><div style={{ color: '#263b57', fontSize: 13, fontWeight: 800 }}>{expense.category}</div>{expense.description && <div style={{ marginTop: 4, color: '#64748b', fontSize: 12 }}>{expense.description}</div>}</div>
                                         <strong style={{ color: '#c2410c', textAlign: 'right', whiteSpace: 'nowrap' }}>PHP {fmt(expense.amount)}</strong>
                                         {canManageManualExpenses && <div style={{ display: 'flex', gap: 6 }}>
                                           <button className="btn btn-secondary btn-sm" type="button" onClick={() => openManualExpenseEditor(expense)} title="Edit expense"><Edit3 size={14} /></button>
                                           <button className="btn btn-secondary btn-sm" type="button" onClick={() => requestManualExpenseDeletion(expense)} title="Delete expense"><Trash2 size={14} /></button>
                                         </div>}
-                                      </div>)}
+                                      </div>) : <div style={{ padding: '12px 14px', color: '#64748b', fontSize: 13 }}>No expenses recorded for this date.</div>}
                                     </div>
                                   </td></tr>}
                                 </Fragment>
-                              }) : <tr><td colSpan={3} style={{ textAlign: 'center', color: '#64748b', padding: 22 }}>No saved expenses. Expense Share is PHP 0.00.</td></tr>}</tbody>
+                              }) : <tr><td colSpan={4} style={{ textAlign: 'center', color: '#64748b', padding: 22 }}>Select a period to view daily expenses.</td></tr>}</tbody>
                             </table>
                           </div>
                         </div>
