@@ -351,7 +351,6 @@ const escapeRankingCsv = value => `"${String(value ?? '').replaceAll('"', '""')}
 
 function FortyFiveRanking({ period, collectors = [], supervisors = [] }) {
   const [rankingTab, setRankingTab] = useState('collector')
-  const periodFinalized = isFinalRatingStatus(period.status)
   const sourceRows = rankingTab === 'collector'
     ? collectors
     : supervisors.filter(row => !String(row.name || '').toLowerCase().startsWith('unassigned'))
@@ -366,7 +365,7 @@ function FortyFiveRanking({ period, collectors = [], supervisors = [] }) {
     : 0
 
   const exportRanking = () => {
-    const headers = ['Rank', entityLabel, 'Total Collection', 'Total Release', 'Total Expense', 'Reported Pastdue', 'Net Income', '% Accomplishment', 'Rating', 'Status']
+    const headers = ['Rank', entityLabel, 'Total Collection', 'Total Release', 'Total Expense', 'Reported Pastdue', 'Net Income', '% Accomplishment', 'Rating']
     const csvRows = rankedRows.map((row, index) => {
       const complete = isRankingComplete(row)
       return [
@@ -378,8 +377,7 @@ function FortyFiveRanking({ period, collectors = [], supervisors = [] }) {
         Number(row.reported_pastdue || 0).toFixed(2),
         Number(row.net_income || 0).toFixed(2),
         complete ? Number(row.accomplishment_percentage).toFixed(2) : '',
-        row.rating || 'Not rated',
-        !complete ? 'Incomplete' : periodFinalized ? 'Complete' : 'Pending Finalization'
+        row.rating || 'Not rated'
       ].map(escapeRankingCsv).join(',')
     })
     const csv = [
@@ -423,15 +421,13 @@ function FortyFiveRanking({ period, collectors = [], supervisors = [] }) {
 
     <div className="ranking-table-wrap">
       <table className="ranking-table">
-        <thead><tr><th>Rank</th><th>{entityLabel}</th><th>Total<br />Collection</th><th>Total<br />Release</th><th>Total<br />Expense</th><th>Reported<br />Pastdue</th><th>Net<br />Income</th><th>%<br />Accomp.</th><th>Rating</th><th>Status</th></tr></thead>
+        <thead><tr><th>Rank</th><th>{entityLabel}</th><th>Total<br />Collection</th><th>Total<br />Release</th><th>Total<br />Expense</th><th>Reported<br />Pastdue</th><th>Net<br />Income</th><th>%<br />Accomp.</th><th>Rating</th></tr></thead>
         <tbody>{rankedRows.length ? rankedRows.map((row, index) => {
           const complete = isRankingComplete(row)
           const name = getRankingName(row)
           const netIncome = Number(row.net_income || 0)
           const accomplishment = complete ? Number(row.accomplishment_percentage) : 0
           const ratingStyle = getRatingPresentation(row.rating)
-          const statusClass = !complete ? 'incomplete' : periodFinalized ? 'complete' : 'pending'
-          const statusLabel = !complete ? 'Incomplete' : periodFinalized ? 'Complete' : 'Pending Finalization'
           return <tr key={row.id || `${rankingTab}-${name}`}>
             <td><span className={`ranking-rank ${index === 0 && complete ? 'ranking-rank-first' : ''}`}>{complete ? index + 1 : '—'}{index === 0 && complete && <em>◆</em>}</span></td>
             <td><div className="ranking-person"><span>{getCollectorInitials(name)}</span><strong>{name}<small>{rankingTab === 'collector' ? (row.branch_name || 'Rated Collector') : `${row.collectors?.length || row.collector_results?.length || 0} Collector(s)`}</small></strong></div></td>
@@ -442,9 +438,8 @@ function FortyFiveRanking({ period, collectors = [], supervisors = [] }) {
             <td className={`ranking-number ranking-net ${netIncome < 0 ? 'negative' : 'positive'}`}>{netIncome < 0 ? `(${rankingMoney(Math.abs(netIncome))})` : rankingMoney(netIncome)}</td>
             <td className="ranking-accomplishment">{complete ? <><strong>{accomplishment.toFixed(2)}%</strong><span><i style={{ width: `${Math.max(4, Math.min(accomplishment, 100))}%` }} /></span></> : <em>No data</em>}</td>
             <td><span className="ranking-rating" style={{ color: ratingStyle.color, background: ratingStyle.background }}>{row.rating || 'Incomplete'}</span></td>
-            <td><span className={`ranking-status ${statusClass}`}>{periodFinalized && complete ? <CheckCircle2 size={14} /> : <Info size={14} />}{statusLabel}</span></td>
           </tr>
-        }) : <tr><td colSpan={10} className="ranking-empty">No {entityLabel.toLowerCase()} ranking data available for this period.</td></tr>}</tbody>
+        }) : <tr><td colSpan={9} className="ranking-empty">No {entityLabel.toLowerCase()} ranking data available for this period.</td></tr>}</tbody>
       </table>
     </div>
 
@@ -1798,9 +1793,9 @@ export default function CollectorPerformance() {
         .ranking-kpi-average { border-color: #b9d4ff; background: #eff6ff; }.ranking-kpi-average .ranking-kpi-icon { color: #4187f5; background: #dbeafe; }.ranking-kpi-average strong { color: #2668e8; }.ranking-kpi-average b { color: #587095; font-size: 9px; }
         .ranking-kpi-incomplete { border-color: #e1c6ff; background: #faf5ff; }.ranking-kpi-incomplete .ranking-kpi-icon { color: #a747f5; background: #f0ddff; }.ranking-kpi-incomplete strong { color: #9333ea; }.ranking-kpi-incomplete b { color: #587095; font-size: 9px; }
         .ranking-table-wrap { overflow-x: auto; border: 1px solid #d8e2ef; border-radius: 12px; }
-        .ranking-table { width: 100%; min-width: 1030px; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+        .ranking-table { width: 100%; min-width: 910px; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
         .ranking-table th { height: 60px; padding: 10px 8px; border-right: 1px solid rgba(21,72,199,.4); color: #fff; background: #2455dc; font-size: 9px; font-weight: 950; line-height: 1.25; text-align: center; text-transform: uppercase; }
-        .ranking-table th:first-child { width: 64px; border-radius: 11px 0 0 0; }.ranking-table th:nth-child(2) { width: 190px; text-align: left; }.ranking-table th:nth-child(3), .ranking-table th:nth-child(4) { width: 118px; }.ranking-table th:nth-child(5) { width: 104px; }.ranking-table th:nth-child(6) { width: 100px; }.ranking-table th:nth-child(7) { width: 90px; }.ranking-table th:nth-child(8) { width: 154px; }.ranking-table th:last-child { width: 118px; border-right: 0; border-radius: 0 11px 0 0; }
+        .ranking-table th:first-child { width: 64px; border-radius: 11px 0 0 0; }.ranking-table th:nth-child(2) { width: 190px; text-align: left; }.ranking-table th:nth-child(3), .ranking-table th:nth-child(4) { width: 118px; }.ranking-table th:nth-child(5) { width: 104px; }.ranking-table th:nth-child(6) { width: 100px; }.ranking-table th:nth-child(7) { width: 90px; }.ranking-table th:nth-child(8) { width: 112px; }.ranking-table th:last-child { width: 130px; border-right: 0; border-radius: 0 11px 0 0; }
         .ranking-table td { height: 68px; padding: 10px 11px; border-right: 1px solid #d8e2ef; border-bottom: 1px solid #d8e2ef; color: #102448; background: #fff; font-size: 11px; vertical-align: middle; }
         .ranking-table tr:last-child td { border-bottom: 0; }.ranking-table td:last-child { border-right: 0; text-align: center; }
         .ranking-rank { position: relative; width: 29px; height: 29px; display: grid; place-items: center; margin: auto; border-radius: 50%; color: #547093; background: #f0f4f9; font-size: 12px; font-weight: 900; }
@@ -1811,8 +1806,7 @@ export default function CollectorPerformance() {
         .ranking-person small { display: block; margin-top: 2px; overflow: hidden; color: #6a7e9c; font-size: 8px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; text-transform: uppercase; }
         .ranking-number { text-align: center; font-size: 12px !important; font-weight: 950; }.ranking-net.positive { color: #00a957; }.ranking-net.negative { color: #ef2626; }
         .ranking-accomplishment { text-align: center; }.ranking-accomplishment strong { display: block; color: #1460f5; font-size: 10px; }.ranking-accomplishment > span { width: 45px; height: 4px; display: block; margin: 6px auto 0; overflow: hidden; border-radius: 99px; background: #e2e8f0; }.ranking-accomplishment i { display: block; height: 100%; border-radius: inherit; background: #2364f5; }.ranking-accomplishment em { color: #94a3b8; font-size: 10px; }
-        .ranking-rating { display: block; max-width: 142px; margin: auto; padding: 7px 8px; border-radius: 4px; font-size: 8px; font-weight: 950; line-height: 1.2; text-align: center; text-transform: uppercase; }
-        .ranking-status { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 88px; padding: 6px 9px; border: 1px solid; border-radius: 99px; font-size: 9px; font-weight: 900; }.ranking-status.complete { border-color: #a8edc4; color: #00a957; background: #effdf5; }.ranking-status.pending { min-width: 112px; border-color: #f5d58a; color: #a16207; background: #fffbeb; }.ranking-status.incomplete { border-color: #d8e2ef; color: #70839e; background: #f5f7fa; }
+        .ranking-rating { display: block; max-width: 118px; margin: auto; padding: 7px 8px; border-radius: 4px; font-size: 8px; font-weight: 950; line-height: 1.2; text-align: center; text-transform: uppercase; }
         .ranking-empty { padding: 36px !important; color: #70839e !important; text-align: center; }
         .ranking-guide { display: grid; grid-template-columns: 190px 1fr; gap: 22px; margin-top: 24px; padding: 17px 18px; border: 1px solid #d8e2ef; border-radius: 11px; background: #f8fafc; }
         .ranking-basis { display: flex; gap: 11px; color: #1c61ed; }.ranking-basis > svg { flex: 0 0 auto; margin-top: 1px; }.ranking-basis strong { color: #102448; font-size: 10px; }.ranking-basis ol { margin: 5px 0 0; padding-left: 18px; color: #506487; font-size: 9px; line-height: 1.55; }
