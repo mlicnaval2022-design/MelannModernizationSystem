@@ -120,6 +120,8 @@ const buildMonitoringEligibilityCondition = () => `
   )
 `;
 
+
+
 const buildClientAddress = (loan) => [
   loan.customer_address_line || loan.address,
   loan.customer_sitio,
@@ -190,7 +192,7 @@ const buildCollectionReleaseChargeRows = releases => releases.flatMap(loan => {
   if (Number(loan.penalty_payment_count || 0) === 0) {
     pushCharge('penalty', loan.penalty);
   }
-  pushCharge('passbook', loan.passbook);
+  // Passbook charges excluded from collection report per business rule
 
   return rows;
 });

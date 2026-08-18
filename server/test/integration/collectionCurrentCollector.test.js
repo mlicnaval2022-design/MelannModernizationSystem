@@ -81,7 +81,7 @@ test('collection report assigns historical payments to the current collector', a
   assert.equal(response.status, 200);
   const report = await response.json();
 
-  assert.equal(report.payments.length, 2);
+  assert.equal(report.payments.length, 1);
   assert.ok(report.payments.every(row => row.collector_name === 'Current Collector'));
-  assert.equal(report.total, 125);
+  assert.equal(report.total, 100);
 });
