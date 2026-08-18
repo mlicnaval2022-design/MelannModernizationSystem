@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, BarChart3, Building2, CalendarDays, CheckCircle2, ChevronRight, Download, Edit3, FileText, Grid2X2, Info, List, Lock, MapPin, Plus, Printer, RefreshCw, Search, Sparkles, Trash2, TrendingUp, Trophy, Unlock, User, Users, X } from 'lucide-react'
+import { ArrowLeft, BarChart3, Building2, CalendarDays, CheckCircle2, ChevronRight, Download, Edit3, FileText, Grid2X2, Info, List, Lock, MapPin, Plus, Printer, RefreshCw, Save, Search, Sparkles, Trash2, TrendingUp, Trophy, Unlock, User, Users, X } from 'lucide-react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import ConfirmModal from '../components/ConfirmModal'
@@ -65,26 +65,11 @@ const tabulationGroupForExpense = category => {
 }
 const tabulationCategoryForExpense = category => String(category || '').split(' — ').slice(1).join(' — ').trim()
 
-function ExpenseShareGridCell({ initialValue, onSave, disabled }) {
-  const [value, setValue] = useState(initialValue > 0 ? String(initialValue) : '')
-  const [isFocused, setIsFocused] = useState(false)
-
-  useEffect(() => {
-    if (!isFocused) setValue(initialValue > 0 ? String(initialValue) : '')
-  }, [initialValue, isFocused])
-
-  const commit = async () => {
-    setIsFocused(false)
-    const nextAmount = Math.max(0, Number(value) || 0)
-    const previousAmount = Math.max(0, Number(initialValue) || 0)
-    if (nextAmount !== previousAmount) {
-      const saved = await onSave(nextAmount)
-      if (saved === false) setValue(previousAmount > 0 ? String(previousAmount) : '')
-    }
-  }
+function ExpenseShareGridCell({ initialValue, value, onChange, readOnly, saving }) {
+  const displayValue = value ?? (initialValue > 0 ? String(initialValue) : '')
 
   return <td className="expense-tabulation-input-cell">
-    {disabled ? (initialValue ? `PHP ${fmt(initialValue)}` : '—') : <input type="number" min="0" step="0.01" inputMode="decimal" value={value} placeholder="—" onFocus={() => setIsFocused(true)} onBlur={commit} onWheel={event => event.currentTarget.blur()} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur() } }} onChange={event => setValue(event.target.value)} />}
+    {readOnly ? (initialValue ? `PHP ${fmt(initialValue)}` : '—') : <input type="number" min="0" step="0.01" inputMode="decimal" value={displayValue} disabled={saving} placeholder="—" onWheel={event => event.currentTarget.blur()} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur() } }} onChange={event => onChange(event.target.value)} />}
   </td>
 }
 
@@ -784,7 +769,8 @@ export default function CollectorPerformance() {
   const [ratingHierarchyModal, setRatingHierarchyModal] = useState(null)
   const [manualExpenses, setManualExpenses] = useState([])
   const [showManualExpenseModal, setShowManualExpenseModal] = useState(false)
-  const [expenseCellSavingKey, setExpenseCellSavingKey] = useState('')
+  const [expenseCellDrafts, setExpenseCellDrafts] = useState({})
+  const [expenseCellsSaving, setExpenseCellsSaving] = useState(false)
   const [manualExpenseForm, setManualExpenseForm] = useState({ expense_date: '', category: '', description: '', amount: '' })
   const [manualExpenseEditing, setManualExpenseEditing] = useState(null)
   const [manualExpenseSaving, setManualExpenseSaving] = useState(false)
@@ -850,6 +836,22 @@ export default function CollectorPerformance() {
     misc: summary.misc + row.miscTotal,
     grand: summary.grand + row.grandTotal
   }), { office: 0, misc: 0, grand: 0 }), [expenseTabulationRows])
+
+  const pendingExpenseCellCount = useMemo(() => Object.keys(expenseCellDrafts).length, [expenseCellDrafts])
+
+  const setExpenseCellDraft = (expenseDate, category, value, initialAmount) => {
+    const cellKey = `${expenseDate}:${category}`
+    const numericValue = value === '' ? 0 : Number(value)
+    const originalAmount = Math.max(0, Number(initialAmount) || 0)
+
+    setExpenseCellDrafts(current => {
+      const next = { ...current }
+      if (Number.isFinite(numericValue) && numericValue >= 0 && numericValue === originalAmount) delete next[cellKey]
+      else next[cellKey] = { expenseDate, category, value, initialAmount: originalAmount }
+      return next
+    })
+    setErrorMsg('')
+  }
 
   const preserveExpenseSharePosition = () => {
     const table = expenseShareTableRef.current
@@ -1120,6 +1122,7 @@ export default function CollectorPerformance() {
       ])
       setSelectedRatingPeriod(response.data)
       setManualExpenses(manualExpenseResponse.data.expenses || [])
+      setExpenseCellDrafts({})
       setRatingHierarchyModal(null)
       setErrorMsg('')
     } catch (err) {
@@ -1179,63 +1182,84 @@ export default function CollectorPerformance() {
     }
   }
 
-  const saveManualExpenseCell = async (expenseDate, category, amount) => {
-    const period = selectedRatingPeriod?.period
+  const persistManualExpenseCell = async (expenseDate, category, amount, period) => {
     if (!period) return
     const matchingExpenses = manualExpenses.filter(expense => expense.expense_date === expenseDate && expense.category === category)
     const currentAmount = matchingExpenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0)
     if (amount === currentAmount) return true
 
-    const cellKey = `${expenseDate}:${category}`
-    preserveExpenseSharePosition()
-    setExpenseCellSavingKey(cellKey)
-    try {
-      if (amount === 0) {
-        await Promise.all(matchingExpenses.map(expense => API.delete(`/forty-five-day-rating/manual-expenses/${expense.id}`)))
-      } else if (amount > currentAmount) {
-        await API.post('/forty-five-day-rating/manual-expenses', {
-          expense_date: expenseDate,
-          category,
-          description: '',
-          amount: amount - currentAmount,
-          start_date: period.start_date,
-          end_date: period.end_date
-        })
-      } else if (matchingExpenses.length === 1) {
-        const [expense] = matchingExpenses
-        await API.put(`/forty-five-day-rating/manual-expenses/${expense.id}`, {
+    if (amount === 0) {
+      await Promise.all(matchingExpenses.map(expense => API.delete(`/forty-five-day-rating/manual-expenses/${expense.id}`)))
+    } else if (amount > currentAmount) {
+      await API.post('/forty-five-day-rating/manual-expenses', {
+        expense_date: expenseDate,
+        category,
+        description: '',
+        amount: amount - currentAmount,
+        start_date: period.start_date,
+        end_date: period.end_date
+      })
+    } else if (matchingExpenses.length === 1) {
+      const [expense] = matchingExpenses
+      await API.put(`/forty-five-day-rating/manual-expenses/${expense.id}`, {
+        expense_date: expenseDate,
+        category,
+        description: expense.description || '',
+        amount,
+        start_date: period.start_date,
+        end_date: period.end_date
+      })
+    } else {
+      let remainingAmount = amount
+      for (const expense of matchingExpenses) {
+        const nextAmount = Math.min(Number(expense.amount || 0), remainingAmount)
+        remainingAmount -= nextAmount
+        if (nextAmount === 0) await API.delete(`/forty-five-day-rating/manual-expenses/${expense.id}`)
+        else await API.put(`/forty-five-day-rating/manual-expenses/${expense.id}`, {
           expense_date: expenseDate,
           category,
           description: expense.description || '',
-          amount,
+          amount: nextAmount,
           start_date: period.start_date,
           end_date: period.end_date
         })
-      } else {
-        let remainingAmount = amount
-        for (const expense of matchingExpenses) {
-          const nextAmount = Math.min(Number(expense.amount || 0), remainingAmount)
-          remainingAmount -= nextAmount
-          if (nextAmount === 0) await API.delete(`/forty-five-day-rating/manual-expenses/${expense.id}`)
-          else await API.put(`/forty-five-day-rating/manual-expenses/${expense.id}`, {
-            expense_date: expenseDate,
-            category,
-            description: expense.description || '',
-            amount: nextAmount,
-            start_date: period.start_date,
-            end_date: period.end_date
-          })
-        }
       }
-      setExpandedExpenseDates(current => ({ ...current, [expenseDate]: true }))
+    }
+  }
+
+  const saveExpenseCellDrafts = async () => {
+    const period = selectedRatingPeriod?.period
+    const drafts = Object.values(expenseCellDrafts)
+    if (!period || !drafts.length || expenseCellsSaving) return
+
+    const changes = []
+    for (const draft of drafts) {
+      const amount = draft.value === '' ? 0 : Number(draft.value)
+      if (!Number.isFinite(amount) || amount < 0) {
+        setErrorMsg('Please enter valid expense amounts before saving.')
+        return
+      }
+      if (amount !== draft.initialAmount) changes.push({ ...draft, amount })
+    }
+    if (!changes.length) {
+      setExpenseCellDrafts({})
+      return
+    }
+
+    preserveExpenseSharePosition()
+    setExpenseCellsSaving(true)
+    try {
+      for (const change of changes) {
+        await persistManualExpenseCell(change.expenseDate, change.category, change.amount, period)
+      }
+      setExpandedExpenseDates(current => changes.reduce((next, change) => ({ ...next, [change.expenseDate]: true }), current))
+      setExpenseCellDrafts({})
       await loadFortyFiveDayEvaluation(period.start_date, period.end_date)
-      return true
     } catch (err) {
       expenseSharePositionRef.current = null
-      setErrorMsg(err.response?.data?.error || err.message || 'Could not save expense cell')
-      return false
+      setErrorMsg(err.response?.data?.error || err.message || 'Could not save expense changes')
     } finally {
-      setExpenseCellSavingKey('')
+      setExpenseCellsSaving(false)
     }
   }
 
@@ -1704,7 +1728,7 @@ export default function CollectorPerformance() {
         .expense-tabulation-kpi.grand strong { color: #c55d0a; }
         .expense-tabulation-kpi.share { border-top: 3px solid #7847c7; background: linear-gradient(135deg, #faf7ff, #fff); }
         .expense-tabulation-kpi.share strong { color: #6d28d9; }
-        .expense-tabulation-table { min-width: 5400px !important; }
+        .expense-tabulation-table { --expense-date-width: 92px; --expense-office-width: 106px; --expense-misc-width: 82px; --expense-grand-width: 110px; min-width: 5400px !important; border-collapse: separate; border-spacing: 0; }
         .expense-tabulation-table > tbody > tr > td { padding: 7px 6px; font-size: 10px; }
         .expense-tabulation-table thead tr:first-child th { top: 0; z-index: 7; height: 32px; padding: 6px 5px; color: #fff; text-align: center; vertical-align: middle; font-size: 10px; }
         .expense-tabulation-table thead tr:first-child th:not(.expense-tabulation-section) { background: #23455e; }
@@ -1712,6 +1736,29 @@ export default function CollectorPerformance() {
         .expense-tabulation-table thead .expense-tabulation-section.office { background: #087d73; }
         .expense-tabulation-table thead .expense-tabulation-section.misc { background: #315cb9; }
         .expense-tabulation-table thead .expense-tabulation-section.grand { background: #c55d0a; }
+        .expense-tabulation-table .expense-freeze-date,
+        .expense-tabulation-table .expense-freeze-office,
+        .expense-tabulation-table .expense-freeze-misc,
+        .expense-tabulation-table .expense-freeze-grand,
+        .expense-tabulation-table .expense-freeze-grand-header { position: sticky; z-index: 8; }
+        .expense-tabulation-table .expense-freeze-date { left: 0; width: var(--expense-date-width); min-width: var(--expense-date-width); max-width: var(--expense-date-width); }
+        .expense-tabulation-table .expense-freeze-office { left: var(--expense-date-width); width: var(--expense-office-width); min-width: var(--expense-office-width); max-width: var(--expense-office-width); }
+        .expense-tabulation-table .expense-freeze-misc { left: calc(var(--expense-date-width) + var(--expense-office-width)); width: var(--expense-misc-width); min-width: var(--expense-misc-width); max-width: var(--expense-misc-width); }
+        .expense-tabulation-table .expense-freeze-grand { left: calc(var(--expense-date-width) + var(--expense-office-width) + var(--expense-misc-width)); width: var(--expense-grand-width); min-width: var(--expense-grand-width); }
+        .expense-tabulation-table .expense-freeze-grand-header { left: var(--expense-date-width); width: calc(var(--expense-office-width) + var(--expense-misc-width) + var(--expense-grand-width)); min-width: calc(var(--expense-office-width) + var(--expense-misc-width) + var(--expense-grand-width)); }
+        .expense-tabulation-table thead .expense-freeze-date { z-index: 13 !important; color: #fff; background: #23455e !important; }
+        .expense-tabulation-table thead .expense-freeze-grand-header { z-index: 12 !important; }
+        .expense-tabulation-table thead .expense-freeze-office,
+        .expense-tabulation-table thead .expense-freeze-misc,
+        .expense-tabulation-table thead .expense-freeze-grand { z-index: 12 !important; }
+        .expense-tabulation-table tbody .expense-freeze-date { z-index: 4; background: #fff; }
+        .expense-tabulation-table tbody .expense-freeze-office { z-index: 4; background: #f7fafc; }
+        .expense-tabulation-table tbody .expense-freeze-misc { z-index: 4; background: #f7fafc; }
+        .expense-tabulation-table tbody .expense-freeze-grand { z-index: 5; background: #fff7ed; box-shadow: 7px 0 10px -10px rgba(15, 23, 42, .45); }
+        .expense-tabulation-table tbody tr[style*="f0fdfa"] .expense-freeze-date { background: #f0fdfa; }
+        .expense-tabulation-table tbody tr[style*="f0fdfa"] .expense-freeze-office,
+        .expense-tabulation-table tbody tr[style*="f0fdfa"] .expense-freeze-misc { background: #ecfdf5; }
+        .expense-tabulation-table tbody tr[style*="f0fdfa"] .expense-freeze-grand { background: #fff7ed; }
         .expense-tabulation-table .expense-tabulation-total { font-weight: 900; background: #f7fafc; }
         .expense-tabulation-table .expense-tabulation-total.office { color: #087d73; }
         .expense-tabulation-table .expense-tabulation-total.misc { color: #315cb9; }
@@ -1723,6 +1770,7 @@ export default function CollectorPerformance() {
         .expense-tabulation-input-cell { min-width: 78px; padding: 0 !important; border-color: #dbe4f0; text-align: right; }
         .expense-tabulation-input-cell input { width: 100%; min-width: 78px; height: 31px; padding: 4px 6px; border: 1px solid transparent; color: #475569; background: transparent; font: inherit; font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; outline: none; }
         .expense-tabulation-input-cell input:focus { border: 2px solid #0f766e; color: #0f172a; background: #effcf8; box-shadow: inset 0 0 0 1px #d1fae5; }
+        .expense-tabulation-input-cell input:disabled { cursor: wait; opacity: .68; }
         .expense-tabulation-input-cell input::placeholder { color: #94a3b8; }
         .ranking-dashboard { color: #102448; }
         .ranking-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding: 6px 0 14px; }
@@ -2861,6 +2909,9 @@ export default function CollectorPerformance() {
                         <div className="expense-share-panel" style={{ padding: 20 }}>
                           <div className="expense-share-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
                             <div><div className="forty-five-section-title"><FileText size={19} /> Expense Share</div><div style={{ color: '#64748b', fontSize: 13, marginTop: 6 }}>Office expenses are divided equally among {selectedRatingPeriod.evaluations.length} collector{selectedRatingPeriod.evaluations.length === 1 ? '' : 's'} in this 45-day evaluation. Misc expenses are shown for reference only.</div></div>
+                            {canManageManualExpenses && <button type="button" className="btn btn-primary" disabled={!pendingExpenseCellCount || expenseCellsSaving} onClick={saveExpenseCellDrafts}>
+                              <Save size={16} /> {expenseCellsSaving ? 'Saving...' : pendingExpenseCellCount ? `Save changes (${pendingExpenseCellCount})` : 'Save changes'}
+                            </button>}
                           </div>
                           <div className="expense-tabulation-summary">
                             <div className="expense-tabulation-kpi office"><span>Office Total</span><strong>PHP {fmt(expenseTabulationTotals.office)}</strong></div>
@@ -2871,8 +2922,8 @@ export default function CollectorPerformance() {
                           <div ref={expenseShareTableRef} className="expense-share-table-wrap" style={{ border: '1px solid #dbe4f0', borderRadius: 10 }}>
                             <table className="data-table expense-share-table expense-tabulation-table" style={{ margin: 0, width: '100%' }}>
                               <thead>
-                                <tr><th rowSpan={2}>Date</th><th className="expense-tabulation-section grand" colSpan={3}>Grand Total of Expenses</th>{EXPENSE_TABULATION_GROUPS.map(group => <th key={group.key} className={`expense-tabulation-section ${group.section}`} colSpan={group.categories.length + 1}>{group.label}</th>)}</tr>
-                                <tr><th className="expense-tabulation-total office">Office</th><th className="expense-tabulation-total misc">Misc</th><th className="expense-tabulation-total grand">Total</th>{EXPENSE_TABULATION_GROUPS.flatMap(group => [
+                                <tr><th rowSpan={2} className="expense-freeze-date">Date</th><th className="expense-tabulation-section grand expense-freeze-grand-header" colSpan={3}>Grand Total of Expenses</th>{EXPENSE_TABULATION_GROUPS.map(group => <th key={group.key} className={`expense-tabulation-section ${group.section}`} colSpan={group.categories.length + 1}>{group.label}</th>)}</tr>
+                                <tr><th className="expense-tabulation-total office expense-freeze-office">Office</th><th className="expense-tabulation-total misc expense-freeze-misc">Misc</th><th className="expense-tabulation-total grand expense-freeze-grand">Total</th>{EXPENSE_TABULATION_GROUPS.flatMap(group => [
                                   ...group.categories.map(category => <th key={`${group.key}:${category}`} title={`${group.label} — ${category}`}>{category}</th>),
                                   <th key={`${group.key}:total`} className={`expense-tabulation-total ${group.section}`}>Total</th>
                                 ])}</tr>
@@ -2881,17 +2932,21 @@ export default function CollectorPerformance() {
                                 const isExpanded = Boolean(expandedExpenseDates[group.date])
                                 return <Fragment key={group.date}>
                                   <tr data-expense-date={group.date} style={{ background: isExpanded ? '#f0fdfa' : '#fff' }}>
-                                    <td>
+                                    <td className="expense-freeze-date">
                                       <button type="button" onClick={() => setExpandedExpenseDates(current => ({ ...current, [group.date]: !current[group.date] }))} aria-expanded={isExpanded} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: 0, border: 0, color: '#0f766e', background: 'transparent', font: 'inherit', fontWeight: 900, cursor: 'pointer' }}>
                                         <ChevronRight size={18} style={{ transition: 'transform .18s ease', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }} />
                                         {displayDate(group.date)}
                                       </button>
                                     </td>
-                                    <td className="expense-tabulation-amount expense-tabulation-total office">PHP {fmt(group.officeTotal)}</td>
-                                    <td className="expense-tabulation-amount expense-tabulation-total misc">PHP {fmt(group.miscTotal)}</td>
-                                    <td className="expense-tabulation-amount expense-tabulation-total grand"><button type="button" onClick={() => setExpandedExpenseDates(current => ({ ...current, [group.date]: !current[group.date] }))} aria-expanded={isExpanded} disabled={!group.expenses.length} className="expense-tabulation-total-button">PHP {fmt(group.grandTotal)} <small>{group.expenses.length} item{group.expenses.length === 1 ? '' : 's'}</small></button></td>
+                                    <td className="expense-tabulation-amount expense-tabulation-total office expense-freeze-office">PHP {fmt(group.officeTotal)}</td>
+                                    <td className="expense-tabulation-amount expense-tabulation-total misc expense-freeze-misc">PHP {fmt(group.miscTotal)}</td>
+                                    <td className="expense-tabulation-amount expense-tabulation-total grand expense-freeze-grand"><button type="button" onClick={() => setExpandedExpenseDates(current => ({ ...current, [group.date]: !current[group.date] }))} aria-expanded={isExpanded} disabled={!group.expenses.length} className="expense-tabulation-total-button">PHP {fmt(group.grandTotal)} <small>{group.expenses.length} item{group.expenses.length === 1 ? '' : 's'}</small></button></td>
                                     {EXPENSE_TABULATION_GROUPS.flatMap(expenseGroup => [
-                                      ...expenseGroup.categories.map(category => <ExpenseShareGridCell key={`${expenseGroup.key}:${category}`} initialValue={group.categoryTotals[`${expenseGroup.key}:${category}`]} disabled={!canManageManualExpenses || expenseCellSavingKey === `${group.date}:${expenseGroup.source} — ${category}`} onSave={amount => saveManualExpenseCell(group.date, `${expenseGroup.source} — ${category}`, amount)} />),
+                                      ...expenseGroup.categories.map(category => {
+                                        const categoryName = `${expenseGroup.source} — ${category}`
+                                        const cellKey = `${group.date}:${categoryName}`
+                                        return <ExpenseShareGridCell key={`${expenseGroup.key}:${category}`} initialValue={group.categoryTotals[`${expenseGroup.key}:${category}`]} value={expenseCellDrafts[cellKey]?.value} readOnly={!canManageManualExpenses} saving={expenseCellsSaving} onChange={value => setExpenseCellDraft(group.date, categoryName, value, group.categoryTotals[`${expenseGroup.key}:${category}`])} />
+                                      }),
                                       <td key={`${expenseGroup.key}:total`} className={`expense-tabulation-amount expense-tabulation-total ${expenseGroup.section}`}>PHP {fmt(group.totals[expenseGroup.key])}</td>
                                     ])}
                                   </tr>
