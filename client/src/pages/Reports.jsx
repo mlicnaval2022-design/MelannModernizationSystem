@@ -2245,7 +2245,7 @@ export default function Reports() {
                       <td className="fw-600">{row.employee_name}</td>
                       <td>{row.position || '-'}</td>
                       <td className="text-right">{row.expense_count || 0}</td>
-                      <td className="text-right fw-700">PHP {fmtMoney(row.total_amount)}</td>
+                      <td className="text-right fw-700" style={{ fontWeight: 800 }}>{fmtMoney(row.total_amount)}</td>
                       <td className="text-center">
                         <button
                           type="button"
