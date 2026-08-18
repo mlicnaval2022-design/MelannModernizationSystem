@@ -275,10 +275,12 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
 
   const getPaymentStatusText = (payment) => {
     const isReversed = payment.status === 'reversed';
+    const isRecon = payment.status === 'recon' || String(payment.payment_type || '').toLowerCase() === 'recon';
     const isFullyPaid = payment.status === 'active' && Number(payment.balance_after) <= 0;
     const isPartial = payment.status === 'active' && Number(payment.balance_after) > 0;
 
     if (isReversed) return 'Reversed';
+    if (isRecon) return 'Recon';
     if (payment.status === 'penalty') return 'Penalty';
     if (isFullyPaid) return 'Fully Paid';
     if (isPartial) return 'Active';
@@ -1699,8 +1701,8 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                                       borderRadius: '9999px',
                                       fontSize: '12px',
                                       fontWeight: '600',
-                                      backgroundColor: isReversed ? '#ffe4e6' : statusText === 'Penalty' ? '#fff7ed' : statusText === 'Fully Paid' ? '#dcfce7' : '#e0f2fe',
-                                      color: isReversed ? '#e11d48' : statusText === 'Penalty' ? '#ea580c' : statusText === 'Fully Paid' ? '#16a34a' : '#0284c7'
+                                      backgroundColor: isReversed ? '#ffe4e6' : statusText === 'Penalty' ? '#fff7ed' : statusText === 'Recon' ? '#ede9fe' : statusText === 'Fully Paid' ? '#dcfce7' : '#e0f2fe',
+                                      color: isReversed ? '#e11d48' : statusText === 'Penalty' ? '#ea580c' : statusText === 'Recon' ? '#7c3aed' : statusText === 'Fully Paid' ? '#16a34a' : '#0284c7'
                                     }}>
                                       {statusText}
                                     </span>

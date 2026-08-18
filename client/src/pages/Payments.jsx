@@ -52,7 +52,7 @@ export default function Payments() {
   
   const [activeLoan, setActiveLoan] = useState(null)
   
-  const [form, setForm] = useState({ amount_paid: '', date_paid: today(), remarks: '' })
+  const [form, setForm] = useState({ amount_paid: '', date_paid: today(), remarks: '', is_recon: false })
   const [saving, setSaving] = useState(false)
   const [notification, setNotification] = useState(null)
   const [confirmModal, setConfirmModal] = useState(null)
@@ -90,7 +90,7 @@ export default function Payments() {
     if (!targetCode) return
     setNotification(null)
     setActiveLoan(null)
-    setForm({ amount_paid: '', date_paid: today(), remarks: '' })
+    setForm({ amount_paid: '', date_paid: today(), remarks: '', is_recon: false })
     
     if (!selectedCollector) {
       setNotification({ type: 'warning', message: 'Please select a collector first.' })
@@ -105,7 +105,7 @@ export default function Payments() {
         setNotification({ type: 'warning', message: 'Client does not belong to the selected collector.' })
       } else {
         setActiveLoan(loan)
-        setForm({ amount_paid: 0, date_paid: today(), remarks: '' })
+        setForm({ amount_paid: 0, date_paid: today(), remarks: '', is_recon: false })
         setNotification({ type: 'success', message: 'Customer Loaded Successfully' })
         setTimeout(() => {
           if (amountInputRef.current) {
@@ -141,16 +141,20 @@ export default function Payments() {
         amount_paid: form.amount_paid,
         collector_id: selectedCollector,
         remarks: form.remarks,
+        is_recon: Boolean(form.is_recon),
         force_duplicate
       }
       const r = await API.post('/payments', payload)
       
       setActiveLoan(null)
       setScannerInput('')
-      setForm({ amount_paid: '', date_paid: today(), remarks: '' })
+      setForm({ amount_paid: '', date_paid: today(), remarks: '', is_recon: false })
       loadRecentPayments()
       
-      const successMessage = r.data.loan_status === 'fullpaid'
+      const isReconPayment = Boolean(r.data.is_recon || form.is_recon || r.data.status === 'recon');
+      const successMessage = isReconPayment
+        ? `Reconstruction Payment Posted. Customer is now Fully Paid. Payment Code: ${r.data.payment_code}`
+        : r.data.loan_status === 'fullpaid'
         ? `Customer is now Fully Paid. Payment Code: ${r.data.payment_code}`
         : `Payment Successfully Posted. Payment Code: ${r.data.payment_code}`
 
@@ -204,7 +208,7 @@ export default function Payments() {
   const cancelEncoding = () => {
     setActiveLoan(null)
     setScannerInput('')
-    setForm({ amount_paid: '', date_paid: today(), remarks: '' })
+    setForm({ amount_paid: '', date_paid: today(), remarks: '', is_recon: false })
     setNotification(null)
     if (scannerRef.current) scannerRef.current.focus()
   }
@@ -580,6 +584,33 @@ export default function Payments() {
                         disabled={!activeLoan}
                       />
                     </div>
+                    <div className="info-row" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: activeLoan ? 'pointer' : 'default', userSelect: 'none', margin: 0 }}>
+                        <input 
+                          type="checkbox" 
+                          id="recon-checkbox"
+                          checked={Boolean(form.is_recon)} 
+                          disabled={!activeLoan}
+                          onChange={e => {
+                            const checked = e.target.checked;
+                            setForm(prev => ({
+                              ...prev,
+                              is_recon: checked,
+                              amount_paid: checked && activeLoan ? String(activeLoan.balance) : prev.amount_paid
+                            }));
+                          }} 
+                          style={{ width: '17px', height: '17px', accentColor: '#7c3aed', cursor: activeLoan ? 'pointer' : 'default' }}
+                        />
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: form.is_recon ? '#6d28d9' : '#334155' }}>
+                          Recon (Reconstruct)
+                        </span>
+                      </label>
+                      {form.is_recon && (
+                        <span style={{ fontSize: '11px', fontWeight: '800', backgroundColor: '#ede9fe', color: '#7c3aed', padding: '2px 8px', borderRadius: '12px', border: '1px solid #ddd6fe' }}>
+                          RECON ONLY
+                        </span>
+                      )}
+                    </div>
                     <div className="info-total">
                       <span>Total Balance</span>
                       <span>₱ {activeLoan ? fmt(Math.max(0, activeLoan.balance - (parseFloat(form.amount_paid) || 0))) : '0.00'}</span>
@@ -708,9 +739,13 @@ export default function Payments() {
                   <td>{formatDateTime(p.created_at)}</td>
                   <td>{p.collector_name}</td>
                   <td>
-                    {p.loan_status === 'fullpaid' || p.balance_after <= 0 
-                      ? <span className="badge-no">Yes</span>
-                      : <span style={{ color: '#ef4444', fontWeight: '600', background: '#fef2f2', padding: '4px 8px', borderRadius: '4px' }}>No</span>}
+                    {p.status === 'recon' || p.payment_type === 'recon' ? (
+                      <span style={{ color: '#7c3aed', fontWeight: '700', background: '#ede9fe', padding: '4px 8px', borderRadius: '4px' }}>Recon</span>
+                    ) : p.loan_status === 'fullpaid' || p.balance_after <= 0 ? (
+                      <span className="badge-no">Yes</span>
+                    ) : (
+                      <span style={{ color: '#ef4444', fontWeight: '600', background: '#fef2f2', padding: '4px 8px', borderRadius: '4px' }}>No</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -832,8 +867,8 @@ export default function Payments() {
                           <input 
                             type="checkbox" 
                             onChange={handleSelectAll}
-                            checked={reversePayments.length > 0 && selectedPaymentIds.length === reversePayments.filter(p => p.status === 'active').length && reversePayments.filter(p => p.status === 'active').length > 0}
-                            disabled={reversePayments.filter(p => p.status === 'active').length === 0}
+                            checked={reversePayments.length > 0 && selectedPaymentIds.length === reversePayments.filter(p => p.status === 'active' || p.status === 'recon').length && reversePayments.filter(p => p.status === 'active' || p.status === 'recon').length > 0}
+                            disabled={reversePayments.filter(p => p.status === 'active' || p.status === 'recon').length === 0}
                           />
                         </th>
                         <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>Code</th>
@@ -853,6 +888,7 @@ export default function Payments() {
                       ) : reversePayments.map(p => {
                         const isReversed = p.status === 'reversed';
                         const isPenalty = p.status === 'penalty';
+                        const isRecon = p.status === 'recon' || p.payment_type === 'recon';
                         const isSelected = selectedPaymentIds.includes(p.id);
                         return (
                           <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9', background: isSelected ? '#eff6ff' : 'transparent', opacity: isReversed ? 0.6 : 1 }}>
@@ -866,7 +902,7 @@ export default function Payments() {
                             </td>
                             <td style={{ padding: '12px', fontWeight: 700, fontFamily: 'monospace', color: '#3b82f6' }}>{p.payment_code}</td>
                             <td style={{ padding: '12px', color: '#334155' }}>{p.date_paid}</td>
-                            <td style={{ padding: '12px', fontWeight: 800, color: isReversed ? '#64748b' : '#16a34a' }}>{formatCurrency(p.amount_paid)}</td>
+                            <td style={{ padding: '12px', fontWeight: 800, color: isReversed ? '#64748b' : isRecon ? '#7c3aed' : '#16a34a' }}>{formatCurrency(p.amount_paid)}</td>
                             <td style={{ padding: '12px', color: '#334155' }}>{p.collector_name || 'N/A'}</td>
                             <td style={{ padding: '12px', color: '#3b82f6', fontWeight: 600 }}>{p.loan_code}</td>
                             <td style={{ padding: '12px', color: '#475569' }}>{formatCurrency(p.balance_before)}</td>
@@ -875,10 +911,10 @@ export default function Payments() {
                             <td style={{ padding: '12px' }}>
                               <span style={{ 
                                 padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 700,
-                                background: isReversed ? '#fee2e2' : isPenalty ? '#fef3c7' : '#dcfce7',
-                                color: isReversed ? '#ef4444' : isPenalty ? '#b45309' : '#16a34a'
+                                background: isReversed ? '#fee2e2' : isPenalty ? '#fef3c7' : isRecon ? '#ede9fe' : '#dcfce7',
+                                color: isReversed ? '#ef4444' : isPenalty ? '#b45309' : isRecon ? '#7c3aed' : '#16a34a'
                               }}>
-                                {isReversed ? 'REVERSED' : isPenalty ? 'PENALTY' : 'POSTED'}
+                                {isReversed ? 'REVERSED' : isPenalty ? 'PENALTY' : isRecon ? 'RECON' : 'POSTED'}
                               </span>
                             </td>
                           </tr>

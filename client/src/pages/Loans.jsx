@@ -673,10 +673,10 @@ export default function Loans() {
                               borderRadius: 12, 
                               fontSize: 12, 
                               fontWeight: 700, 
-                              background: p.status === 'active' ? '#dcfce7' : p.status === 'penalty' ? '#fef3c7' : '#fee2e2',
-                              color: p.status === 'active' ? '#16a34a' : p.status === 'penalty' ? '#b45309' : '#ef4444'
+                              background: p.status === 'active' ? '#dcfce7' : p.status === 'recon' ? '#ede9fe' : p.status === 'penalty' ? '#fef3c7' : '#fee2e2',
+                              color: p.status === 'active' ? '#16a34a' : p.status === 'recon' ? '#7c3aed' : p.status === 'penalty' ? '#b45309' : '#ef4444'
                             }}>
-                              {p.status === 'active' ? 'Good' : p.status === 'penalty' ? 'Penalty' : 'Reversed'}
+                              {p.status === 'active' ? 'Good' : p.status === 'recon' ? 'Recon' : p.status === 'penalty' ? 'Penalty' : 'Reversed'}
                             </span>
                           </td>
                         </tr>
@@ -686,7 +686,7 @@ export default function Loans() {
                     <tfoot style={{ background: '#f8fafc', borderTop: '1px solid #f1f5f9' }}>
                       <tr>
                         <td colSpan={2} style={{ padding: '20px', color: '#1d4ed8', fontSize: 14, fontWeight: 800, textAlign: 'right' }}>TOTAL PAID</td>
-                        <td style={{ padding: '20px', color: '#1d4ed8', fontSize: 15, fontWeight: 800 }}>₱ {fmt(detailLoan.payments.filter(p => p.status === 'active').reduce((s, p) => s + p.amount_paid, 0))}</td>
+                        <td style={{ padding: '20px', color: '#1d4ed8', fontSize: 15, fontWeight: 800 }}>₱ {fmt(detailLoan.payments.filter(p => p.status === 'active' || p.status === 'recon').reduce((s, p) => s + p.amount_paid, 0))}</td>
                         <td colSpan={2}></td>
                       </tr>
                     </tfoot>

@@ -7,6 +7,9 @@ const { recalculateLoanBalances } = require('../services/loanBalanceRecalculator
 const router = express.Router();
 const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
 const formatDate = value => {
+const router = express.Router();
+const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
+const formatDate = value => {
   if (!value) return '';
   const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
   if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
@@ -16,7 +19,7 @@ const formatDate = value => {
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { loan_id, customer_id, date_from, date_to, search } = req.query;
-    let q = `SELECT p.*, l.loan_code, l.loan_type, l.date_released, l.principal, l.amortization, l.status as loan_status, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id LEFT JOIN tblCollector co ON p.collector_id = co.id WHERE p.status IN ('active', 'penalty') AND ${sqlNotSunday('p.date_paid')}`;
+    let q = `SELECT p.*, l.loan_code, l.loan_type, l.date_released, l.principal, l.amortization, l.status as loan_status, c.full_name as customer_name, c.customer_code, co.first_name || ' ' || co.last_name as collector_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id LEFT JOIN tblCollector co ON p.collector_id = co.id WHERE p.status IN ('active', 'penalty', 'recon') AND ${sqlNotSunday('p.date_paid')}`;
     const pa = [];
     if (loan_id) { q += ` AND p.loan_id = ?`; pa.push(loan_id); }
     if (customer_id) { q += ` AND p.customer_id = ?`; pa.push(customer_id); }
@@ -38,12 +41,19 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    let { loan_id, or_number, date_paid, amount_paid, collector_id, remarks, force_duplicate } = req.body;
+    let { loan_id, or_number, date_paid, amount_paid, collector_id, remarks, is_recon, isRecon, force_duplicate } = req.body;
     if (!loan_id || !date_paid || !amount_paid) return res.status(400).json({ error: 'loan_id, date_paid, amount_paid required' });
     requireOperationDate(date_paid, 'Payment date');
     amount_paid = Number(amount_paid);
     if (!Number.isFinite(amount_paid) || amount_paid <= 0) return res.status(400).json({ error: 'Payment amount must be greater than zero' });
     if (!or_number) or_number = 'N/A';
+    const isReconPayment = Boolean(is_recon || isRecon);
+    const paymentStatus = isReconPayment ? 'recon' : 'active';
+    const paymentType = isReconPayment ? 'recon' : 'regular';
+    const paymentRemarks = isReconPayment
+      ? (remarks && String(remarks).trim() ? (String(remarks).toUpperCase().includes('RECON') ? remarks : `[RECON] ${remarks}`) : '[RECON] Reconstruction balance adjustment')
+      : remarks;
+
     const loan = await dbGet(`SELECT * FROM tblLoan WHERE id = ?`, [loan_id]);
     if (!loan) return res.status(404).json({ error: 'Loan not found' });
     if (loan.date_released && String(date_paid).slice(0, 10) < String(loan.date_released).slice(0, 10)) {
@@ -77,7 +87,7 @@ router.post('/', authenticateToken, async (req, res) => {
     if (Number(loan.balance || 0) <= 0 || loanStatus === 'fullpaid') return res.status(400).json({ error: 'This account is already fully paid.', is_fully_paid: true });
     if (!['active', 'pastdue'].includes(loanStatus)) return res.status(400).json({ error: 'This account is inactive and cannot accept payments.', is_inactive: true });
     
-    const sameDay = await dbGet(`SELECT COUNT(*) as c FROM tblPayment WHERE loan_id = ? AND date_paid = ? AND amount_paid = ? AND status = 'active'`, [loan_id, date_paid, amount_paid]);
+    const sameDay = await dbGet(`SELECT COUNT(*) as c FROM tblPayment WHERE loan_id = ? AND date_paid = ? AND amount_paid = ? AND status IN ('active', 'recon')`, [loan_id, date_paid, amount_paid]);
     if (sameDay.c > 0 && !force_duplicate) {
       return res.status(409).json({ error: 'Possible duplicate payment detected. Please verify before proceeding.', is_duplicate: true });
     }
@@ -91,10 +101,10 @@ router.post('/', authenticateToken, async (req, res) => {
     const nextCode = (maxCodeRes.max_code || 0) + 1;
     const payment_code = String(nextCode).padStart(4, '0');
 
-    const result = await dbRun(`INSERT INTO tblPayment (loan_id, customer_id, collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, status, remarks, encoded_by, payment_code) VALUES (?,?,?,?,?,?,?,?,'active',?,?,?)`, [loan_id, loan.customer_id, collector_id || loan.collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, remarks, req.user.id, payment_code]);
+    const result = await dbRun(`INSERT INTO tblPayment (loan_id, customer_id, collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, payment_type, status, remarks, encoded_by, payment_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`, [loan_id, loan.customer_id, collector_id || loan.collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, paymentType, paymentStatus, paymentRemarks, req.user.id, payment_code]);
     const recalculation = await recalculateLoanBalances(loan_id, { userId: req.user.id });
 
-    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'PAYMENT', result.lastID, `OR#${or_number} Amt:${amount_paid} Col:${collector_id || loan.collector_id}`]);
+    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'PAYMENT', result.lastID, `${isReconPayment ? '[RECON] ' : ''}OR#${or_number} Amt:${amount_paid} Col:${collector_id || loan.collector_id}`]);
     await dbRun('COMMIT');
     
     // Trigger No Payment Monitoring recalculation
@@ -106,7 +116,9 @@ router.post('/', authenticateToken, async (req, res) => {
       payment_code,
       balance_before: postedPayment.balance_before,
       balance_after: postedPayment.balance_after,
-      loan_status: recalculation.status
+      loan_status: recalculation.status,
+      is_recon: isReconPayment,
+      status: paymentStatus
     });
   } catch (err) {
     await dbRun('ROLLBACK').catch(() => {});
