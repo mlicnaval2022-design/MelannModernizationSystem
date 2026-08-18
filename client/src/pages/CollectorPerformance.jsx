@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, BarChart3, Building2, CalendarDays, CheckCircle2, ChevronRight, Download, Edit3, FileText, Grid2X2, Info, List, Lock, MapPin, Plus, Printer, RefreshCw, Search, Sparkles, Trash2, TrendingUp, Trophy, Unlock, User, Users, X } from 'lucide-react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
@@ -760,6 +760,7 @@ export default function CollectorPerformance() {
   const [loading, setLoading] = useState(true)
   const [fortyFiveDayLoading, setFortyFiveDayLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+  const expenseShareTableRef = useRef(null)
 
   const manualExpenseGroups = useMemo(() => {
     const groups = manualExpenses.reduce((byDate, expense) => {
@@ -1067,6 +1068,8 @@ export default function CollectorPerformance() {
     event.preventDefault()
     const period = selectedRatingPeriod?.period
     if (!period) return
+    const pageScrollY = window.scrollY
+    const tableScrollTop = expenseShareTableRef.current?.scrollTop || 0
     setManualExpenseSaving(true)
     try {
       const payload = {
@@ -1079,6 +1082,10 @@ export default function CollectorPerformance() {
       setShowManualExpenseModal(false)
       setManualExpenseEditing(null)
       await loadFortyFiveDayEvaluation(period.start_date, period.end_date)
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: pageScrollY })
+        if (expenseShareTableRef.current) expenseShareTableRef.current.scrollTop = tableScrollTop
+      })
     } catch (err) {
       setErrorMsg(err.response?.data?.error || err.message || 'Could not save manual expense')
     } finally {
@@ -2678,7 +2685,7 @@ export default function CollectorPerformance() {
                             <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, padding: 16, background: '#f8fafc' }}><div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Saved Expenses</div><strong style={{ display: 'block', marginTop: 5, color: '#c2410c', fontSize: 22 }}>PHP {fmt(manualExpensesTotal)}</strong></div>
                             <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, padding: 16, background: '#f8fafc' }}><div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Expense Share per Collector</div><strong style={{ display: 'block', marginTop: 5, color: '#6d28d9', fontSize: 22 }}>PHP {fmt(selectedRatingPeriod.evaluations.length ? manualExpensesTotal / selectedRatingPeriod.evaluations.length : 0)}</strong></div>
                           </div>
-                          <div className="expense-share-table-wrap" style={{ border: '1px solid #dbe4f0', borderRadius: 10 }}>
+                          <div ref={expenseShareTableRef} className="expense-share-table-wrap" style={{ border: '1px solid #dbe4f0', borderRadius: 10 }}>
                             <table className="data-table expense-share-table" style={{ margin: 0, width: '100%' }}>
                               <thead><tr><th>Date</th><th style={{ textAlign: 'right' }}>Total Amount (PHP)</th><th>Breakdown Items</th><th>Action</th></tr></thead>
                               <tbody>{manualExpenseGroups.length ? manualExpenseGroups.map(group => {
