@@ -742,6 +742,7 @@ export default function CollectorPerformance() {
   const [manualExpensesTotal, setManualExpensesTotal] = useState(0)
   const [showManualExpenseModal, setShowManualExpenseModal] = useState(false)
   const [manualExpenseForm, setManualExpenseForm] = useState({ expense_date: '', category: '', description: '', amount: '' })
+  const [manualExpenseEditing, setManualExpenseEditing] = useState(null)
   const [manualExpenseSaving, setManualExpenseSaving] = useState(false)
   const [manualExpenseToDelete, setManualExpenseToDelete] = useState(null)
   const [manualExpenseDeleting, setManualExpenseDeleting] = useState(false)
@@ -1032,6 +1033,18 @@ export default function CollectorPerformance() {
     const period = selectedRatingPeriod?.period
     if (!period) return
     setManualExpenseForm({ expense_date: period.start_date, category: '', description: '', amount: '' })
+    setManualExpenseEditing(null)
+    setShowManualExpenseModal(true)
+  }
+
+  const openManualExpenseEditor = expense => {
+    setManualExpenseForm({
+      expense_date: expense.expense_date,
+      category: expense.category || '',
+      description: expense.description || '',
+      amount: String(expense.amount || '')
+    })
+    setManualExpenseEditing(expense)
     setShowManualExpenseModal(true)
   }
 
@@ -1041,12 +1054,15 @@ export default function CollectorPerformance() {
     if (!period) return
     setManualExpenseSaving(true)
     try {
-      await API.post('/forty-five-day-rating/manual-expenses', {
+      const payload = {
         ...manualExpenseForm,
         start_date: period.start_date,
         end_date: period.end_date
-      })
+      }
+      if (manualExpenseEditing) await API.put(`/forty-five-day-rating/manual-expenses/${manualExpenseEditing.id}`, payload)
+      else await API.post('/forty-five-day-rating/manual-expenses', payload)
       setShowManualExpenseModal(false)
+      setManualExpenseEditing(null)
       await loadFortyFiveDayEvaluation(period.start_date, period.end_date)
     } catch (err) {
       setErrorMsg(err.response?.data?.error || err.message || 'Could not save manual expense')
@@ -2660,10 +2676,13 @@ export default function CollectorPerformance() {
                                   </tr>
                                   {isExpanded && <tr><td colSpan={3} style={{ padding: '0 16px 16px', background: '#f8fffd' }}>
                                     <div style={{ display: 'grid', gap: 8, paddingTop: 10 }}>
-                                      {group.expenses.map(expense => <div key={expense.id} style={{ display: 'grid', gridTemplateColumns: canManageManualExpenses ? 'minmax(0, 1fr) minmax(120px, auto) 34px' : 'minmax(0, 1fr) minmax(120px, auto)', alignItems: 'center', gap: 14, padding: '12px 14px', border: '1px solid #d9eee9', borderRadius: 8, background: '#fff' }}>
+                                      {group.expenses.map(expense => <div key={expense.id} style={{ display: 'grid', gridTemplateColumns: canManageManualExpenses ? 'minmax(0, 1fr) minmax(120px, auto) auto' : 'minmax(0, 1fr) minmax(120px, auto)', alignItems: 'center', gap: 14, padding: '12px 14px', border: '1px solid #d9eee9', borderRadius: 8, background: '#fff' }}>
                                         <div><div style={{ color: '#263b57', fontSize: 13, fontWeight: 800 }}>{expense.category}</div>{expense.description && <div style={{ marginTop: 4, color: '#64748b', fontSize: 12 }}>{expense.description}</div>}</div>
                                         <strong style={{ color: '#c2410c', textAlign: 'right', whiteSpace: 'nowrap' }}>PHP {fmt(expense.amount)}</strong>
-                                        {canManageManualExpenses && <button className="btn btn-secondary btn-sm" type="button" onClick={() => requestManualExpenseDeletion(expense)} title="Delete expense"><Trash2 size={14} /></button>}
+                                        {canManageManualExpenses && <div style={{ display: 'flex', gap: 6 }}>
+                                          <button className="btn btn-secondary btn-sm" type="button" onClick={() => openManualExpenseEditor(expense)} title="Edit expense"><Edit3 size={14} /></button>
+                                          <button className="btn btn-secondary btn-sm" type="button" onClick={() => requestManualExpenseDeletion(expense)} title="Delete expense"><Trash2 size={14} /></button>
+                                        </div>}
                                       </div>)}
                                     </div>
                                   </td></tr>}
@@ -2760,15 +2779,15 @@ export default function CollectorPerformance() {
       {showManualExpenseModal && selectedRatingPeriod && <div className="forty-five-modal-backdrop" onMouseDown={event => event.target === event.currentTarget && setShowManualExpenseModal(false)}>
         <form className="forty-five-modal" onSubmit={saveManualExpense} style={{ maxWidth: 560 }}>
           <header className="forty-five-modal-header">
-            <div><span className="forty-five-modal-eyebrow">Expense Share</span><h3>Input Expense</h3><p>Saved total is divided equally among this period's collectors.</p></div>
-            <button type="button" className="forty-five-modal-close" onClick={() => setShowManualExpenseModal(false)} aria-label="Close manual expense form"><X size={19} /></button>
+            <div><span className="forty-five-modal-eyebrow">Expense Share</span><h3>{manualExpenseEditing ? 'Edit Expense' : 'Input Expense'}</h3><p>Saved total is divided equally among this period's collectors.</p></div>
+            <button type="button" className="forty-five-modal-close" onClick={() => { setShowManualExpenseModal(false); setManualExpenseEditing(null) }} aria-label="Close manual expense form"><X size={19} /></button>
           </header>
           <div style={{ display: 'grid', gap: 16, padding: 20 }}>
             <label className="form-group"><span className="form-label">Expense Date</span><input className="form-control" type="date" required min={selectedRatingPeriod.period.start_date} max={selectedRatingPeriod.period.end_date} value={manualExpenseForm.expense_date} onChange={event => setManualExpenseForm(current => ({ ...current, expense_date: event.target.value }))} /></label>
             <label className="form-group"><span className="form-label">Category</span><select className="form-control" required value={manualExpenseForm.category} onChange={event => setManualExpenseForm(current => ({ ...current, category: event.target.value }))}><option value="">Select expense category</option>{MANUAL_EXPENSE_CATEGORIES.map(([group, categories]) => <optgroup key={group} label={group}>{categories.map(category => <option key={`${group}-${category}`} value={`${group} — ${category}`}>{category}</option>)}</optgroup>)}</select></label>
             <label className="form-group"><span className="form-label">Amount</span><input className="form-control" type="number" required min="0.01" step="0.01" placeholder="0.00" value={manualExpenseForm.amount} onChange={event => setManualExpenseForm(current => ({ ...current, amount: event.target.value }))} /></label>
             <label className="form-group"><span className="form-label">Description / Particulars <small>(optional)</small></span><textarea className="form-control" rows="3" maxLength="500" value={manualExpenseForm.description} onChange={event => setManualExpenseForm(current => ({ ...current, description: event.target.value }))} /></label>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}><button className="btn btn-secondary" type="button" onClick={() => setShowManualExpenseModal(false)}>Cancel</button><button className="btn btn-primary" type="submit" disabled={manualExpenseSaving}>{manualExpenseSaving ? 'Saving...' : 'Save Changes'}</button></div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}><button className="btn btn-secondary" type="button" onClick={() => { setShowManualExpenseModal(false); setManualExpenseEditing(null) }}>Cancel</button><button className="btn btn-primary" type="submit" disabled={manualExpenseSaving}>{manualExpenseSaving ? 'Saving...' : manualExpenseEditing ? 'Save Changes' : 'Save Expense'}</button></div>
           </div>
         </form>
       </div>}

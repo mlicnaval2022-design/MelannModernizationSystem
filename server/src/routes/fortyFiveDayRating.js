@@ -114,6 +114,22 @@ router.post('/manual-expenses', authenticateToken, requireRole('admin', 'manager
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+router.put('/manual-expenses/:id', authenticateToken, requireRole('admin', 'manager', 'accounting', 'it', 'it_accounting_clerk'), async (req, res) => {
+  try {
+    const result = validateManualExpense(req.body || {});
+    if (result.error) return res.status(400).json({ error: result.error });
+    const expense = result.value;
+    const branch = getBranchFilter(req.user.branch_id);
+    const updated = await dbRun(`
+      UPDATE tblFortyFiveDayManualExpense
+      SET expense_date = ?, category = ?, description = ?, amount = ?
+      WHERE id = ?${branch.sql}
+    `, [expense.expense_date, expense.category, expense.description, expense.amount, req.params.id, ...branch.params]);
+    if (!updated.changes) return res.status(404).json({ error: 'Manual expense not found.' });
+    res.json({ id: Number(req.params.id), ...expense });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.delete('/manual-expenses/:id', authenticateToken, requireRole('admin', 'manager', 'accounting', 'it', 'it_accounting_clerk'), async (req, res) => {
   try {
     const branch = getBranchFilter(req.user.branch_id);
