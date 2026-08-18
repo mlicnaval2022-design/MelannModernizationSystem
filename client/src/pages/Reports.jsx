@@ -84,7 +84,7 @@ function ExpenseGridCell({ initialValue, onSave }) {
   }
 
   return (
-    <td style={{ padding: 0, background: isFocused ? '#eff6ff' : 'transparent', width: 80, minWidth: 75, maxWidth: 85, border: '1px solid #cbd5e1', textAlign: 'right' }}>
+    <td style={{ padding: 0, background: isFocused ? '#eff6ff' : 'transparent', minWidth: 85, border: '1px solid #cbd5e1', textAlign: 'right' }}>
       <input
         type="number"
         step="0.01"
@@ -102,12 +102,12 @@ function ExpenseGridCell({ initialValue, onSave }) {
         onChange={e => setVal(e.target.value)}
         style={{
           width: '100%',
-          height: '24px',
+          height: '26px',
           border: isFocused ? '2px solid #0f766e' : '1px solid transparent',
           textAlign: 'right',
-          padding: '2px 4px',
+          padding: '2px 6px',
           background: 'transparent',
-          fontSize: '11px',
+          fontSize: '11.5px',
           fontWeight: val && Number(val) > 0 ? '700' : 'normal',
           outline: 'none',
           boxSizing: 'border-box',
@@ -2415,34 +2415,34 @@ export default function Reports() {
             </div>
 
             {/* Excel Sheet Table Grid */}
-            <div style={{ overflowX: 'auto', maxHeight: '680px', position: 'relative', background: '#f8fafc' }}>
-              <table style={{ width: 'max-content', borderCollapse: 'collapse', fontSize: '11px', background: '#fff' }}>
+            <div style={{ overflowX: 'auto', maxHeight: '680px', position: 'relative', background: '#fff' }}>
+              <table style={{ width: '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: '11.5px', background: '#fff' }}>
                 <thead>
                   <tr>
-                    <th rowSpan={2} style={{ position: 'sticky', top: 0, zIndex: 3, background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '5px 6px', fontWeight: 800, fontSize: 11, textAlign: 'left', width: 75, minWidth: 75, maxWidth: 75, letterSpacing: '0.3px' }}>
+                    <th rowSpan={2} style={{ position: 'sticky', top: 0, zIndex: 3, background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '6px 8px', fontWeight: 800, fontSize: 11, textAlign: 'left', minWidth: 85, letterSpacing: '0.4px' }}>
                       DATE
                     </th>
-                    <th rowSpan={2} style={{ position: 'sticky', top: 0, zIndex: 3, background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '5px 6px', fontWeight: 800, fontSize: 11, textAlign: 'right', width: 85, minWidth: 85, maxWidth: 90, letterSpacing: '0.3px' }}>
+                    <th rowSpan={2} style={{ position: 'sticky', top: 0, zIndex: 3, background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '6px 8px', fontWeight: 800, fontSize: 11, textAlign: 'right', minWidth: 105, letterSpacing: '0.4px' }}>
                       COLLECTION
                     </th>
-                    <th rowSpan={2} style={{ position: 'sticky', top: 0, zIndex: 3, background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '5px 6px', fontWeight: 800, fontSize: 11, textAlign: 'right', width: 85, minWidth: 85, maxWidth: 90, letterSpacing: '0.3px' }}>
+                    <th rowSpan={2} style={{ position: 'sticky', top: 0, zIndex: 3, background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '6px 8px', fontWeight: 800, fontSize: 11, textAlign: 'right', minWidth: 105, letterSpacing: '0.4px' }}>
                       RELEASE
                     </th>
-                    <th colSpan={Math.max(1, categories.length)} style={{ position: 'sticky', top: 0, zIndex: 3, background: '#ccfbf1', color: '#0f766e', border: '1px solid #cbd5e1', padding: '5px 6px', fontWeight: 900, fontSize: 11, textAlign: 'center', letterSpacing: '0.8px' }}>
+                    <th colSpan={Math.max(1, categories.length)} style={{ position: 'sticky', top: 0, zIndex: 3, background: '#ccfbf1', color: '#0f766e', border: '1px solid #cbd5e1', padding: '6px 8px', fontWeight: 900, fontSize: 11.5, textAlign: 'center', letterSpacing: '0.8px' }}>
                       EXPENSES
                     </th>
-                    <th rowSpan={2} style={{ position: 'sticky', top: 0, zIndex: 3, background: '#f8fafc', border: '1px solid #cbd5e1', padding: '5px 6px', fontWeight: 900, fontSize: 11, textAlign: 'right', width: 90, minWidth: 85, maxWidth: 95, letterSpacing: '0.3px', color: '#0f172a' }}>
+                    <th rowSpan={2} style={{ position: 'sticky', top: 0, zIndex: 3, background: '#f8fafc', border: '1px solid #cbd5e1', padding: '6px 10px', fontWeight: 900, fontSize: 11.5, textAlign: 'right', minWidth: 110, letterSpacing: '0.4px', color: '#0f172a' }}>
                       NET
                     </th>
                   </tr>
                   <tr>
                     {categories.length === 0 ? (
-                      <th style={{ position: 'sticky', top: 27, zIndex: 3, background: '#f8fafc', border: '1px solid #cbd5e1', padding: '4px 6px', fontSize: 10, fontWeight: 700, color: '#94a3b8', textAlign: 'center', width: 80, minWidth: 80 }}>
+                      <th style={{ position: 'sticky', top: 29, zIndex: 3, background: '#f8fafc', border: '1px solid #cbd5e1', padding: '5px 8px', fontSize: 10, fontWeight: 700, color: '#94a3b8', textAlign: 'center', minWidth: 85 }}>
                         No categories (Add in Config)
                       </th>
                     ) : (
                       categories.map(cat => (
-                        <th key={cat.id} style={{ position: 'sticky', top: 27, zIndex: 3, background: '#f8fafc', border: '1px solid #cbd5e1', padding: '4px 4px', fontSize: 9.5, fontWeight: 800, textAlign: 'right', width: 80, minWidth: 75, maxWidth: 85, whiteSpace: 'nowrap', color: '#334155' }}>
+                        <th key={cat.id} style={{ position: 'sticky', top: 29, zIndex: 3, background: '#f8fafc', border: '1px solid #cbd5e1', padding: '5px 6px', fontSize: 10, fontWeight: 800, textAlign: 'right', minWidth: 85, whiteSpace: 'nowrap', color: '#334155' }}>
                           {cat.category_name.toUpperCase()}
                         </th>
                       ))
@@ -2450,26 +2450,26 @@ export default function Reports() {
                   </tr>
 
                   {/* Grand Totals Summary Row */}
-                  <tr style={{ position: 'sticky', top: 51, zIndex: 2, background: '#fff1f2', borderBottom: '2px solid #fda4af' }}>
-                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 6px', fontWeight: 900, color: '#b91c1c', fontSize: 11, width: 75, minWidth: 75, maxWidth: 75 }}>
+                  <tr style={{ position: 'sticky', top: 55, zIndex: 2, background: '#fff1f2', borderBottom: '2px solid #fda4af' }}>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '6px 8px', fontWeight: 900, color: '#b91c1c', fontSize: 11.5 }}>
                       TOTAL
                     </td>
-                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 6px', textAlign: 'right', fontWeight: 900, color: '#b91c1c', fontSize: 11, width: 85, minWidth: 85, maxWidth: 90 }}>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '6px 8px', textAlign: 'right', fontWeight: 900, color: '#b91c1c', fontSize: 11.5 }}>
                       {fmtMoney(activeSheet.totals.collection)}
                     </td>
-                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 6px', textAlign: 'right', fontWeight: 900, color: '#b91c1c', fontSize: 11, width: 85, minWidth: 85, maxWidth: 90 }}>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '6px 8px', textAlign: 'right', fontWeight: 900, color: '#b91c1c', fontSize: 11.5 }}>
                       {fmtMoney(activeSheet.totals.release)}
                     </td>
                     {categories.length === 0 ? (
-                      <td style={{ border: '1px solid #cbd5e1', padding: '5px 6px', textAlign: 'center', color: '#94a3b8', width: 80 }}>-</td>
+                      <td style={{ border: '1px solid #cbd5e1', padding: '6px 8px', textAlign: 'center', color: '#94a3b8' }}>-</td>
                     ) : (
                       categories.map(cat => (
-                        <td key={cat.id} style={{ border: '1px solid #cbd5e1', padding: '5px 4px', textAlign: 'right', fontWeight: 900, color: '#b91c1c', fontSize: 10.5, width: 80, minWidth: 75, maxWidth: 85 }}>
+                        <td key={cat.id} style={{ border: '1px solid #cbd5e1', padding: '6px 6px', textAlign: 'right', fontWeight: 900, color: '#b91c1c', fontSize: 11 }}>
                           {activeSheet.totals.categories?.[cat.category_name] ? fmtMoney(activeSheet.totals.categories[cat.category_name]) : '-'}
                         </td>
                       ))
                     )}
-                    <td style={{ border: '1px solid #cbd5e1', padding: '5px 6px', textAlign: 'right', fontWeight: 900, fontSize: 11.5, color: activeSheet.totals.net >= 0 ? '#15803d' : '#dc2626', width: 90, minWidth: 85, maxWidth: 95 }}>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '6px 10px', textAlign: 'right', fontWeight: 900, fontSize: 12, color: activeSheet.totals.net >= 0 ? '#15803d' : '#dc2626' }}>
                       {activeSheet.totals.net < 0 ? `-${fmtMoney(Math.abs(activeSheet.totals.net))}` : fmtMoney(activeSheet.totals.net)}
                     </td>
                   </tr>
@@ -2490,17 +2490,17 @@ export default function Reports() {
 
                       return (
                         <tr key={d} style={{ background: '#ffffff', transition: 'background 0.1s ease' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = '#ffffff'}>
-                          <td style={{ border: '1px solid #cbd5e1', padding: '3px 6px', fontWeight: 600, fontSize: 11, color: '#475569', whiteSpace: 'nowrap', width: 75, minWidth: 75, maxWidth: 75 }}>
+                          <td style={{ border: '1px solid #cbd5e1', padding: '4px 8px', fontWeight: 600, fontSize: 11.5, color: '#475569', whiteSpace: 'nowrap' }}>
                             {formatExcelDate(d)}
                           </td>
-                          <td style={{ border: '1px solid #cbd5e1', padding: '3px 6px', textAlign: 'right', fontSize: 11, fontWeight: day.collection > 0 ? 700 : 'normal', color: day.collection > 0 ? '#0f172a' : '#94a3b8', width: 85, minWidth: 85, maxWidth: 90 }}>
+                          <td style={{ border: '1px solid #cbd5e1', padding: '4px 8px', textAlign: 'right', fontSize: 11.5, fontWeight: day.collection > 0 ? 700 : 'normal', color: day.collection > 0 ? '#0f172a' : '#94a3b8' }}>
                             {day.collection > 0 ? fmtMoney(day.collection) : '-'}
                           </td>
-                          <td style={{ border: '1px solid #cbd5e1', padding: '3px 6px', textAlign: 'right', fontSize: 11, fontWeight: day.release > 0 ? 700 : 'normal', color: day.release > 0 ? '#0f172a' : '#94a3b8', width: 85, minWidth: 85, maxWidth: 90 }}>
+                          <td style={{ border: '1px solid #cbd5e1', padding: '4px 8px', textAlign: 'right', fontSize: 11.5, fontWeight: day.release > 0 ? 700 : 'normal', color: day.release > 0 ? '#0f172a' : '#94a3b8' }}>
                             {day.release > 0 ? fmtMoney(day.release) : '-'}
                           </td>
                           {categories.length === 0 ? (
-                            <td style={{ border: '1px solid #cbd5e1', padding: '3px 6px', textAlign: 'center', color: '#cbd5e1', width: 80 }}>-</td>
+                            <td style={{ border: '1px solid #cbd5e1', padding: '4px 8px', textAlign: 'center', color: '#cbd5e1' }}>-</td>
                           ) : (
                             categories.map(cat => (
                               <ExpenseGridCell
@@ -2510,7 +2510,7 @@ export default function Reports() {
                               />
                             ))
                           )}
-                          <td style={{ border: '1px solid #cbd5e1', padding: '3px 6px', textAlign: 'right', fontSize: 11, fontWeight: 800, color: !hasActivity ? '#94a3b8' : isNeg ? '#dc2626' : '#15803d', width: 90, minWidth: 85, maxWidth: 95 }}>
+                          <td style={{ border: '1px solid #cbd5e1', padding: '4px 10px', textAlign: 'right', fontSize: 12, fontWeight: 800, color: !hasActivity ? '#94a3b8' : isNeg ? '#dc2626' : '#15803d' }}>
                             {hasActivity ? (isNeg ? `-${fmtMoney(Math.abs(day.net))}` : fmtMoney(day.net)) : '-'}
                           </td>
                         </tr>
