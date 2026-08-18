@@ -1533,7 +1533,8 @@ export default function CollectorPerformance() {
         .forty-five-content-tabs { display: inline-flex; gap: 4px; margin-bottom: 16px; padding: 4px; border: 1px solid #dbe4f0; border-radius: 9px; background: #eef3f8; }
         .forty-five-content-tabs button { min-width: 128px; padding: 9px 16px; border: 0; border-radius: 6px; color: #51657a; background: transparent; font-size: 12px; font-weight: 900; cursor: pointer; }
         .forty-five-content-tabs button.active { color: #fff; background: #2355dc; box-shadow: 0 4px 12px rgba(35,85,220,.22); }
-        .expense-share-table-wrap { overflow: visible; }
+        .expense-share-header { position: sticky; top: 0; z-index: 12; padding: 14px 0; background: #fff; box-shadow: 0 8px 12px -14px rgba(15, 23, 42, .4); }
+        .expense-share-table-wrap { max-height: min(56vh, 620px); overflow: auto; }
         .expense-share-table thead th { position: sticky; top: 0; z-index: 5; background: #f8fafc; box-shadow: 0 1px 0 #dbe4f0, 0 5px 10px rgba(15, 23, 42, .06); }
         .ranking-dashboard { color: #102448; }
         .ranking-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding: 6px 0 14px; }
@@ -1668,6 +1669,7 @@ export default function CollectorPerformance() {
           .forty-five-modal-header { padding: 17px; }
           .forty-five-modal-header h3 { font-size: 17px; }
           .forty-five-modal-table-wrap { padding: 10px; }
+          .expense-share-table-wrap { max-height: 52vh; }
           .ranking-kpis { grid-template-columns: 1fr; }
           .print-report-kpis, .print-report-forms { grid-template-columns: 1fr; }
           .print-report-list-head { flex-direction: column; }
@@ -2667,8 +2669,8 @@ export default function CollectorPerformance() {
                           {ratingEvaluationTab === 'operations-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.operations_manager_evaluation?.branch_results || []} childRows={row => row.supervisor_results} childEntityLabel="Supervisor" onOpenChildren={setRatingHierarchyModal} footerRow={selectedRatingPeriod.operations_manager_evaluation} />}
                         </>
                       ) : ratingContentTab === 'expense-share' ? (
-                        <div style={{ padding: 20 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
+                        <div className="expense-share-panel" style={{ padding: 20 }}>
+                          <div className="expense-share-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
                             <div><div className="forty-five-section-title"><FileText size={19} /> Expense Share</div><div style={{ color: '#64748b', fontSize: 13, marginTop: 6 }}>Saved expense total is divided equally among {selectedRatingPeriod.evaluations.length} collector{selectedRatingPeriod.evaluations.length === 1 ? '' : 's'} in this 45-day evaluation.</div></div>
                             {canManageManualExpenses && <button className="btn btn-primary" type="button" onClick={openManualExpenseModal}><Plus size={16} /> Input Expense</button>}
                           </div>
