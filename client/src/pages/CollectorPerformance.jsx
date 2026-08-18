@@ -745,6 +745,7 @@ export default function CollectorPerformance() {
   const [manualExpenseSaving, setManualExpenseSaving] = useState(false)
   const [manualExpenseToDelete, setManualExpenseToDelete] = useState(null)
   const [manualExpenseDeleting, setManualExpenseDeleting] = useState(false)
+  const [expandedExpenseDates, setExpandedExpenseDates] = useState({})
   const [activeTab, setActiveTab] = useState('targets')
   const [collectionRows, setCollectionRows] = useState([])
   const [newCollectionDate, setNewCollectionDate] = useState(defaultRange.date_to)
@@ -758,6 +759,14 @@ export default function CollectorPerformance() {
   const [loading, setLoading] = useState(true)
   const [fortyFiveDayLoading, setFortyFiveDayLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+
+  const manualExpenseGroups = useMemo(() => Object.values(manualExpenses.reduce((groups, expense) => {
+    const date = expense.expense_date
+    if (!groups[date]) groups[date] = { date, expenses: [], total: 0 }
+    groups[date].expenses.push(expense)
+    groups[date].total += Number(expense.amount || 0)
+    return groups
+  }, {})), [manualExpenses])
 
   const updatePastdueCutoff = cutoff => {
     setFilters(current => ({ ...current, pastdue_cutoff: cutoff }))
@@ -2634,7 +2643,34 @@ export default function CollectorPerformance() {
                             <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, padding: 16, background: '#f8fafc' }}><div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Saved Expenses</div><strong style={{ display: 'block', marginTop: 5, color: '#c2410c', fontSize: 22 }}>PHP {fmt(manualExpensesTotal)}</strong></div>
                             <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, padding: 16, background: '#f8fafc' }}><div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Expense Share per Collector</div><strong style={{ display: 'block', marginTop: 5, color: '#6d28d9', fontSize: 22 }}>PHP {fmt(selectedRatingPeriod.evaluations.length ? manualExpensesTotal / selectedRatingPeriod.evaluations.length : 0)}</strong></div>
                           </div>
-                          <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, overflow: 'hidden' }}><div style={{ overflowX: 'auto' }}><table className="data-table" style={{ margin: 0, minWidth: 680 }}><thead><tr><th>Date</th><th>Category</th><th>Description</th><th style={{ textAlign: 'right' }}>Amount (PHP)</th>{canManageManualExpenses && <th />}</tr></thead><tbody>{manualExpenses.length ? manualExpenses.map(expense => <tr key={expense.id}><td>{displayDate(expense.expense_date)}</td><td style={{ fontWeight: 700 }}>{expense.category}</td><td>{expense.description || '—'}</td><td style={{ textAlign: 'right', color: '#c2410c', fontWeight: 800 }}>PHP {fmt(expense.amount)}</td>{canManageManualExpenses && <td style={{ textAlign: 'center' }}><button className="btn btn-secondary btn-sm" type="button" onClick={() => requestManualExpenseDeletion(expense)} title="Delete expense"><Trash2 size={14} /></button></td>}</tr>) : <tr><td colSpan={canManageManualExpenses ? 5 : 4} style={{ textAlign: 'center', color: '#64748b', padding: 22 }}>No saved expenses. Expense Share is PHP 0.00.</td></tr>}</tbody></table></div></div>
+                          <div style={{ border: '1px solid #dbe4f0', borderRadius: 10, overflow: 'hidden' }}>
+                            <table className="data-table" style={{ margin: 0, width: '100%' }}>
+                              <thead><tr><th>Date</th><th>Entries</th><th style={{ textAlign: 'right' }}>Total (PHP)</th></tr></thead>
+                              <tbody>{manualExpenseGroups.length ? manualExpenseGroups.map(group => {
+                                const isExpanded = Boolean(expandedExpenseDates[group.date])
+                                return <Fragment key={group.date}>
+                                  <tr style={{ background: isExpanded ? '#f0fdfa' : '#fff' }}>
+                                    <td colSpan={2}>
+                                      <button type="button" onClick={() => setExpandedExpenseDates(current => ({ ...current, [group.date]: !current[group.date] }))} aria-expanded={isExpanded} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: 0, border: 0, color: '#0f766e', background: 'transparent', font: 'inherit', fontWeight: 900, cursor: 'pointer' }}>
+                                        <ChevronRight size={18} style={{ transition: 'transform .18s ease', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }} />
+                                        {displayDate(group.date)}
+                                      </button>
+                                    </td>
+                                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}><span style={{ color: '#64748b', fontSize: 12, fontWeight: 700 }}>{group.expenses.length} {group.expenses.length === 1 ? 'entry' : 'entries'}</span><strong style={{ marginLeft: 14, color: '#c2410c' }}>PHP {fmt(group.total)}</strong></td>
+                                  </tr>
+                                  {isExpanded && <tr><td colSpan={3} style={{ padding: '0 16px 16px', background: '#f8fffd' }}>
+                                    <div style={{ display: 'grid', gap: 8, paddingTop: 10 }}>
+                                      {group.expenses.map(expense => <div key={expense.id} style={{ display: 'grid', gridTemplateColumns: canManageManualExpenses ? 'minmax(0, 1fr) minmax(120px, auto) 34px' : 'minmax(0, 1fr) minmax(120px, auto)', alignItems: 'center', gap: 14, padding: '12px 14px', border: '1px solid #d9eee9', borderRadius: 8, background: '#fff' }}>
+                                        <div><div style={{ color: '#263b57', fontSize: 13, fontWeight: 800 }}>{expense.category}</div>{expense.description && <div style={{ marginTop: 4, color: '#64748b', fontSize: 12 }}>{expense.description}</div>}</div>
+                                        <strong style={{ color: '#c2410c', textAlign: 'right', whiteSpace: 'nowrap' }}>PHP {fmt(expense.amount)}</strong>
+                                        {canManageManualExpenses && <button className="btn btn-secondary btn-sm" type="button" onClick={() => requestManualExpenseDeletion(expense)} title="Delete expense"><Trash2 size={14} /></button>}
+                                      </div>)}
+                                    </div>
+                                  </td></tr>}
+                                </Fragment>
+                              }) : <tr><td colSpan={3} style={{ textAlign: 'center', color: '#64748b', padding: 22 }}>No saved expenses. Expense Share is PHP 0.00.</td></tr>}</tbody>
+                            </table>
+                          </div>
                         </div>
                       ) : ratingContentTab === 'ranking' ? (
                         <FortyFiveRanking period={selectedRatingPeriod.period} collectors={selectedRatingPeriod.evaluations} supervisors={selectedRatingPeriod.supervisor_evaluations || []} />
