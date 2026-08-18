@@ -2339,7 +2339,7 @@ export default function Reports() {
                         <th className="text-right">Collection</th>
                         <th className="text-right">Release</th>
                         <th className="text-right">Expense</th>
-                        <th className="text-right">Net Income</th>
+                        <th className="text-right" style={{ fontWeight: 800 }}>Net Income</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2356,7 +2356,7 @@ export default function Reports() {
                             <td className="text-right">PHP {fmtMoney(row.collection_amount)}</td>
                             <td className="text-right">PHP {fmtMoney(row.release_amount)}</td>
                             <td className="text-right">PHP {fmtMoney(row.expense_amount)}</td>
-                            <td className="text-right fw-700" style={{ color: Number(row.net_income || 0) >= 0 ? '#15803d' : '#dc2626' }}>
+                            <td className="text-right" style={{ fontWeight: 800, color: Number(row.net_income || 0) >= 0 ? '#15803d' : '#dc2626' }}>
                               PHP {fmtMoney(row.net_income)}
                             </td>
                           </tr>
@@ -2365,12 +2365,12 @@ export default function Reports() {
                     </tbody>
                     {rankedCollectors.length > 0 && (
                       <tfoot>
-                        <tr>
-                          <td colSpan={3} className="fw-700">Total</td>
-                          <td className="text-right fw-700">PHP {fmtMoney(totals.collection)}</td>
-                          <td className="text-right fw-700">PHP {fmtMoney(totals.release)}</td>
-                          <td className="text-right fw-700">PHP {fmtMoney(totals.expense)}</td>
-                          <td className="text-right fw-700" style={{ color: totals.netIncome >= 0 ? '#15803d' : '#dc2626' }}>
+                        <tr style={{ background: '#fff1f2', borderTop: '2px solid #fda4af', borderBottom: '2px solid #fda4af' }}>
+                          <td colSpan={3} style={{ fontWeight: 800, color: '#b91c1c' }}>Total</td>
+                          <td className="text-right" style={{ fontWeight: 800, color: '#b91c1c' }}>PHP {fmtMoney(totals.collection)}</td>
+                          <td className="text-right" style={{ fontWeight: 800, color: '#b91c1c' }}>PHP {fmtMoney(totals.release)}</td>
+                          <td className="text-right" style={{ fontWeight: 800, color: '#b91c1c' }}>PHP {fmtMoney(totals.expense)}</td>
+                          <td className="text-right" style={{ fontWeight: 900, color: '#b91c1c' }}>
                             PHP {fmtMoney(totals.netIncome)}
                           </td>
                         </tr>
