@@ -51,7 +51,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
     first_name: '', last_name: '', middle_name: '', gender: 'Male', birth_date: '', civil_status: 'Single', nationality: 'Filipino',
     educational_background: '', occupational_status: '',
     address: '', sitio: '', purok: '', brgy: '', city: '', province: '', zip_code: '', home_status: 'Owned', length_of_stay: '', previous_address: '',
-    contact: '', secondary_contact: '', email: '', confirm_email: '', fb_account: '', messenger_account: '', preferred_contact_method: 'Call / SMS', preferred_contact_time_from: '', preferred_contact_time_to: '', contact_notes: '',
+    contact: '', secondary_contact: '', email: '', fb_account: '', messenger_account: '', contact_notes: '',
     business_type: 'SARI-SARI STORE', business_type_other: '', occupation: 'Retail', business_name: '', business_address: '', business_years: '', business_months: '', income_per_month: '', business_employees: '', business_ownership: 'Sole Proprietorship', business_permit: 'Yes', permit_date_issued: '', permit_place_issued: '', permit_no: '',
     id_type: 'Philippine Identification (PhilID)', id_number: '', id_issue_date: '', id_expiry_date: '', id_issued_by: 'PSA', id_place_of_issue: '', tin_number: '', sss_number: '', id_notes: '',
     proposed_principal: '', loan_purpose: '', branch_id: '', collector_id: '', loan_type: 'New Loan',
@@ -171,7 +171,6 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
         messenger_account: '',
         business_name: '',
         occupation: '',
-        preferred_contact_method: form.preferred_contact_method === 'Messenger' ? 'Any' : form.preferred_contact_method
       };
       if (initialData?.id) {
         await API.put(`/customers/${initialData.id}`, payload);
@@ -387,31 +386,8 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
           </div>
           <div className="form-grid">
             <div className="form-group"><label>Email Address</label><input type="email" className="form-control" value={form.email} onChange={handleLower('email')} /></div>
-            <div className="form-group"><label>Confirm Email Address</label><input type="email" className="form-control" value={form.confirm_email} onChange={handleLower('confirm_email')} /></div>
           </div>
           <div className="form-group"><label>Facebook Account</label><input className="form-control" value={form.fb_account} onChange={handleUpper('fb_account')} /></div>
-
-          <label className="section-label">Preferred Contact Method *</label>
-          <div className="radio-cards" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-            {['Call / SMS', 'Email', 'Any'].map(m => (
-              <div key={m} className={`radio-card ${form.preferred_contact_method === m ? 'active' : ''}`} onClick={() => setForm({...form, preferred_contact_method: m})} style={{padding: '10px 15px'}}>
-                <input type="radio" checked={form.preferred_contact_method === m} readOnly />
-                <strong style={{marginLeft: 8}}>{m}</strong>
-              </div>
-            ))}
-          </div>
-
-          <label className="section-label">Preferred Contact Time</label>
-          <div className="form-grid">
-            <div className="form-group" style={{display:'flex', alignItems:'center', gap: 10}}>
-              <span style={{color: '#64748b', fontSize: 13, width: 40}}>From</span>
-              <input type="time" className="form-control" value={form.preferred_contact_time_from} onChange={e => setForm({...form, preferred_contact_time_from: e.target.value})} />
-            </div>
-            <div className="form-group" style={{display:'flex', alignItems:'center', gap: 10}}>
-              <span style={{color: '#64748b', fontSize: 13, width: 40}}>To</span>
-              <input type="time" className="form-control" value={form.preferred_contact_time_to} onChange={e => setForm({...form, preferred_contact_time_to: e.target.value})} />
-            </div>
-          </div>
           <div className="form-group">
             <label>Additional Notes (Optional)</label>
             <textarea className="form-control" rows="3" value={form.contact_notes} onChange={handleUpper('contact_notes')}></textarea>
