@@ -2356,62 +2356,56 @@ export default function Reports() {
 
         return (
           <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-            {/* Header Banner */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', background: 'linear-gradient(135deg, #0f766e 0%, #115e59 100%)', color: '#fff', flexWrap: 'wrap', gap: 12 }}>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.85 }}>Collector Sheet / Expense Matrix</div>
-                <h2 style={{ margin: '2px 0 0 0', fontSize: 20, fontWeight: 800, color: '#ffffff', letterSpacing: '0.5px' }}>
-                  {activeSheet.employee_name.toUpperCase()}
-                  {activeSheet.position && <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.95, marginLeft: 8, background: 'rgba(255,255,255,0.22)', padding: '2px 8px', borderRadius: 4 }}>{activeSheet.position}</span>}
-                </h2>
+            {/* Header Banner with Employee Dropdown Selector */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', background: 'linear-gradient(135deg, #0f766e 0%, #115e59 100%)', color: '#fff', flexWrap: 'wrap', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', opacity: 0.85 }}>Select Employee / Collector:</div>
+                  <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <select
+                      value={activeSheet.personnel_id}
+                      onChange={e => setActiveCollectorSheetId(Number(e.target.value))}
+                      style={{
+                        background: '#ffffff',
+                        color: '#0f172a',
+                        fontWeight: 700,
+                        fontSize: '13px',
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        border: '1px solid rgba(255,255,255,0.4)',
+                        outline: 'none',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                        minWidth: 230
+                      }}
+                    >
+                      {sheets.map(sheet => (
+                        <option key={sheet.personnel_id} value={sheet.personnel_id} style={{ color: '#0f172a', fontWeight: 600 }}>
+                          {sheet.employee_name.toUpperCase()} {sheet.position ? `(${sheet.position})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {activeSheet.position && (
+                      <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.95, background: 'rgba(255,255,255,0.2)', padding: '4px 10px', borderRadius: 4 }}>
+                        {activeSheet.position}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <div style={{ fontSize: 12, opacity: 0.95, background: 'rgba(0,0,0,0.22)', padding: '6px 12px', borderRadius: 6 }}>
+                <div style={{ fontSize: 11.5, opacity: 0.95, background: 'rgba(0,0,0,0.22)', padding: '6px 12px', borderRadius: 6 }}>
                   Period: <strong>{expenseMatrix?.date_from ? formatExcelDate(expenseMatrix.date_from) : '-'}</strong> to <strong>{expenseMatrix?.date_to ? formatExcelDate(expenseMatrix.date_to) : '-'}</strong>
                 </div>
                 <button
                   type="button"
                   className="btn btn-sm"
-                  style={{ background: '#ffffff', color: '#0f766e', fontWeight: 700, border: 'none' }}
+                  style={{ background: '#ffffff', color: '#0f766e', fontWeight: 700, border: 'none', fontSize: 12 }}
                   onClick={() => { setExpensesTab('configuration'); setConfigurationTab('category') }}
                 >
                   <Plus size={14} /> Add Category
                 </button>
               </div>
-            </div>
-
-            {/* Excel Sheet Tabs (Top) */}
-            <div style={{ display: 'flex', gap: 3, alignItems: 'center', background: '#f1f5f9', padding: '8px 12px 0', borderBottom: '1px solid #cbd5e1', overflowX: 'auto' }}>
-              {sheets.map(sheet => {
-                const isActive = Number(activeSheet.personnel_id) === Number(sheet.personnel_id)
-                return (
-                  <button
-                    key={sheet.personnel_id}
-                    type="button"
-                    onClick={() => setActiveCollectorSheetId(sheet.personnel_id)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: '8px 16px',
-                      fontSize: '12px',
-                      fontWeight: isActive ? '800' : '600',
-                      color: isActive ? '#0f766e' : '#475569',
-                      background: isActive ? '#ffffff' : '#e2e8f0',
-                      border: '1px solid #cbd5e1',
-                      borderBottom: isActive ? '2px solid #0f766e' : '1px solid #cbd5e1',
-                      borderRadius: '6px 6px 0 0',
-                      marginBottom: isActive ? '-1px' : '0',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      boxShadow: isActive ? '0 -1px 3px rgba(0,0,0,0.05)' : 'none',
-                    }}
-                  >
-                    <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: isActive ? '#0f766e' : '#94a3b8' }} />
-                    {sheet.employee_name.toUpperCase()}
-                  </button>
-                )
-              })}
             </div>
 
             {/* Instruction strip */}
@@ -2525,38 +2519,6 @@ export default function Reports() {
                   )}
                 </tbody>
               </table>
-            </div>
-
-            {/* Bottom Sheet Tabs Bar (Excel Workbook Style) */}
-            <div style={{ display: 'flex', gap: 3, alignItems: 'center', background: '#e2e8f0', padding: '6px 12px 0', borderTop: '1px solid #cbd5e1', overflowX: 'auto' }}>
-              <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', marginRight: 6, textTransform: 'uppercase' }}>SHEETS:</span>
-              {sheets.map(sheet => {
-                const isActive = Number(activeSheet.personnel_id) === Number(sheet.personnel_id)
-                return (
-                  <button
-                    key={sheet.personnel_id}
-                    type="button"
-                    onClick={() => setActiveCollectorSheetId(sheet.personnel_id)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: '6px 14px',
-                      fontSize: '11px',
-                      fontWeight: isActive ? '800' : '600',
-                      color: isActive ? '#0f766e' : '#64748b',
-                      background: isActive ? '#ffffff' : '#f1f5f9',
-                      border: '1px solid #cbd5e1',
-                      borderBottom: isActive ? '2px solid #0f766e' : '1px solid #cbd5e1',
-                      borderRadius: '4px 4px 0 0',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    <span>{sheet.employee_name.toUpperCase()}</span>
-                  </button>
-                )
-              })}
             </div>
           </div>
         )
