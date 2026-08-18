@@ -2319,7 +2319,8 @@ export default function Reports() {
             </div>
           </div>
           </> : (() => {
-            const totals = netIncomeByCollector.reduce((acc, row) => ({
+            const rankedCollectors = [...netIncomeByCollector].sort((a, b) => Number(b.net_income || 0) - Number(a.net_income || 0))
+            const totals = rankedCollectors.reduce((acc, row) => ({
               collection: acc.collection + Number(row.collection_amount || 0),
               release: acc.release + Number(row.release_amount || 0),
               expense: acc.expense + Number(row.expense_amount || 0),
@@ -2327,23 +2328,54 @@ export default function Reports() {
             }), { collection: 0, release: 0, expense: 0, netIncome: 0 })
             return (
               <div>
-                <div style={{ marginBottom: 12, color: 'var(--text-muted)', fontSize: 13 }}>Net Income = Collection - Non-Recon Release - Expense, based on the selected date range.</div>
+                <div style={{ marginBottom: 12, color: 'var(--text-muted)', fontSize: 13 }}>Net Income = Collection - Non-Recon Release - Expense, based on the selected date range. Ranked by highest Net Income.</div>
                 <div style={{ overflowX: 'auto' }}>
                   <table className="data-table">
-                    <thead><tr><th>Collector</th><th>Position</th><th className="text-right">Collection</th><th className="text-right">Release</th><th className="text-right">Expense</th><th className="text-right">Net Income</th></tr></thead>
+                    <thead>
+                      <tr>
+                        <th style={{ width: 60, textAlign: 'center' }}>Rank</th>
+                        <th>Collector</th>
+                        <th>Position</th>
+                        <th className="text-right">Collection</th>
+                        <th className="text-right">Release</th>
+                        <th className="text-right">Expense</th>
+                        <th className="text-right">Net Income</th>
+                      </tr>
+                    </thead>
                     <tbody>
-                      {netIncomeByCollector.length === 0 ? <tr><td colSpan={6} className="empty-state">No active personnel with Collector position found</td></tr> : netIncomeByCollector.map(row => (
-                        <tr key={row.personnel_id}>
-                          <td className="fw-600">{row.employee_name}</td>
-                          <td>{row.position}</td>
-                          <td className="text-right">PHP {fmtMoney(row.collection_amount)}</td>
-                          <td className="text-right">PHP {fmtMoney(row.release_amount)}</td>
-                          <td className="text-right">PHP {fmtMoney(row.expense_amount)}</td>
-                          <td className="text-right fw-700" style={{ color: Number(row.net_income || 0) >= 0 ? '#15803d' : '#dc2626' }}>PHP {fmtMoney(row.net_income)}</td>
-                        </tr>
-                      ))}
+                      {rankedCollectors.length === 0 ? (
+                        <tr><td colSpan={7} className="empty-state">No active personnel with Collector position found</td></tr>
+                      ) : (
+                        rankedCollectors.map((row, idx) => (
+                          <tr key={row.personnel_id}>
+                            <td className="text-center fw-700" style={{ color: idx === 0 ? '#d97706' : idx === 1 ? '#475569' : idx === 2 ? '#b45309' : 'var(--text-muted)' }}>
+                              #{idx + 1}
+                            </td>
+                            <td className="fw-600">{row.employee_name}</td>
+                            <td>{row.position}</td>
+                            <td className="text-right">PHP {fmtMoney(row.collection_amount)}</td>
+                            <td className="text-right">PHP {fmtMoney(row.release_amount)}</td>
+                            <td className="text-right">PHP {fmtMoney(row.expense_amount)}</td>
+                            <td className="text-right fw-700" style={{ color: Number(row.net_income || 0) >= 0 ? '#15803d' : '#dc2626' }}>
+                              PHP {fmtMoney(row.net_income)}
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
-                    {netIncomeByCollector.length > 0 && <tfoot><tr><td colSpan={2} className="fw-700">Total</td><td className="text-right fw-700">PHP {fmtMoney(totals.collection)}</td><td className="text-right fw-700">PHP {fmtMoney(totals.release)}</td><td className="text-right fw-700">PHP {fmtMoney(totals.expense)}</td><td className="text-right fw-700" style={{ color: totals.netIncome >= 0 ? '#15803d' : '#dc2626' }}>PHP {fmtMoney(totals.netIncome)}</td></tr></tfoot>}
+                    {rankedCollectors.length > 0 && (
+                      <tfoot>
+                        <tr>
+                          <td colSpan={3} className="fw-700">Total</td>
+                          <td className="text-right fw-700">PHP {fmtMoney(totals.collection)}</td>
+                          <td className="text-right fw-700">PHP {fmtMoney(totals.release)}</td>
+                          <td className="text-right fw-700">PHP {fmtMoney(totals.expense)}</td>
+                          <td className="text-right fw-700" style={{ color: totals.netIncome >= 0 ? '#15803d' : '#dc2626' }}>
+                            PHP {fmtMoney(totals.netIncome)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
                   </table>
                 </div>
               </div>

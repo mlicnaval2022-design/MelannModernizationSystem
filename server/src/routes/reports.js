@@ -1010,7 +1010,7 @@ router.get('/expenses/summary', authenticateToken, async (req, res) => {
         expense_amount: expenseAmount,
         net_income: collectionAmount - releaseAmount - expenseAmount,
       };
-    });
+    }).sort((a, b) => Number(b.net_income || 0) - Number(a.net_income || 0));
 
     res.json({
       date_from: dateFrom,
