@@ -32,7 +32,6 @@ const COMPANY_PERIOD_PRESETS = [
   { label: 'Nov 16 – Dec 31', start: '-11-16', end: '-12-31' }
 ]
 const MANUAL_EXPENSE_CATEGORIES = [
-  ['Grand Total of Expenses', ['Office', 'Misc']],
   ['Government Dues', ['BIR - Doc Stamp Fee', 'BIR - % Tax', 'BIR - ITR', 'BIR - Others', 'SSS', 'PHIC', 'PAG-IBIG', 'SEC', 'Business Permit', 'Property Taxes', 'Notarial Fees (Not Related to BIR)']],
   ['Transportation Expenses', ['Maintenance (Motorcycle)', 'Registration (Motorcycle)', 'Gasoline (Motorcycle)', 'Registration (Sportivo/Wigo)', 'Maintenance (Sportivo/Wigo)', 'Gasoline (Sportivo/Wigo)']],
   ['MLIC Bills Payments', ['Electric', 'Water', 'Telephone']],
@@ -58,13 +57,36 @@ const EXPENSE_TABULATION_COLUMNS = EXPENSE_TABULATION_GROUPS.flatMap(group => gr
   category,
   groupKey: group.key
 })))
-const EXPENSE_TABULATION_COLUMN_COUNT = 1 + 3 + EXPENSE_TABULATION_COLUMNS.length + EXPENSE_TABULATION_GROUPS.length + 1
+const EXPENSE_TABULATION_COLUMN_COUNT = 1 + 3 + EXPENSE_TABULATION_COLUMNS.length + EXPENSE_TABULATION_GROUPS.length
 
 const tabulationGroupForExpense = category => {
   const name = String(category || '').split(' — ')[0].trim()
   return EXPENSE_TABULATION_GROUPS.find(group => group.source === name)?.key || 'miscellaneous-expense'
 }
 const tabulationCategoryForExpense = category => String(category || '').split(' — ').slice(1).join(' — ').trim()
+
+function ExpenseShareGridCell({ initialValue, onSave, disabled }) {
+  const [value, setValue] = useState(initialValue > 0 ? String(initialValue) : '')
+  const [isFocused, setIsFocused] = useState(false)
+
+  useEffect(() => {
+    if (!isFocused) setValue(initialValue > 0 ? String(initialValue) : '')
+  }, [initialValue, isFocused])
+
+  const commit = async () => {
+    setIsFocused(false)
+    const nextAmount = Math.max(0, Number(value) || 0)
+    const previousAmount = Math.max(0, Number(initialValue) || 0)
+    if (nextAmount !== previousAmount) {
+      const saved = await onSave(nextAmount)
+      if (saved === false) setValue(previousAmount > 0 ? String(previousAmount) : '')
+    }
+  }
+
+  return <td className="expense-tabulation-input-cell">
+    {disabled ? (initialValue ? `PHP ${fmt(initialValue)}` : '—') : <input type="number" min="0" step="0.01" inputMode="decimal" value={value} placeholder="—" onFocus={() => setIsFocused(true)} onBlur={commit} onWheel={event => event.currentTarget.blur()} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur() } }} onChange={event => setValue(event.target.value)} />}
+  </td>
+}
 
 const compressProfilePhoto = source => new Promise(resolve => {
   const image = new Image()
@@ -762,7 +784,7 @@ export default function CollectorPerformance() {
   const [ratingHierarchyModal, setRatingHierarchyModal] = useState(null)
   const [manualExpenses, setManualExpenses] = useState([])
   const [showManualExpenseModal, setShowManualExpenseModal] = useState(false)
-  const [inlineExpenseDate, setInlineExpenseDate] = useState(null)
+  const [expenseCellSavingKey, setExpenseCellSavingKey] = useState('')
   const [manualExpenseForm, setManualExpenseForm] = useState({ expense_date: '', category: '', description: '', amount: '' })
   const [manualExpenseEditing, setManualExpenseEditing] = useState(null)
   const [manualExpenseSaving, setManualExpenseSaving] = useState(false)
@@ -1120,27 +1142,6 @@ export default function CollectorPerformance() {
     await loadFortyFiveDayEvaluation(selectedRatingPeriod.period.start_date, selectedRatingPeriod.period.end_date)
   }
 
-  const openManualExpenseModal = (expenseDate) => {
-    const period = selectedRatingPeriod?.period
-    if (!period) return
-    setManualExpenseForm({ expense_date: expenseDate || period.start_date, category: '', description: '', amount: '' })
-    setManualExpenseEditing(null)
-    setShowManualExpenseModal(true)
-  }
-
-  const openInlineExpenseForm = expenseDate => {
-    if (!expenseDate) return
-    setManualExpenseForm({ expense_date: expenseDate, category: '', description: '', amount: '' })
-    setManualExpenseEditing(null)
-    setInlineExpenseDate(expenseDate)
-    setExpandedExpenseDates(current => ({ ...current, [expenseDate]: true }))
-  }
-
-  const closeInlineExpenseForm = () => {
-    setInlineExpenseDate(null)
-    setManualExpenseForm({ expense_date: '', category: '', description: '', amount: '' })
-  }
-
   const openManualExpenseEditor = expense => {
     setManualExpenseForm({
       expense_date: expense.expense_date,
@@ -1155,7 +1156,7 @@ export default function CollectorPerformance() {
   const saveManualExpense = async event => {
     event.preventDefault()
     const period = selectedRatingPeriod?.period
-    if (!period) return
+    if (!period) return false
     preserveExpenseSharePosition()
     setManualExpenseSaving(true)
     try {
@@ -1168,7 +1169,6 @@ export default function CollectorPerformance() {
       else await API.post('/forty-five-day-rating/manual-expenses', payload)
       setShowManualExpenseModal(false)
       setManualExpenseEditing(null)
-      setInlineExpenseDate(null)
       setExpandedExpenseDates(current => ({ ...current, [payload.expense_date]: true }))
       await loadFortyFiveDayEvaluation(period.start_date, period.end_date)
     } catch (err) {
@@ -1176,6 +1176,66 @@ export default function CollectorPerformance() {
       setErrorMsg(err.response?.data?.error || err.message || 'Could not save manual expense')
     } finally {
       setManualExpenseSaving(false)
+    }
+  }
+
+  const saveManualExpenseCell = async (expenseDate, category, amount) => {
+    const period = selectedRatingPeriod?.period
+    if (!period) return
+    const matchingExpenses = manualExpenses.filter(expense => expense.expense_date === expenseDate && expense.category === category)
+    const currentAmount = matchingExpenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0)
+    if (amount === currentAmount) return true
+
+    const cellKey = `${expenseDate}:${category}`
+    preserveExpenseSharePosition()
+    setExpenseCellSavingKey(cellKey)
+    try {
+      if (amount === 0) {
+        await Promise.all(matchingExpenses.map(expense => API.delete(`/forty-five-day-rating/manual-expenses/${expense.id}`)))
+      } else if (amount > currentAmount) {
+        await API.post('/forty-five-day-rating/manual-expenses', {
+          expense_date: expenseDate,
+          category,
+          description: '',
+          amount: amount - currentAmount,
+          start_date: period.start_date,
+          end_date: period.end_date
+        })
+      } else if (matchingExpenses.length === 1) {
+        const [expense] = matchingExpenses
+        await API.put(`/forty-five-day-rating/manual-expenses/${expense.id}`, {
+          expense_date: expenseDate,
+          category,
+          description: expense.description || '',
+          amount,
+          start_date: period.start_date,
+          end_date: period.end_date
+        })
+      } else {
+        let remainingAmount = amount
+        for (const expense of matchingExpenses) {
+          const nextAmount = Math.min(Number(expense.amount || 0), remainingAmount)
+          remainingAmount -= nextAmount
+          if (nextAmount === 0) await API.delete(`/forty-five-day-rating/manual-expenses/${expense.id}`)
+          else await API.put(`/forty-five-day-rating/manual-expenses/${expense.id}`, {
+            expense_date: expenseDate,
+            category,
+            description: expense.description || '',
+            amount: nextAmount,
+            start_date: period.start_date,
+            end_date: period.end_date
+          })
+        }
+      }
+      setExpandedExpenseDates(current => ({ ...current, [expenseDate]: true }))
+      await loadFortyFiveDayEvaluation(period.start_date, period.end_date)
+      return true
+    } catch (err) {
+      expenseSharePositionRef.current = null
+      setErrorMsg(err.response?.data?.error || err.message || 'Could not save expense cell')
+      return false
+    } finally {
+      setExpenseCellSavingKey('')
     }
   }
 
@@ -1660,12 +1720,10 @@ export default function CollectorPerformance() {
         .expense-tabulation-total-button { display: grid; gap: 2px; min-width: 78px; padding: 0; border: 0; color: inherit; background: transparent; font: inherit; font-weight: 900; text-align: right; cursor: pointer; }
         .expense-tabulation-total-button small { color: #94a3b8; font-size: 10px; font-weight: 800; }
         .expense-tabulation-total-button:disabled { cursor: default; }
-        .expense-inline-form { display: grid; grid-template-columns: minmax(230px, 1.5fr) minmax(120px, .65fr) minmax(240px, 1.2fr) auto; align-items: end; gap: 10px; padding: 12px; border: 1px solid #b9ded7; border-radius: 9px; background: #effaf7; }
-        .expense-inline-form .form-group { margin: 0; min-width: 0; }
-        .expense-inline-form .form-label { margin-bottom: 5px; font-size: 10px; }
-        .expense-inline-form .form-control { min-height: 34px; padding: 7px 9px; font-size: 12px; }
-        .expense-inline-form-actions { display: flex; gap: 7px; white-space: nowrap; }
-        @media (max-width: 760px) { .expense-inline-form { grid-template-columns: 1fr; } .expense-inline-form-actions { justify-content: flex-end; } }
+        .expense-tabulation-input-cell { min-width: 78px; padding: 0 !important; border-color: #dbe4f0; text-align: right; }
+        .expense-tabulation-input-cell input { width: 100%; min-width: 78px; height: 31px; padding: 4px 6px; border: 1px solid transparent; color: #475569; background: transparent; font: inherit; font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; outline: none; }
+        .expense-tabulation-input-cell input:focus { border: 2px solid #0f766e; color: #0f172a; background: #effcf8; box-shadow: inset 0 0 0 1px #d1fae5; }
+        .expense-tabulation-input-cell input::placeholder { color: #94a3b8; }
         .ranking-dashboard { color: #102448; }
         .ranking-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding: 6px 0 14px; }
         .ranking-header h3 { margin: 0; color: #102448; font-size: 21px; font-weight: 950; }
@@ -2803,7 +2861,6 @@ export default function CollectorPerformance() {
                         <div className="expense-share-panel" style={{ padding: 20 }}>
                           <div className="expense-share-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
                             <div><div className="forty-five-section-title"><FileText size={19} /> Expense Share</div><div style={{ color: '#64748b', fontSize: 13, marginTop: 6 }}>Office expenses are divided equally among {selectedRatingPeriod.evaluations.length} collector{selectedRatingPeriod.evaluations.length === 1 ? '' : 's'} in this 45-day evaluation. Misc expenses are shown for reference only.</div></div>
-                            {canManageManualExpenses && <button className="btn btn-primary" type="button" onClick={openManualExpenseModal}><Plus size={16} /> Input Expense</button>}
                           </div>
                           <div className="expense-tabulation-summary">
                             <div className="expense-tabulation-kpi office"><span>Office Total</span><strong>PHP {fmt(expenseTabulationTotals.office)}</strong></div>
@@ -2814,7 +2871,7 @@ export default function CollectorPerformance() {
                           <div ref={expenseShareTableRef} className="expense-share-table-wrap" style={{ border: '1px solid #dbe4f0', borderRadius: 10 }}>
                             <table className="data-table expense-share-table expense-tabulation-table" style={{ margin: 0, width: '100%' }}>
                               <thead>
-                                <tr><th rowSpan={2}>Date</th><th className="expense-tabulation-section grand" colSpan={3}>Grand Total of Expenses</th>{EXPENSE_TABULATION_GROUPS.map(group => <th key={group.key} className={`expense-tabulation-section ${group.section}`} colSpan={group.categories.length + 1}>{group.label}</th>)}<th rowSpan={2}>Action</th></tr>
+                                <tr><th rowSpan={2}>Date</th><th className="expense-tabulation-section grand" colSpan={3}>Grand Total of Expenses</th>{EXPENSE_TABULATION_GROUPS.map(group => <th key={group.key} className={`expense-tabulation-section ${group.section}`} colSpan={group.categories.length + 1}>{group.label}</th>)}</tr>
                                 <tr><th className="expense-tabulation-total office">Office</th><th className="expense-tabulation-total misc">Misc</th><th className="expense-tabulation-total grand">Total</th>{EXPENSE_TABULATION_GROUPS.flatMap(group => [
                                   ...group.categories.map(category => <th key={`${group.key}:${category}`} title={`${group.label} — ${category}`}>{category}</th>),
                                   <th key={`${group.key}:total`} className={`expense-tabulation-total ${group.section}`}>Total</th>
@@ -2834,19 +2891,12 @@ export default function CollectorPerformance() {
                                     <td className="expense-tabulation-amount expense-tabulation-total misc">PHP {fmt(group.miscTotal)}</td>
                                     <td className="expense-tabulation-amount expense-tabulation-total grand"><button type="button" onClick={() => setExpandedExpenseDates(current => ({ ...current, [group.date]: !current[group.date] }))} aria-expanded={isExpanded} disabled={!group.expenses.length} className="expense-tabulation-total-button">PHP {fmt(group.grandTotal)} <small>{group.expenses.length} item{group.expenses.length === 1 ? '' : 's'}</small></button></td>
                                     {EXPENSE_TABULATION_GROUPS.flatMap(expenseGroup => [
-                                      ...expenseGroup.categories.map(category => <td key={`${expenseGroup.key}:${category}`} className="expense-tabulation-amount">{group.categoryTotals[`${expenseGroup.key}:${category}`] ? `PHP ${fmt(group.categoryTotals[`${expenseGroup.key}:${category}`])}` : '—'}</td>),
+                                      ...expenseGroup.categories.map(category => <ExpenseShareGridCell key={`${expenseGroup.key}:${category}`} initialValue={group.categoryTotals[`${expenseGroup.key}:${category}`]} disabled={!canManageManualExpenses || expenseCellSavingKey === `${group.date}:${expenseGroup.source} — ${category}`} onSave={amount => saveManualExpenseCell(group.date, `${expenseGroup.source} — ${category}`, amount)} />),
                                       <td key={`${expenseGroup.key}:total`} className={`expense-tabulation-amount expense-tabulation-total ${expenseGroup.section}`}>PHP {fmt(group.totals[expenseGroup.key])}</td>
                                     ])}
-                                    <td>{canManageManualExpenses && <button className="btn btn-secondary btn-sm" type="button" onClick={() => openInlineExpenseForm(group.date)}><Plus size={14} /> Add Expense</button>}</td>
                                   </tr>
                                   {isExpanded && <tr><td colSpan={EXPENSE_TABULATION_COLUMN_COUNT} style={{ padding: '0 16px 16px', background: '#f8fffd' }}>
                                     <div style={{ display: 'grid', gap: 8, paddingTop: 10 }}>
-                                      {inlineExpenseDate === group.date && <form className="expense-inline-form" onSubmit={saveManualExpense}>
-                                        <label className="form-group"><span className="form-label">Category</span><select className="form-control" required autoFocus value={manualExpenseForm.category} onChange={event => setManualExpenseForm(current => ({ ...current, category: event.target.value }))}><option value="">Select expense category</option>{MANUAL_EXPENSE_CATEGORIES.map(([expenseGroup, categories]) => <optgroup key={expenseGroup} label={expenseGroup}>{categories.map(category => <option key={`${expenseGroup}-${category}`} value={`${expenseGroup} — ${category}`}>{category}</option>)}</optgroup>)}</select></label>
-                                        <label className="form-group"><span className="form-label">Amount (PHP)</span><input className="form-control" type="number" required min="0.01" step="0.01" inputMode="decimal" placeholder="0.00" value={manualExpenseForm.amount} onWheel={event => event.currentTarget.blur()} onChange={event => setManualExpenseForm(current => ({ ...current, amount: event.target.value }))} /></label>
-                                        <label className="form-group"><span className="form-label">Description / Particulars <small>(optional)</small></span><input className="form-control" maxLength="500" value={manualExpenseForm.description} onChange={event => setManualExpenseForm(current => ({ ...current, description: event.target.value }))} /></label>
-                                        <div className="expense-inline-form-actions"><button className="btn btn-secondary btn-sm" type="button" onClick={closeInlineExpenseForm} disabled={manualExpenseSaving}>Cancel</button><button className="btn btn-primary btn-sm" type="submit" disabled={manualExpenseSaving}>{manualExpenseSaving ? 'Saving...' : 'Save'}</button></div>
-                                      </form>}
                                       {group.expenses.length ? group.expenses.map(expense => <div key={expense.id} style={{ display: 'grid', gridTemplateColumns: canManageManualExpenses ? 'minmax(0, 1fr) minmax(120px, auto) auto' : 'minmax(0, 1fr) minmax(120px, auto)', alignItems: 'center', gap: 14, padding: '12px 14px', border: '1px solid #d9eee9', borderRadius: 8, background: '#fff' }}>
                                         <div><div style={{ color: '#0f766e', fontSize: 11, fontWeight: 900, textTransform: 'uppercase' }}>{EXPENSE_TABULATION_GROUPS.find(item => item.key === tabulationGroupForExpense(expense.category))?.label}</div><div style={{ marginTop: 3, color: '#263b57', fontSize: 13, fontWeight: 800 }}>{expense.category}</div>{expense.description && <div style={{ marginTop: 4, color: '#64748b', fontSize: 12 }}>{expense.description}</div>}</div>
                                         <strong style={{ color: '#c2410c', textAlign: 'right', whiteSpace: 'nowrap' }}>PHP {fmt(expense.amount)}</strong>
