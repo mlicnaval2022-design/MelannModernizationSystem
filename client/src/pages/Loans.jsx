@@ -10,6 +10,13 @@ import './Loans.css'
 
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 
+const calculateMaturityDate = (releaseDate, termDays) => {
+  if (!releaseDate || !Number.isInteger(Number(termDays)) || Number(termDays) <= 0) return ''
+  const date = new Date(`${releaseDate}T00:00:00`)
+  date.setDate(date.getDate() + Number(termDays))
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 export default function Loans() {
   const { hasRole } = useAuth()
   const navigate = useNavigate()
@@ -37,6 +44,10 @@ export default function Loans() {
   const [editModal, setEditModal] = useState(null)
   const [cancelConfirmModal, setCancelConfirmModal] = useState(null)
   const [noteModal, setNoteModal] = useState(null)
+  const [maturityReleaseDate, setMaturityReleaseDate] = useState('')
+  const [maturityTermDays, setMaturityTermDays] = useState('45')
+
+  const maturityDate = calculateMaturityDate(maturityReleaseDate, maturityTermDays)
 
   const triggerRecon = (r) => {
     setReloanCustomer({
@@ -303,9 +314,40 @@ export default function Loans() {
             </section>
           </div>
 
-          <section className="card" style={{ padding: 20 }}>
+          <section className="card loans-recent-activity" style={{ padding: 20 }}>
             <h4 style={{ margin: '0 0 12px', color: '#1e293b' }}>Recent Loan-Entry Activity</h4>
             <p style={{ margin: 0, color: '#64748b' }}>Recently processed transactions appear in the status tabs. Use SOA for previous loans, payments, penalties, adjustments, and running balances.</p>
+          </section>
+
+          <section className="card maturity-calculator-card">
+            <div className="maturity-calculator-heading">
+              <div>
+                <h4>Maturity Date Calculator</h4>
+                <p>View only — enter a release date and term to check the expected maturity date.</p>
+              </div>
+              <output className="maturity-calculator-result" aria-live="polite">
+                <span>Maturity Date</span>
+                <strong>{maturityDate || '—'}</strong>
+              </output>
+            </div>
+            <div className="maturity-calculator-controls">
+              <label>
+                <span>Release Date</span>
+                <input type="date" value={maturityReleaseDate} onChange={e => setMaturityReleaseDate(e.target.value)} />
+              </label>
+              <div className="maturity-calculator-terms" role="group" aria-label="Loan term in days">
+                <span>Loan Term</span>
+                <div>
+                  {['30', '45', '60'].map(days => (
+                    <button type="button" key={days} className={maturityTermDays === days ? 'active' : ''} onClick={() => setMaturityTermDays(days)}>{days} days</button>
+                  ))}
+                </div>
+              </div>
+              <label>
+                <span>Long Due / Custom Days</span>
+                <input type="number" min="1" step="1" placeholder="e.g. 120" value={['30', '45', '60'].includes(maturityTermDays) ? '' : maturityTermDays} onChange={e => setMaturityTermDays(e.target.value)} />
+              </label>
+            </div>
           </section>
         </div>
       ) : status === 'fullpaid' ? (

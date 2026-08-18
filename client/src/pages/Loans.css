@@ -269,16 +269,15 @@
   min-height: 237px;
 }
 
-.loans-modern .card:has(> h4:first-child:last-child),
-.loans-modern section.card:last-child {
+.loans-modern .loans-recent-activity {
   position: relative;
 }
 
-.loans-modern section.card:last-child h4 {
+.loans-modern .loans-recent-activity h4 {
   padding-left: 40px;
 }
 
-.loans-modern section.card:last-child h4::before {
+.loans-modern .loans-recent-activity h4::before {
   content: "";
   position: absolute;
   left: 21px;
@@ -290,10 +289,103 @@
   border: 4px solid #eff6ff;
 }
 
-.loans-modern section.card:last-child p {
+.loans-modern .loans-recent-activity p {
   color: #536887 !important;
   font-size: 12px;
   padding-left: 40px;
+}
+
+.loans-modern .maturity-calculator-card {
+  margin-top: 16px;
+  padding: 20px;
+  background: linear-gradient(135deg, #ffffff, #f7faff);
+}
+
+.loans-modern .maturity-calculator-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.loans-modern .maturity-calculator-heading h4 { margin: 0; }
+
+.loans-modern .maturity-calculator-heading p {
+  margin: 6px 0 0;
+  color: #536887;
+  font-size: 12px;
+}
+
+.loans-modern .maturity-calculator-result {
+  min-width: 190px;
+  padding: 10px 14px;
+  border: 1px solid #cfe0ff;
+  border-radius: 8px;
+  background: #eff6ff;
+  text-align: right;
+}
+
+.loans-modern .maturity-calculator-result span,
+.loans-modern .maturity-calculator-controls > label > span,
+.loans-modern .maturity-calculator-terms > span {
+  display: block;
+  color: #536887;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.loans-modern .maturity-calculator-result strong {
+  display: block;
+  margin-top: 3px;
+  color: #1d4ed8;
+  font-size: 18px;
+}
+
+.loans-modern .maturity-calculator-controls {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) minmax(255px, 1.25fr) minmax(190px, 1fr);
+  gap: 14px;
+  align-items: end;
+}
+
+.loans-modern .maturity-calculator-controls input {
+  width: 100%;
+  height: 40px;
+  margin-top: 6px;
+  padding: 0 11px;
+  border: 1px solid #d6e0ed;
+  border-radius: 7px;
+  background: #fff;
+  color: #102044;
+  font: inherit;
+}
+
+.loans-modern .maturity-calculator-terms > div {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.loans-modern .maturity-calculator-terms button {
+  height: 40px;
+  border: 1px solid #d6e0ed;
+  border-radius: 7px;
+  background: #fff;
+  color: #536887;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.loans-modern .maturity-calculator-terms button.active {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
 }
 
 @media (max-width: 980px) {
@@ -308,7 +400,18 @@
   }
 
   .loans-modern .loans-entry-card > div,
-  .loans-modern > div:nth-of-type(3) > div:first-child {
+  .loans-modern > div:nth-of-type(3) > div:first-child,
+  .loans-modern .maturity-calculator-controls {
     grid-template-columns: 1fr !important;
+  }
+
+  .loans-modern .maturity-calculator-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .loans-modern .maturity-calculator-result {
+    width: 100%;
+    text-align: left;
   }
 }
