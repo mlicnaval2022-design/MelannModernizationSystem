@@ -56,6 +56,7 @@ export default function Payments() {
   const [saving, setSaving] = useState(false)
   const [notification, setNotification] = useState(null)
   const [confirmModal, setConfirmModal] = useState(null)
+  const [saveSuccessModal, setSaveSuccessModal] = useState(null)
   
   const scannerRef = useRef(null)
   const amountInputRef = useRef(null)
@@ -149,13 +150,15 @@ export default function Payments() {
       setForm({ amount_paid: '', date_paid: today(), remarks: '' })
       loadRecentPayments()
       
-      if (r.data.loan_status === 'fullpaid') {
-        setNotification({ type: 'success', message: `Customer is now Fully Paid. Payment Code: ${r.data.payment_code}` })
-      } else {
-        setNotification({ type: 'success', message: `Payment Successfully Posted. Payment Code: ${r.data.payment_code}` })
-      }
-      
-      if (scannerRef.current) scannerRef.current.focus()
+      const successMessage = r.data.loan_status === 'fullpaid'
+        ? `Customer is now Fully Paid. Payment Code: ${r.data.payment_code}`
+        : `Payment Successfully Posted. Payment Code: ${r.data.payment_code}`
+
+      setNotification({ type: 'success', message: successMessage })
+      setSaveSuccessModal(successMessage)
+
+      // Do not jump the viewport to the scanner at the top after saving.
+      if (scannerRef.current) scannerRef.current.focus({ preventScroll: true })
     } catch (err) {
       if (err.response?.status === 409 && err.response?.data?.is_duplicate) {
         setConfirmModal({
@@ -1218,6 +1221,17 @@ export default function Payments() {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {saveSuccessModal && (
+        <div className="modal-overlay payment-save-success-overlay" style={{ zIndex: 10001 }}>
+          <div className="payment-save-success-modal" role="dialog" aria-modal="true" aria-labelledby="payment-save-success-title">
+            <div className="payment-save-success-icon" aria-hidden="true">✓</div>
+            <h3 id="payment-save-success-title">Payment Saved</h3>
+            <p>{saveSuccessModal}</p>
+            <button type="button" className="p-btn p-btn-primary" onClick={() => setSaveSuccessModal(null)}>OK</button>
           </div>
         </div>
       )}

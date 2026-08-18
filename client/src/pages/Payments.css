@@ -367,6 +367,52 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  box-shadow: 0 -8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.payment-save-success-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.payment-save-success-modal {
+  width: min(420px, 100%);
+  padding: 32px;
+  border-radius: 16px;
+  background: #fff;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+}
+
+.payment-save-success-icon {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  place-items: center;
+  border: 2px solid #86efac;
+  border-radius: 50%;
+  background: #f0fdf4;
+  color: #16a34a;
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.payment-save-success-modal h3 {
+  margin: 0 0 10px;
+  color: #166534;
+  font-size: 20px;
+}
+
+.payment-save-success-modal p {
+  margin: 0 0 24px;
+  color: #475569;
+  line-height: 1.5;
 }
 
 .p-btn {
