@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, BarChart3, Building2, CalendarDays, CheckCircle2, ChevronRight, Download, Edit3, FileText, Grid2X2, Info, List, Lock, MapPin, Plus, Printer, RefreshCw, Search, Sparkles, Trash2, TrendingUp, Trophy, Unlock, User, Users, X } from 'lucide-react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
@@ -761,6 +761,7 @@ export default function CollectorPerformance() {
   const [fortyFiveDayLoading, setFortyFiveDayLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const expenseShareTableRef = useRef(null)
+  const expenseSharePositionRef = useRef(null)
 
   const manualExpenseGroups = useMemo(() => {
     const groups = manualExpenses.reduce((byDate, expense) => {
@@ -784,6 +785,38 @@ export default function CollectorPerformance() {
     }
     return rows.reverse()
   }, [manualExpenses, selectedRatingPeriod?.period?.start_date, selectedRatingPeriod?.period?.end_date])
+
+  const preserveExpenseSharePosition = () => {
+    const table = expenseShareTableRef.current
+    if (!table) return
+    const tableTop = table.getBoundingClientRect().top
+    const anchor = Array.from(table.querySelectorAll('[data-expense-date]')).find(row => row.getBoundingClientRect().bottom > tableTop)
+    expenseSharePositionRef.current = {
+      pageScrollY: window.scrollY,
+      tableScrollTop: table.scrollTop,
+      anchorDate: anchor?.dataset.expenseDate || null,
+      anchorOffset: anchor ? anchor.getBoundingClientRect().top - tableTop : 0
+    }
+  }
+
+  useLayoutEffect(() => {
+    const position = expenseSharePositionRef.current
+    if (!position) return
+
+    const frame = requestAnimationFrame(() => {
+      const table = expenseShareTableRef.current
+      if (!table) return
+      window.scrollTo({ top: position.pageScrollY })
+      table.scrollTop = position.tableScrollTop
+      if (position.anchorDate) {
+        const anchor = table.querySelector(`[data-expense-date="${position.anchorDate}"]`)
+        if (anchor) table.scrollTop += anchor.getBoundingClientRect().top - table.getBoundingClientRect().top - position.anchorOffset
+      }
+      expenseSharePositionRef.current = null
+    })
+
+    return () => cancelAnimationFrame(frame)
+  }, [manualExpenses])
 
   const updatePastdueCutoff = cutoff => {
     setFilters(current => ({ ...current, pastdue_cutoff: cutoff }))
@@ -1068,8 +1101,7 @@ export default function CollectorPerformance() {
     event.preventDefault()
     const period = selectedRatingPeriod?.period
     if (!period) return
-    const pageScrollY = window.scrollY
-    const tableScrollTop = expenseShareTableRef.current?.scrollTop || 0
+    preserveExpenseSharePosition()
     setManualExpenseSaving(true)
     try {
       const payload = {
@@ -1081,12 +1113,10 @@ export default function CollectorPerformance() {
       else await API.post('/forty-five-day-rating/manual-expenses', payload)
       setShowManualExpenseModal(false)
       setManualExpenseEditing(null)
+      setExpandedExpenseDates(current => ({ ...current, [payload.expense_date]: true }))
       await loadFortyFiveDayEvaluation(period.start_date, period.end_date)
-      requestAnimationFrame(() => {
-        window.scrollTo({ top: pageScrollY })
-        if (expenseShareTableRef.current) expenseShareTableRef.current.scrollTop = tableScrollTop
-      })
     } catch (err) {
+      expenseSharePositionRef.current = null
       setErrorMsg(err.response?.data?.error || err.message || 'Could not save manual expense')
     } finally {
       setManualExpenseSaving(false)
@@ -1101,12 +1131,14 @@ export default function CollectorPerformance() {
     const period = selectedRatingPeriod?.period
     const expenseId = manualExpenseToDelete?.id
     if (!period || !expenseId) return
+    preserveExpenseSharePosition()
     setManualExpenseDeleting(true)
     try {
       await API.delete(`/forty-five-day-rating/manual-expenses/${expenseId}`)
       setManualExpenseToDelete(null)
       await loadFortyFiveDayEvaluation(period.start_date, period.end_date)
     } catch (err) {
+      expenseSharePositionRef.current = null
       setErrorMsg(err.response?.data?.error || err.message || 'Could not delete manual expense')
     } finally {
       setManualExpenseDeleting(false)
@@ -2691,7 +2723,7 @@ export default function CollectorPerformance() {
                               <tbody>{manualExpenseGroups.length ? manualExpenseGroups.map(group => {
                                 const isExpanded = Boolean(expandedExpenseDates[group.date])
                                 return <Fragment key={group.date}>
-                                  <tr style={{ background: isExpanded ? '#f0fdfa' : '#fff' }}>
+                                  <tr data-expense-date={group.date} style={{ background: isExpanded ? '#f0fdfa' : '#fff' }}>
                                     <td>
                                       <button type="button" onClick={() => setExpandedExpenseDates(current => ({ ...current, [group.date]: !current[group.date] }))} aria-expanded={isExpanded} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: 0, border: 0, color: '#0f766e', background: 'transparent', font: 'inherit', fontWeight: 900, cursor: 'pointer' }}>
                                         <ChevronRight size={18} style={{ transition: 'transform .18s ease', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }} />
