@@ -1757,8 +1757,8 @@ export default function CollectorPerformance() {
         .expense-tabulation-table tbody .expense-freeze-grand { z-index: 5; background: #fff7ed; box-shadow: 7px 0 10px -10px rgba(15, 23, 42, .45); }
         .expense-tabulation-table tbody .expense-tabulation-amount.expense-freeze-office,
         .expense-tabulation-table tbody .expense-tabulation-amount.expense-freeze-misc,
-        .expense-tabulation-table tbody .expense-tabulation-amount.expense-freeze-grand { font-size: 9px; }
-        .expense-tabulation-table tbody .expense-freeze-grand .expense-tabulation-total-button small { font-size: 9px; }
+        .expense-tabulation-table tbody .expense-tabulation-amount.expense-freeze-grand { font-size: 14px; }
+        .expense-tabulation-table tbody .expense-freeze-grand .expense-tabulation-total-button small { font-size: 10px; }
         .expense-tabulation-table tbody tr[style*="f0fdfa"] .expense-freeze-date { background: #f0fdfa; }
         .expense-tabulation-table tbody tr[style*="f0fdfa"] .expense-freeze-office,
         .expense-tabulation-table tbody tr[style*="f0fdfa"] .expense-freeze-misc { background: #ecfdf5; }
