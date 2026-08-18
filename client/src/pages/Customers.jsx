@@ -425,10 +425,12 @@ export default function Customers() {
   };
   const getPaymentStatusText = (payment) => {
     const isReversed = payment.status === 'reversed';
+    const isRecon = payment.status === 'recon' || String(payment.payment_type || '').toLowerCase() === 'recon';
     const isFullyPaid = payment.status === 'active' && Number(payment.balance_after) <= 0;
     const isPartial = payment.status === 'active' && Number(payment.balance_after) > 0;
 
     if (isReversed) return 'Reversed';
+    if (isRecon) return 'Recon';
     if (payment.status === 'penalty') return 'Penalty';
     if (isFullyPaid) return 'Fully Paid';
     if (isPartial) return 'Active';
@@ -2537,6 +2539,7 @@ export default function Customers() {
                             {loanPayments.map((p, idx) => { 
                               const isReversed = p.status === 'reversed';
                               const isPenalty = p.status === 'penalty';
+                              const isRecon = p.status === 'recon' || String(p.payment_type || '').toLowerCase() === 'recon';
                               const isFullyPaid = p.status === 'active' && Number(p.balance_after) <= 0; 
                               const isPartial = p.status === 'active' && Number(p.balance_after) > 0;
                               
@@ -2546,6 +2549,7 @@ export default function Customers() {
                               
                               if (isReversed) { pillBg = '#fee2e2'; pillColor = '#ef4444'; pillIcon = 'bi-x-circle'; }
                               else if (isPenalty) { pillBg = '#fef3c7'; pillColor = '#b45309'; pillIcon = 'bi-exclamation-circle'; }
+                              else if (isRecon) { pillBg = '#ede9fe'; pillColor = '#7c3aed'; pillIcon = 'bi-arrow-repeat'; }
                               else if (isFullyPaid) { pillBg = '#f3e8ff'; pillColor = '#9333ea'; pillIcon = 'bi-check-circle'; }
                               else if (isPartial) { pillBg = '#dcfce7'; pillColor = '#16a34a'; pillIcon = 'bi-check-circle'; }
                               

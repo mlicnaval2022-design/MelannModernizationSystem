@@ -88,7 +88,7 @@ async function recalculateLoanBalances(loanId, options = {}) {
     `SELECT *
      FROM tblPayment
      WHERE loan_id = ?
-       AND status = 'active'
+       AND status IN ('active', 'recon')
      ORDER BY date_paid ASC, id ASC`,
     [loanId]
   );
