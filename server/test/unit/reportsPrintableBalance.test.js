@@ -56,7 +56,7 @@ test('reloan promissory keeps an existing previous balance', async () => {
   assert.equal(loan.previous_balance, 500);
 });
 
-test('collection release charge rows expose unassigned passbook client detail', () => {
+test('collection release charge rows exclude passbook and expose unassigned penalty client detail', () => {
   const rows = __private.buildCollectionReleaseChargeRows([{
     id: 6,
     customer_id: 12,
@@ -64,7 +64,7 @@ test('collection release charge rows expose unassigned passbook client detail', 
     date_released: '2026-08-13',
     balance: 0,
     previous_balance: 0,
-    penalty: 0,
+    penalty: 50,
     passbook: 50,
     customer_code: 'C-0012',
     customer_name: 'BELICARIO, WELMA',
@@ -75,7 +75,7 @@ test('collection release charge rows expose unassigned passbook client detail', 
 
   assert.equal(rows.length, 1);
   assert.deepEqual(rows[0], {
-    id: 'release-charge-passbook-6',
+    id: 'release-charge-penalty-6',
     loan_id: 6,
     loan_code: '20260813-0003',
     customer_id: 12,
@@ -86,9 +86,9 @@ test('collection release charge rows expose unassigned passbook client detail', 
     balance_after: 0,
     collection_source: 'loan_release',
     amount_paid: 50,
-    payment_type: 'passbook',
-    payment_code: 'PASSBOOK',
-    or_number: 'PASSBOOK',
-    remarks: 'Loan release passbook charge',
+    payment_type: 'penalty',
+    payment_code: 'PENALTY',
+    or_number: 'PENALTY',
+    remarks: 'Loan release penalty charge',
   });
 });
