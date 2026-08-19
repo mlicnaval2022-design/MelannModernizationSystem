@@ -190,6 +190,119 @@
   font-size: 11px;
 }
 
+.gc-error-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.52);
+  backdrop-filter: blur(5px);
+  animation: gc-error-backdrop-in 160ms ease-out;
+}
+
+.gc-error-modal {
+  position: relative;
+  width: min(460px, 100%);
+  overflow: hidden;
+  border: 1px solid #fecaca;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28);
+  animation: gc-error-modal-in 180ms ease-out;
+}
+
+.gc-error-modal::before {
+  content: '';
+  display: block;
+  height: 5px;
+  background: linear-gradient(90deg, #dc2626, #f97316);
+}
+
+.gc-error-modal-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin: 24px 24px 0;
+  border-radius: 50%;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  font-size: 27px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.gc-error-modal-content {
+  padding: 14px 58px 0 24px;
+}
+
+.gc-error-modal-eyebrow {
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gc-error-modal h3 {
+  margin: 4px 0 8px;
+  color: #0f172a;
+  font-size: 21px;
+  line-height: 1.2;
+}
+
+.gc-error-modal p {
+  margin: 0;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.gc-error-modal-close {
+  position: absolute;
+  top: 17px;
+  right: 17px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.gc-error-modal-close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.gc-error-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+@keyframes gc-error-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes gc-error-modal-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 @media (max-width: 900px) {
   .gc-toolbar {
     align-items: stretch;

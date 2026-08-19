@@ -401,6 +401,7 @@ function CICGenerator() {
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [selectedLoanIds, setSelectedLoanIds] = useState(new Set());
   const [candidateFilters, setCandidateFilters] = useState({ search: '', collector: '', branch: '' });
+  const [candidateError, setCandidateError] = useState('');
   
   useEffect(() => {
     API.get('/branches').then(res => setBranches(res.data)).catch(console.error);
@@ -426,8 +427,9 @@ function CICGenerator() {
       setCandidateRows(data.clients || []);
       setSelectedLoanIds(new Set());
       setSubmission(null);
+      setCandidateError('');
     } catch (err) {
-      alert(err.response?.data?.error || 'Could not load Client Reports assigned to you.');
+      setCandidateError(err.response?.data?.error || 'Could not load Client Reports assigned to you.');
       setCandidateRows([]);
     } finally {
       setCandidatesLoading(false);
@@ -654,6 +656,23 @@ function CICGenerator() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {candidateError && (
+        <div className="gc-error-modal-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && setCandidateError('')}>
+          <section className="gc-error-modal" role="alertdialog" aria-modal="true" aria-labelledby="cic-load-error-title" aria-describedby="cic-load-error-message">
+            <div className="gc-error-modal-icon" aria-hidden="true">!</div>
+            <div className="gc-error-modal-content">
+              <span className="gc-error-modal-eyebrow">Unable to load</span>
+              <h3 id="cic-load-error-title">Client Reports</h3>
+              <p id="cic-load-error-message">{candidateError}</p>
+            </div>
+            <button className="gc-error-modal-close" type="button" onClick={() => setCandidateError('')} aria-label="Close error message">×</button>
+            <div className="gc-error-modal-actions">
+              <button className="btn btn-secondary" type="button" onClick={() => setCandidateError('')}>Close</button>
+              <button className="btn btn-primary" type="button" onClick={() => { setCandidateError(''); loadCandidates(); }}>Try again</button>
+            </div>
+          </section>
         </div>
       )}
     </div>

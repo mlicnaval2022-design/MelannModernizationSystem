@@ -75,10 +75,13 @@ function ExpenseShareGridCell({ initialValue, value, onChange, readOnly, saving,
       `input[data-expense-share-row="${nextRow}"][data-expense-share-column="${nextColumn}"]`
     )
 
-    if (nextInput) {
-      nextInput.focus()
-      nextInput.select()
-    }
+    if (!nextInput || nextInput.disabled) return
+
+    // Focus alone does not reliably reveal a cell in this horizontally scrollable table.
+    // Keep the next/previous field visible before selecting its value for replacement.
+    nextInput.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    nextInput.focus({ preventScroll: true })
+    nextInput.select()
   }
 
   return <td className="expense-tabulation-input-cell">
@@ -91,6 +94,7 @@ function ExpenseShareGridCell({ initialValue, value, onChange, readOnly, saving,
       }
       if (directions[event.key]) {
         event.preventDefault()
+        event.stopPropagation()
         moveFocus(event.currentTarget, ...directions[event.key])
       } else if (event.key === 'Enter') {
         event.preventDefault()
