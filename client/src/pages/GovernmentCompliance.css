@@ -190,6 +190,111 @@
   font-size: 11px;
 }
 
+.gc-delete-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.52);
+  backdrop-filter: blur(5px);
+  animation: gc-error-backdrop-in 160ms ease-out;
+}
+
+.gc-delete-modal {
+  position: relative;
+  width: min(440px, 100%);
+  overflow: hidden;
+  border: 1px solid #fecaca;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28);
+  animation: gc-error-modal-in 180ms ease-out;
+}
+
+.gc-delete-modal::before {
+  content: '';
+  display: block;
+  height: 5px;
+  background: linear-gradient(90deg, #dc2626, #f97316);
+}
+
+.gc-delete-modal-icon {
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  margin: 24px 24px 0;
+  border: 1px solid #fecaca;
+  border-radius: 50%;
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.gc-delete-modal-icon svg {
+  width: 23px;
+  height: 23px;
+}
+
+.gc-delete-modal-content {
+  padding: 14px 56px 0 24px;
+}
+
+.gc-delete-modal-eyebrow {
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gc-delete-modal h3 {
+  margin: 4px 0 8px;
+  color: #0f172a;
+  font-size: 21px;
+  line-height: 1.2;
+}
+
+.gc-delete-modal p {
+  margin: 0;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.gc-delete-modal-close {
+  position: absolute;
+  top: 17px;
+  right: 17px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.gc-delete-modal-close:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.gc-delete-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
 .gc-error-modal-backdrop {
   position: fixed;
   inset: 0;

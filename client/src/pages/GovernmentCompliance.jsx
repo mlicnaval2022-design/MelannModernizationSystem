@@ -93,6 +93,8 @@ export default function GovernmentCompliance() {
   const [filters, setFilters] = useState(emptyFilters);
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deletingClientReport, setDeletingClientReport] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [history, setHistory] = useState([]);
   const [uploadTarget, setUploadTarget] = useState(null);
@@ -235,10 +237,16 @@ export default function GovernmentCompliance() {
     await loadSummary().catch(() => {});
   };
 
-  const deleteClientReport = async row => {
-    if (!window.confirm(`Delete ${row.customer_name || 'this client report'} from ${active}?`)) return;
-    await API.delete(`/government-compliance/client-reports/${active}/${row.id}`);
-    await loadClientRows();
+  const deleteClientReport = async () => {
+    if (!deleteTarget) return;
+    setDeletingClientReport(true);
+    try {
+      await API.delete(`/government-compliance/client-reports/${active}/${deleteTarget.id}`);
+      setDeleteTarget(null);
+      await loadClientRows();
+    } finally {
+      setDeletingClientReport(false);
+    }
   };
 
   const uploadFile = async e => {
@@ -383,13 +391,33 @@ export default function GovernmentCompliance() {
                         <td>{row.collector_name || 'N/A'}</td>
                         <td>{row.branch_name || 'N/A'}</td>
                         <td><span className="gc-badge good">{row.status}</span></td>
-                        {canDelete && <td><button className="btn btn-sm btn-danger" onClick={() => deleteClientReport(row)}>Delete</button></td>}
+                        {canDelete && <td><button className="btn btn-sm btn-danger" onClick={() => setDeleteTarget(row)}>Delete</button></td>}
                       </tr>
                     ))}
                 </tbody>
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="gc-delete-modal-backdrop" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget && !deletingClientReport) setDeleteTarget(null); }}>
+          <section className="gc-delete-modal" role="dialog" aria-modal="true" aria-labelledby="delete-client-report-title">
+            <button className="gc-delete-modal-close" type="button" onClick={() => setDeleteTarget(null)} disabled={deletingClientReport} aria-label="Close delete confirmation">×</button>
+            <div className="gc-delete-modal-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v5" /><path d="M14 11v5" /></svg>
+            </div>
+            <div className="gc-delete-modal-content">
+              <span className="gc-delete-modal-eyebrow">Delete client report</span>
+              <h3 id="delete-client-report-title">Remove this report?</h3>
+              <p>You are about to remove <strong>{deleteTarget.customer_name || 'this client report'}</strong> from <strong>{active}</strong>. This will only remove the report entry, not the client or loan record.</p>
+            </div>
+            <div className="gc-delete-modal-actions">
+              <button className="btn btn-secondary" type="button" onClick={() => setDeleteTarget(null)} disabled={deletingClientReport}>Cancel</button>
+              <button className="btn btn-danger" type="button" onClick={deleteClientReport} disabled={deletingClientReport}>{deletingClientReport ? 'Deleting…' : 'Delete report'}</button>
+            </div>
+          </section>
         </div>
       )}
 
