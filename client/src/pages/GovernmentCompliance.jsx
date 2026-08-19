@@ -399,6 +399,7 @@ function CICGenerator() {
   const [previewFilter, setPreviewFilter] = useState('ID');
   const [candidateRows, setCandidateRows] = useState([]);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
+  const [legacyCicServer, setLegacyCicServer] = useState(false);
   const [selectedLoanIds, setSelectedLoanIds] = useState(new Set());
   const [candidateFilters, setCandidateFilters] = useState({ search: '', collector: '', branch: '' });
   const [candidateError, setCandidateError] = useState('');
@@ -427,8 +428,21 @@ function CICGenerator() {
       setCandidateRows(data.clients || []);
       setSelectedLoanIds(new Set());
       setSubmission(null);
+      setLegacyCicServer(false);
       setCandidateError('');
     } catch (err) {
+      // Older deployed servers support CIC preview/generation but not the newer
+      // client-selection endpoint. Keep that workflow usable instead of blocking
+      // the entire generator with an error modal.
+      if (err.response?.status === 404) {
+        setLegacyCicServer(true);
+        setCandidateRows([]);
+        setSelectedLoanIds(new Set());
+        setSubmission(null);
+        setCandidateError('');
+        return;
+      }
+      setLegacyCicServer(false);
       setCandidateError(err.response?.data?.error || 'Could not load Client Reports assigned to you.');
       setCandidateRows([]);
     } finally {
@@ -519,14 +533,18 @@ function CICGenerator() {
           <label className="form-label">File Reference Number</label>
           <input className="form-control" value={fileReferenceNumber} onChange={e => setFileReferenceNumber(e.target.value)} placeholder="Required in FT record" />
         </div>
-        <button className="btn btn-secondary" onClick={previewSubmission} disabled={loading || candidatesLoading || selectedLoanIds.size === 0}>{loading ? 'Loading...' : 'Validate selected clients'}</button>
+        <button className="btn btn-secondary" onClick={previewSubmission} disabled={loading || candidatesLoading || (!legacyCicServer && selectedLoanIds.size === 0)}>{loading ? 'Loading...' : legacyCicServer ? 'Preview available clients' : 'Validate selected clients'}</button>
         <button className="btn btn-success" onClick={downloadCsv} disabled={loading || !fileReferenceNumber.trim() || !hasValidRecords}>Download CSV</button>
       </div>
       <div style={{ marginTop: -10, marginBottom: 20, color: '#64748b', fontSize: 13 }}>
         The selected reporting month covers the previous month&apos;s loan accounts. Example: select June 2026 to export May 2026 loans.
       </div>
 
-      <section className="table-wrapper" style={{ marginBottom: 20 }}>
+      {legacyCicServer ? (
+        <div className="forty-five-info" style={{ marginBottom: 20 }}>
+          Client selection is unavailable on this server version. Preview and download will include the available CIC reports for the selected month and branch.
+        </div>
+      ) : <section className="table-wrapper" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
           <div><h4 style={{ margin: 0 }}>Select Clients from Client Reports</h4><div style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>Only Client Reports assigned to your account are available for CIC processing.</div></div>
           <strong style={{ color: '#0f766e' }}>{candidateRows.length} available · {selectedLoanIds.size} report{selectedLoanIds.size === 1 ? '' : 's'} selected</strong>
@@ -549,7 +567,7 @@ function CICGenerator() {
                 </tr>)}</tbody>
           </table>
         </div>
-      </section>
+      </section>}
 
       <div className="gc-tabs" style={{ borderBottom: '1px solid #ddd', marginBottom: 20 }}>
         <button className={activeTab === 'submission' ? 'active' : ''} onClick={() => setActiveTab('submission')}>CIC Submission</button>
