@@ -514,7 +514,7 @@ const getCollectorRows = payments => Object.entries(payments.reduce((acc, p) => 
   .map(([, row]) => ({ ...row, payments: row.payments.sort((a, b) => String(a.date_paid || '').localeCompare(String(b.date_paid || '')) || String(a.customer_name || '').localeCompare(String(b.customer_name || ''))) }))
   .sort((a, b) => a.collector.localeCompare(b.collector))
 
-const getReleaseCollectorRows = loans => Object.entries(loans.reduce((acc, l) => {
+const getReleaseCollectorRows = loans => Object.entries((loans || []).filter(l => !['cancelled', 'canceled', 'reversed', 'rejected'].includes(String(l?.status || '').toLowerCase())).reduce((acc, l) => {
   const name = l.collector_name || 'Unassigned'
   if (!acc[name]) {
     acc[name] = { 
@@ -635,11 +635,12 @@ const getMonthlyCollectionMatrix = (payments, params) => {
   }
 }
 const getMonthlyReleaseMatrix = (loans, params) => {
+  const activeLoans = (loans || []).filter(l => !['cancelled', 'canceled', 'reversed', 'rejected'].includes(String(l?.status || '').toLowerCase()))
   const periods = getMonthlyReleasePeriods(params)
   const rowsByCollector = {}
   const periodTotals = periods.reduce((acc, period) => ({ ...acc, [period.key]: { amount: 0, loan_count: 0, loans: [] } }), {})
 
-  loans.forEach(loan => {
+  activeLoans.forEach(loan => {
     const period = periods.find(item => String(loan.date_released || '') >= item.date_from && String(loan.date_released || '') <= item.date_to)
     if (!period) return
 
@@ -1780,7 +1781,7 @@ export default function Reports() {
     }
 
     if (active === 'monthly-releases') {
-      const loans = data.loans || []
+      const loans = (data.loans || []).filter(l => !['cancelled', 'canceled', 'reversed', 'rejected'].includes(String(l?.status || '').toLowerCase()))
       if (releaseSubTab === 'monthly') {
         const matrix = getMonthlyReleaseMatrix(loans, params)
         const cycleLabel = params.release_cycle_type === '45' ? '45 Days / 1.5 Month' : '30 Days / By Month'
@@ -3723,7 +3724,10 @@ export default function Reports() {
     }
 
     if (active === 'monthly-releases') {
-      const { loans = [], total_principal } = data
+      const loans = (data.loans || []).filter(l => !['cancelled', 'canceled', 'reversed', 'rejected'].includes(String(l?.status || '').toLowerCase()))
+      const total_principal = data.total_principal !== undefined && data.loans?.length === loans.length
+        ? data.total_principal
+        : loans.reduce((s, l) => s + Number(l.principal || 0), 0)
       const reportFrom = data.date_from || params.date_from
       const reportTo = data.date_to || params.date_to
 

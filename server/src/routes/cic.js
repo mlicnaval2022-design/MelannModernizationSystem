@@ -319,9 +319,14 @@ async function loadLoans(period, branchId, assignedUserId, selectedLoanIds = nul
       AND gcc.assigned_user_id = ?
     LEFT JOIN tblBranch b ON l.branch_id = b.id
     LEFT JOIN tblCollector co ON l.collector_id = co.id
+<<<<<<< HEAD
     -- The selected CIC month is based strictly on the BIR report's Release Date.
     WHERE COALESCE(NULLIF(gcc.release_date, ''), l.date_released) BETWEEN ? AND ?
       AND l.status NOT IN ('reversed', 'rejected')
+=======
+    WHERE l.date_released BETWEEN ? AND ?
+      AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
+>>>>>>> ee65740386a8417366923da07ef9d521d93fc7a7
   `;
   const params = [assignedUserId, period.startDate, period.endDate];
   if (branchId) {

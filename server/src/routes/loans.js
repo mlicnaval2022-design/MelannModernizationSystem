@@ -36,7 +36,7 @@ router.get('/', authenticateToken, async (req, res) => {
         AND dup.date_released = l.date_released
         AND LOWER(COALESCE(dup.loan_type, '')) = LOWER(COALESCE(l.loan_type, ''))
         AND COALESCE(dup.principal, 0) = COALESCE(l.principal, 0)
-        AND LOWER(COALESCE(dup.status, '')) NOT IN ('reversed', 'rejected')
+        AND LOWER(COALESCE(dup.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
         AND dup.id < l.id
     )`;
     const p = [];
@@ -131,7 +131,7 @@ router.get('/sheet/collection', authenticateToken, async (req, res) => {
       FROM tblLoan
       WHERE collector_id = ?
         AND date_released = ?
-        AND LOWER(COALESCE(status, '')) != 'reversed'
+        AND LOWER(COALESCE(status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
         AND COALESCE(passbook, 0) > 0
         AND ${sqlNotSunday('date_released')}
     `, [collector_id, targetDate]);

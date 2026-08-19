@@ -332,10 +332,10 @@ router.get('/list/fully-paid', authenticateToken, async (req, res) => {
       SELECT 
         c.id, c.customer_code, c.full_name as client_name, c.status,
         co.first_name || ' ' || co.last_name as collector_name,
-        (SELECT l.principal FROM tblLoan l WHERE l.customer_id = c.id ORDER BY l.date_released DESC LIMIT 1) as last_loan_amount,
-        (SELECT l.date_released FROM tblLoan l WHERE l.customer_id = c.id ORDER BY l.date_released DESC LIMIT 1) as date_released,
+        (SELECT l.principal FROM tblLoan l WHERE l.customer_id = c.id AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled') ORDER BY l.date_released DESC, l.id DESC LIMIT 1) as last_loan_amount,
+        (SELECT l.date_released FROM tblLoan l WHERE l.customer_id = c.id AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled') ORDER BY l.date_released DESC, l.id DESC LIMIT 1) as date_released,
         (SELECT MAX(p.date_paid) FROM tblPayment p JOIN tblLoan l ON p.loan_id = l.id WHERE l.customer_id = c.id AND p.status != 'reversed') as date_fully_paid,
-        (SELECT COUNT(*) FROM tblLoan l WHERE l.customer_id = c.id) as loan_cycles,
+        (SELECT COUNT(*) FROM tblLoan l WHERE l.customer_id = c.id AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')) as loan_cycles,
         (SELECT h.remarks FROM tblCustomerStatusHistory h WHERE h.customer_id = c.id AND UPPER(h.new_status) = 'RELAX' ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as relax_note,
         (SELECT h.created_at FROM tblCustomerStatusHistory h WHERE h.customer_id = c.id AND UPPER(h.new_status) = 'RELAX' ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as relax_note_date,
         (SELECT h.remarks FROM tblCustomerStatusHistory h WHERE h.customer_id = c.id AND UPPER(h.new_status) = 'HOLD' ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as hold_note,
@@ -345,12 +345,12 @@ router.get('/list/fully-paid', authenticateToken, async (req, res) => {
       WHERE (
         UPPER(c.status) = 'FULLY PAID'
         OR (
-          EXISTS (SELECT 1 FROM tblLoan l WHERE l.customer_id = c.id)
+          EXISTS (SELECT 1 FROM tblLoan l WHERE l.customer_id = c.id AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled'))
           AND NOT EXISTS (
             SELECT 1 FROM tblLoan l 
             WHERE l.customer_id = c.id 
               AND COALESCE(l.balance, 0) > 0 
-              AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled')
+              AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
           )
         )
       )
@@ -364,6 +364,7 @@ router.get('/list/fully-paid', authenticateToken, async (req, res) => {
       
       const lastLoan = await dbGet(`
         SELECT * FROM tblLoan WHERE customer_id = ?
+          AND LOWER(COALESCE(status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
         ORDER BY COALESCE(date_released, created_at) DESC, id DESC LIMIT 1`, [c.id]);
       const payments = lastLoan
         ? await dbAll(`SELECT * FROM tblPayment WHERE loan_id = ? AND status != 'reversed' ORDER BY date_paid ASC, id ASC`, [lastLoan.id])
@@ -488,7 +489,7 @@ router.get('/compliance-checklist/list', authenticateToken, async (req, res) => 
                SELECT 1 FROM tblLoan l
                WHERE l.customer_id = c.id
                  AND l.date_released = ?
-                 AND l.status != 'cancelled'
+                 AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
              ) THEN 1 ELSE 0 END as has_release_today
       FROM tblCustomer c
       LEFT JOIN tblCollector co ON c.collector_id = co.id
@@ -507,7 +508,7 @@ router.get('/compliance-checklist/list', authenticateToken, async (req, res) => 
         SELECT 1 FROM tblLoan l
         WHERE l.customer_id = c.id
           AND l.date_released = ?
-          AND l.status != 'cancelled'
+          AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
       )`;
       p.push(release_date);
     }
@@ -580,7 +581,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
             AND dup.date_released = l.date_released
             AND LOWER(COALESCE(dup.loan_type, '')) = LOWER(COALESCE(l.loan_type, ''))
             AND COALESCE(dup.principal, 0) = COALESCE(l.principal, 0)
-            AND LOWER(COALESCE(dup.status, '')) NOT IN ('reversed', 'rejected')
+            AND LOWER(COALESCE(dup.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
             AND dup.id < l.id
         )
       ORDER BY l.created_at DESC
@@ -606,12 +607,13 @@ router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
         COUNT(l.id) as total_loans,
         SUM(COALESCE(NULLIF(l.total_amortization, 0), l.principal + COALESCE(l.interest_amount, 0), l.principal)) as total_amount_borrowed,
         MAX(l.principal) as last_loan_amount
-      FROM tblLoan l WHERE l.customer_id = ?`, [id]);
+      FROM tblLoan l WHERE l.customer_id = ? AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')`, [id]);
 
     const lastLoan = await dbGet(`
       SELECT *
       FROM tblLoan
       WHERE customer_id = ?
+        AND LOWER(COALESCE(status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
       ORDER BY COALESCE(date_released, created_at) DESC, id DESC
       LIMIT 1`, [id]);
 
@@ -624,7 +626,7 @@ router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
         SUM(CASE WHEN COALESCE(amount_paid, 0) > 0 AND date_paid > due_date THEN 1 ELSE 0 END) as late,
         MAX(CASE WHEN COALESCE(amount_paid, 0) > 0 AND date_paid > due_date THEN julianday(date_paid) - julianday(due_date) ELSE 0 END) as longest_late_days
       FROM tblAmortizationSchedule 
-      WHERE loan_id IN (SELECT id FROM tblLoan WHERE customer_id = ?)`, [id]);
+      WHERE loan_id IN (SELECT id FROM tblLoan WHERE customer_id = ? AND LOWER(COALESCE(status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled'))`, [id]);
 
     // Imported legacy loans may not have an amortization schedule. Build an
     // in-memory schedule for those loans so their payment behavior is scored
@@ -633,6 +635,7 @@ router.get('/:id/credit-eval', authenticateToken, async (req, res) => {
       SELECT l.id, l.date_released, l.loan_period, l.amortization, l.total_amortization
       FROM tblLoan l
       WHERE l.customer_id = ?
+        AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
         AND NOT EXISTS (SELECT 1 FROM tblAmortizationSchedule s WHERE s.loan_id = l.id)`, [id]);
     const virtualStats = { paid_count: 0, on_time: 0, late: 0, longest_late_days: 0 };
 
@@ -810,7 +813,7 @@ router.get('/:id/reloan-eval', authenticateToken, async (req, res) => {
         MAX(l.principal) as last_loan_amount,
         MAX(l.date_released) as last_loan_date,
         SUM(CASE WHEN l.status='fullpaid' THEN 1 ELSE 0 END) as successful_loans
-      FROM tblLoan l WHERE l.customer_id = ?`, [id]);
+      FROM tblLoan l WHERE l.customer_id = ? AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')`, [id]);
 
     const lastPaid = await dbGet(`
       SELECT p.date_paid as last_fully_paid_date 
@@ -1058,7 +1061,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
     transactionStarted = true;
 
     const latestLoan = await dbGet(
-      `SELECT * FROM tblLoan WHERE customer_id = ? ORDER BY COALESCE(date_released, created_at) DESC, id DESC LIMIT 1`,
+      `SELECT * FROM tblLoan WHERE customer_id = ? AND LOWER(COALESCE(status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled') ORDER BY COALESCE(date_released, created_at) DESC, id DESC LIMIT 1`,
       [customer.id]
     );
     const activeLoan = await dbGet(
