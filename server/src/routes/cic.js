@@ -320,7 +320,7 @@ async function loadLoans(period, branchId, assignedUserId, selectedLoanIds = nul
     LEFT JOIN tblBranch b ON l.branch_id = b.id
     LEFT JOIN tblCollector co ON l.collector_id = co.id
     WHERE l.date_released BETWEEN ? AND ?
-      AND l.status NOT IN ('reversed', 'rejected')
+      AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
   `;
   const params = [assignedUserId, period.startDate, period.endDate];
   if (branchId) {

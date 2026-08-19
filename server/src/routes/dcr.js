@@ -14,7 +14,7 @@ const optionalId = value => {
 
 const getDcrLoanCondition = () => `
   l.date_released = ?
-  AND l.status IN ('active', 'fully_paid')
+  AND LOWER(COALESCE(l.status, '')) IN ('active', 'fully_paid', 'fullpaid')
   AND ${sqlNotSunday('l.date_released')}
   AND NOT EXISTS (
     SELECT 1 FROM tblLoan dup
@@ -22,7 +22,7 @@ const getDcrLoanCondition = () => `
       AND dup.date_released = l.date_released
       AND LOWER(COALESCE(dup.loan_type, '')) = LOWER(COALESCE(l.loan_type, ''))
       AND COALESCE(dup.principal, 0) = COALESCE(l.principal, 0)
-      AND LOWER(COALESCE(dup.status, '')) NOT IN ('reversed', 'rejected')
+      AND LOWER(COALESCE(dup.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
       AND dup.id < l.id
   )
 `;
@@ -119,7 +119,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
       JOIN tblCustomer c ON p.customer_id = c.id
       LEFT JOIN tblUser u ON p.encoded_by = u.id
       LEFT JOIN tblCollector co ON p.collector_id = co.id
-      LEFT JOIN tblLoan rl ON (rl.customer_id = p.customer_id AND rl.date_released = p.date_paid AND rl.status != 'reversed')
+      LEFT JOIN tblLoan rl ON (rl.customer_id = p.customer_id AND rl.date_released = p.date_paid AND LOWER(COALESCE(rl.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled'))
       LEFT JOIN tblCollector rco ON rl.collector_id = rco.id
       LEFT JOIN tblCollector cco ON c.collector_id = cco.id
       WHERE ${pCond}
@@ -373,7 +373,7 @@ router.get('/loan-releases', authenticateToken, async (req, res) => {
       JOIN tblCustomer c ON l.customer_id = c.id
       LEFT JOIN tblCollector co ON l.collector_id = co.id
       LEFT JOIN tblBranch b ON l.branch_id = b.id
-      WHERE l.date_released = ? AND l.status IN ('active', 'fully_paid') AND ${sqlNotSunday('l.date_released')}
+      WHERE l.date_released = ? AND LOWER(COALESCE(l.status, '')) IN ('active', 'fully_paid', 'fullpaid') AND ${sqlNotSunday('l.date_released')}
       ORDER BY c.last_name ASC, c.first_name ASC
     `, [date]);
 

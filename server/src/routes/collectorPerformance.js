@@ -218,7 +218,7 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
     WHERE l.collector_id = ?
       AND date(l.date_released) = date(?)
       AND LOWER(COALESCE(l.loan_type, 'new')) LIKE '%new%'
-      AND LOWER(COALESCE(l.status, '')) != 'reversed'
+      AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
       AND ${sqlNotSunday('l.date_released')}
   `, [collectorId, targetDate]);
 

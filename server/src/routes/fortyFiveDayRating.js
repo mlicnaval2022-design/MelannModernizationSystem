@@ -269,7 +269,7 @@ async function computeEvaluations({ branch_id, start_date, end_date }) {
       FROM tblLoan l
       WHERE l.collector_id = ?
         AND l.date_released BETWEEN ? AND ?
-        AND LOWER(COALESCE(l.status, '')) != 'reversed'
+        AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
         AND ${sqlNotSunday('l.date_released')}
         AND (
           LOWER(COALESCE(l.loan_type, '')) LIKE '%reloan%'
