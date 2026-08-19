@@ -156,6 +156,8 @@ router.get('/client-reports/:agency', authenticateToken, requireAgencyAccess, as
 // It provides a single reporting view without exposing a separate SEC client list.
 router.get('/bir-client-summary', authenticateToken, async (req, res) => {
   try {
+    const coveredOnly = String(req.query.covered_only || '').toLowerCase() === 'true';
+    const coveredLoanClause = coveredOnly ? ' AND COALESCE(l.principal, gcc.loan_amount, 0) <= 10000' : '';
     const rows = await dbAll(
       `SELECT gcc.customer_id, gcc.loan_id, gcc.loan_amount,
               c.gender, c.civil_status, c.educational_background, c.occupational_status, c.income_per_month,
@@ -166,7 +168,7 @@ router.get('/bir-client-summary', authenticateToken, async (req, res) => {
          FROM tblGovernmentComplianceClients gcc
          LEFT JOIN tblCustomer c ON c.id = gcc.customer_id
          LEFT JOIN tblLoan l ON l.id = gcc.loan_id
-        WHERE gcc.agency = 'BIR'`
+        WHERE gcc.agency = 'BIR'${coveredLoanClause}`
     );
     const interestBreakdown = new Map();
     rows.forEach(row => {
@@ -213,6 +215,7 @@ router.get('/bir-client-summary', authenticateToken, async (req, res) => {
         incomeRanges: rangeCounts(incomeRanges, row => normalizeIncome(row.income_per_month)),
         interestBreakdown: [...interestBreakdown.values()].sort((a, b) => a.rate - b.rate),
       },
+      coveredOnly,
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

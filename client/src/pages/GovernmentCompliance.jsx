@@ -132,10 +132,10 @@ export default function GovernmentCompliance() {
     }
   };
 
-  const loadBirClientSummary = async () => {
+  const loadBirClientSummary = async (coveredOnly = false) => {
     setLoading(true);
     try {
-      const { data } = await API.get('/government-compliance/bir-client-summary');
+      const { data } = await API.get('/government-compliance/bir-client-summary', { params: coveredOnly ? { covered_only: true } : {} });
       setBirClientSummary(data);
     } catch (err) {
       console.error(err);
@@ -146,7 +146,7 @@ export default function GovernmentCompliance() {
 
   useEffect(() => { loadSummary().catch(() => {}); }, []);
   useEffect(() => {
-    if (viewMode === 'summary') loadBirClientSummary();
+    if (viewMode === 'summary' || viewMode === 'covered-loans') loadBirClientSummary(viewMode === 'covered-loans');
     else if (viewMode === 'company') loadRows();
     else loadClientRows();
   }, [active, filters.page, filters.sort, filters.dir, filters.startDate, filters.endDate, clientFilters.startDate, clientFilters.endDate, viewMode]);
@@ -263,23 +263,22 @@ export default function GovernmentCompliance() {
       )}
 
       <div className="gc-tabs">
-        {visibleAgencies.map(agency => <button key={agency} className={active === agency ? 'active' : ''} onClick={() => { setActive(agency); setViewMode('company'); setFilters(emptyFilters); }}>{AGENCIES[agency].label}</button>)}
+        {visibleAgencies.map(agency => <button key={agency} className={active === agency ? 'active' : ''} onClick={() => { setActive(agency); setViewMode(agency === 'SEC' ? 'summary' : 'company'); setFilters(emptyFilters); }}>{AGENCIES[agency].label}</button>)}
         {active === 'CIC' && canCreate && <button className={viewMode === 'generator' ? 'active' : ''} onClick={() => setViewMode('generator')}>CIC Generator</button>}
       </div>
 
       {viewMode !== 'generator' && (
         <div className="gc-tabs">
-          <button className={viewMode === 'company' ? 'active' : ''} onClick={() => setViewMode('company')}>Company Compliance</button>
           {active === 'SEC'
-            ? <button className={viewMode === 'summary' ? 'active' : ''} onClick={() => setViewMode('summary')}>Summary</button>
-            : <button className={viewMode === 'clients' ? 'active' : ''} onClick={() => setViewMode('clients')}>Client Reports</button>}
+            ? <><button className={viewMode === 'summary' ? 'active' : ''} onClick={() => setViewMode('summary')}>Summary</button><button className={viewMode === 'covered-loans' ? 'active' : ''} onClick={() => setViewMode('covered-loans')}>Covered Loans</button></>
+            : <><button className={viewMode === 'company' ? 'active' : ''} onClick={() => setViewMode('company')}>Company Compliance</button><button className={viewMode === 'clients' ? 'active' : ''} onClick={() => setViewMode('clients')}>Client Reports</button></>}
         </div>
       )}
 
       {viewMode === 'generator' ? <CICGenerator /> : (
         <div>
-          {viewMode === 'summary' ? (
-            <BirClientSummary data={birClientSummary} loading={loading} money={money} />
+          {viewMode === 'summary' || viewMode === 'covered-loans' ? (
+            <BirClientSummary data={birClientSummary} loading={loading} money={money} coveredOnly={viewMode === 'covered-loans'} />
           ) : viewMode === 'company' ? (
             <>
               <div className="gc-toolbar">
@@ -403,13 +402,13 @@ export default function GovernmentCompliance() {
   );
 }
 
-function BirClientSummary({ data, loading, money }) {
+function BirClientSummary({ data, loading, money, coveredOnly = false }) {
   const totals = data?.totals || EMPTY_BIR_CLIENT_SUMMARY.totals;
   const demographics = data?.demographics || EMPTY_BIR_CLIENT_SUMMARY.demographics;
   const financial = data?.financial || EMPTY_BIR_CLIENT_SUMMARY.financial;
   if (loading) return <div className="empty-state">Loading BIR client-report summary...</div>;
-  return <section className="gc-summary" aria-label="BIR client reports summary">
-    <p className="gc-summary-note">Totals below are calculated from the records in <strong>For BIR → Client Reports</strong>.</p>
+  return <section className="gc-summary" aria-label={coveredOnly ? 'Covered BIR client loans summary' : 'BIR client reports summary'}>
+    <p className="gc-summary-note">{coveredOnly ? <>Totals below are calculated from <strong>For BIR → Client Reports</strong>, limited to loans of <strong>₱10,000 and below</strong>.</> : <>Totals below are calculated from the records in <strong>For BIR → Client Reports</strong>.</>}</p>
     <div className="gc-summary-metrics">
       <SummaryMetric label="Total Number of Loans" value={totals.loans} />
       <SummaryMetric label="Total Number of Clients" value={totals.clients} />
