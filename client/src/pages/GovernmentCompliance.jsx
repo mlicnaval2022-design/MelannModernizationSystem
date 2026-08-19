@@ -47,7 +47,6 @@ const CIC_HEADERS = {
   HD: ["Record Type","Provider Code","File Reference Date\n(End Day of the Reporting Month)\nddmmyyy","Version","Submission Type","Provider Comments"],
   ID: ["Record Type","Provider Code","Subject Reference Date\n(End Day of the Reporting Month)\nddmmyyy","Provider Subject No","Title","First Name","Last Name","Middle Name","Gender","Date of Birth","Place of Birth","Country of Birth (Code)","Nationality","Resident","Civil Status","Mother's Maiden First Name","Mother's Maiden FULL NAME","Mother's Maiden Middle Name","Father First Name","Father Last Name","Address 1: Address Type","Address 1: FullAddress","Address 1: House Owner/Lessee","Address 2: Address Type","Address 2: FullAddress","Address 2: StreetNo","Identification 1: Type","ID 1: Type","ID 1: Number","ID 1: IssueDate","ID 1: IssueCountry","ID 1: ExpiryDate","ID 1: Issued By","ID 2: Type","Contact 1: Type","Contact 1: Value"],
   CI: ["Record Type","Provider Code","Branch Code","Contract Reference Date\n(End Day of the Reporting Month)\nddmmyyy","Provider Subject No","Role","Provider Contract No","Contract Type","Contract Phase","Contract Status","Currency","Original Currency","Contract Start Date","Contract Request Date","Contract End Planned Date","Contract End Actual Date","Last Payment Date","Reorganized Credit Code","Board Resolution flag","Financed Amount","Installments Number","Transaction Type / Sub-facility","Purpose of credit","Payment Periodicity","Payment Method","Monthly Payment Amount","First Payment Date","Last payment amount","Next Payment Date","Next Payment","Outstanding Payments Number","Outstanding Balance","Overdue Payments Number","Overdue Payments Amount","Overdue Days","Good Type","Good Value","New/Used Code","Good Brand","Manufacturing Date","Registration number","Provider Guarantee No 1","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 2","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 3","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 4","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 5","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 6","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Subject No (Linked Subject 1)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 2)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 3)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 4)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 5)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 6)","Role","Name of the Linked Subject"],
-  NE: ["Record Type","Provider Code","Branch Code","Negative Event Reference Date\n(End Day of the Reporting Month)\nddmmyyy","Provider Subject No","Event Code","Event Detail","Event Date","Event Status","Event Status Date"],
   FT: ["Record Type","Provider Code","File Reference Date\n(End Day of the Reporting Month)\nddmmyyy","No. of records"]
 };
 
@@ -55,21 +54,6 @@ const months = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: new 
 const currentYear = new Date().getFullYear();
 const emptyFilters = { search: '', startDate: '', endDate: '', month: '', year: currentYear, status: '', filing_type: '', tax_type: '', page: 1, limit: 10, sort: 'due_date', dir: 'ASC' };
 const emptyForm = { due_date: '', status: '', amount: 0 };
-
-function csvEscape(val) {
-  if (val == null) return '';
-  const str = String(val);
-  if (/[",\n\r]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
-  return str;
-}
-
-function toCsv(records) {
-  const ordered = [];
-  ['HD', 'ID', 'CI', 'NE', 'FT'].forEach(type => {
-    records.filter(r => r.recordType === type).forEach(r => ordered.push(r.values));
-  });
-  return ordered.map(row => row.map(csvEscape).join(',')).join('\n');
-}
 
 function badgeClass(status) {
   const key = String(status || '').toLowerCase().replace(/\s+/g, '-');
@@ -413,11 +397,11 @@ function CICGenerator() {
   const [activeTab, setActiveTab] = useState('submission');
   const [loading, setLoading] = useState(false);
   const [previewFilter, setPreviewFilter] = useState('ID');
+  const [candidateRows, setCandidateRows] = useState([]);
+  const [candidatesLoading, setCandidatesLoading] = useState(false);
+  const [selectedLoanIds, setSelectedLoanIds] = useState(new Set());
+  const [candidateFilters, setCandidateFilters] = useState({ search: '', collector: '', branch: '' });
   
-  const [editingRowId, setEditingRowId] = useState(null);
-  const [editingValues, setEditingValues] = useState([]);
-  const [includedErrors, setIncludedErrors] = useState(new Set());
-
   useEffect(() => {
     API.get('/branches').then(res => setBranches(res.data)).catch(console.error);
     loadHistory();
@@ -431,15 +415,53 @@ function CICGenerator() {
     year,
     month,
     branch_id: branchId,
-    file_reference_number: fileReferenceNumber
+    file_reference_number: fileReferenceNumber,
+    selected_loan_ids: [...selectedLoanIds]
   });
+
+  const loadCandidates = async () => {
+    setCandidatesLoading(true);
+    try {
+      const { data } = await API.get('/cic/candidates', { params: { year, month, branch_id: branchId } });
+      setCandidateRows(data.clients || []);
+      setSelectedLoanIds(new Set());
+      setSubmission(null);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Could not load Client Reports assigned to you.');
+      setCandidateRows([]);
+    } finally {
+      setCandidatesLoading(false);
+    }
+  };
+
+  useEffect(() => { loadCandidates(); }, [year, month, branchId]);
+
+  const candidateCollectors = useMemo(() => [...new Set(candidateRows.map(row => row.collector_name).filter(Boolean))].sort(), [candidateRows]);
+  const candidateBranches = useMemo(() => [...new Set(candidateRows.map(row => row.branch_name).filter(Boolean))].sort(), [candidateRows]);
+  const filteredCandidateRows = useMemo(() => {
+    const search = candidateFilters.search.trim().toLowerCase();
+    return candidateRows.filter(row => {
+      const matchesSearch = !search || [row.customer_code, row.customer_name, row.loan_code].some(value => String(value || '').toLowerCase().includes(search));
+      return matchesSearch
+        && (!candidateFilters.collector || row.collector_name === candidateFilters.collector)
+        && (!candidateFilters.branch || row.branch_name === candidateFilters.branch);
+    });
+  }, [candidateRows, candidateFilters]);
+
+  const toggleCandidate = loanId => setSelectedLoanIds(current => {
+    const next = new Set(current);
+    if (next.has(loanId)) next.delete(loanId);
+    else next.add(loanId);
+    return next;
+  });
+
+  const selectAllVisibleCandidates = () => setSelectedLoanIds(current => new Set([...current, ...filteredCandidateRows.map(row => row.loan_id)]));
 
   const previewSubmission = async () => {
     setLoading(true);
     try {
       const { data } = await API.post('/cic/preview', requestPayload());
       setSubmission(data);
-      setIncludedErrors(new Set());
       setActiveTab('submission');
     } catch (err) {
       alert(err.response?.data?.error || 'Preview failed');
@@ -449,93 +471,26 @@ function CICGenerator() {
   };
 
   const downloadCsv = async () => {
-    if (!submission || !submission.previewRecords || submission.previewRecords.length === 0) return;
-    
-    const csvStr = toCsv(submission.previewRecords);
-    const blob = new Blob([csvStr], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = submission.fileName || 'CIC_Export.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
-    
+    if (!submission || !hasValidRecords) return;
+    setLoading(true);
     try {
-      await API.post('/cic/history', { 
-        year, month, branch_id: branchId, file_reference_number: fileReferenceNumber,
-        file_name: submission.fileName 
-      });
+      const { data } = await API.post('/cic/generate', requestPayload());
+      const blob = new Blob([data.csv_data], { type: 'text/plain;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = data.file_name || submission.fileName || 'PF022370_CSDF.txt';
+      a.click();
+      window.URL.revokeObjectURL(url);
       loadHistory();
-    } catch (e) {
-      console.warn('Failed to save history', e);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Could not generate CIC CSV.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleAddRecord = () => {
-    if (!submission) return;
-    const newRecord = {
-      recordType: previewFilter,
-      values: Array(120).fill('').map((_, i) => i === 0 ? previewFilter : '')
-    };
-    setSubmission(prev => ({ ...prev, previewRecords: [newRecord, ...prev.previewRecords] }));
-    setEditingRowId(`new-${Date.now()}`);
-    setEditingValues(newRecord.values);
-  };
-
-  const handleDeleteRecord = (idxToDel, rType) => {
-    if (!window.confirm('Are you sure you want to delete this record?')) return;
-    setSubmission(prev => {
-      const recordsTypeMatch = prev.previewRecords.filter(r => r.recordType === rType);
-      const toDelete = recordsTypeMatch[idxToDel];
-      const newAll = prev.previewRecords.filter(r => r !== toDelete);
-      return { ...prev, previewRecords: newAll };
-    });
-  };
-
-  const handleEditRecord = (record, index, rType) => {
-    setEditingRowId(`${rType}-${index}`);
-    setEditingValues([...record.values]);
-  };
-
-  const handleSaveRecord = (index, rType) => {
-    setSubmission(prev => {
-      const all = [...prev.previewRecords];
-      const recordsTypeMatch = all.filter(r => r.recordType === rType);
-      const toEdit = recordsTypeMatch[index];
-      const actualIndex = all.findIndex(r => r === toEdit);
-      if (actualIndex >= 0) {
-        all[actualIndex] = { ...all[actualIndex], values: editingValues };
-      }
-      return { ...prev, previewRecords: all };
-    });
-    setEditingRowId(null);
-  };
-
-  const handleIncludeExcluded = (idx, err, checked) => {
-    setIncludedErrors(prev => {
-      const next = new Set(prev);
-      if (checked) next.add(idx);
-      else next.delete(idx);
-      return next;
-    });
-
-    setSubmission(prev => {
-      const newRecs = [...prev.previewRecords];
-      if (checked) {
-        if (err.generatedRecords?.ID) newRecs.push({ recordType: 'ID', clientCode: err.clientCode, loanNumber: err.loanNumber, values: err.generatedRecords.ID });
-        if (err.generatedRecords?.CI) newRecs.push({ recordType: 'CI', clientCode: err.clientCode, loanNumber: err.loanNumber, values: err.generatedRecords.CI });
-        if (err.generatedRecords?.NE) newRecs.push({ recordType: 'NE', clientCode: err.clientCode, loanNumber: err.loanNumber, values: err.generatedRecords.NE });
-      } else {
-        return {
-          ...prev,
-          previewRecords: prev.previewRecords.filter(r => !(r.clientCode === err.clientCode && r.loanNumber === err.loanNumber))
-        };
-      }
-      return { ...prev, previewRecords: newRecs };
-    });
-  };
-
-  const hasValidRecords = submission && submission.previewRecords && submission.previewRecords.length > 0;
+  const hasValidRecords = submission && (submission.counts.totalIdRecords + submission.counts.totalCiRecords) > 0;
 
   return (
     <div className="cic-generator-container">
@@ -562,12 +517,37 @@ function CICGenerator() {
           <label className="form-label">File Reference Number</label>
           <input className="form-control" value={fileReferenceNumber} onChange={e => setFileReferenceNumber(e.target.value)} placeholder="Required in FT record" />
         </div>
-        <button className="btn btn-secondary" onClick={previewSubmission} disabled={loading}>{loading ? 'Loading...' : 'Preview'}</button>
-        <button className="btn btn-success" onClick={downloadCsv} disabled={loading || !fileReferenceNumber.trim()}>Download CSV</button>
+        <button className="btn btn-secondary" onClick={previewSubmission} disabled={loading || candidatesLoading || selectedLoanIds.size === 0}>{loading ? 'Loading...' : 'Validate selected clients'}</button>
+        <button className="btn btn-success" onClick={downloadCsv} disabled={loading || !fileReferenceNumber.trim() || !hasValidRecords}>Download CSV</button>
       </div>
       <div style={{ marginTop: -10, marginBottom: 20, color: '#64748b', fontSize: 13 }}>
         The selected reporting month covers the previous month&apos;s loan accounts. Example: select June 2026 to export May 2026 loans.
       </div>
+
+      <section className="table-wrapper" style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
+          <div><h4 style={{ margin: 0 }}>Select Clients from Client Reports</h4><div style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>Only Client Reports assigned to your account are available for CIC processing.</div></div>
+          <strong style={{ color: '#0f766e' }}>{candidateRows.length} available · {selectedLoanIds.size} report{selectedLoanIds.size === 1 ? '' : 's'} selected</strong>
+        </div>
+        <div className="gc-toolbar" style={{ marginBottom: 14 }}>
+          <input className="form-control gc-filter" placeholder="Search client or loan" value={candidateFilters.search} onChange={e => setCandidateFilters(filters => ({ ...filters, search: e.target.value }))} />
+          <select className="form-control gc-filter" value={candidateFilters.collector} onChange={e => setCandidateFilters(filters => ({ ...filters, collector: e.target.value }))}><option value="">All Collectors</option>{candidateCollectors.map(collector => <option key={collector} value={collector}>{collector}</option>)}</select>
+          <select className="form-control gc-filter" value={candidateFilters.branch} onChange={e => setCandidateFilters(filters => ({ ...filters, branch: e.target.value }))}><option value="">All Branches</option>{candidateBranches.map(branch => <option key={branch} value={branch}>{branch}</option>)}</select>
+          <button className="btn btn-secondary" type="button" onClick={selectAllVisibleCandidates} disabled={!filteredCandidateRows.length}>Select All Eligible</button>
+          <button className="btn btn-secondary" type="button" onClick={() => setSelectedLoanIds(new Set())} disabled={!selectedLoanIds.size}>Clear Selection</button>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="data-table">
+            <thead><tr><th>Select</th><th>Client Code</th><th>Client Name</th><th>Collector</th><th>Loan No.</th><th>Loan Date</th><th>Due Date</th><th>Balance</th><th>CIC Eligibility</th></tr></thead>
+            <tbody>{candidatesLoading ? <tr><td colSpan={9} className="empty-state">Loading Client Reports assigned to you...</td></tr>
+              : filteredCandidateRows.length === 0 ? <tr><td colSpan={9} className="empty-state">No Client Reports are available for this reporting month.</td></tr>
+                : filteredCandidateRows.map(row => <tr key={row.loan_id}>
+                  <td><input type="checkbox" checked={selectedLoanIds.has(row.loan_id)} onChange={() => toggleCandidate(row.loan_id)} /></td>
+                  <td>{row.customer_code}</td><td>{row.customer_name}</td><td>{row.collector_name || '-'}</td><td>{row.loan_code}</td><td>{row.date_released || '-'}</td><td>{row.date_maturity || '-'}</td><td>{Number(row.balance || 0).toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })}</td><td>{row.cic_eligibility}</td>
+                </tr>)}</tbody>
+          </table>
+        </div>
+      </section>
 
       <div className="gc-tabs" style={{ borderBottom: '1px solid #ddd', marginBottom: 20 }}>
         <button className={activeTab === 'submission' ? 'active' : ''} onClick={() => setActiveTab('submission')}>CIC Submission</button>
@@ -579,10 +559,12 @@ function CICGenerator() {
           {submission ? (
             <>
               <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
-                <div className="gc-kpi blue"><span>Total ID Records</span><strong>{submission.counts.totalIdRecords}</strong></div>
-                <div className="gc-kpi green"><span>Total CI Records</span><strong>{submission.counts.totalCiRecords}</strong></div>
-                <div className="gc-kpi blue"><span>Total Records for FT</span><strong>{submission.counts.totalRecordsForFt}</strong></div>
-                <div className="gc-kpi red"><span>Excluded</span><strong>{submission.counts.excludedLoanAccounts}</strong></div>
+                <div className="gc-kpi blue"><span>Client Reports Available</span><strong>{submission.counts.availableClientReports}</strong></div>
+                <div className="gc-kpi blue"><span>Clients Selected</span><strong>{submission.counts.selectedClients}</strong></div>
+                <div className="gc-kpi green"><span>Valid CIC Clients / ID</span><strong>{submission.counts.validCicClients}</strong></div>
+                <div className="gc-kpi green"><span>Valid CI Records</span><strong>{submission.counts.totalCiRecords}</strong></div>
+                <div className="gc-kpi red"><span>Excluded — Incomplete ID</span><strong>{submission.counts.excludedClients}</strong></div>
+                <div className="gc-kpi blue"><span>Total Exportable / FT</span><strong>{submission.counts.totalRecordsForFt}</strong></div>
               </div>
 
               {!hasValidRecords && (
@@ -593,14 +575,10 @@ function CICGenerator() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                   <h4 style={{ margin: 0 }}>Preview Records</h4>
                   <div style={{ display: 'flex', gap: 10 }}>
-                    <button className="btn btn-primary btn-sm" onClick={handleAddRecord} disabled={!submission}>
-                      <i className="fi fi-rr-plus" style={{ marginRight: 6 }}></i> Add {previewFilter} Record
-                    </button>
-                    <select className="form-control" value={previewFilter} onChange={e => { setPreviewFilter(e.target.value); setEditingRowId(null); }} style={{ width: 'auto' }}>
+                    <select className="form-control" value={previewFilter} onChange={e => setPreviewFilter(e.target.value)} style={{ width: 'auto' }}>
                       <option value="HD">HD Records</option>
                       <option value="ID">ID Records</option>
                       <option value="CI">CI Records</option>
-                      <option value="NE">NE Records</option>
                       <option value="FT">FT Records</option>
                     </select>
                   </div>
@@ -614,51 +592,15 @@ function CICGenerator() {
                     <table className="data-table" style={{ minWidth: '100%' }}>
                       <thead>
                         <tr>
-                          <th style={{ width: 120, position: 'sticky', left: 0, zIndex: 1, background: '#f8fafc' }}>Actions</th>
                           {CIC_HEADERS[previewFilter].map((h, i) => <th key={i} style={{ whiteSpace: 'nowrap' }}>{h.split('\n')[0]}</th>)}
                         </tr>
                       </thead>
                       <tbody>
-                        {submission.previewRecords.filter(r => r.recordType === previewFilter).slice(0, 100).map((record, idx) => {
-                          const isEditing = editingRowId === `${record.recordType}-${idx}` || (editingRowId && editingRowId.startsWith('new-') && idx === 0);
-                          return (
-                            <tr key={`${record.recordType}-${idx}`}>
-                              <td style={{ position: 'sticky', left: 0, background: '#fff', borderRight: '1px solid #e2e8f0' }}>
-                                {isEditing ? (
-                                  <div style={{ display: 'flex', gap: 6 }}>
-                                    <button className="btn btn-primary btn-sm" onClick={() => handleSaveRecord(idx, record.recordType)}>Save</button>
-                                    <button className="btn btn-secondary btn-sm" onClick={() => setEditingRowId(null)}>Cancel</button>
-                                  </div>
-                                ) : (
-                                  <div style={{ display: 'flex', gap: 6 }}>
-                                    <button className="btn btn-secondary btn-sm" onClick={() => handleEditRecord(record, idx, record.recordType)}>Edit</button>
-                                    <button className="btn btn-danger btn-sm" onClick={() => handleDeleteRecord(idx, record.recordType)}>Delete</button>
-                                  </div>
-                                )}
-                              </td>
-                              {Array(CIC_HEADERS[previewFilter].length).fill('').map((_, vIdx) => {
-                                const val = isEditing ? editingValues[vIdx] : record.values[vIdx];
-                                return (
-                                  <td key={vIdx} style={{ whiteSpace: 'nowrap', padding: isEditing ? 4 : undefined }}>
-                                    {isEditing ? (
-                                      <input 
-                                        type="text" 
-                                        className="form-control" 
-                                        style={{ minWidth: 100, padding: '4px 8px', height: 'auto' }}
-                                        value={val || ''} 
-                                        onChange={e => {
-                                          const newVals = [...editingValues];
-                                          newVals[vIdx] = e.target.value;
-                                          setEditingValues(newVals);
-                                        }} 
-                                      />
-                                    ) : (val || '-')}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          );
-                        })}
+                        {submission.previewRecords.filter(r => r.recordType === previewFilter).slice(0, 100).map((record, idx) => (
+                          <tr key={`${record.recordType}-${idx}`}>
+                            {Array(CIC_HEADERS[previewFilter].length).fill('').map((_, valueIndex) => <td key={valueIndex} style={{ whiteSpace: 'nowrap' }}>{record.values[valueIndex] || '-'}</td>)}
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   )}
@@ -671,25 +613,18 @@ function CICGenerator() {
               <div className="table-wrapper">
                 <h4 style={{ marginBottom: 10 }}>Validation Results</h4>
                 <table className="data-table">
-                  <thead><tr><th style={{ width: 60, textAlign: 'center' }}>Include</th><th>Client Code</th><th>Client Name</th><th>Loan Number</th><th>Reason</th><th>Missing Fields</th></tr></thead>
+                  <thead><tr><th>Client Code</th><th>Client Name</th><th>Loan Number</th><th>Reason</th><th>Missing Fields</th><th>Status</th></tr></thead>
                   <tbody>
                     {submission.validationErrors.length === 0 ? (
                       <tr><td colSpan="6" className="empty-state">No validation exclusions.</td></tr>
                     ) : submission.validationErrors.map((err, idx) => (
                       <tr key={idx}>
-                        <td style={{ textAlign: 'center' }}>
-                          <input 
-                            type="checkbox" 
-                            style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                            checked={includedErrors.has(idx)} 
-                            onChange={e => handleIncludeExcluded(idx, err, e.target.checked)} 
-                          />
-                        </td>
                         <td>{err.clientCode || '-'}</td>
                         <td>{err.clientName || '-'}</td>
                         <td>{err.loanNumber || '-'}</td>
                         <td>{err.reason}</td>
                         <td style={{ color: '#b91c1c' }}>{err.missingFields.join(', ')}</td>
+                        <td>{err.status || 'Excluded'}</td>
                       </tr>
                     ))}
                   </tbody>

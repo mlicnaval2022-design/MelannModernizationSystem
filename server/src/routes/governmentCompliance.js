@@ -87,8 +87,9 @@ router.get('/client-reports/:agency', authenticateToken, requireAgencyAccess, as
               COALESCE(l.total_amortization, COALESCE(l.principal, gcc.loan_amount, 0) + COALESCE(l.interest_amount, 0), gcc.loan_amount, 0) as total_loan
        FROM tblGovernmentComplianceClients gcc
        LEFT JOIN tblLoan l ON l.id = gcc.loan_id
-       WHERE gcc.agency = ?`;
-    const p = [req.agency];
+       WHERE gcc.agency = ?
+         AND gcc.assigned_user_id = ?`;
+    const p = [req.agency, req.user.id];
     if (startDate) {
       q += ` AND (DATE(gcc.created_at) >= ? OR gcc.release_date >= ?)`;
       p.push(startDate, startDate);
@@ -113,9 +114,9 @@ router.post('/send-clients', authenticateToken, async (req, res) => {
     for (const c of clients) {
       const r = await dbRun(`
         INSERT OR IGNORE INTO tblGovernmentComplianceClients 
-        (agency, loan_id, customer_id, customer_code, customer_name, loan_amount, loan_type, release_date, collector_name, branch_name, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [targetAgency, c.loan_id, c.customer_id, c.customer_code, c.customer_name, c.loan_amount, c.loan_type, c.date_released, c.collector_name, c.branch_name, 'Sent']);
+        (agency, loan_id, customer_id, customer_code, customer_name, loan_amount, loan_type, release_date, collector_name, branch_name, status, assigned_user_id, sent_by_user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [targetAgency, c.loan_id, c.customer_id, c.customer_code, c.customer_name, c.loan_amount, c.loan_type, c.date_released, c.collector_name, c.branch_name, 'Sent', req.user.id, req.user.id]);
       if (r.changes > 0) inserted++;
     }
     

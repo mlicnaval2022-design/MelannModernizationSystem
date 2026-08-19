@@ -64,9 +64,10 @@ const formatExcelDate = dateStr => {
   return `${parseInt(m, 10)}/${parseInt(d, 10)}/${y}`
 }
 
-function ExpenseGridCell({ initialValue, onSave }) {
+function ExpenseGridCell({ initialValue, onSave, rowIndex, columnIndex }) {
   const [val, setVal] = useState(initialValue > 0 ? String(initialValue) : '')
   const [isFocused, setIsFocused] = useState(false)
+  const hasPendingCommit = useRef(false)
 
   useEffect(() => {
     if (!isFocused) {
@@ -75,11 +76,26 @@ function ExpenseGridCell({ initialValue, onSave }) {
   }, [initialValue, isFocused])
 
   const commit = () => {
+    if (hasPendingCommit.current) return
+    hasPendingCommit.current = true
     setIsFocused(false)
     const num = Math.max(0, parseFloat(val) || 0)
     const prev = Math.max(0, parseFloat(initialValue) || 0)
     if (num !== prev) {
       onSave(num)
+    }
+  }
+
+  const moveFocus = (rowOffset, columnOffset) => {
+    const nextRow = rowIndex + rowOffset
+    const nextColumn = columnIndex + columnOffset
+    const nextInput = document.querySelector(
+      `input[data-expense-row="${nextRow}"][data-expense-column="${nextColumn}"]`
+    )
+
+    if (nextInput) {
+      nextInput.focus()
+      nextInput.select()
     }
   }
 
@@ -91,10 +107,26 @@ function ExpenseGridCell({ initialValue, onSave }) {
         min="0"
         value={val}
         placeholder="-"
-        onFocus={() => setIsFocused(true)}
+        onFocus={() => {
+          hasPendingCommit.current = false
+          setIsFocused(true)
+        }}
         onBlur={commit}
+        data-expense-row={rowIndex}
+        data-expense-column={columnIndex}
         onKeyDown={e => {
-          if (e.key === 'Enter') {
+          const directions = {
+            ArrowLeft: [0, -1],
+            ArrowRight: [0, 1],
+            ArrowUp: [-1, 0],
+            ArrowDown: [1, 0],
+          }
+
+          if (directions[e.key]) {
+            e.preventDefault()
+            commit()
+            moveFocus(...directions[e.key])
+          } else if (e.key === 'Enter') {
             e.preventDefault()
             e.target.blur()
           }
@@ -2532,7 +2564,7 @@ export default function Reports() {
                       </td>
                     </tr>
                   ) : (
-                    dates.map(d => {
+                    dates.map((d, rowIndex) => {
                       const day = activeSheet.days?.[d] || { collection: 0, release: 0, expenses: {}, total_expense: 0, net: 0 }
                       const isNeg = day.net < 0
                       const hasActivity = day.collection > 0 || day.release > 0 || day.total_expense > 0
@@ -2551,11 +2583,13 @@ export default function Reports() {
                           {categories.length === 0 ? (
                             <td style={{ border: '1px solid #cbd5e1', padding: '4px 8px', textAlign: 'center', color: '#cbd5e1' }}>-</td>
                           ) : (
-                            categories.map(cat => (
+                            categories.map((cat, columnIndex) => (
                               <ExpenseGridCell
                                 key={cat.id}
                                 initialValue={day.expenses?.[cat.category_name]?.amount || 0}
                                 onSave={val => handleExpenseCellChange(activeSheet.personnel_id, d, cat.category_name, val)}
+                                rowIndex={rowIndex}
+                                columnIndex={columnIndex}
                               />
                             ))
                           )}

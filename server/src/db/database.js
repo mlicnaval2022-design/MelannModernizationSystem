@@ -569,6 +569,8 @@ async function initializeDatabase() {
       collector_name TEXT,
       branch_name TEXT,
       status TEXT,
+      assigned_user_id INTEGER,
+      sent_by_user_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(agency, loan_id)
     );
@@ -825,6 +827,11 @@ async function initializeDatabase() {
   const paymentCols = await dbAll(`PRAGMA table_info(tblPayment)`);
   const paymentColNames = new Set(paymentCols.map(c => c.name));
   if (!paymentColNames.has('payment_code')) await dbRun(`ALTER TABLE tblPayment ADD COLUMN payment_code TEXT`);
+
+  const complianceClientCols = await dbAll(`PRAGMA table_info(tblGovernmentComplianceClients)`);
+  const complianceClientColNames = new Set(complianceClientCols.map(c => c.name));
+  if (!complianceClientColNames.has('assigned_user_id')) await dbRun(`ALTER TABLE tblGovernmentComplianceClients ADD COLUMN assigned_user_id INTEGER`);
+  if (!complianceClientColNames.has('sent_by_user_id')) await dbRun(`ALTER TABLE tblGovernmentComplianceClients ADD COLUMN sent_by_user_id INTEGER`);
 
   const fortyFiveDayEvaluationCols = await dbAll(`PRAGMA table_info(tblFortyFiveDayRatingEvaluation)`);
   const fortyFiveDayEvaluationColNames = new Set(fortyFiveDayEvaluationCols.map(c => c.name));

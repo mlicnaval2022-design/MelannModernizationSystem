@@ -4,6 +4,7 @@ const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken } = require('../middleware/auth');
 
 const PROVIDER_CODE = 'PF022730';
+const CSDF_FILE_PROVIDER_CODE = 'PF022370';
 const CONTACT_TYPE_CODE = '3';
 const ADDRESS_TYPE_MAIN = 'MI';
 const ADDRESS_TYPE_ADDITIONAL = 'AI';
@@ -11,7 +12,6 @@ const ADDRESS_TYPE_ADDITIONAL = 'AI';
 const ID_HEADER = ["Record Type","Provider Code","Subject Reference Date\n(End Day of the Reporting Month)\nddmmyyy","Provider Subject No","Title","First Name","Last Name","Middle Name","Gender","Date of Birth","Place of Birth","Country of Birth (Code)","Nationality","Resident","Civil Status","Mother's Maiden First Name","Mother's Maiden FULL NAME","Mother's Maiden Middle Name","Father First Name","Father Last Name","Address 1: Address Type","Address 1: FullAddress","Address 1: House Owner/Lessee","Address 2: Address Type","Address 2: FullAddress","Address 2: StreetNo","Identification 1: Type","ID 1: Type","ID 1: Number","ID 1: IssueDate","ID 1: IssueCountry","ID 1: ExpiryDate","ID 1: Issued By","ID 2: Type","Contact 1: Type","Contact 1: Value"];
 const CI_HEADER = ["Record Type","Provider Code","Branch Code","Contract Reference Date\n(End Day of the Reporting Month)\nddmmyyy","Provider Subject No","Role","Provider Contract No","Contract Type","Contract Phase","Contract Status","Currency","Original Currency","Contract Start Date","Contract Request Date","Contract End Planned Date","Contract End Actual Date","Last Payment Date","Reorganized Credit Code","Board Resolution flag","Financed Amount","Installments Number","Transaction Type / Sub-facility","Purpose of credit","Payment Periodicity","Payment Method","Monthly Payment Amount","First Payment Date","Last payment amount","Next Payment Date","Next Payment","Outstanding Payments Number","Outstanding Balance","Overdue Payments Number","Overdue Payments Amount","Overdue Days","Good Type","Good Value","New/Used Code","Good Brand","Manufacturing Date","Registration number","Provider Guarantee No 1","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 2","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 3","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 4","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 5","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 6","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Subject No (Linked Subject 1)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 2)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 3)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 4)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 5)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 6)","Role","Name of the Linked Subject"];
 const HD_HEADER = ["Record Type","Provider Code","File Reference Date\n(End Day of the Reporting Month)\nddmmyyy","Version","Submission Type","Provider Comments"];
-const NE_HEADER = ["Record Type","Provider Code","Branch Code","Negative Event Reference Date\n(End Day of the Reporting Month)\nddmmyyy","Provider Subject No","Event Code","Event Detail","Event Date","Event Status","Event Status Date"];
 const FT_HEADER = ["Record Type","Provider Code","File Reference Date\n(End Day of the Reporting Month)\nddmmyyy","No. of records"];
 
 const MAX_COLS = 120;
@@ -172,7 +172,7 @@ function getContractPhase(loan) {
   return 'AC';
 }
 
-function validateLoan(loan) {
+function validateId(loan) {
   const missing = [];
   const contact = digits(loan.contact);
   const idCode = idTypeCode(loan.id_type);
@@ -189,6 +189,20 @@ function validateLoan(loan) {
   if (!dateForCic(loan.id_issue_date)) missing.push('ID Issue Date');
   if (!dateForCic(loan.id_expiry_date)) missing.push('ID Expiry Date');
   if (!normalize(loan.id_issued_by)) missing.push('Issued By');
+
+  return { missing, contact, idCode };
+}
+
+function getCsdfFileName(period, now = new Date()) {
+  const reportingDate = String(period.endDate).replace(/-/g, '');
+  const time = [now.getHours(), now.getMinutes(), now.getSeconds()]
+    .map(value => String(value).padStart(2, '0'))
+    .join('');
+  return `${CSDF_FILE_PROVIDER_CODE}_CSDF_${reportingDate}${time}.txt`;
+}
+
+function validateCi(loan) {
+  const missing = [];
   if (!normalize(loan.loan_code)) missing.push('Loan Number');
   if (!dateForCic(loan.date_released)) missing.push('Loan Release Date');
   if (!dateForCic(loan.date_maturity)) missing.push('Due Date');
@@ -196,7 +210,7 @@ function validateLoan(loan) {
   if (Number(loan.loan_period || 0) <= 0) missing.push('Loan Term');
   if (Number(loan.total_amortization || 0) <= 0) missing.push('Total Loan Amount');
 
-  return { missing, contact, idCode };
+  return { missing };
 }
 
 function buildIdRow(loan, period, idCode, contact) {
@@ -280,21 +294,6 @@ function buildHdRow(period) {
   return padRow(row);
 }
 
-function buildNeRow(loan, period) {
-  const row = Array(NE_HEADER.length).fill('');
-  row[0] = 'NE';
-  row[1] = PROVIDER_CODE;
-  row[2] = '';
-  row[3] = period.referenceDate;
-  row[4] = normalize(loan.customer_code);
-  row[5] = 'U';
-  row[6] = ''; // Event Detail
-  row[7] = dateForCic(loan.date_maturity); // Event Date is usually date it became past due
-  row[8] = 'AC';
-  row[9] = period.referenceDate;
-  return padRow(row);
-}
-
 function buildFtRow(period, recordCount) {
   const row = Array(FT_HEADER.length).fill('');
   row[0] = 'FT';
@@ -304,70 +303,99 @@ function buildFtRow(period, recordCount) {
   return padRow(row);
 }
 
-async function loadLoans(period, branchId) {
+async function loadLoans(period, branchId, assignedUserId, selectedLoanIds = null) {
   let query = `
     SELECT l.*, c.customer_code, c.first_name, c.last_name, c.middle_name, c.gender, c.birth_date, c.address,
            c.contact, c.id_type, c.id_number, c.id_issue_date, c.id_expiry_date, c.id_issued_by, c.civil_status,
-           b.branch_code,
+           b.branch_code, b.branch_name,
+           co.first_name || ' ' || co.last_name AS collector_name,
            (SELECT p.date_paid FROM tblPayment p WHERE p.loan_id = l.id AND p.status = 'active' ORDER BY p.date_paid ASC, p.id ASC LIMIT 1) as first_payment_date,
            (SELECT p.date_paid FROM tblPayment p WHERE p.loan_id = l.id AND p.status = 'active' ORDER BY p.date_paid DESC, p.id DESC LIMIT 1) as last_payment_date,
            (SELECT p.amount_paid FROM tblPayment p WHERE p.loan_id = l.id AND p.status = 'active' ORDER BY p.date_paid DESC, p.id DESC LIMIT 1) as last_payment_amount,
            (SELECT p.date_paid FROM tblPayment p WHERE p.loan_id = l.id AND p.status IN ('active', 'recon') AND p.balance_after <= 0 ORDER BY p.date_paid DESC, p.id DESC LIMIT 1) as fully_paid_date
     FROM tblLoan l
     JOIN tblCustomer c ON l.customer_id = c.id
-    JOIN tblGovernmentComplianceClients gcc ON l.id = gcc.loan_id AND gcc.agency = 'CIC'
+    JOIN tblGovernmentComplianceClients gcc ON l.id = gcc.loan_id
+      AND gcc.agency = 'CIC'
+      AND gcc.assigned_user_id = ?
     LEFT JOIN tblBranch b ON l.branch_id = b.id
+    LEFT JOIN tblCollector co ON l.collector_id = co.id
     WHERE l.date_released BETWEEN ? AND ?
       AND l.status NOT IN ('reversed', 'rejected')
   `;
-  const params = [period.startDate, period.endDate];
+  const params = [assignedUserId, period.startDate, period.endDate];
   if (branchId) {
     query += ` AND l.branch_id = ?`;
     params.push(branchId);
+  }
+  if (selectedLoanIds) {
+    query += ` AND l.id IN (${selectedLoanIds.map(() => '?').join(', ')})`;
+    params.push(...selectedLoanIds);
   }
   query += ` ORDER BY c.customer_code, l.loan_code`;
   return dbAll(query, params);
 }
 
-async function buildSubmission({ year, month, branch_id, file_reference_number }) {
+async function buildSubmission({ year, month, branch_id, file_reference_number, selected_loan_ids }, userId) {
   if (!year || !month) throw new Error('Year and Month are required');
+  const selectedLoanIds = [...new Set((Array.isArray(selected_loan_ids) ? selected_loan_ids : []).map(Number).filter(Number.isInteger))];
+  if (selectedLoanIds.length === 0) throw new Error('Select at least one client report before validating CIC records.');
   const period = getPeriod(year, month);
-  const loans = await loadLoans(period, branch_id);
-  const validLoans = [];
+  const availableLoans = await loadLoans(period, branch_id, userId);
+  const loans = await loadLoans(period, branch_id, userId, selectedLoanIds);
+  if (loans.length !== selectedLoanIds.length) throw new Error('One or more selected client reports are no longer available to you. Refresh the client list and try again.');
+  const availableClientReports = new Set(availableLoans.map(loan => loan.customer_id)).size;
+  const selectedClients = new Map();
+  loans.forEach(loan => {
+    const clientLoans = selectedClients.get(loan.customer_id) || [];
+    clientLoans.push(loan);
+    selectedClients.set(loan.customer_id, clientLoans);
+  });
+
+  const validClients = [];
+  const validCiLoans = [];
   const validationErrors = [];
 
-  for (const loan of loans) {
-    const check = validateLoan(loan);
-    if (check.missing.length > 0) {
-      const overdue = daysBetween(loan.date_maturity, period.endDate);
-      const isPastDue = overdue > 0 && Number(loan.balance || 0) > 0;
-      
+  for (const clientLoans of selectedClients.values()) {
+    const client = clientLoans[0];
+    const idCheck = validateId(client);
+    if (idCheck.missing.length > 0) {
       validationErrors.push({
-        customerId: loan.customer_id,
-        clientCode: normalize(loan.customer_code),
-        clientName: cleanText(`${loan.first_name || ''} ${loan.middle_name || ''} ${loan.last_name || ''}`),
-        loanNumber: normalize(loan.loan_code),
-        reason: 'Excluded from CIC export',
-        missingFields: check.missing,
-        generatedRecords: {
-          ID: buildIdRow(loan, period, check.idCode, check.contact),
-          CI: buildCiRow(loan, period),
-          NE: isPastDue ? buildNeRow(loan, period) : null
-        }
+        customerId: client.customer_id,
+        clientCode: normalize(client.customer_code),
+        clientName: cleanText(`${client.first_name || ''} ${client.middle_name || ''} ${client.last_name || ''}`),
+        loanNumber: normalize(client.loan_code),
+        reason: 'EXCLUDED — INCOMPLETE ID',
+        status: 'Excluded',
+        missingFields: idCheck.missing
       });
-    } else {
-      validLoans.push({ loan, ...check });
+      continue;
+    }
+
+    validClients.push({ loan: client, ...idCheck });
+    for (const loan of clientLoans) {
+      const ciCheck = validateCi(loan);
+      if (ciCheck.missing.length > 0) {
+        validationErrors.push({
+          customerId: loan.customer_id,
+          clientCode: normalize(loan.customer_code),
+          clientName: cleanText(`${loan.first_name || ''} ${loan.middle_name || ''} ${loan.last_name || ''}`),
+          loanNumber: normalize(loan.loan_code),
+          reason: 'EXCLUDED — INVALID CI',
+          status: 'Excluded',
+          missingFields: ciCheck.missing
+        });
+      } else {
+        validCiLoans.push(loan);
+      }
     }
   }
 
   const rows = [];
   const previewRecords = [];
-  const emittedClients = new Set();
-  
   // Keep track of counts for each type
   let idRecords = 0;
   let ciRecords = 0;
-  let neRecords = 0;
 
   // Add HD
   const hdRow = buildHdRow(period);
@@ -375,9 +403,7 @@ async function buildSubmission({ year, month, branch_id, file_reference_number }
   previewRecords.push({ recordType: 'HD', clientCode: '', loanNumber: '', values: hdRow });
 
   // Add ID records
-  for (const item of validLoans) {
-    if (emittedClients.has(item.loan.customer_id)) continue;
-    emittedClients.add(item.loan.customer_id);
+  for (const item of validClients) {
     const row = buildIdRow(item.loan, period, item.idCode, item.contact);
     rows.push(row);
     previewRecords.push({ recordType: 'ID', clientCode: item.loan.customer_code, loanNumber: item.loan.loan_code, values: row });
@@ -385,42 +411,32 @@ async function buildSubmission({ year, month, branch_id, file_reference_number }
   }
 
   // Add CI records
-  for (const item of validLoans) {
-    const row = buildCiRow(item.loan, period);
+  for (const loan of validCiLoans) {
+    const row = buildCiRow(loan, period);
     rows.push(row);
-    previewRecords.push({ recordType: 'CI', clientCode: item.loan.customer_code, loanNumber: item.loan.loan_code, values: row });
+    previewRecords.push({ recordType: 'CI', clientCode: loan.customer_code, loanNumber: loan.loan_code, values: row });
     ciRecords += 1;
   }
 
-  // Add NE records for past due
-  for (const item of validLoans) {
-    const overdue = daysBetween(item.loan.date_maturity, period.endDate);
-    const isPastDue = overdue > 0 && Number(item.loan.balance || 0) > 0;
-    if (isPastDue) {
-      const row = buildNeRow(item.loan, period);
-      rows.push(row);
-      previewRecords.push({ recordType: 'NE', clientCode: item.loan.customer_code, loanNumber: item.loan.loan_code, values: row });
-      neRecords += 1;
-    }
-  }
-
-  const totalRecords = idRecords + ciRecords + neRecords + 1 + 1; // +1 for HD, +1 for FT
+  const totalRecords = idRecords + ciRecords;
   const ftRow = buildFtRow(period, totalRecords);
   rows.push(ftRow);
   previewRecords.push({ recordType: 'FT', clientCode: '', loanNumber: '', values: ftRow });
 
   return {
     period,
-    fileName: `${PROVIDER_CODE}_CIC_${period.filePeriod}.csv`,
+    fileName: getCsdfFileName(period),
     fileReferenceNumber: normalize(file_reference_number),
     counts: {
       totalIdRecords: idRecords,
       totalCiRecords: ciRecords,
-      totalNeRecords: neRecords,
       totalRecordsForFt: totalRecords,
-      sourceLoanAccounts: loans.length,
-      validLoanAccounts: validLoans.length,
-      excludedLoanAccounts: validationErrors.length
+      availableClientReports,
+      selectedClients: selectedClients.size,
+      validCicClients: validClients.length,
+      excludedClients: validationErrors.filter(error => error.reason === 'EXCLUDED — INCOMPLETE ID').length,
+      validLoanAccounts: validCiLoans.length,
+      excludedLoanAccounts: validationErrors.filter(error => error.reason === 'EXCLUDED — INVALID CI').length
     },
     previewRecords,
     validationErrors,
@@ -429,9 +445,38 @@ async function buildSubmission({ year, month, branch_id, file_reference_number }
   };
 }
 
+router.get('/candidates', authenticateToken, async (req, res) => {
+  try {
+    const { year, month, branch_id } = req.query;
+    if (!year || !month) return res.status(400).json({ error: 'Year and month are required' });
+    const period = getPeriod(year, month);
+    const loans = await loadLoans(period, branch_id, req.user.id);
+    res.json({
+      period,
+      availableClientReports: new Set(loans.map(loan => loan.customer_id)).size,
+      clients: loans.map(loan => ({
+        loan_id: loan.id,
+        customer_id: loan.customer_id,
+        customer_code: loan.customer_code,
+        customer_name: cleanText(`${loan.first_name || ''} ${loan.middle_name || ''} ${loan.last_name || ''}`),
+        collector_name: loan.collector_name,
+        branch_name: loan.branch_name,
+        loan_code: loan.loan_code,
+        date_released: loan.date_released,
+        date_maturity: loan.date_maturity,
+        balance: loan.balance,
+        cic_eligibility: 'Ready to validate'
+      }))
+    });
+  } catch (error) {
+    console.error('CIC Candidates Error:', error);
+    res.status(500).json({ error: 'Failed to load CIC client reports' });
+  }
+});
+
 router.post('/preview', authenticateToken, async (req, res) => {
   try {
-    res.json(await buildSubmission(req.body));
+    res.json(await buildSubmission(req.body, req.user.id));
   } catch (error) {
     console.error('CIC Preview Error:', error);
     res.status(500).json({ error: error.message || 'Failed to preview CIC records' });
@@ -440,13 +485,13 @@ router.post('/preview', authenticateToken, async (req, res) => {
 
 router.post('/validate', authenticateToken, async (req, res) => {
   try {
-    const submission = await buildSubmission(req.body);
+    const submission = await buildSubmission(req.body, req.user.id);
     res.json({
       reporting: submission.period,
       summary: {
-        totalEligible: submission.counts.sourceLoanAccounts,
-        ready: submission.counts.validLoanAccounts,
-        withErrors: submission.counts.excludedLoanAccounts
+        totalEligible: submission.counts.selectedClients,
+        ready: submission.counts.validCicClients,
+        withErrors: submission.counts.excludedClients
       },
       errors: submission.validationErrors.map(e => ({
         customerId: e.customerId,
@@ -463,11 +508,9 @@ router.post('/validate', authenticateToken, async (req, res) => {
 
 router.post('/generate', authenticateToken, async (req, res) => {
   try {
-    const submission = await buildSubmission(req.body);
-    
-    // Use frontend overrides if user made manual edits
-    const finalCsvData = req.body.customCsv || submission.csvData;
-    const finalTotalRecords = req.body.totalRecordsForFt ?? submission.counts.totalRecordsForFt;
+    const submission = await buildSubmission(req.body, req.user.id);
+    const finalCsvData = submission.csvData;
+    const finalTotalRecords = submission.counts.totalRecordsForFt;
 
     if (finalTotalRecords === 0) {
       return res.status(400).json({ error: 'No valid CIC records found for the selected reporting month.' });
