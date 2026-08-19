@@ -74,7 +74,7 @@ test('a role can access only its selected report types', async () => {
   const rolesResponse = await api(admin.token, '/users/roles');
   assert.equal(rolesResponse.status, 200);
   const savedRole = (await rolesResponse.json()).find(item => item.role_key === role.role_key);
-  assert.match(savedRole.description, /view-only access to 1 of 21 modules and 1 of \d+ report types/i);
+  assert.match(savedRole.description, /view-only access to 1 of \d+ modules and 1 of \d+ report types/i);
   assert.match(savedRole.description, /cannot add, edit, or delete/i);
 
   await dbRun(

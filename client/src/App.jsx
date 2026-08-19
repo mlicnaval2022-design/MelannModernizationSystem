@@ -22,7 +22,6 @@ import Branches from './pages/Branches'
 import AuditTrail from './pages/AuditTrail'
 import GovernmentCompliance from './pages/GovernmentCompliance'
 import NoPaymentMonitoring from './pages/NoPaymentMonitoring'
-import MonitoringSettings from './pages/MonitoringSettings'
 import PromissoryDisclosure from './pages/PromissoryDisclosure'
 import CollectorPerformance from './pages/CollectorPerformance'
 import JcashMigration from './pages/JcashMigration'
@@ -72,7 +71,6 @@ export default function App() {
         <Route path="users" element={<Users />} />
         <Route path="audit" element={<AuditTrail />} />
         <Route path="monitoring" element={<NoPaymentMonitoring />} />
-        <Route path="monitoring-settings" element={<MonitoringSettings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

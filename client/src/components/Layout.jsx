@@ -18,7 +18,6 @@ import {
   KeyRound,
   Landmark,
   LogOut,
-  MonitorCog,
   PiggyBank,
   ReceiptText,
   Search,
@@ -50,7 +49,6 @@ const NAV = [
   { path: '/branches', label: 'Branches', Icon: Building2, section: 'Admin', color: '#64748b', bg: 'rgba(148, 163, 184, 0.18)', roles: ['admin', 'manager'] },
   { path: '/users', label: 'User Management', Icon: UserCog, section: 'Admin', color: '#a855f7', bg: 'rgba(168, 85, 247, 0.18)', roles: ['admin'] },
   { path: '/audit', label: 'Audit Trail', Icon: Search, section: 'Admin', color: '#0891b2', bg: 'rgba(8, 145, 178, 0.16)', roles: ['admin', 'manager'] },
-  { path: '/monitoring-settings', label: 'Monitoring Settings', Icon: MonitorCog, section: 'Admin', color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.16)', roles: ['admin'] },
 ]
 
 export default function Layout() {

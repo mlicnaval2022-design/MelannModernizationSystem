@@ -21,7 +21,6 @@ const ACCESS_MODULES = [
   { key: 'branches', label: 'Branches', path: '/branches', section: 'Admin' },
   { key: 'user-management', label: 'User Management', path: '/users', section: 'Admin' },
   { key: 'audit', label: 'Audit Trail', path: '/audit', section: 'Admin' },
-  { key: 'monitoring-settings', label: 'Monitoring Settings', path: '/monitoring-settings', section: 'Admin' },
 ];
 
 const REPORT_TYPE_PERMISSIONS = [

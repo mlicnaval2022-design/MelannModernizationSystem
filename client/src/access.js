@@ -26,7 +26,6 @@ export const ACCESS_MODULES = [
   { key: 'branches', label: 'Branches', path: '/branches', section: 'Admin' },
   { key: 'user-management', label: 'User Management', path: '/users', section: 'Admin' },
   { key: 'audit', label: 'Audit Trail', path: '/audit', section: 'Admin' },
-  { key: 'monitoring-settings', label: 'Monitoring Settings', path: '/monitoring-settings', section: 'Admin' },
 ]
 
 export const REPORT_TYPE_PERMISSIONS = [
@@ -43,7 +42,7 @@ export const REPORT_TYPE_PERMISSIONS = [
 
 export const reportPermissionKey = reportKey => `report:${reportKey}`
 
-const LEGACY_USER_RESTRICTED_PATHS = ['/payments', '/loans', '/deposits', '/transactions', '/cash', '/jcash-migration', '/branches', '/users', '/audit', '/monitoring-settings']
+const LEGACY_USER_RESTRICTED_PATHS = ['/payments', '/loans', '/deposits', '/transactions', '/cash', '/jcash-migration', '/branches', '/users', '/audit']
 
 export function getModuleForPath(pathname) {
   return [...ACCESS_MODULES]
