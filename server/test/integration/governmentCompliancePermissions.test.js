@@ -113,6 +113,16 @@ test('configured Government Compliance CRUD grants a custom role access to every
   assert.equal(coveredLoans.status, 200);
   assert.equal((await coveredLoans.json()).totals.loans, 1, 'Covered Loans must include only BIR client-report loans of ₱10,000 and below.');
 
+  const coveredLoanDetails = await api(clerk.token, '/government-compliance/bir-client-summary/details?covered_only=true&group=all');
+  assert.equal(coveredLoanDetails.status, 200);
+  const coveredLoanDetailBody = await coveredLoanDetails.json();
+  assert.equal(coveredLoanDetailBody.total, 1);
+  assert.equal(coveredLoanDetailBody.rows[0].customer_code, 'BIR-SHARED-001', 'Clickable summary details must identify the BIR client-report client.');
+
+  const uniqueClientDetails = await api(clerk.token, '/government-compliance/bir-client-summary/details?group=clients');
+  assert.equal(uniqueClientDetails.status, 200);
+  assert.equal((await uniqueClientDetails.json()).total, 2, 'Total Number of Clients details must be deduplicated by client.');
+
   for (const agency of ['CIC', 'SEC', 'BIR']) {
     const listResponse = await api(clerk.token, `/government-compliance/${agency}`);
     assert.equal(listResponse.status, 200, `${agency}: ${await listResponse.text()}`);
