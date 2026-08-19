@@ -803,6 +803,7 @@ export default function DemandLetter() {
     const dateReceived = row.date_received || toDateInputValue(new Date())
     setReceivedModal({
       ...row,
+      courier: row.courier || 'Field Personnel',
       date_received: dateReceived,
       follow_up_date: row.follow_up_date || getFollowUpDate(dateReceived, row.demand_type),
       remarks: row.remarks || '',
@@ -828,6 +829,7 @@ export default function DemandLetter() {
     setReceivedModal(prev => ({ ...prev, saving: true, error: '' }))
     try {
       const res = await API.put(`/demand-letters/${receivedModal.id}`, {
+        courier: receivedModal.courier,
         date_received: receivedModal.date_received,
         follow_up_date: receivedModal.follow_up_date,
         remarks: receivedModal.remarks,
@@ -1398,6 +1400,7 @@ export default function DemandLetter() {
                   <tr key={row.id}>
                     <td>
                       <input
+                        key={`${row.id}-${row.courier || ''}`}
                         className="form-control"
                         defaultValue={row.courier || ''}
                         onBlur={e => updateMonitoringRow(row.id, { courier: e.target.value })}
@@ -1590,6 +1593,20 @@ export default function DemandLetter() {
             </div>
             <div className="modal-body">
               {receivedModal.error && <div className="login-error" style={{ marginBottom: 14 }}>{receivedModal.error}</div>}
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label className="form-label">Courrier</label>
+                <select
+                  className="form-control"
+                  value={receivedModal.courier || 'Field Personnel'}
+                  onChange={e => updateReceivedForm({ courier: e.target.value })}
+                >
+                  <option value="Field Personnel">Field Personnel</option>
+                  <option value="Mailed">Mailed</option>
+                  {receivedModal.courier && receivedModal.courier !== 'Field Personnel' && receivedModal.courier !== 'Mailed' && (
+                    <option value={receivedModal.courier}>{receivedModal.courier}</option>
+                  )}
+                </select>
+              </div>
               <div className="demand-received-grid">
                 <div className="form-group">
                   <label className="form-label">Date Received</label>
