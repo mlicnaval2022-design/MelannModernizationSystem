@@ -457,6 +457,20 @@
 .gc-summary-clickable { cursor: pointer; font: inherit; color: inherit; transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease, background 150ms ease; }
 .gc-summary-clickable:hover { border-color: #38bdf8; background: #f0f9ff; box-shadow: 0 8px 18px rgba(14, 116, 144, 0.12); transform: translateY(-1px); }
 .gc-summary-clickable:focus-visible { outline: 3px solid rgba(14, 165, 233, 0.35); outline-offset: 2px; }
-.gc-summary-detail-modal { width: min(1220px, calc(100vw - 40px)); max-width: none; }
+.gc-summary-detail-modal {
+  width: min(1600px, calc(100vw - 24px));
+  max-width: none;
+  height: min(94vh, 980px);
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.gc-summary-detail-modal .modal-header { flex: 0 0 auto; }
+.gc-summary-detail-modal .modal-body { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.gc-summary-detail-modal .table-wrapper { height: 100%; overflow: auto; }
+.gc-summary-detail-modal .data-table { width: max-content; min-width: 1420px; }
+.gc-summary-detail-modal .data-table th,
+.gc-summary-detail-modal .data-table td { white-space: nowrap; }
 @media (max-width: 1100px) { .gc-summary-metrics { grid-template-columns: repeat(3, minmax(150px, 1fr)); } }
 @media (max-width: 760px) { .gc-summary-metrics, .gc-summary-columns { grid-template-columns: 1fr; } .gc-interest-row { grid-template-columns: 1fr .7fr 1fr; gap: 8px; padding: 11px; } }
