@@ -34,16 +34,16 @@ test.before(async () => {
   const branch = await dbGet(`SELECT id FROM tblBranch LIMIT 1`);
   const collector = await dbRun(`INSERT INTO tblCollector (collector_code, first_name, last_name, branch_id, is_active) VALUES ('CIC-COL', 'CIC', 'Collector', ?, 1)`, [branch.id]);
   const customer = await dbRun(`
-    INSERT INTO tblCustomer (customer_code, first_name, last_name, full_name, branch_id, collector_id, gender, birth_date, address, contact, id_type, id_number, id_issue_date, id_expiry_date, id_issued_by)
-    VALUES ('CIC-CLIENT', 'CIC', 'Client', 'CIC Client', ?, ?, 'F', '1990-01-01', 'Ormoc City', '09171234567', 'Passport', 'P1234567', '2020-01-01', '2030-01-01', 'DFA')
+    INSERT INTO tblCustomer (customer_code, first_name, last_name, full_name, branch_id, collector_id, gender, birth_date, civil_status, address, contact, id_type, id_number, id_issue_date, id_expiry_date, id_issued_by)
+    VALUES ('CIC-CLIENT', 'CIC', 'Client', 'CIC Client', ?, ?, 'F', '1990-01-01', 'Single', 'Ormoc City', '09171234567', 'Passport', 'P1234567', NULL, NULL, NULL)
   `, [branch.id, collector.lastID]);
   const ownLoan = await dbRun(`
     INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_amount, loan_period, total_amortization, balance, date_released, date_maturity, status)
-    VALUES ('CIC-OWN', ?, ?, ?, 'New', 1000, 100, 45, 1100, 1100, '2026-05-10', '2026-06-24', 'active')
+    VALUES ('CIC-OWN', ?, ?, ?, 'New', 1000, 100, 45, 1100, 1100, '2026-06-10', '2026-07-24', 'active')
   `, [customer.lastID, collector.lastID, branch.id]);
   const otherLoan = await dbRun(`
     INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_amount, loan_period, total_amortization, balance, date_released, date_maturity, status)
-    VALUES ('CIC-OTHER', ?, ?, ?, 'New', 1000, 100, 45, 1100, 1100, '2026-05-11', '2026-06-25', 'active')
+    VALUES ('CIC-OTHER', ?, ?, ?, 'New', 1000, 100, 45, 1100, 1100, '2026-06-11', '2026-07-25', 'active')
   `, [customer.lastID, collector.lastID, branch.id]);
   await dbRun(`INSERT INTO tblGovernmentComplianceClients (agency, loan_id, customer_id, customer_code, customer_name, assigned_user_id, sent_by_user_id) VALUES ('BIR', ?, ?, 'CIC-CLIENT', 'CIC Client', 101, 101)`, [ownLoan.lastID, customer.lastID]);
   await dbRun(`INSERT INTO tblGovernmentComplianceClients (agency, loan_id, customer_id, customer_code, customer_name, assigned_user_id, sent_by_user_id) VALUES ('BIR', ?, ?, 'CIC-CLIENT', 'CIC Client', 202, 202)`, [otherLoan.lastID, customer.lastID]);
@@ -72,5 +72,5 @@ test('CIC candidates come from qualified BIR reports assigned to the logged-in u
   assert.equal(preview.counts.totalCiRecords, 1);
   assert.equal(preview.counts.totalRecordsForFt, 2);
   assert.deepEqual(preview.previewRecords.map(record => record.recordType), ['HD', 'ID', 'CI', 'FT']);
-  assert.match(preview.fileName, /^PF022370_CSDF_20260531\d{6}\.txt$/);
+  assert.match(preview.fileName, /^PF022370_CSDF_20260630\d{6}\.txt$/);
 });

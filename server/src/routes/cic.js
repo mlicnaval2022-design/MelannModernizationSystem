@@ -104,7 +104,8 @@ function monthEnd(d) {
 
 function getPeriod(year, month) {
   const selected = addMonths(year, month, 0);
-  const covered = addMonths(year, month, -1);
+  // The chosen reporting month is also the loan-release month used for export.
+  const covered = selected;
   return {
     selectedYear: selected.getFullYear(),
     selectedMonth: selected.getMonth() + 1,
@@ -177,18 +178,14 @@ function validateId(loan) {
   const contact = digits(loan.contact);
   const idCode = idTypeCode(loan.id_type);
 
-  if (!normalize(loan.customer_code)) missing.push('Client Code');
   if (!normalize(loan.first_name)) missing.push('First Name');
   if (!normalize(loan.last_name)) missing.push('Last Name');
   if (!genderCode(loan.gender)) missing.push('Gender');
   if (!dateForCic(loan.birth_date)) missing.push('Date of Birth');
+  if (!normalize(loan.civil_status)) missing.push('Civil Status');
   if (!normalize(loan.address)) missing.push('Full Address');
   if (contact.length !== 11) missing.push('Valid 11-digit Contact Number');
-  if (!idCode) missing.push('Valid ID Type');
-  if (!normalize(loan.id_number)) missing.push('ID Number');
-  if (!dateForCic(loan.id_issue_date)) missing.push('ID Issue Date');
-  if (!dateForCic(loan.id_expiry_date)) missing.push('ID Expiry Date');
-  if (!normalize(loan.id_issued_by)) missing.push('Issued By');
+  if (!idCode || !normalize(loan.id_number)) missing.push('Valid ID');
 
   return { missing, contact, idCode };
 }
@@ -560,18 +557,14 @@ router.get('/readiness/:customerId', authenticateToken, async (req, res) => {
     const customer = await dbGet('SELECT * FROM tblCustomer WHERE id = ?', [req.params.customerId]);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
     const missingFields = [];
-    if (!customer.customer_code) missingFields.push('Client Code');
     if (!customer.first_name) missingFields.push('First Name');
     if (!customer.last_name) missingFields.push('Last Name');
     if (!genderCode(customer.gender)) missingFields.push('Gender');
     if (!customer.birth_date) missingFields.push('Date of Birth');
+    if (!customer.civil_status) missingFields.push('Civil Status');
     if (!customer.address) missingFields.push('Full Address');
     if (digits(customer.contact).length !== 11) missingFields.push('Valid 11-digit Contact Number');
-    if (!idTypeCode(customer.id_type)) missingFields.push('Valid ID Type');
-    if (!customer.id_number) missingFields.push('ID Number');
-    if (!customer.id_issue_date) missingFields.push('ID Issue Date');
-    if (!customer.id_expiry_date) missingFields.push('ID Expiry Date');
-    if (!customer.id_issued_by) missingFields.push('Issued By');
+    if (!idTypeCode(customer.id_type) || !customer.id_number) missingFields.push('Valid ID');
     res.json({ status: missingFields.length > 0 ? 'Incomplete' : 'Ready', missingFields });
   } catch (error) {
     res.status(500).json({ error: 'Failed to check readiness' });

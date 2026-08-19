@@ -537,7 +537,7 @@ function CICGenerator() {
         <button className="btn btn-success" onClick={downloadCsv} disabled={loading || !fileReferenceNumber.trim() || !hasValidRecords}>Download CSV</button>
       </div>
       <div style={{ marginTop: -10, marginBottom: 20, color: '#64748b', fontSize: 13 }}>
-        The selected reporting month covers the previous month&apos;s loan accounts. Example: select June 2026 to export May 2026 loans.
+        The selected reporting month determines the loan accounts included in the CIC export. Example: select August 2026 to export August 2026 loans.
       </div>
 
       {legacyCicServer ? (
