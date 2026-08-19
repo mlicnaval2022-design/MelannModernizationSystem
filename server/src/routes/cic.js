@@ -315,8 +315,10 @@ async function loadLoans(period, branchId, assignedUserId, selectedLoanIds = nul
            (SELECT p.date_paid FROM tblPayment p WHERE p.loan_id = l.id AND p.status IN ('active', 'recon') AND p.balance_after <= 0 ORDER BY p.date_paid DESC, p.id DESC LIMIT 1) as fully_paid_date
     FROM tblLoan l
     JOIN tblCustomer c ON l.customer_id = c.id
+    -- CIC submission is based on the BIR client-report queue. A client must
+    -- still pass the CIC validations below before it can be exported.
     JOIN tblGovernmentComplianceClients gcc ON l.id = gcc.loan_id
-      AND gcc.agency = 'CIC'
+      AND gcc.agency = 'BIR'
       AND gcc.assigned_user_id = ?
     LEFT JOIN tblBranch b ON l.branch_id = b.id
     LEFT JOIN tblCollector co ON l.collector_id = co.id
@@ -451,10 +453,13 @@ router.get('/candidates', authenticateToken, async (req, res) => {
     if (!year || !month) return res.status(400).json({ error: 'Year and month are required' });
     const period = getPeriod(year, month);
     const loans = await loadLoans(period, branch_id, req.user.id);
+    const eligibleLoans = loans.filter(loan => (
+      validateId(loan).missing.length === 0 && validateCi(loan).missing.length === 0
+    ));
     res.json({
       period,
-      availableClientReports: new Set(loans.map(loan => loan.customer_id)).size,
-      clients: loans.map(loan => ({
+      availableClientReports: new Set(eligibleLoans.map(loan => loan.customer_id)).size,
+      clients: eligibleLoans.map(loan => ({
         loan_id: loan.id,
         customer_id: loan.customer_id,
         customer_code: loan.customer_code,
@@ -465,7 +470,7 @@ router.get('/candidates', authenticateToken, async (req, res) => {
         date_released: loan.date_released,
         date_maturity: loan.date_maturity,
         balance: loan.balance,
-        cic_eligibility: 'Ready to validate'
+        cic_eligibility: 'Eligible'
       }))
     });
   } catch (error) {
