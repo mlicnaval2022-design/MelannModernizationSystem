@@ -114,12 +114,24 @@ test('configured Government Compliance CRUD grants a custom role access to every
   assert.equal(coveredLoans.status, 200);
   assert.equal((await coveredLoans.json()).totals.loans, 1, 'Covered Loans must include only BIR client-report loans of ₱10,000 and below.');
 
+<<<<<<< HEAD
   const deleteClientReport = await api(clerk.token, `/government-compliance/client-reports/BIR/${birReports[0].id}`, { method: 'DELETE' });
   assert.equal(deleteClientReport.status, 200);
 
   const birClientReportsAfterDelete = await api(clerk.token, '/government-compliance/client-reports/BIR');
   assert.equal(birClientReportsAfterDelete.status, 200);
   assert.equal((await birClientReportsAfterDelete.json()).length, 1, 'Deleting a BIR client report must remove only that report row.');
+=======
+  const coveredLoanDetails = await api(clerk.token, '/government-compliance/bir-client-summary/details?covered_only=true&group=all');
+  assert.equal(coveredLoanDetails.status, 200);
+  const coveredLoanDetailBody = await coveredLoanDetails.json();
+  assert.equal(coveredLoanDetailBody.total, 1);
+  assert.equal(coveredLoanDetailBody.rows[0].customer_code, 'BIR-SHARED-001', 'Clickable summary details must identify the BIR client-report client.');
+
+  const uniqueClientDetails = await api(clerk.token, '/government-compliance/bir-client-summary/details?group=clients');
+  assert.equal(uniqueClientDetails.status, 200);
+  assert.equal((await uniqueClientDetails.json()).total, 2, 'Total Number of Clients details must be deduplicated by client.');
+>>>>>>> 433e5f49e6c17dfad3f13ee3cf23555939e94737
 
   for (const agency of ['CIC', 'SEC', 'BIR']) {
     const listResponse = await api(clerk.token, `/government-compliance/${agency}`);

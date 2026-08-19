@@ -89,6 +89,45 @@ function normalizedEmployment(value) {
   return 'Others';
 }
 
+const LOAN_RANGES = [
+  { label: 'Below ₱2,500', matches: amount => amount < 2_500 },
+  { label: '₱2,500 – ₱5,000', matches: amount => amount >= 2_500 && amount <= 5_000 },
+  { label: '₱5,001 – ₱10,000', matches: amount => amount >= 5_001 && amount <= 10_000 },
+  { label: '₱10,001 – ₱50,000', matches: amount => amount >= 10_001 && amount <= 50_000 },
+  { label: 'Above ₱50,000', matches: amount => amount > 50_000 },
+];
+
+const INCOME_RANGES = [
+  { label: 'Below ₱10,000', matches: amount => amount < 10_000 },
+  { label: '₱10,000 – ₱29,999', matches: amount => amount >= 10_000 && amount <= 29_999 },
+  { label: '₱30,000 – ₱49,999', matches: amount => amount >= 30_000 && amount <= 49_999 },
+  { label: '₱50,000 and above', matches: amount => amount >= 50_000 },
+];
+
+function interestPercentageLabel(rate) {
+  const numericRate = Number(rate || 0);
+  return `${Number.isInteger(numericRate) ? numericRate : numericRate.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}%`;
+}
+
+async function loadBirClientReportRows(coveredOnly) {
+  const coveredLoanClause = coveredOnly ? ' AND COALESCE(l.principal, gcc.loan_amount, 0) <= 10000' : '';
+  return dbAll(
+    `SELECT gcc.id, gcc.customer_id, gcc.loan_id, gcc.customer_code, gcc.customer_name,
+            gcc.loan_amount, gcc.loan_type, gcc.release_date, gcc.collector_name, gcc.branch_name,
+            l.loan_code,
+            c.gender, c.civil_status, c.educational_background, c.occupational_status, c.income_per_month,
+            COALESCE(l.principal, gcc.loan_amount, 0) AS principal,
+            COALESCE(l.interest_rate, 0) AS interest_rate,
+            COALESCE(l.interest_amount, 0) AS interest_amount,
+            COALESCE(l.total_amortization, COALESCE(l.principal, gcc.loan_amount, 0) + COALESCE(l.interest_amount, 0), gcc.loan_amount, 0) AS total_loan
+       FROM tblGovernmentComplianceClients gcc
+       LEFT JOIN tblCustomer c ON c.id = gcc.customer_id
+       LEFT JOIN tblLoan l ON l.id = gcc.loan_id
+      WHERE gcc.agency = 'BIR'${coveredLoanClause}
+      ORDER BY gcc.created_at DESC, gcc.id DESC`
+  );
+}
+
 router.get('/summary', authenticateToken, async (req, res) => {
   try {
     const agencies = AGENCIES;
@@ -171,41 +210,16 @@ router.delete('/client-reports/:agency/:id', authenticateToken, requireAgencyAcc
 router.get('/bir-client-summary', authenticateToken, async (req, res) => {
   try {
     const coveredOnly = String(req.query.covered_only || '').toLowerCase() === 'true';
-    const coveredLoanClause = coveredOnly ? ' AND COALESCE(l.principal, gcc.loan_amount, 0) <= 10000' : '';
-    const rows = await dbAll(
-      `SELECT gcc.customer_id, gcc.loan_id, gcc.loan_amount,
-              c.gender, c.civil_status, c.educational_background, c.occupational_status, c.income_per_month,
-              COALESCE(l.principal, gcc.loan_amount, 0) AS principal,
-              COALESCE(l.interest_rate, 0) AS interest_rate,
-              COALESCE(l.interest_amount, 0) AS interest_amount,
-              COALESCE(l.total_amortization, COALESCE(l.principal, gcc.loan_amount, 0) + COALESCE(l.interest_amount, 0), gcc.loan_amount, 0) AS total_loan
-         FROM tblGovernmentComplianceClients gcc
-         LEFT JOIN tblCustomer c ON c.id = gcc.customer_id
-         LEFT JOIN tblLoan l ON l.id = gcc.loan_id
-        WHERE gcc.agency = 'BIR'${coveredLoanClause}`
-    );
+    const rows = await loadBirClientReportRows(coveredOnly);
     const interestBreakdown = new Map();
     rows.forEach(row => {
       const rate = Number(row.interest_rate || 0);
-      const key = `${Number.isInteger(rate) ? rate : rate.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}%`;
+      const key = interestPercentageLabel(rate);
       const current = interestBreakdown.get(key) || { percentage: key, clients: 0, amount: 0, rate };
       current.clients++;
       current.amount += Number(row.principal || 0);
       interestBreakdown.set(key, current);
     });
-    const loanRanges = [
-      { label: 'Below ₱2,500', matches: amount => amount < 2_500 },
-      { label: '₱2,500 – ₱5,000', matches: amount => amount >= 2_500 && amount <= 5_000 },
-      { label: '₱5,001 – ₱10,000', matches: amount => amount >= 5_001 && amount <= 10_000 },
-      { label: '₱10,001 – ₱50,000', matches: amount => amount >= 10_001 && amount <= 50_000 },
-      { label: 'Above ₱50,000', matches: amount => amount > 50_000 },
-    ];
-    const incomeRanges = [
-      { label: 'Below ₱10,000', matches: amount => amount < 10_000 },
-      { label: '₱10,000 – ₱29,999', matches: amount => amount >= 10_000 && amount <= 29_999 },
-      { label: '₱30,000 – ₱49,999', matches: amount => amount >= 30_000 && amount <= 49_999 },
-      { label: '₱50,000 and above', matches: amount => amount >= 50_000 },
-    ];
     const rangeCounts = (ranges, valueFor) => ranges.map(range => ({
       label: range.label,
       count: rows.filter(row => range.matches(valueFor(row))).length,
@@ -225,10 +239,60 @@ router.get('/bir-client-summary', authenticateToken, async (req, res) => {
         employment: countBy(rows, row => normalizedEmployment(row.occupational_status), ['Government', 'Private', 'Self Employed', 'Unemployed', 'Others']),
       },
       financial: {
-        loanRanges: rangeCounts(loanRanges, row => Number(row.principal || 0)),
-        incomeRanges: rangeCounts(incomeRanges, row => normalizeIncome(row.income_per_month)),
+        loanRanges: rangeCounts(LOAN_RANGES, row => Number(row.principal || 0)),
+        incomeRanges: rangeCounts(INCOME_RANGES, row => normalizeIncome(row.income_per_month)),
         interestBreakdown: [...interestBreakdown.values()].sort((a, b) => a.rate - b.rate),
       },
+      coveredOnly,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// The detail endpoint powers the clickable SEC summary fields. It deliberately
+// reads the same BIR client-report rows as the totals so the names always match.
+router.get('/bir-client-summary/details', authenticateToken, async (req, res) => {
+  try {
+    const coveredOnly = String(req.query.covered_only || '').toLowerCase() === 'true';
+    const group = String(req.query.group || 'all').toLowerCase();
+    const value = String(req.query.value || '').trim();
+    const rows = await loadBirClientReportRows(coveredOnly);
+    const matchers = {
+      all: () => true,
+      clients: () => true,
+      gender: row => normalizedGender(row.gender) === value,
+      'civil-status': row => normalizedCivilStatus(row.civil_status) === value,
+      education: row => normalizedEducation(row.educational_background) === value,
+      employment: row => normalizedEmployment(row.occupational_status) === value,
+      'loan-range': row => LOAN_RANGES.find(range => range.label === value)?.matches(Number(row.principal || 0)),
+      'income-range': row => INCOME_RANGES.find(range => range.label === value)?.matches(normalizeIncome(row.income_per_month)),
+      'interest-rate': row => interestPercentageLabel(row.interest_rate) === value,
+    };
+    if (!matchers[group]) return res.status(400).json({ error: 'Invalid summary detail group' });
+
+    const matchingRows = rows.filter(matchers[group]);
+    const detailRows = group === 'clients'
+      ? [...new Map(matchingRows.filter(row => row.customer_id).map(row => [row.customer_id, row])).values()]
+      : matchingRows;
+
+    res.json({
+      rows: detailRows.map(row => ({
+        id: row.id,
+        customer_id: row.customer_id,
+        customer_code: row.customer_code,
+        customer_name: row.customer_name,
+        loan_id: row.loan_id,
+        loan_code: row.loan_code,
+        loan_type: row.loan_type,
+        release_date: row.release_date,
+        collector_name: row.collector_name,
+        branch_name: row.branch_name,
+        principal: Number(row.principal || 0),
+        interest: Number(row.interest_amount || 0),
+        total_loan: Number(row.total_loan || 0),
+      })),
+      total: detailRows.length,
+      group,
+      value,
       coveredOnly,
     });
   } catch (err) { res.status(500).json({ error: err.message }); }

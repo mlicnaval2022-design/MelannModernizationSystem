@@ -88,6 +88,7 @@ export default function GovernmentCompliance() {
   const [clientFilters, setClientFilters] = useState({ search: '', loanType: '', status: '', startDate: '', endDate: '' });
   const [summary, setSummary] = useState({ cards: {}, notifications: [] });
   const [birClientSummary, setBirClientSummary] = useState(EMPTY_BIR_CLIENT_SUMMARY);
+  const [summaryDetails, setSummaryDetails] = useState(null);
   const [total, setTotal] = useState(0);
   const [filters, setFilters] = useState(emptyFilters);
   const [loading, setLoading] = useState(false);
@@ -141,6 +142,22 @@ export default function GovernmentCompliance() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openSummaryDetails = async ({ group = 'all', value = '', title }) => {
+    setSummaryDetails({ title, rows: [], loading: true, error: '' });
+    try {
+      const { data } = await API.get('/government-compliance/bir-client-summary/details', {
+        params: {
+          group,
+          value,
+          ...(viewMode === 'covered-loans' ? { covered_only: true } : {}),
+        },
+      });
+      setSummaryDetails({ title, rows: data.rows || [], loading: false, error: '' });
+    } catch (err) {
+      setSummaryDetails({ title, rows: [], loading: false, error: err.response?.data?.error || 'Unable to load client details.' });
     }
   };
 
@@ -284,7 +301,7 @@ export default function GovernmentCompliance() {
       {viewMode === 'generator' ? <CICGenerator /> : (
         <div>
           {viewMode === 'summary' || viewMode === 'covered-loans' ? (
-            <BirClientSummary data={birClientSummary} loading={loading} money={money} coveredOnly={viewMode === 'covered-loans'} />
+            <BirClientSummary data={birClientSummary} loading={loading} money={money} coveredOnly={viewMode === 'covered-loans'} onShowDetails={openSummaryDetails} />
           ) : viewMode === 'company' ? (
             <>
               <div className="gc-toolbar">
@@ -400,6 +417,17 @@ export default function GovernmentCompliance() {
         </div></div>
       )}
 
+      {summaryDetails && (
+        <div className="modal-overlay"><div className="modal gc-summary-detail-modal"><div className="modal-header"><span className="modal-title">{summaryDetails.title}</span><button className="modal-close" onClick={() => setSummaryDetails(null)}>x</button></div>
+          <div className="modal-body">
+            {summaryDetails.loading ? <div className="empty-state">Loading client details...</div>
+              : summaryDetails.error ? <div className="empty-state">{summaryDetails.error}</div>
+                : summaryDetails.rows.length === 0 ? <div className="empty-state">No clients match this summary field.</div>
+                  : <div className="table-wrapper"><table className="data-table"><thead><tr><th>Client Code</th><th>Client Name</th><th>Loan Code</th><th>Principal</th><th>Interest</th><th>Total Loan</th><th>Type</th><th>Release Date</th><th>Collector</th><th>Branch</th></tr></thead><tbody>{summaryDetails.rows.map(row => <tr key={row.id}><td style={{ fontWeight: 700, color: '#1d4ed8' }}>{row.customer_code || '-'}</td><td style={{ fontWeight: 700 }}>{row.customer_name || '-'}</td><td>{row.loan_code || '-'}</td><td>{money(row.principal)}</td><td>{money(row.interest)}</td><td style={{ fontWeight: 800, color: '#166534' }}>{money(row.total_loan)}</td><td>{row.loan_type || '-'}</td><td>{row.release_date || '-'}</td><td>{row.collector_name || '-'}</td><td>{row.branch_name || '-'}</td></tr>)}</tbody></table></div>}
+          </div>
+        </div></div>
+      )}
+
       {modal === 'history' && (
         <div className="modal-overlay"><div className="modal gc-modal"><div className="modal-header"><span className="modal-title">Submission History</span><button className="modal-close" onClick={() => setModal(null)}>x</button></div>
           <div className="modal-body"><table className="data-table"><thead><tr><th>Date & Time</th><th>User</th><th>Action</th><th>Previous / New Value</th><th>IP Address</th></tr></thead><tbody>{history.map(h => <tr key={h.id}><td>{h.created_at}</td><td>{h.user_full_name || h.username}</td><td><span className="tag">{h.action}</span></td><td className="gc-history-detail">{h.details}</td><td>{h.ip_address || '-'}</td></tr>)}</tbody></table></div>
@@ -409,7 +437,7 @@ export default function GovernmentCompliance() {
   );
 }
 
-function BirClientSummary({ data, loading, money, coveredOnly = false }) {
+function BirClientSummary({ data, loading, money, coveredOnly = false, onShowDetails }) {
   const totals = data?.totals || EMPTY_BIR_CLIENT_SUMMARY.totals;
   const demographics = data?.demographics || EMPTY_BIR_CLIENT_SUMMARY.demographics;
   const financial = data?.financial || EMPTY_BIR_CLIENT_SUMMARY.financial;
@@ -417,36 +445,36 @@ function BirClientSummary({ data, loading, money, coveredOnly = false }) {
   return <section className="gc-summary" aria-label={coveredOnly ? 'Covered BIR client loans summary' : 'BIR client reports summary'}>
     <p className="gc-summary-note">{coveredOnly ? <>Totals below are calculated from <strong>For BIR → Client Reports</strong>, limited to loans of <strong>₱10,000 and below</strong>.</> : <>Totals below are calculated from the records in <strong>For BIR → Client Reports</strong>.</>}</p>
     <div className="gc-summary-metrics">
-      <SummaryMetric label="Total Number of Loans" value={totals.loans} />
-      <SummaryMetric label="Total Number of Clients" value={totals.clients} />
-      <SummaryMetric label="Total Loan Amount" value={money(totals.loanAmount)} />
-      <SummaryMetric label="Total Interest" value={money(totals.interest)} />
-      <SummaryMetric label="Total Loan w/ Interest" value={money(totals.loanWithInterest)} />
+      <SummaryMetric label="Total Number of Loans" value={totals.loans} onClick={() => onShowDetails({ title: 'Clients included in Total Number of Loans' })} />
+      <SummaryMetric label="Total Number of Clients" value={totals.clients} onClick={() => onShowDetails({ group: 'clients', title: 'Unique clients included in the summary' })} />
+      <SummaryMetric label="Total Loan Amount" value={money(totals.loanAmount)} onClick={() => onShowDetails({ title: 'Clients included in Total Loan Amount' })} />
+      <SummaryMetric label="Total Interest" value={money(totals.interest)} onClick={() => onShowDetails({ title: 'Clients included in Total Interest' })} />
+      <SummaryMetric label="Total Loan w/ Interest" value={money(totals.loanWithInterest)} onClick={() => onShowDetails({ title: 'Clients included in Total Loan w/ Interest' })} />
     </div>
     <div className="gc-summary-columns">
       <div>
         <h3>Demographics</h3>
-        <SummaryList title="Gender" items={demographics.gender} />
-        <SummaryList title="Civil Status" items={demographics.civilStatus} />
+        <SummaryList title="Gender" items={demographics.gender} group="gender" onShowDetails={onShowDetails} />
+        <SummaryList title="Civil Status" items={demographics.civilStatus} group="civil-status" onShowDetails={onShowDetails} />
       </div>
       <div>
         <h3>Status Background</h3>
-        <SummaryList title="Educational Status" items={demographics.education} />
-        <SummaryList title="Employment Status" items={demographics.employment} />
+        <SummaryList title="Educational Status" items={demographics.education} group="education" onShowDetails={onShowDetails} />
+        <SummaryList title="Employment Status" items={demographics.employment} group="employment" onShowDetails={onShowDetails} />
       </div>
     </div>
     <div className="gc-summary-columns gc-summary-financial">
       <div>
         <h3>Financial Breakdown</h3>
-        <SummaryList title="Range of Loan" items={financial.loanRanges} />
-        <SummaryList title="Monthly Income" items={financial.incomeRanges} />
+        <SummaryList title="Range of Loan" items={financial.loanRanges} group="loan-range" onShowDetails={onShowDetails} />
+        <SummaryList title="Monthly Income" items={financial.incomeRanges} group="income-range" onShowDetails={onShowDetails} />
       </div>
       <div>
         <h3>Interest Percentages</h3>
         {financial.interestBreakdown?.length ? (
           <div className="gc-interest-table">
             <div className="gc-interest-row gc-interest-heading"><span>Percentage</span><span>Total Clients</span><span>Total Amount</span></div>
-            {financial.interestBreakdown.map(item => <div className="gc-interest-row" key={item.percentage}><strong>{item.percentage}</strong><span>{item.clients}</span><strong>{money(item.amount)}</strong></div>)}
+            {financial.interestBreakdown.map(item => <button type="button" className="gc-interest-row gc-summary-clickable" key={item.percentage} onClick={() => onShowDetails({ group: 'interest-rate', value: item.percentage, title: `Clients with ${item.percentage} interest` })}><strong>{item.percentage}</strong><span>{item.clients}</span><strong>{money(item.amount)}</strong></button>)}
           </div>
         ) : <div className="empty-state">No BIR client-report records available.</div>}
       </div>
@@ -454,12 +482,12 @@ function BirClientSummary({ data, loading, money, coveredOnly = false }) {
   </section>;
 }
 
-function SummaryMetric({ label, value }) {
-  return <article className="gc-summary-metric"><span>{label}</span><strong>{value}</strong></article>;
+function SummaryMetric({ label, value, onClick }) {
+  return <button type="button" className="gc-summary-metric gc-summary-clickable" onClick={onClick} aria-label={`View clients included in ${label}`}><span>{label}</span><strong>{value}</strong></button>;
 }
 
-function SummaryList({ title, items = [] }) {
-  return <section className="gc-summary-list"><h4>{title}</h4>{items.map(item => <div key={item.label}><span>{item.label}</span><strong>{item.count}</strong></div>)}</section>;
+function SummaryList({ title, items = [], group, onShowDetails }) {
+  return <section className="gc-summary-list"><h4>{title}</h4>{items.map(item => <button type="button" className="gc-summary-clickable" key={item.label} onClick={() => onShowDetails({ group, value: item.label, title: `${title}: ${item.label}` })}><span>{item.label}</span><strong>{item.count}</strong></button>)}</section>;
 }
 
 function Field({ label, name, form, setForm, type = 'text', required = false }) {
