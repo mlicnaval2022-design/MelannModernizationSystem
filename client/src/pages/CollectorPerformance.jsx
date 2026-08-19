@@ -809,7 +809,7 @@ export default function CollectorPerformance() {
       rows.push(groups[date] || { date, expenses: [], total: 0 })
       current.setUTCDate(current.getUTCDate() + 1)
     }
-    return rows.reverse()
+    return rows
   }, [manualExpenses, selectedRatingPeriod?.period?.start_date, selectedRatingPeriod?.period?.end_date])
 
   const expenseTabulationRows = useMemo(() => manualExpenseGroups.map(group => {
