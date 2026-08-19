@@ -196,6 +196,9 @@ async function getActualCollectionTotal(collectorId, startDate, endDate) {
     WHERE COALESCE(p.collector_id, l.collector_id, c.collector_id) = ?
       AND date(p.date_paid) BETWEEN date(?) AND date(?)
       AND p.status IN ('active', 'penalty')
+      AND p.status != 'recon'
+      AND LOWER(COALESCE(p.payment_type, '')) != 'recon'
+      AND LOWER(COALESCE(p.remarks, '')) NOT LIKE '%recon%'
       AND LOWER(COALESCE(p.payment_type, '')) != 'passbook'
       AND LOWER(COALESCE(p.remarks, '')) NOT LIKE '%passbook%'
       -- A reconstruction payment that closes the account is not collector collection.

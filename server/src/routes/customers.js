@@ -120,9 +120,16 @@ async function postPriorLoanBalancePayment({ customerId, sourceLoanId, amount, u
 
   const assignedCollectorId = collectorId || sourceLoan.collector_id || null;
 
+  const isRecon = String(loanType || '').toUpperCase() === 'RECON';
+  const paymentStatus = isRecon ? 'recon' : 'active';
+  const paymentType = isRecon ? 'recon' : 'regular';
+  const paymentRemarks = isRecon
+    ? '[RECON] Reconstruction balance adjustment'
+    : `Auto-posted old balance during ${loanTypeLabel}`;
+
   const payment = await dbRun(
-    `INSERT INTO tblPayment (loan_id, customer_id, collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, status, remarks, encoded_by, payment_code)
-     VALUES (?,?,?,?,?,?,?,?,'active',?,?,?)`,
+    `INSERT INTO tblPayment (loan_id, customer_id, collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, payment_type, status, remarks, encoded_by, payment_code)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       sourceLoan.id,
       customerId,
@@ -132,7 +139,9 @@ async function postPriorLoanBalancePayment({ customerId, sourceLoanId, amount, u
       paymentAmount,
       balanceBefore,
       balanceAfter,
-      `Auto-posted old balance during ${loanTypeLabel}`,
+      paymentType,
+      paymentStatus,
+      paymentRemarks,
       user.id,
       paymentCode
     ]

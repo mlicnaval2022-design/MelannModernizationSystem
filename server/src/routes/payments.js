@@ -7,9 +7,6 @@ const { recalculateLoanBalances } = require('../services/loanBalanceRecalculator
 const router = express.Router();
 const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
 const formatDate = value => {
-const router = express.Router();
-const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
-const formatDate = value => {
   if (!value) return '';
   const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
   if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);

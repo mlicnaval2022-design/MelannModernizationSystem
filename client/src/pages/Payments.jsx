@@ -737,8 +737,10 @@ export default function Payments() {
                   <td>{formatDateTime(p.created_at)}</td>
                   <td>{p.collector_name}</td>
                   <td>
-                    {p.status === 'recon' || p.payment_type === 'recon' ? (
-                      <span style={{ color: '#7c3aed', fontWeight: '700', background: '#ede9fe', padding: '4px 8px', borderRadius: '4px' }}>Recon</span>
+                    {p.status === 'recon' || p.payment_type === 'recon' || String(p.remarks || '').toLowerCase().includes('recon') ? (
+                      <span style={{ color: '#7c3aed', fontWeight: '700', background: '#ede9fe', padding: '4px 8px', borderRadius: '4px' }}>
+                        {Number(p.balance_after) <= 0 ? 'Fully Paid(Recon)' : 'Recon'}
+                      </span>
                     ) : p.loan_status === 'fullpaid' || p.balance_after <= 0 ? (
                       <span className="badge-no">Yes</span>
                     ) : (

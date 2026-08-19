@@ -45,8 +45,12 @@ const getCollectionBreakdown = (collections, passbooks, penalties, collectorsOve
     const remarks = String(payment.remarks || '').toLowerCase();
     const amount = Number(payment.amount_paid || 0);
 
+    if (status === 'recon' || paymentType === 'recon' || remarks.includes('recon')) {
+      return;
+    }
+
     if (status === 'penalty' || paymentType === 'penalty') breakdown.penalty += amount;
-    else if (remarks.includes('old balance') || remarks.includes('recon balance') || ['balance', 'recon', 'old_balance'].includes(paymentType)) breakdown.balance += amount;
+    else if (remarks.includes('old balance') || ['balance', 'old_balance'].includes(paymentType)) breakdown.balance += amount;
     else breakdown.regular += amount;
   });
 
@@ -58,10 +62,15 @@ const isReleaseChargePayment = payment => {
   const status = String(payment.status || '').toLowerCase();
   const paymentType = String(payment.payment_type || '').toLowerCase();
   const remarks = String(payment.remarks || '').toLowerCase();
-  return status === 'penalty' || paymentType === 'penalty' || remarks.includes('old balance') || remarks.includes('recon balance') || ['balance', 'recon', 'old_balance'].includes(paymentType);
+  if (status === 'recon' || paymentType === 'recon' || remarks.includes('recon')) return false;
+  return status === 'penalty' || paymentType === 'penalty' || remarks.includes('old balance') || ['balance', 'old_balance'].includes(paymentType);
 };
 
 const getReleaseChargeBreakdown = releases => releases.reduce((acc, release) => {
+  const loanType = String(release.loan_type || '').toLowerCase();
+  if (['recon', 'reconstruct', 'reconstructed'].includes(loanType)) {
+    return acc;
+  }
   acc.balance += Number(release.previous_balance || 0);
   acc.penalty += Number(release.penalty_payment_count || 0) > 0 ? 0 : Number(release.penalty || 0);
   acc.passbook += Number(release.today_passbook ?? (release.passbook || 0));
@@ -76,7 +85,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
     if (!date) return res.status(400).json({ error: 'Date is required' });
     requireOperationDate(date, 'DCR date');
 
-    let pCond = `p.date_paid = ? AND p.status IN ('active', 'penalty') AND ${sqlNotSunday('p.date_paid')}`;
+    let pCond = `p.date_paid = ? AND p.status IN ('active', 'penalty') AND p.status != 'recon' AND LOWER(COALESCE(p.payment_type, '')) != 'recon' AND LOWER(COALESCE(p.remarks, '')) NOT LIKE '%recon%' AND ${sqlNotSunday('p.date_paid')}`;
     let lCond = getDcrLoanCondition();
     let eCond = `e.transaction_date = ? AND e.status = 'active'`;
     let cbCond = `entry_date = ?`;
@@ -128,10 +137,11 @@ router.get('/summary', authenticateToken, async (req, res) => {
                WHERE pp.customer_id = l.customer_id
                  AND pp.date_paid = l.date_released
                  AND pp.status = 'active'
+                 AND LOWER(COALESCE(pp.payment_type, '')) != 'recon'
+                 AND LOWER(COALESCE(pp.remarks, '')) NOT LIKE '%recon%'
                  AND (
                    LOWER(COALESCE(pp.remarks, '')) LIKE '%old balance%'
-                   OR LOWER(COALESCE(pp.remarks, '')) LIKE '%recon balance%'
-                   OR LOWER(COALESCE(pp.payment_type, '')) IN ('balance', 'recon', 'old_balance')
+                   OR LOWER(COALESCE(pp.payment_type, '')) IN ('balance', 'old_balance')
                  )
              ), 0) as old_balance_paid_today,
              COALESCE(l.penalty, 0) + COALESCE((SELECT SUM(amount) FROM tblTransaction WHERE category = CAST(l.customer_id AS TEXT) AND transaction_type = 'Penalty' AND transaction_date = l.date_released AND status = 'active'), 0) as today_penalty,
@@ -440,7 +450,7 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
     const dcr_number = `DCR-${date.replace(/-/g, '')}-${nextNum}`;
 
     // Recalculate totals server-side
-    let pCond = `p.date_paid = ? AND p.status IN ('active', 'penalty') AND ${sqlNotSunday('p.date_paid')}`;
+    let pCond = `p.date_paid = ? AND p.status IN ('active', 'penalty') AND p.status != 'recon' AND LOWER(COALESCE(p.payment_type, '')) != 'recon' AND LOWER(COALESCE(p.remarks, '')) NOT LIKE '%recon%' AND ${sqlNotSunday('p.date_paid')}`;
     let lCond = getDcrLoanCondition();
     let eCond = `e.transaction_date = ? AND e.status = 'active'`;
     let cbCond = `entry_date = ?`;

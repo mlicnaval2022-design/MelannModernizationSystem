@@ -77,6 +77,9 @@ const getCollectionTrend = async ({ mode = 'daily', endDate = toLocalDateString(
     FROM tblPayment
     WHERE date_paid BETWEEN ? AND ?
       AND status IN ('active', 'penalty')
+      AND status != 'recon'
+      AND LOWER(COALESCE(payment_type, '')) != 'recon'
+      AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%'
       AND ${sqlNotSunday('date_paid')}
     GROUP BY date_paid
     ORDER BY date_paid
@@ -209,10 +212,12 @@ const getCollectionReleaseCharges = async (from, to) => {
       SELECT customer_id, date_paid, COUNT(*) as payment_count
       FROM tblPayment
       WHERE status = 'active'
+        AND status != 'recon'
+        AND LOWER(COALESCE(payment_type, '')) != 'recon'
+        AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%'
         AND (
           LOWER(COALESCE(remarks, '')) LIKE '%old balance%'
-          OR LOWER(COALESCE(remarks, '')) LIKE '%recon balance%'
-          OR LOWER(COALESCE(payment_type, '')) IN ('balance', 'recon', 'old_balance')
+          OR LOWER(COALESCE(payment_type, '')) IN ('balance', 'old_balance')
         )
       GROUP BY customer_id, date_paid
     )
@@ -245,6 +250,7 @@ const getCollectionReleaseCharges = async (from, to) => {
      AND bp.date_paid = l.date_released
     WHERE l.date_released BETWEEN ? AND ?
       AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected')
+      AND LOWER(COALESCE(l.loan_type, '')) NOT IN ('recon', 'reconstruct', 'reconstructed')
       AND ${sqlNotSunday('l.date_released')}
     ORDER BY l.date_released, collector_name, c.full_name
   `, [from, to]);
@@ -711,6 +717,9 @@ router.get('/expenses/collector-matrix', authenticateToken, async (req, res) => 
         LEFT JOIN tblCustomer c ON c.id = p.customer_id
         WHERE date(p.date_paid) BETWEEN date(?) AND date(?)
           AND p.status IN ('active', 'penalty')
+          AND p.status != 'recon'
+          AND LOWER(COALESCE(p.payment_type, '')) != 'recon'
+          AND LOWER(COALESCE(p.remarks, '')) NOT LIKE '%recon%'
           AND ${sqlNotSunday('p.date_paid')}
         GROUP BY COALESCE(c.collector_id, l.collector_id, p.collector_id), date(p.date_paid)
       `, [rangeStart, rangeEnd]),
@@ -1057,7 +1066,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
     const now = new Date();
     
     // Find the most recent date before today that has active collections
-    const latestPaymentDateRes = await dbGet(`SELECT MAX(date_paid) as max_date FROM tblPayment WHERE status IN ('active', 'penalty') AND date_paid < ? AND ${sqlNotSunday('date_paid')}`, [today]);
+    const latestPaymentDateRes = await dbGet(`SELECT MAX(date_paid) as max_date FROM tblPayment WHERE status IN ('active', 'penalty') AND status != 'recon' AND LOWER(COALESCE(payment_type, '')) != 'recon' AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%' AND date_paid < ? AND ${sqlNotSunday('date_paid')}`, [today]);
     const latestPaymentDate = req.query.date || latestPaymentDateRes?.max_date || getPreviousOperationDate(today);
 
     const epoch = new Date('2026-01-01T00:00:00Z');
@@ -1075,15 +1084,15 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       total_customers: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='active'`)).c,
       new_customers_this_month: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='active' AND strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')`)).c,
       expected_collections_today: (await dbGet(`SELECT COALESCE(SUM(amortization), 0) as total FROM tblLoan WHERE status='active'`)).total,
-      collections_this_month: (await dbGet(`SELECT COALESCE(SUM(amount_paid), 0) as total FROM tblPayment WHERE status IN ('active', 'penalty') AND strftime('%Y-%m', date_paid) = strftime('%Y-%m', 'now') AND ${sqlNotSunday('date_paid')}`)).total,
-      collections_last_month: (await dbGet(`SELECT COALESCE(SUM(amount_paid), 0) as total FROM tblPayment WHERE status IN ('active', 'penalty') AND strftime('%Y-%m', date_paid) = strftime('%Y-%m', 'now', '-1 month') AND ${sqlNotSunday('date_paid')}`)).total,
+      collections_this_month: (await dbGet(`SELECT COALESCE(SUM(amount_paid), 0) as total FROM tblPayment WHERE status IN ('active', 'penalty') AND status != 'recon' AND LOWER(COALESCE(payment_type, '')) != 'recon' AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%' AND strftime('%Y-%m', date_paid) = strftime('%Y-%m', 'now') AND ${sqlNotSunday('date_paid')}`)).total,
+      collections_last_month: (await dbGet(`SELECT COALESCE(SUM(amount_paid), 0) as total FROM tblPayment WHERE status IN ('active', 'penalty') AND status != 'recon' AND LOWER(COALESCE(payment_type, '')) != 'recon' AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%' AND strftime('%Y-%m', date_paid) = strftime('%Y-%m', 'now', '-1 month') AND ${sqlNotSunday('date_paid')}`)).total,
       demand_letters_sent: 0,
       total_active_loans: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='active'`)).c,
       total_pastdue: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE date_maturity < ? AND status NOT IN ('fullpaid','reversed')`, [today])).c,
       total_pastdue_amount: (await dbGet(`SELECT COALESCE(SUM(balance), 0) as total FROM tblLoan WHERE date_maturity < ? AND status NOT IN ('fullpaid','reversed')`, [today])).total,
       total_fullpaid: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='fullpaid'`)).c,
-      collections_today: (await dbGet(`SELECT COALESCE(SUM(amount_paid),0) as total FROM tblPayment WHERE date_paid=? AND status IN ('active', 'penalty') AND ${sqlNotSunday('date_paid')}`, [today])).total,
-      collections_yesterday: (await dbGet(`SELECT COALESCE(SUM(amount_paid),0) as total FROM tblPayment WHERE date_paid=? AND status IN ('active', 'penalty') AND ${sqlNotSunday('date_paid')}`, [latestPaymentDate])).total,
+      collections_today: (await dbGet(`SELECT COALESCE(SUM(amount_paid),0) as total FROM tblPayment WHERE date_paid=? AND status IN ('active', 'penalty') AND status != 'recon' AND LOWER(COALESCE(payment_type, '')) != 'recon' AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%' AND ${sqlNotSunday('date_paid')}`, [today])).total,
+      collections_yesterday: (await dbGet(`SELECT COALESCE(SUM(amount_paid),0) as total FROM tblPayment WHERE date_paid=? AND status IN ('active', 'penalty') AND status != 'recon' AND LOWER(COALESCE(payment_type, '')) != 'recon' AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%' AND ${sqlNotSunday('date_paid')}`, [latestPaymentDate])).total,
       yesterday_str: latestPaymentDate,
       releases_today: (await dbGet(`SELECT COALESCE(SUM(principal),0) as total FROM tblLoan WHERE date_released = ? AND status IN ('active', 'fully_paid') AND ${sqlNotSunday('date_released')}`, [today])).total,
       loans_released_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE date_released = ? AND status IN ('active', 'fully_paid') AND ${sqlNotSunday('date_released')}`, [today])).c,
@@ -1130,6 +1139,9 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
             WHERE collector_id = co.id
               AND date_paid = ?
               AND status IN ('active', 'penalty')
+              AND status != 'recon'
+              AND LOWER(COALESCE(payment_type, '')) != 'recon'
+              AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%'
               AND ${sqlNotSunday('date_paid')}
           ), 0) as collected
         FROM tblCollector co
@@ -1222,6 +1234,9 @@ router.get('/daily-collection', authenticateToken, async (req, res) => {
       LEFT JOIN tblCollector cco ON c.collector_id = cco.id
       WHERE p.date_paid BETWEEN ? AND ?
         AND p.status IN ('active', 'penalty')
+        AND p.status != 'recon'
+        AND LOWER(COALESCE(p.payment_type, '')) != 'recon'
+        AND LOWER(COALESCE(p.remarks, '')) NOT LIKE '%recon%'
         AND ${sqlNotSunday('p.date_paid')}
       ORDER BY p.date_paid, collector_name, c.full_name
     `, [from, to]);

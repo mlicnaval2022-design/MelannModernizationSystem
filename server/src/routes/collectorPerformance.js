@@ -140,6 +140,8 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
         WHERE p.loan_id = l.id
           AND date(p.date_paid) = date(?)
           AND p.status IN ('active', 'penalty')
+          AND p.status != 'recon'
+          AND LOWER(COALESCE(p.payment_type, '')) != 'recon'
           AND ${sqlNotSunday('p.date_paid')}
       ), 0) as collected_today,
       COALESCE((
@@ -148,6 +150,8 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
         WHERE p.loan_id = l.id
           AND date(p.date_paid) = date(?)
           AND p.status IN ('active', 'penalty')
+          AND p.status != 'recon'
+          AND LOWER(COALESCE(p.payment_type, '')) != 'recon'
           AND ${sqlNotSunday('p.date_paid')}
       ), 0) as payment_count_today
       ,
@@ -157,10 +161,11 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
         WHERE p.loan_id = l.id
           AND date(p.date_paid) = date(?)
           AND p.status = 'active'
+          AND p.status != 'recon'
+          AND LOWER(COALESCE(p.payment_type, '')) != 'recon'
           AND (
             LOWER(COALESCE(p.remarks, '')) LIKE '%old balance%'
-            OR LOWER(COALESCE(p.remarks, '')) LIKE '%recon balance%'
-            OR LOWER(COALESCE(p.payment_type, '')) IN ('balance', 'recon', 'old_balance')
+            OR LOWER(COALESCE(p.payment_type, '')) IN ('balance', 'old_balance')
           )
           AND ${sqlNotSunday('p.date_paid')}
       ), 0) as balance_collected_today,
@@ -183,6 +188,8 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
           WHERE p.loan_id = l.id
             AND date(p.date_paid) >= date(?)
             AND p.status IN ('active', 'penalty')
+            AND p.status != 'recon'
+            AND LOWER(COALESCE(p.payment_type, '')) != 'recon'
         )
       )
   `, [targetDate, targetDate, targetDate, targetDate, collectorId, targetDate, targetDate]);
