@@ -525,7 +525,7 @@ function CICGenerator() {
         <button className="btn btn-success" onClick={downloadCsv} disabled={loading || !fileReferenceNumber.trim() || !hasValidRecords}>Download CSV</button>
       </div>
       <div style={{ marginTop: -10, marginBottom: 20, color: '#64748b', fontSize: 13 }}>
-        The selected reporting month determines the loan accounts included in the CIC export. Example: select August 2026 to export August 2026 loans.
+        CIC gets records only from the BIR Client Reports tab. The selected reporting month matches the BIR report Release Date; all matching BIR clients are then checked for the required client information.
       </div>
 
       {legacyCicServer ? (
@@ -534,7 +534,7 @@ function CICGenerator() {
         </div>
       ) : <section className="table-wrapper" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
-          <div><h4 style={{ margin: 0 }}>BIR Client Reports for CIC</h4><div style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>Every BIR Client Report assigned to your account, with a Release Date in the selected month, is included in CIC validation.</div></div>
+          <div><h4 style={{ margin: 0 }}>BIR Client Reports for CIC</h4><div style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>Every BIR Client Report assigned to your account, with a Release Date in the selected month, is validated using only the blue required fields in the CIC template.</div></div>
           <strong style={{ color: '#0f766e' }}>{candidateRows.length} BIR report{candidateRows.length === 1 ? '' : 's'} to validate</strong>
         </div>
         <div className="gc-toolbar" style={{ marginBottom: 14 }}>
