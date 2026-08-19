@@ -35,7 +35,7 @@ test.before(async () => {
   const collector = await dbRun(`INSERT INTO tblCollector (collector_code, first_name, last_name, branch_id, is_active) VALUES ('CIC-COL', 'CIC', 'Collector', ?, 1)`, [branch.id]);
   const customer = await dbRun(`
     INSERT INTO tblCustomer (customer_code, first_name, middle_name, last_name, full_name, branch_id, collector_id, gender, birth_date, civil_status, address, contact, id_type, id_number, id_issue_date, id_expiry_date, id_issued_by)
-    VALUES ('CIC-CLIENT', 'CIC', 'Middle', 'Client', 'CIC Middle Client', ?, ?, 'F', '1990-01-01', 'Single', 'Ormoc City', '09171234567', 'Passport', 'P1234567', NULL, NULL, NULL)
+    VALUES ('CIC-CLIENT', 'Cic,', 'Mid.dle', "Cli'ent", 'CIC Middle Client', ?, ?, 'F', '1990-01-01', 'Single', 'Ormoc, City / Leyte.', '09171234567', 'Passport', 'P1234567', NULL, NULL, NULL)
   `, [branch.id, collector.lastID]);
   const ownLoan = await dbRun(`
     INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_amount, loan_period, total_amortization, balance, date_released, date_maturity, status)
@@ -101,6 +101,11 @@ test('CIC candidates and automatic preview use BIR reports with a release date i
   assert.deepEqual(preview.validationErrors.map(error => error.missingFields), [['Gender', 'Civil Status']]);
   assert.equal(preview.previewRecords.find(record => record.recordType === 'ID' && record.clientCode === 'CIC-CLIENT').values[18], '1');
   assert.equal(preview.previewRecords.find(record => record.recordType === 'ID' && record.clientCode === 'CIC-NO-MIDDLE').values[18], '3');
+  const cleanedId = preview.previewRecords.find(record => record.recordType === 'ID' && record.clientCode === 'CIC-CLIENT').values;
+  assert.equal(cleanedId[6], 'CIC');
+  assert.equal(cleanedId[7], 'CLIENT');
+  assert.equal(cleanedId[8], 'MIDDLE');
+  assert.equal(cleanedId[32], 'ORMOC CITY LEYTE');
   const textRecords = preview.csvData.split('\r\n');
   assert.equal(textRecords[0], 'HD|PF022730|30062026|1.0|1|June 2026 Report');
   assert.equal(textRecords.find(record => record.startsWith('ID|')).split('|').length, 168);

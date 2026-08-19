@@ -66,6 +66,15 @@ function cleanText(value) {
   return normalize(value).toUpperCase();
 }
 
+function cleanCsdfNameOrAddress(value) {
+  return cleanText(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function digits(value) {
   return String(value || '').replace(/\D/g, '');
 }
@@ -208,9 +217,9 @@ function buildIdRow(loan, period, idCode, contact) {
   row[3] = period.referenceDate;
   row[4] = normalize(loan.customer_code);
   row[5] = titleCode(loan);
-  row[6] = cleanText(loan.first_name);
-  row[7] = cleanText(loan.last_name);
-  row[8] = cleanText(loan.middle_name);
+  row[6] = cleanCsdfNameOrAddress(loan.first_name);
+  row[7] = cleanCsdfNameOrAddress(loan.last_name);
+  row[8] = cleanCsdfNameOrAddress(loan.middle_name);
   row[12] = genderCode(loan.gender);
   row[13] = dateForCic(loan.birth_date);
   row[15] = 'PH';
@@ -218,10 +227,10 @@ function buildIdRow(loan, period, idCode, contact) {
   row[17] = '1';
   row[18] = civilStatusCode(loan.civil_status);
   row[31] = ADDRESS_TYPE_MAIN;
-  row[32] = cleanText(loan.address);
+  row[32] = cleanCsdfNameOrAddress(loan.address);
   row[40] = '1';
   row[42] = ADDRESS_TYPE_ADDITIONAL;
-  row[43] = cleanText(loan.address);
+  row[43] = cleanCsdfNameOrAddress(loan.address);
   row[59] = idCode;
   row[60] = normalize(loan.id_number);
   row[61] = dateForCic(loan.id_issue_date);
