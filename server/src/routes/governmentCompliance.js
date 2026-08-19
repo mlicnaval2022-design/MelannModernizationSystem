@@ -152,6 +152,20 @@ router.get('/client-reports/:agency', authenticateToken, requireAgencyAccess, as
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+router.delete('/client-reports/:agency/:id', authenticateToken, requireAgencyAccess, async (req, res) => {
+  try {
+    const report = await dbGet(
+      'SELECT * FROM tblGovernmentComplianceClients WHERE id = ? AND agency = ?',
+      [req.params.id, req.agency]
+    );
+    if (!report) return res.status(404).json({ error: 'Client report not found' });
+
+    await dbRun('DELETE FROM tblGovernmentComplianceClients WHERE id = ? AND agency = ?', [req.params.id, req.agency]);
+    await audit(req, 'DELETE_CLIENT_REPORT', 'Government Compliance Client Report', req.params.id, parseDetails(report, null));
+    res.json({ message: 'Client report deleted' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // The SEC summary is intentionally sourced from the BIR client-report records.
 // It provides a single reporting view without exposing a separate SEC client list.
 router.get('/bir-client-summary', authenticateToken, async (req, res) => {

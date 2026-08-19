@@ -103,7 +103,8 @@ test('configured Government Compliance CRUD grants a custom role access to every
 
   const birClientReports = await api(clerk.token, '/government-compliance/client-reports/BIR');
   assert.equal(birClientReports.status, 200);
-  assert.equal((await birClientReports.json()).length, 2, 'Full Access must include BIR records sent by another user.');
+  const birReports = await birClientReports.json();
+  assert.equal(birReports.length, 2, 'Full Access must include BIR records sent by another user.');
 
   const birSummary = await api(clerk.token, '/government-compliance/bir-client-summary');
   assert.equal(birSummary.status, 200);
@@ -112,6 +113,13 @@ test('configured Government Compliance CRUD grants a custom role access to every
   const coveredLoans = await api(clerk.token, '/government-compliance/bir-client-summary?covered_only=true');
   assert.equal(coveredLoans.status, 200);
   assert.equal((await coveredLoans.json()).totals.loans, 1, 'Covered Loans must include only BIR client-report loans of ₱10,000 and below.');
+
+  const deleteClientReport = await api(clerk.token, `/government-compliance/client-reports/BIR/${birReports[0].id}`, { method: 'DELETE' });
+  assert.equal(deleteClientReport.status, 200);
+
+  const birClientReportsAfterDelete = await api(clerk.token, '/government-compliance/client-reports/BIR');
+  assert.equal(birClientReportsAfterDelete.status, 200);
+  assert.equal((await birClientReportsAfterDelete.json()).length, 1, 'Deleting a BIR client report must remove only that report row.');
 
   for (const agency of ['CIC', 'SEC', 'BIR']) {
     const listResponse = await api(clerk.token, `/government-compliance/${agency}`);

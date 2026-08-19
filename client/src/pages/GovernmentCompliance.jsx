@@ -218,6 +218,12 @@ export default function GovernmentCompliance() {
     await loadSummary().catch(() => {});
   };
 
+  const deleteClientReport = async row => {
+    if (!window.confirm(`Delete ${row.customer_name || 'this client report'} from ${active}?`)) return;
+    await API.delete(`/government-compliance/client-reports/${active}/${row.id}`);
+    await loadClientRows();
+  };
+
   const uploadFile = async e => {
     e.preventDefault();
     const file = fileRef.current?.files?.[0];
@@ -270,7 +276,7 @@ export default function GovernmentCompliance() {
       {viewMode !== 'generator' && (
         <div className="gc-tabs">
           {active === 'SEC'
-            ? <><button className={viewMode === 'summary' ? 'active' : ''} onClick={() => setViewMode('summary')}>Summary</button><button className={viewMode === 'covered-loans' ? 'active' : ''} onClick={() => setViewMode('covered-loans')}>Covered Loans</button></>
+            ? <><button className={viewMode === 'summary' ? 'active' : ''} onClick={() => setViewMode('summary')}>Summary</button><button className={viewMode === 'covered-loans' ? 'active' : ''} onClick={() => setViewMode('covered-loans')}>Covered Loans</button><button className={viewMode === 'clients' ? 'active' : ''} onClick={() => setViewMode('clients')}>Client Reports</button></>
             : <><button className={viewMode === 'company' ? 'active' : ''} onClick={() => setViewMode('company')}>Company Compliance</button><button className={viewMode === 'clients' ? 'active' : ''} onClick={() => setViewMode('clients')}>Client Reports</button></>}
         </div>
       )}
@@ -343,10 +349,10 @@ export default function GovernmentCompliance() {
                 </div>
               </div>
               <table className="data-table">
-                <thead><tr><th>Date Sent</th><th>Client Code</th><th>Client Name</th><th>Principal Loan</th><th>Interest</th><th>Total Loan</th><th>Type</th><th>Release Date</th><th>Collector</th><th>Branch</th><th>Status</th></tr></thead>
+                <thead><tr><th>Date Sent</th><th>Client Code</th><th>Client Name</th><th>Principal Loan</th><th>Interest</th><th>Total Loan</th><th>Type</th><th>Release Date</th><th>Collector</th><th>Branch</th><th>Status</th>{canDelete && <th>Action</th>}</tr></thead>
                 <tbody>
-                  {loading ? <tr className="loading-row"><td colSpan={11}>Loading client reports...</td></tr>
-                    : filteredClientRows.length === 0 ? <tr><td colSpan={11} className="empty-state">No clients sent to {active} yet.</td></tr>
+                  {loading ? <tr className="loading-row"><td colSpan={canDelete ? 12 : 11}>Loading client reports...</td></tr>
+                    : filteredClientRows.length === 0 ? <tr><td colSpan={canDelete ? 12 : 11} className="empty-state">No clients sent to {active} yet.</td></tr>
                     : filteredClientRows.map(row => (
                       <tr key={row.id}>
                         <td style={{ color: '#64748b' }}>{row.created_at ? new Date(row.created_at).toLocaleString() : '-'}</td>
@@ -360,6 +366,7 @@ export default function GovernmentCompliance() {
                         <td>{row.collector_name || 'N/A'}</td>
                         <td>{row.branch_name || 'N/A'}</td>
                         <td><span className="gc-badge good">{row.status}</span></td>
+                        {canDelete && <td><button className="btn btn-sm btn-danger" onClick={() => deleteClientReport(row)}>Delete</button></td>}
                       </tr>
                     ))}
                 </tbody>
