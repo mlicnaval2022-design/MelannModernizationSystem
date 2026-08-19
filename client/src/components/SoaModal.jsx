@@ -142,7 +142,15 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
     const lstatus = (loan.status || '').toLowerCase();
 
     if (lstatus === 'reversed') return 'Reversed';
-    if (lstatus === 'fullpaid' || lstatus === 'fully paid' || lstatus === 'fully_paid') return 'Fully Paid';
+    if (lstatus === 'fullpaid' || lstatus === 'fully paid' || lstatus === 'fully_paid') {
+      const type = (loan.loan_type || '').toLowerCase();
+      const hasReconPayment = (loan.payments || soaData?.payments || []).some(
+        p => (p.loan_id === loan.id || p.loan_code === loan.loan_code) &&
+             (p.status === 'recon' || String(p.payment_type || '').toLowerCase() === 'recon' || String(p.remarks || '').toLowerCase().includes('recon'))
+      );
+      if (type.includes('recon') || hasReconPayment) return 'Fully Paid(Recon)';
+      return 'Fully Paid';
+    }
 
     if (['active', 'approved'].includes(lstatus)) {
       const cstatus = (soaData?.status || '').toUpperCase();
@@ -172,7 +180,15 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
     const lstatus = (loan.status || '').toLowerCase();
 
     if (lstatus === 'reversed') return 'reversed';
-    if (lstatus === 'fullpaid' || lstatus === 'fully paid' || lstatus === 'fully_paid') return 'fully-paid';
+    if (lstatus === 'fullpaid' || lstatus === 'fully paid' || lstatus === 'fully_paid') {
+      const type = (loan.loan_type || '').toLowerCase();
+      const hasReconPayment = (loan.payments || soaData?.payments || []).some(
+        p => (p.loan_id === loan.id || p.loan_code === loan.loan_code) &&
+             (p.status === 'recon' || String(p.payment_type || '').toLowerCase() === 'recon' || String(p.remarks || '').toLowerCase().includes('recon'))
+      );
+      if (type.includes('recon') || hasReconPayment) return 'recon';
+      return 'fully-paid';
+    }
 
     if (['active', 'approved'].includes(lstatus)) {
       const cstatus = (soaData?.status || '').toUpperCase();
@@ -275,12 +291,12 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
 
   const getPaymentStatusText = (payment) => {
     const isReversed = payment.status === 'reversed';
-    const isRecon = payment.status === 'recon' || String(payment.payment_type || '').toLowerCase() === 'recon';
-    const isFullyPaid = payment.status === 'active' && Number(payment.balance_after) <= 0;
+    const isRecon = payment.status === 'recon' || String(payment.payment_type || '').toLowerCase() === 'recon' || String(payment.remarks || '').toLowerCase().includes('recon');
+    const isFullyPaid = (payment.status === 'active' || isRecon) && Number(payment.balance_after) <= 0;
     const isPartial = payment.status === 'active' && Number(payment.balance_after) > 0;
 
     if (isReversed) return 'Reversed';
-    if (isRecon) return 'Recon';
+    if (isRecon) return isFullyPaid ? 'Fully Paid(Recon)' : 'Recon';
     if (payment.status === 'penalty') return 'Penalty';
     if (isFullyPaid) return 'Fully Paid';
     if (isPartial) return 'Active';
@@ -1701,8 +1717,8 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                                       borderRadius: '9999px',
                                       fontSize: '12px',
                                       fontWeight: '600',
-                                      backgroundColor: isReversed ? '#ffe4e6' : statusText === 'Penalty' ? '#fff7ed' : statusText === 'Recon' ? '#ede9fe' : statusText === 'Fully Paid' ? '#dcfce7' : '#e0f2fe',
-                                      color: isReversed ? '#e11d48' : statusText === 'Penalty' ? '#ea580c' : statusText === 'Recon' ? '#7c3aed' : statusText === 'Fully Paid' ? '#16a34a' : '#0284c7'
+                                      backgroundColor: isReversed ? '#ffe4e6' : statusText === 'Penalty' ? '#fff7ed' : (statusText === 'Recon' || statusText === 'Fully Paid(Recon)') ? '#ede9fe' : statusText === 'Fully Paid' ? '#dcfce7' : '#e0f2fe',
+                                      color: isReversed ? '#e11d48' : statusText === 'Penalty' ? '#ea580c' : (statusText === 'Recon' || statusText === 'Fully Paid(Recon)') ? '#7c3aed' : statusText === 'Fully Paid' ? '#16a34a' : '#0284c7'
                                     }}>
                                       {statusText}
                                     </span>
