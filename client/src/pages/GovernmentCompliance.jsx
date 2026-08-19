@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { hasModuleAccess } from '../access';
 import './GovernmentCompliance.css';
 
 const apiOrigin = API.defaults.baseURL.replace('/api', '');
@@ -78,29 +79,19 @@ function badgeClass(status) {
   return 'gc-badge';
 }
 
-function canOpenModule(user) {
-  return ['admin', 'compliance', 'compliance_officer', 'accounting', 'corporate_secretary', 'management', 'manager', 'it'].includes(user?.role);
-}
-
-function canSeeAgency(user, agency) {
-  if (['admin', 'compliance', 'compliance_officer'].includes(user?.role)) return true;
-  if (agency === 'BIR') return user?.role === 'accounting';
-  if (agency === 'SEC') return ['corporate_secretary', 'management', 'manager'].includes(user?.role);
-  return false;
-}
-
-function canWriteAgency(user, agency) {
-  if (['admin', 'compliance', 'compliance_officer'].includes(user?.role)) return true;
-  return agency === 'BIR' && user?.role === 'accounting';
-}
-
 function firstAttachment(row) {
   return row.attachments?.[0] || null;
 }
 
 export default function GovernmentCompliance() {
   const { user } = useAuth();
-  const visibleAgencies = Object.keys(AGENCIES).filter(agency => canSeeAgency(user, agency));
+  // Role Configuration is the single authority for this module.  Agency-specific
+  // role lists used to bypass it and rejected custom roles such as IT/Accounting Clerk.
+  const canOpen = hasModuleAccess(user, 'government-compliance');
+  const canCreate = hasModuleAccess(user, 'government-compliance', 'create');
+  const canEdit = hasModuleAccess(user, 'government-compliance', 'edit');
+  const canDelete = hasModuleAccess(user, 'government-compliance', 'delete');
+  const visibleAgencies = canOpen ? Object.keys(AGENCIES) : [];
   const [active, setActive] = useState(visibleAgencies[0] || 'CIC');
   const [rows, setRows] = useState([]);
   const [viewMode, setViewMode] = useState('company');
@@ -117,8 +108,6 @@ export default function GovernmentCompliance() {
   const fileRef = useRef(null);
 
   const config = AGENCIES[active];
-  const canWrite = canWriteAgency(user, active);
-
   const loadSummary = async () => {
     const { data } = await API.get('/government-compliance/summary');
     setSummary(data);
@@ -242,7 +231,7 @@ export default function GovernmentCompliance() {
     setModal('history');
   };
 
-  if (!canOpenModule(user)) return <div className="gc-page"><div className="empty-state">You do not have access to Government Compliance.</div></div>;
+  if (!canOpen) return <div className="gc-page"><div className="empty-state">You do not have access to Government Compliance.</div></div>;
 
   return (
     <div className="gc-page">
@@ -251,7 +240,7 @@ export default function GovernmentCompliance() {
           <h2 className="payments-title">Government Compliance</h2>
           <p className="payments-subtitle">Track CIC, SEC, and BIR compliance submissions.</p>
         </div>
-        {canWrite && viewMode === 'company' && <button className="btn btn-primary" onClick={() => openForm(null)}>Add Record</button>}
+        {canCreate && viewMode === 'company' && <button className="btn btn-primary" onClick={() => openForm(null)}>Add Record</button>}
       </div>
 
       <div className="gc-kpis">
@@ -269,7 +258,7 @@ export default function GovernmentCompliance() {
 
       <div className="gc-tabs">
         {visibleAgencies.map(agency => <button key={agency} className={active === agency ? 'active' : ''} onClick={() => { setActive(agency); setViewMode('company'); setFilters(emptyFilters); }}>{AGENCIES[agency].label}</button>)}
-        {active === 'CIC' && <button className={viewMode === 'generator' ? 'active' : ''} onClick={() => setViewMode('generator')}>CIC Generator</button>}
+        {active === 'CIC' && canCreate && <button className={viewMode === 'generator' ? 'active' : ''} onClick={() => setViewMode('generator')}>CIC Generator</button>}
       </div>
 
       {viewMode !== 'generator' && (
@@ -305,14 +294,14 @@ export default function GovernmentCompliance() {
                         <tr key={row.id}>
                           {config.columns.map(([key]) => <td key={key}>{renderValue(row, key)}</td>)}
                           <td><div className="gc-actions">
-                            {canWrite && <button className="btn btn-sm btn-secondary" onClick={() => openForm(row)}>Edit</button>}
-                            {canWrite && <button className="btn btn-sm btn-secondary" onClick={() => setUploadTarget({ row, document_type: config.attachments[0], replace: false })}>Upload</button>}
+                            {canEdit && <button className="btn btn-sm btn-secondary" onClick={() => openForm(row)}>Edit</button>}
+                            {canCreate && <button className="btn btn-sm btn-secondary" onClick={() => setUploadTarget({ row, document_type: config.attachments[0], replace: false })}>Upload</button>}
                             {firstAttachment(row) && <a className="btn btn-sm btn-secondary" href={`${apiOrigin}${firstAttachment(row).file_url}`} target="_blank" rel="noreferrer">View</a>}
                             {firstAttachment(row) && <a className="btn btn-sm btn-secondary" href={`${apiOrigin}${firstAttachment(row).file_url}`} download>Download</a>}
-                            {canWrite && firstAttachment(row) && <button className="btn btn-sm btn-secondary" onClick={() => setUploadTarget({ row, document_type: firstAttachment(row).document_type, replace: true })}>Replace</button>}
+                            {canCreate && firstAttachment(row) && <button className="btn btn-sm btn-secondary" onClick={() => setUploadTarget({ row, document_type: firstAttachment(row).document_type, replace: true })}>Replace</button>}
                             <button className="btn btn-sm btn-secondary" onClick={() => window.print()}>Print</button>
                             <button className="btn btn-sm btn-secondary" onClick={() => openHistory(row)}>{active === 'SEC' ? 'Timeline' : 'History'}</button>
-                            {canWrite && <button className="btn btn-sm btn-danger" onClick={() => archiveRow(row)}>Archive</button>}
+                            {canDelete && <button className="btn btn-sm btn-danger" onClick={() => archiveRow(row)}>Archive</button>}
                           </div></td>
                         </tr>
                       ))}

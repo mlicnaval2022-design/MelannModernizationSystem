@@ -2,7 +2,7 @@ export const ACCESS_LEVEL_OPTIONS = [
   { value: 'view', label: 'View Only', description: 'Can open and view records only.' },
   { value: 'input', label: 'Input', description: 'Can view and add new records.' },
   { value: 'edit', label: 'Edit', description: 'Can view and update existing records.' },
-  { value: 'crud', label: 'CRUD', description: 'Can create, view, update, and delete records.' },
+  { value: 'crud', label: 'Full Access', description: 'Can create, view, update, and delete records.' },
 ]
 
 export const ACCESS_MODULES = [

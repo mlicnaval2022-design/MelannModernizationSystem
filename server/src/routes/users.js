@@ -54,10 +54,10 @@ function buildRoleDescription(roleName, permissions) {
     return `${name} has view-only access to ${moduleScope} and ${reportScope}. This role can view authorized records but cannot add, edit, or delete them.`;
   }
   if (levels.length === 1 && levels[0] === 'crud') {
-    return `${name} has full CRUD access to ${moduleScope} and ${reportScope}. This role can create, view, update, and delete records within the configured scope.`;
+    return `${name} has Full Access to ${moduleScope} and ${reportScope}. This role can create, view, update, and delete records within the configured scope.`;
   }
 
-  const labels = { view: 'view-only', input: 'input-only', edit: 'edit-only', crud: 'full CRUD' };
+  const labels = { view: 'view-only', input: 'input-only', edit: 'edit-only', crud: 'Full Access' };
   const breakdown = ACCESS_LEVELS
     .filter(level => counts[level])
     .map(level => `${counts[level]} ${labels[level]}`)

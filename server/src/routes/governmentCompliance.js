@@ -19,32 +19,12 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-const AGENCY_ACCESS = {
-  CIC: ['admin', 'compliance', 'compliance_officer'],
-  SEC: ['admin', 'compliance', 'compliance_officer', 'corporate_secretary', 'management', 'manager'],
-  BIR: ['admin', 'compliance', 'compliance_officer', 'accounting']
-};
-const WRITE_ROLES = ['admin', 'compliance', 'compliance_officer'];
-
-function canAccess(user, agency) {
-  return AGENCY_ACCESS[agency]?.includes(user.role);
-}
-
-function canWrite(user, agency) {
-  if (WRITE_ROLES.includes(user.role)) return true;
-  return agency === 'BIR' && user.role === 'accounting';
-}
+const AGENCIES = ['CIC', 'SEC', 'BIR'];
 
 function requireAgencyAccess(req, res, next) {
   const agency = String(req.params.agency || req.body.agency || req.query.agency || '').toUpperCase();
-  if (!AGENCY_ACCESS[agency]) return res.status(400).json({ error: 'Invalid agency' });
-  if (!canAccess(req.user, agency)) return res.status(403).json({ error: 'Insufficient compliance permissions' });
+  if (!AGENCIES.includes(agency)) return res.status(400).json({ error: 'Invalid agency' });
   req.agency = agency;
-  next();
-}
-
-function requireAgencyWrite(req, res, next) {
-  if (!canWrite(req.user, req.agency)) return res.status(403).json({ error: 'Insufficient write permissions' });
   next();
 }
 
@@ -62,8 +42,7 @@ async function withAttachments(row) {
 
 router.get('/summary', authenticateToken, async (req, res) => {
   try {
-    const agencies = ['CIC', 'SEC', 'BIR'].filter(agency => canAccess(req.user, agency));
-    if (agencies.length === 0) return res.json({ cards: {}, notifications: [] });
+    const agencies = AGENCIES;
     const placeholders = agencies.map(() => '?').join(',');
     const rows = await dbAll(
       `SELECT agency, status, due_date FROM tblGovernmentCompliance WHERE is_archived = 0 AND agency IN (${placeholders})`,
@@ -128,8 +107,7 @@ router.post('/send-clients', authenticateToken, async (req, res) => {
   try {
     const { clients, agency } = req.body;
     const targetAgency = String(agency).toUpperCase();
-    if (!clients || !targetAgency || !AGENCY_ACCESS[targetAgency]) return res.status(400).json({ error: 'Invalid request' });
-    if (!canAccess(req.user, targetAgency)) return res.status(403).json({ error: 'Insufficient permissions' });
+    if (!clients || !targetAgency || !AGENCIES.includes(targetAgency)) return res.status(400).json({ error: 'Invalid request' });
     
     let inserted = 0;
     for (const c of clients) {
@@ -177,7 +155,7 @@ router.get('/:agency', authenticateToken, requireAgencyAccess, async (req, res) 
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.post('/:agency', authenticateToken, requireAgencyAccess, requireAgencyWrite, async (req, res) => {
+router.post('/:agency', authenticateToken, requireAgencyAccess, async (req, res) => {
   try {
     const b = req.body;
     const result = await dbRun(
@@ -191,7 +169,7 @@ router.post('/:agency', authenticateToken, requireAgencyAccess, requireAgencyWri
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.put('/:agency/:id', authenticateToken, requireAgencyAccess, requireAgencyWrite, async (req, res) => {
+router.put('/:agency/:id', authenticateToken, requireAgencyAccess, async (req, res) => {
   try {
     const previous = await dbGet(`SELECT * FROM tblGovernmentCompliance WHERE id = ? AND agency = ?`, [req.params.id, req.agency]);
     if (!previous) return res.status(404).json({ error: 'Record not found' });
@@ -205,7 +183,7 @@ router.put('/:agency/:id', authenticateToken, requireAgencyAccess, requireAgency
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.delete('/:agency/:id', authenticateToken, requireAgencyAccess, requireAgencyWrite, async (req, res) => {
+router.delete('/:agency/:id', authenticateToken, requireAgencyAccess, async (req, res) => {
   try {
     const previous = await dbGet(`SELECT * FROM tblGovernmentCompliance WHERE id = ? AND agency = ?`, [req.params.id, req.agency]);
     if (!previous) return res.status(404).json({ error: 'Record not found' });
@@ -215,7 +193,7 @@ router.delete('/:agency/:id', authenticateToken, requireAgencyAccess, requireAge
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.post('/:agency/:id/attachments', authenticateToken, requireAgencyAccess, requireAgencyWrite, upload.single('file'), async (req, res) => {
+router.post('/:agency/:id/attachments', authenticateToken, requireAgencyAccess, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     const record = await dbGet(`SELECT id FROM tblGovernmentCompliance WHERE id = ? AND agency = ?`, [req.params.id, req.agency]);

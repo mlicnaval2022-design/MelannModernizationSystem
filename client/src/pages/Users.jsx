@@ -23,9 +23,9 @@ function buildRoleDescription(roleName, permissions, modules, reportTypes) {
   const counts = entries.reduce((result, [, level]) => ({ ...result, [level]: (result[level] || 0) + 1 }), {})
   const levels = Object.keys(counts)
   if (levels.length === 1 && levels[0] === 'view') return `${name} has view-only access to ${moduleScope} and ${reportScope}. This role can view authorized records but cannot add, edit, or delete them.`
-  if (levels.length === 1 && levels[0] === 'crud') return `${name} has full CRUD access to ${moduleScope} and ${reportScope}. This role can create, view, update, and delete records within the configured scope.`
+  if (levels.length === 1 && levels[0] === 'crud') return `${name} has Full Access to ${moduleScope} and ${reportScope}. This role can create, view, update, and delete records within the configured scope.`
 
-  const labels = { view: 'view-only', input: 'input-only', edit: 'edit-only', crud: 'full CRUD' }
+  const labels = { view: 'view-only', input: 'input-only', edit: 'edit-only', crud: 'Full Access' }
   const breakdown = ACCESS_LEVEL_OPTIONS.filter(level => counts[level.value]).map(level => `${counts[level.value]} ${labels[level.value]}`).join(', ')
   return `${name} can access ${moduleScope} and ${reportScope}. Permission assignments: ${breakdown}. Access is restricted to the selected modules and report types, with actions limited by each configured access level.`
 }
@@ -278,7 +278,7 @@ export default function Users() {
 
           <form className="card" onSubmit={saveRole}>
             <div className="card-title" style={{ marginBottom: 14 }}>{roleForm.id ? `Edit ${roleForm.role_name}` : 'Add Position-Based Role'}</div>
-            {!canCrud && <div className="login-error" style={{ marginBottom: 14 }}>Your access is view-only. CRUD permission is required to change role configurations.</div>}
+            {!canCrud && <div className="login-error" style={{ marginBottom: 14 }}>Your access is view-only. Full Access permission is required to change role configurations.</div>}
             {roleError && <div className="login-error" style={{ marginBottom: 14 }}>{roleError}</div>}
             <div className="form-grid" style={{ marginBottom: 16 }}>
               <div className="form-group"><label className="form-label">Position / Role Name *</label><input className="form-control" placeholder="e.g. Collector, Cashier, Branch Manager" value={roleForm.role_name} onChange={event => setRoleForm(current => ({ ...current, role_name: event.target.value }))} required disabled={!canCrud} /></div>
@@ -286,7 +286,7 @@ export default function Users() {
               <div className="form-group" style={{ gridColumn: '1 / -1' }}><label className="form-label">Role Description <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>(Automatically Generated)</span></label><textarea className="form-control" rows={4} value={generatedRoleDescription} readOnly style={{ background: '#f8fafc', lineHeight: 1.5 }} /><div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 5 }}>This description updates automatically from the selected modules, report types, and access levels.</div></div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'end', marginBottom: 10 }}><div><div style={{ fontWeight: 800, color: 'var(--blue-dark)' }}>Module Checklist</div><div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 3 }}>Check allowed modules, then choose View Only, Input, Edit, or full CRUD.</div></div><div style={{ color: 'var(--text-muted)', fontSize: 12 }}>{Object.keys(roleForm.permissions).length} selected</div></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'end', marginBottom: 10 }}><div><div style={{ fontWeight: 800, color: 'var(--blue-dark)' }}>Module Checklist</div><div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 3 }}>Check allowed modules, then choose View Only, Input, Edit, or Full Access.</div></div><div style={{ color: 'var(--text-muted)', fontSize: 12 }}>{Object.keys(roleForm.permissions).length} selected</div></div>
             <div className="table-wrapper" style={{ maxHeight: 430, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
               <table className="data-table">
                 <thead><tr><th style={{ width: 120 }}><label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: canCrud ? 'pointer' : 'default' }}><input type="checkbox" checked={allPermissionsSelected} onChange={toggleAllModules} disabled={!canCrud || allPermissionKeys.length === 0} aria-label="Select all modules and report types" /> Select All</label></th><th>Module</th><th>Section</th><th style={{ width: 180 }}>Access Level</th></tr></thead>
