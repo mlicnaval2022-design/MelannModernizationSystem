@@ -80,6 +80,12 @@ const getDemandStatus = (row) => {
   return 'Received'
 }
 
+const getReceivedDemandStatus = (followUpDate) => {
+  const dueDate = parseLocalDate(followUpDate)
+  const today = parseLocalDate(toDateInputValue(new Date()))
+  return dueDate && dueDate <= today ? 'Follow-up Due' : 'Received'
+}
+
 const getNextDemandType = (demandType) => demandType === 'first' ? 'second' : demandType === 'second' ? 'third' : ''
 
 const getDemandNextAction = (row) => {
@@ -818,7 +824,7 @@ export default function DemandLetter() {
 
   const saveReceivedDetails = async () => {
     if (!receivedModal) return
-    const status = getDemandStatus(receivedModal)
+    const status = getReceivedDemandStatus(receivedModal.follow_up_date)
     setReceivedModal(prev => ({ ...prev, saving: true, error: '' }))
     try {
       const res = await API.put(`/demand-letters/${receivedModal.id}`, {

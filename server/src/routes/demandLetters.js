@@ -613,7 +613,15 @@ router.put('/:id', authenticateToken, async (req, res) => {
     const existing = await dbGet(`SELECT * FROM tblDemandLetter WHERE id = ?`, [req.params.id]);
     if (!existing) return res.status(404).json({ error: 'Demand letter record not found' });
 
-    const nextStatus = req.body.status !== undefined ? String(req.body.status || 'Generated') : existing.status;
+    const receivedDate = req.body.date_received !== undefined ? req.body.date_received : existing.date_received;
+    const followUpDate = req.body.follow_up_date !== undefined ? req.body.follow_up_date : existing.follow_up_date;
+    const deliveryStatus = req.body.delivery_status !== undefined ? req.body.delivery_status : existing.delivery_status;
+    let nextStatus = req.body.status !== undefined ? String(req.body.status || 'Generated') : existing.status;
+    // Receipt confirmation must move the demand out of Awaiting Receipt even if
+    // an older client sends the record's previous status back in the update.
+    if (receivedDate && deliveryStatus === 'Received' && ['Sent', 'Awaiting Receipt'].includes(nextStatus)) {
+      nextStatus = followUpDate && String(followUpDate).slice(0, 10) <= todayDateOnly() ? 'Follow-up Due' : 'Received';
+    }
     if (nextStatus && !STATUSES.has(nextStatus)) return res.status(400).json({ error: 'Invalid status' });
 
     await dbRun(`
@@ -630,9 +638,9 @@ router.put('/:id', authenticateToken, async (req, res) => {
     `, [
       req.body.courier !== undefined ? req.body.courier : existing.courier,
       req.body.date_sent !== undefined ? req.body.date_sent : existing.date_sent,
-      req.body.delivery_status !== undefined ? req.body.delivery_status : existing.delivery_status,
-      req.body.date_received !== undefined ? req.body.date_received : existing.date_received,
-      req.body.follow_up_date !== undefined ? req.body.follow_up_date : existing.follow_up_date,
+      deliveryStatus,
+      receivedDate,
+      followUpDate,
       req.body.remarks !== undefined ? req.body.remarks : existing.remarks,
       nextStatus || 'Generated',
       req.params.id
