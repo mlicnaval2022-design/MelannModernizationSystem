@@ -146,6 +146,15 @@ function genderCode(value) {
   return '';
 }
 
+function civilStatusCode(value) {
+  const status = cleanText(value).replace(/\s*\/\s*/g, '/');
+  if (status === 'SINGLE') return '1';
+  if (status === 'MARRIED') return '2';
+  if (status === 'DIVORCED/SEPARATED' || status === 'DIVORCED' || status === 'SEPARATED') return '3';
+  if (status === 'WIDOW' || status === 'WIDOWED') return '4';
+  return '';
+}
+
 function idTypeCode(value) {
   const raw = cleanText(value).replace(/\./g, '');
   if (!raw) return '';
@@ -184,6 +193,7 @@ function validateId(loan) {
   if (!normalize(loan.last_name)) missing.push('Last Name');
   if (!genderCode(loan.gender)) missing.push('Gender');
   if (!dateForCic(loan.birth_date)) missing.push('Date of Birth');
+  if (!civilStatusCode(loan.civil_status)) missing.push('Civil Status');
   if (!idCode) missing.push('Identification Type');
 
   return { missing, contact: digits(loan.contact), idCode };
@@ -212,6 +222,7 @@ function buildIdRow(loan, period, idCode, contact) {
   row[10] = cleanText(loan.address);
   row[11] = 'PH';
   row[12] = 'PH';
+  row[14] = civilStatusCode(loan.civil_status);
   row[20] = ADDRESS_TYPE_MAIN;
   row[21] = cleanText(loan.address);
   row[23] = ADDRESS_TYPE_ADDITIONAL;
@@ -537,6 +548,7 @@ router.get('/readiness/:customerId', authenticateToken, async (req, res) => {
     if (!customer.last_name) missingFields.push('Last Name');
     if (!genderCode(customer.gender)) missingFields.push('Gender');
     if (!customer.birth_date) missingFields.push('Date of Birth');
+    if (!civilStatusCode(customer.civil_status)) missingFields.push('Civil Status');
     if (!idTypeCode(customer.id_type)) missingFields.push('Identification Type');
     res.json({ status: missingFields.length > 0 ? 'Incomplete' : 'Ready', missingFields });
   } catch (error) {

@@ -54,8 +54,8 @@ test.before(async () => {
   await dbRun(`INSERT INTO tblGovernmentComplianceClients (agency, loan_id, customer_id, customer_code, customer_name, assigned_user_id, sent_by_user_id) VALUES ('CIC', ?, ?, 'CIC-CLIENT', 'CIC Client', 101, 101)`, [cicOnlyLoan.lastID, customer.lastID]);
 
   const noMiddleNameCustomer = await dbRun(`
-    INSERT INTO tblCustomer (customer_code, first_name, last_name, full_name, branch_id, collector_id, gender, birth_date, id_type)
-    VALUES ('CIC-NO-MIDDLE', 'No', 'Middle', 'No Middle', ?, ?, 'M', '1991-02-03', 'Passport')
+    INSERT INTO tblCustomer (customer_code, first_name, last_name, full_name, branch_id, collector_id, gender, birth_date, civil_status, id_type)
+    VALUES ('CIC-NO-MIDDLE', 'No', 'Middle', 'No Middle', ?, ?, 'M', '1991-02-03', 'Divorced/Separated', 'Passport')
   `, [branch.id, collector.lastID]);
   const noMiddleNameLoan = await dbRun(`
     INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_amount, loan_period, total_amortization, balance, date_released, date_maturity, status)
@@ -85,7 +85,7 @@ test('CIC candidates and automatic preview use BIR reports with a release date i
   const candidates = await candidatesResponse.json();
   assert.deepEqual(candidates.clients.map(client => client.loan_code), ['CIC-OWN', 'CIC-NO-MIDDLE', 'CIC-Z-MISSING']);
   assert.equal(candidates.clients[1].cic_eligibility, 'Eligible');
-  assert.equal(candidates.clients[2].cic_eligibility, 'Incomplete: Gender');
+  assert.equal(candidates.clients[2].cic_eligibility, 'Incomplete: Gender, Civil Status');
 
   const previewResponse = await request('/preview', {
     method: 'POST',
@@ -98,7 +98,9 @@ test('CIC candidates and automatic preview use BIR reports with a release date i
   assert.equal(preview.counts.totalIdRecords, 2);
   assert.equal(preview.counts.totalCiRecords, 2);
   assert.equal(preview.counts.totalRecordsForFt, 4);
-  assert.deepEqual(preview.validationErrors.map(error => error.missingFields), [['Gender']]);
+  assert.deepEqual(preview.validationErrors.map(error => error.missingFields), [['Gender', 'Civil Status']]);
+  assert.equal(preview.previewRecords.find(record => record.recordType === 'ID' && record.clientCode === 'CIC-CLIENT').values[14], '1');
+  assert.equal(preview.previewRecords.find(record => record.recordType === 'ID' && record.clientCode === 'CIC-NO-MIDDLE').values[14], '3');
   assert.deepEqual(preview.previewRecords.map(record => record.recordType), ['HD', 'ID', 'ID', 'CI', 'CI', 'FT']);
   assert.match(preview.fileName, /^PF022370_CSDF_20260630\d{6}\.txt$/);
 });
