@@ -45,8 +45,13 @@ test.before(async () => {
     INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_amount, loan_period, total_amortization, balance, date_released, date_maturity, status)
     VALUES ('CIC-OTHER', ?, ?, ?, 'New', 1000, 100, 45, 1100, 1100, '2026-06-11', '2026-07-25', 'active')
   `, [customer.lastID, collector.lastID, branch.id]);
+  const cicOnlyLoan = await dbRun(`
+    INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_amount, loan_period, total_amortization, balance, date_released, date_maturity, status)
+    VALUES ('CIC-ONLY', ?, ?, ?, 'New', 1000, 100, 45, 1100, 1100, '2026-06-12', '2026-07-26', 'active')
+  `, [customer.lastID, collector.lastID, branch.id]);
   await dbRun(`INSERT INTO tblGovernmentComplianceClients (agency, loan_id, customer_id, customer_code, customer_name, assigned_user_id, sent_by_user_id) VALUES ('BIR', ?, ?, 'CIC-CLIENT', 'CIC Client', 101, 101)`, [ownLoan.lastID, customer.lastID]);
   await dbRun(`INSERT INTO tblGovernmentComplianceClients (agency, loan_id, customer_id, customer_code, customer_name, assigned_user_id, sent_by_user_id) VALUES ('BIR', ?, ?, 'CIC-CLIENT', 'CIC Client', 202, 202)`, [otherLoan.lastID, customer.lastID]);
+  await dbRun(`INSERT INTO tblGovernmentComplianceClients (agency, loan_id, customer_id, customer_code, customer_name, assigned_user_id, sent_by_user_id) VALUES ('CIC', ?, ?, 'CIC-CLIENT', 'CIC Client', 101, 101)`, [cicOnlyLoan.lastID, customer.lastID]);
 });
 
 test.after(async () => {
