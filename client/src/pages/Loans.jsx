@@ -655,18 +655,29 @@ export default function Loans() {
                       <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>DATE</th>
                       <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>AMOUNT</th>
                       <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>RUNNING BALANCE</th>
+                      <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>NOTES / REMARKS</th>
                       <th style={{ padding: '16px 20px', color: '#1d4ed8', fontSize: 13, fontWeight: 800 }}>STATUS</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(detailLoan.payments || []).length === 0
-                      ? <tr><td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>No payments yet</td></tr>
+                      ? <tr><td colSpan={6} style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>No payments yet</td></tr>
                       : detailLoan.payments.map(p => (
                         <tr key={p.id} style={{ borderTop: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '16px 20px', color: '#3b82f6', fontWeight: 700, fontFamily: 'monospace' }}>{p.or_number || p.payment_code || '---'}</td>
                           <td style={{ padding: '16px 20px', color: '#334155' }}>{p.date_paid}</td>
                           <td style={{ padding: '16px 20px', color: '#0f172a', fontWeight: 800 }}>₱ {fmt(p.amount_paid)}</td>
                           <td style={{ padding: '16px 20px', color: '#475569' }}>₱ {fmt(p.balance_after)}</td>
+                          <td style={{ padding: '16px 20px', color: '#475569', fontSize: 13, maxWidth: '220px', wordBreak: 'break-word' }}>
+                            {p.remarks ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'flex-start', gap: '6px' }}>
+                                <i className="bi bi-chat-left-text" style={{ color: '#2563eb', fontSize: 12, marginTop: 3, flexShrink: 0 }}></i>
+                                <span>{p.remarks}</span>
+                              </span>
+                            ) : (
+                              <span style={{ color: '#94a3b8' }}>—</span>
+                            )}
+                          </td>
                           <td style={{ padding: '16px 20px' }}>
                             <span style={{ 
                               padding: '4px 10px', 

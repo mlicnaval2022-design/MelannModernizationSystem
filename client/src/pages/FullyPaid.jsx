@@ -430,7 +430,7 @@ export default function FullyPaid({ search = '' }) {
                           <div style={{ marginTop: 12, maxHeight: 260, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>
                             <table className="data-table" style={{ margin: 0 }}>
                               <thead>
-                                <tr><th>Date</th><th>Amount</th><th>Type</th><th>Status</th></tr>
+                                <tr><th>Date</th><th>Amount</th><th>Type</th><th>Notes</th><th>Status</th></tr>
                               </thead>
                               <tbody>
                                 {evalData.payment_history.map((p, i) => (
@@ -438,6 +438,9 @@ export default function FullyPaid({ search = '' }) {
                                     <td>{p.date_paid}</td>
                                     <td>₱{fmt(p.amount_paid)}</td>
                                     <td>{p.payment_type}</td>
+                                    <td style={{ fontSize: '12px', color: '#475569', maxWidth: '180px', wordBreak: 'break-word' }}>
+                                      {p.remarks || '—'}
+                                    </td>
                                     <td>
                                       <span style={{
                                         padding: '4px 8px',

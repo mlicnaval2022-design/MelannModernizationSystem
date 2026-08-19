@@ -175,9 +175,14 @@ export default function ReversePayment() {
                   <div style={{ fontSize: '15px', color: '#475569', fontWeight: 700 }}>₱ {fmt(payment.balance_after)}</div>
                 </div>
 
-                <div style={{ gridColumn: '1 / -1' }}>
+                <div>
                   <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 700 }}>Posted By</div>
                   <div style={{ fontSize: '15px', color: '#0f172a' }}>{payment.encoded_by_name || 'System'}</div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 700 }}>Notes / Remarks</div>
+                  <div style={{ fontSize: '14px', color: '#334155' }}>{payment.remarks || '—'}</div>
                 </div>
               </div>
 
