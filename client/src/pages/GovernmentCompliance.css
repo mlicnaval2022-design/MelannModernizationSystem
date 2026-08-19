@@ -320,3 +320,24 @@
     flex-wrap: wrap;
   }
 }
+.gc-summary { padding: 4px 0 28px; }
+.gc-summary-note { margin: 0 0 16px; color: #64748b; font-size: 13px; }
+.gc-summary-metrics { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); gap: 14px; margin-bottom: 28px; }
+.gc-summary-metric { min-height: 108px; padding: 18px; border: 1px solid #dbe4f0; border-radius: 12px; background: linear-gradient(145deg, #fff, #f8fbff); box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06); }
+.gc-summary-metric span { display: block; color: #0e7490; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.gc-summary-metric strong { display: block; margin-top: 12px; color: #0f172a; font-size: clamp(23px, 2vw, 34px); line-height: 1; }
+.gc-summary-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 38px; }
+.gc-summary-columns > div > h3 { margin: 0 0 16px; color: #1e293b; font-size: 17px; }
+.gc-summary-list { margin-bottom: 22px; }
+.gc-summary-list h4 { margin: 0 0 8px; color: #64748b; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+.gc-summary-list > div, .gc-interest-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: center; margin-bottom: 7px; padding: 12px 15px; border: 1px solid #e2e8f0; border-radius: 7px; background: #fff; }
+.gc-summary-list span { color: #475569; }
+.gc-summary-list strong { color: #0f172a; font-size: 16px; }
+.gc-summary-financial { margin-top: 10px; }
+.gc-interest-table { overflow: hidden; border: 1px solid #dbe4f0; border-radius: 9px; background: #fff; }
+.gc-interest-row { grid-template-columns: 1fr 1fr 1fr; margin: 0; border: 0; border-radius: 0; border-bottom: 1px solid #e2e8f0; }
+.gc-interest-row:last-child { border-bottom: 0; }
+.gc-interest-heading { color: #0e7490; background: #f0fdfa; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.gc-interest-row strong:last-child { color: #047857; }
+@media (max-width: 1100px) { .gc-summary-metrics { grid-template-columns: repeat(3, minmax(150px, 1fr)); } }
+@media (max-width: 760px) { .gc-summary-metrics, .gc-summary-columns { grid-template-columns: 1fr; } .gc-interest-row { grid-template-columns: 1fr .7fr 1fr; gap: 8px; padding: 11px; } }

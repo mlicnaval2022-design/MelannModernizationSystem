@@ -72,6 +72,33 @@ test('configured Government Compliance CRUD grants a custom role access to every
   const clerk = await login('it_accounting_clerk', 'test-password');
   assert.equal(clerk.user.permissions['government-compliance'], 'crud');
 
+  const sendByAdmin = await api(admin.token, '/government-compliance/send-clients', {
+    method: 'POST',
+    body: JSON.stringify({
+      agency: 'BIR',
+      clients: [{
+        loan_id: 99001,
+        customer_id: 88001,
+        customer_code: 'BIR-SHARED-001',
+        customer_name: 'Shared BIR Client',
+        loan_amount: 5000,
+        loan_type: 'New',
+        date_released: '2026-08-01',
+        collector_name: 'Admin Collector',
+        branch_name: 'Main Branch',
+      }],
+    }),
+  });
+  assert.equal(sendByAdmin.status, 200);
+
+  const birClientReports = await api(clerk.token, '/government-compliance/client-reports/BIR');
+  assert.equal(birClientReports.status, 200);
+  assert.equal((await birClientReports.json()).length, 1, 'Full Access must include BIR records sent by another user.');
+
+  const birSummary = await api(clerk.token, '/government-compliance/bir-client-summary');
+  assert.equal(birSummary.status, 200);
+  assert.equal((await birSummary.json()).totals.loans, 1, 'SEC Summary data must be sourced from BIR client reports.');
+
   for (const agency of ['CIC', 'SEC', 'BIR']) {
     const listResponse = await api(clerk.token, `/government-compliance/${agency}`);
     assert.equal(listResponse.status, 200, `${agency}: ${await listResponse.text()}`);
