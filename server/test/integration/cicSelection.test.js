@@ -106,6 +106,8 @@ test('CIC candidates and automatic preview use BIR reports with a release date i
   assert.equal(cleanedId[7], 'CLIENT');
   assert.equal(cleanedId[8], 'MIDDLE');
   assert.equal(cleanedId[32], 'ORMOC CITY LEYTE');
+  const currentCi = preview.previewRecords.find(record => record.recordType === 'CI' && record.clientCode === 'CIC-CLIENT').values;
+  assert.deepEqual(currentCi.slice(32, 35), ['0', '0', '0'], 'Current loans must report zero for the required overdue CI fields.');
   const textRecords = preview.csvData.split('\r\n');
   assert.equal(textRecords[0], 'HD|PF022730|30062026|1.0|1|June 2026 Report');
   assert.equal(textRecords.find(record => record.startsWith('ID|')).split('|').length, 168);

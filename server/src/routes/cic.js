@@ -275,9 +275,11 @@ function buildCiRow(loan, period) {
   row[27] = amount(loan.last_payment_amount);
   row[30] = String(remainingDays);
   row[31] = amount(loan.balance);
-  row[32] = isPastDue ? String(overdue) : '';
-  row[33] = isPastDue ? amount(loan.balance) : '';
-  row[34] = isPastDue ? String(overdue) : '';
+  // The CIC CI template requires these fields. Active loans that are not yet
+  // overdue must explicitly report zero rather than leave them blank.
+  row[32] = isPastDue ? String(overdue) : '0';
+  row[33] = isPastDue ? amount(loan.balance) : '0';
+  row[34] = isPastDue ? String(overdue) : '0';
   return padRow(row);
 }
 
