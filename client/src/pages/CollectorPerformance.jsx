@@ -853,10 +853,24 @@ export default function CollectorPerformance() {
       totals[groupKey] += Number(expense.amount || 0)
       if (column) categoryTotals[column.key] += Number(expense.amount || 0)
     })
+    // Drafts are intentionally included here so the day totals and summary cards
+    // respond while the user types, before the changes are saved to the server.
+    Object.values(expenseCellDrafts).forEach(draft => {
+      if (draft.expenseDate !== group.date) return
+      const draftAmount = draft.value === '' ? 0 : Number(draft.value)
+      if (!Number.isFinite(draftAmount) || draftAmount < 0) return
+
+      const groupKey = tabulationGroupForExpense(draft.category)
+      const category = tabulationCategoryForExpense(draft.category)
+      const column = EXPENSE_TABULATION_COLUMNS.find(item => item.groupKey === groupKey && item.category === category)
+      const difference = draftAmount - Number(draft.initialAmount || 0)
+      totals[groupKey] += difference
+      if (column) categoryTotals[column.key] += difference
+    })
     const officeTotal = EXPENSE_TABULATION_GROUPS.filter(group => group.section === 'office').reduce((sum, group) => sum + totals[group.key], 0)
     const miscTotal = EXPENSE_TABULATION_GROUPS.filter(group => group.section === 'misc').reduce((sum, group) => sum + totals[group.key], 0)
     return { ...group, totals, categoryTotals, officeTotal, miscTotal, grandTotal: officeTotal + miscTotal }
-  }), [manualExpenseGroups])
+  }), [manualExpenseGroups, expenseCellDrafts])
 
   const expenseTabulationTotals = useMemo(() => expenseTabulationRows.reduce((summary, row) => ({
     office: summary.office + row.officeTotal,
@@ -1811,10 +1825,10 @@ export default function CollectorPerformance() {
         .expense-tabulation-kpi.share { border-top: 3px solid #7847c7; background: linear-gradient(135deg, #faf7ff, #fff); }
         .expense-tabulation-kpi.share strong { color: #6d28d9; }
         .expense-tabulation-table { --expense-date-width: 92px; --expense-office-width: 106px; --expense-misc-width: 82px; --expense-grand-width: 110px; min-width: 5400px !important; border-collapse: separate; border-spacing: 0; }
-        .expense-tabulation-table > tbody > tr > td { padding: 7px 6px; font-size: 10px; }
+        .expense-tabulation-table > tbody > tr > td { padding: 7px 6px; border-right: 1px solid #cbd5e1 !important; border-bottom: 1px solid #dbe4f0 !important; font-size: 10px; }
         .expense-tabulation-table thead tr:first-child th { top: 0; z-index: 7; height: 32px; padding: 6px 5px; color: #fff; text-align: center; vertical-align: middle; font-size: 10px; }
         .expense-tabulation-table thead tr:first-child th:not(.expense-tabulation-section) { background: #23455e; }
-        .expense-tabulation-table thead tr:nth-child(2) th { top: 32px; z-index: 6; min-width: 78px; padding: 6px 4px; white-space: normal; text-align: center; font-size: 9px; line-height: 1.15; }
+        .expense-tabulation-table thead tr:nth-child(2) th { top: 32px; z-index: 6; min-width: 78px; padding: 6px 4px; border-right: 1px solid #cbd5e1 !important; border-bottom: 1px solid #cbd5e1 !important; white-space: normal; text-align: center; font-size: 9px; line-height: 1.15; }
         .expense-tabulation-table thead .expense-tabulation-section.office { background: #087d73; }
         .expense-tabulation-table thead .expense-tabulation-section.misc { background: #315cb9; }
         .expense-tabulation-table thead .expense-tabulation-section.grand { background: #c55d0a; }
