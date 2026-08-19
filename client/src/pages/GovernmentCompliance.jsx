@@ -305,7 +305,7 @@ export default function GovernmentCompliance() {
       {viewMode !== 'generator' && (
         <div className="gc-tabs">
           {active === 'SEC'
-            ? <><button className={viewMode === 'summary' ? 'active' : ''} onClick={() => setViewMode('summary')}>Summary</button><button className={viewMode === 'covered-loans' ? 'active' : ''} onClick={() => setViewMode('covered-loans')}>Covered Loans</button><button className={viewMode === 'clients' ? 'active' : ''} onClick={() => setViewMode('clients')}>Client Reports</button></>
+            ? <><button className={viewMode === 'summary' ? 'active' : ''} onClick={() => setViewMode('summary')}>Summary</button><button className={viewMode === 'covered-loans' ? 'active' : ''} onClick={() => setViewMode('covered-loans')}>Covered Loans</button></>
             : <><button className={viewMode === 'company' ? 'active' : ''} onClick={() => setViewMode('company')}>Company Compliance</button><button className={viewMode === 'clients' ? 'active' : ''} onClick={() => setViewMode('clients')}>Client Reports</button></>}
         </div>
       )}
