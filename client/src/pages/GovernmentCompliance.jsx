@@ -54,6 +54,11 @@ const months = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: new 
 const currentYear = new Date().getFullYear();
 const emptyFilters = { search: '', startDate: '', endDate: '', month: '', year: currentYear, status: '', filing_type: '', tax_type: '', page: 1, limit: 10, sort: 'due_date', dir: 'ASC' };
 const emptyForm = { due_date: '', status: '', amount: 0 };
+const EMPTY_BIR_CLIENT_SUMMARY = {
+  totals: { loans: 0, clients: 0, loanAmount: 0, interest: 0, loanWithInterest: 0 },
+  demographics: { gender: [], civilStatus: [], education: [], employment: [] },
+  financial: { loanRanges: [], incomeRanges: [], interestBreakdown: [] },
+};
 
 function badgeClass(status) {
   const key = String(status || '').toLowerCase().replace(/\s+/g, '-');
@@ -82,6 +87,7 @@ export default function GovernmentCompliance() {
   const [clientRows, setClientRows] = useState([]);
   const [clientFilters, setClientFilters] = useState({ search: '', loanType: '', status: '', startDate: '', endDate: '' });
   const [summary, setSummary] = useState({ cards: {}, notifications: [] });
+  const [birClientSummary, setBirClientSummary] = useState(EMPTY_BIR_CLIENT_SUMMARY);
   const [total, setTotal] = useState(0);
   const [filters, setFilters] = useState(emptyFilters);
   const [loading, setLoading] = useState(false);
@@ -126,8 +132,24 @@ export default function GovernmentCompliance() {
     }
   };
 
+  const loadBirClientSummary = async () => {
+    setLoading(true);
+    try {
+      const { data } = await API.get('/government-compliance/bir-client-summary');
+      setBirClientSummary(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => { loadSummary().catch(() => {}); }, []);
-  useEffect(() => { if (viewMode === 'company') loadRows(); else loadClientRows(); }, [active, filters.page, filters.sort, filters.dir, filters.startDate, filters.endDate, clientFilters.startDate, clientFilters.endDate, viewMode]);
+  useEffect(() => {
+    if (viewMode === 'summary') loadBirClientSummary();
+    else if (viewMode === 'company') loadRows();
+    else loadClientRows();
+  }, [active, filters.page, filters.sort, filters.dir, filters.startDate, filters.endDate, clientFilters.startDate, clientFilters.endDate, viewMode]);
 
   const pageCount = Math.max(Math.ceil(total / filters.limit), 1);
   const money = value => Number(value || 0).toLocaleString('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 });
@@ -248,13 +270,17 @@ export default function GovernmentCompliance() {
       {viewMode !== 'generator' && (
         <div className="gc-tabs">
           <button className={viewMode === 'company' ? 'active' : ''} onClick={() => setViewMode('company')}>Company Compliance</button>
-          <button className={viewMode === 'clients' ? 'active' : ''} onClick={() => setViewMode('clients')}>Client Reports</button>
+          {active === 'SEC'
+            ? <button className={viewMode === 'summary' ? 'active' : ''} onClick={() => setViewMode('summary')}>Summary</button>
+            : <button className={viewMode === 'clients' ? 'active' : ''} onClick={() => setViewMode('clients')}>Client Reports</button>}
         </div>
       )}
 
       {viewMode === 'generator' ? <CICGenerator /> : (
         <div>
-          {viewMode === 'company' ? (
+          {viewMode === 'summary' ? (
+            <BirClientSummary data={birClientSummary} loading={loading} money={money} />
+          ) : viewMode === 'company' ? (
             <>
               <div className="gc-toolbar">
                 <input className="form-control gc-filter" placeholder="Search" value={filters.search || ''} onChange={e => setFilters(f => ({ ...f, search: e.target.value, page: 1 }))} />
@@ -375,6 +401,59 @@ export default function GovernmentCompliance() {
       )}
     </div>
   );
+}
+
+function BirClientSummary({ data, loading, money }) {
+  const totals = data?.totals || EMPTY_BIR_CLIENT_SUMMARY.totals;
+  const demographics = data?.demographics || EMPTY_BIR_CLIENT_SUMMARY.demographics;
+  const financial = data?.financial || EMPTY_BIR_CLIENT_SUMMARY.financial;
+  if (loading) return <div className="empty-state">Loading BIR client-report summary...</div>;
+  return <section className="gc-summary" aria-label="BIR client reports summary">
+    <p className="gc-summary-note">Totals below are calculated from the records in <strong>For BIR → Client Reports</strong>.</p>
+    <div className="gc-summary-metrics">
+      <SummaryMetric label="Total Number of Loans" value={totals.loans} />
+      <SummaryMetric label="Total Number of Clients" value={totals.clients} />
+      <SummaryMetric label="Total Loan Amount" value={money(totals.loanAmount)} />
+      <SummaryMetric label="Total Interest" value={money(totals.interest)} />
+      <SummaryMetric label="Total Loan w/ Interest" value={money(totals.loanWithInterest)} />
+    </div>
+    <div className="gc-summary-columns">
+      <div>
+        <h3>Demographics</h3>
+        <SummaryList title="Gender" items={demographics.gender} />
+        <SummaryList title="Civil Status" items={demographics.civilStatus} />
+      </div>
+      <div>
+        <h3>Status Background</h3>
+        <SummaryList title="Educational Status" items={demographics.education} />
+        <SummaryList title="Employment Status" items={demographics.employment} />
+      </div>
+    </div>
+    <div className="gc-summary-columns gc-summary-financial">
+      <div>
+        <h3>Financial Breakdown</h3>
+        <SummaryList title="Range of Loan" items={financial.loanRanges} />
+        <SummaryList title="Monthly Income" items={financial.incomeRanges} />
+      </div>
+      <div>
+        <h3>Interest Percentages</h3>
+        {financial.interestBreakdown?.length ? (
+          <div className="gc-interest-table">
+            <div className="gc-interest-row gc-interest-heading"><span>Percentage</span><span>Total Clients</span><span>Total Amount</span></div>
+            {financial.interestBreakdown.map(item => <div className="gc-interest-row" key={item.percentage}><strong>{item.percentage}</strong><span>{item.clients}</span><strong>{money(item.amount)}</strong></div>)}
+          </div>
+        ) : <div className="empty-state">No BIR client-report records available.</div>}
+      </div>
+    </div>
+  </section>;
+}
+
+function SummaryMetric({ label, value }) {
+  return <article className="gc-summary-metric"><span>{label}</span><strong>{value}</strong></article>;
+}
+
+function SummaryList({ title, items = [] }) {
+  return <section className="gc-summary-list"><h4>{title}</h4>{items.map(item => <div key={item.label}><span>{item.label}</span><strong>{item.count}</strong></div>)}</section>;
 }
 
 function Field({ label, name, form, setForm, type = 'text', required = false }) {

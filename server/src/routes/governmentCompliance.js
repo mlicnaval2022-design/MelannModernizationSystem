@@ -40,6 +40,55 @@ async function withAttachments(row) {
   return { ...row, attachments };
 }
 
+function normalizeIncome(value) {
+  const income = Number(value || 0);
+  // Older customer imports stored whole-thousand amounts as values such as 15 or 25.
+  return income > 0 && income < 1_000 ? income * 1_000 : income;
+}
+
+function countBy(rows, labelFor, labels) {
+  const counts = Object.fromEntries(labels.map(label => [label, 0]));
+  rows.forEach(row => {
+    const label = labelFor(row);
+    counts[labels.includes(label) ? label : 'Others']++;
+  });
+  return labels.map(label => ({ label, count: counts[label] || 0 }));
+}
+
+function normalizedGender(value) {
+  const valueText = String(value || '').trim().toLowerCase();
+  if (valueText === 'm' || valueText === 'male') return 'Male';
+  if (valueText === 'f' || valueText === 'female') return 'Female';
+  if (valueText.includes('lgbt')) return 'LGBTQ';
+  return 'Others';
+}
+
+function normalizedCivilStatus(value) {
+  const valueText = String(value || '').trim().toLowerCase();
+  if (valueText.startsWith('single')) return 'Single';
+  if (valueText.startsWith('married')) return 'Married';
+  if (valueText.includes('widow')) return 'Widow/er';
+  if (valueText.includes('separat')) return 'Separated';
+  return 'Others';
+}
+
+function normalizedEducation(value) {
+  const valueText = String(value || '').trim().toLowerCase();
+  if (valueText.includes('elementary')) return 'Elementary Level';
+  if (valueText.includes('high school')) return 'High School Level';
+  if (valueText.includes('college') || valueText.includes('university')) return 'College Level';
+  return 'Others';
+}
+
+function normalizedEmployment(value) {
+  const valueText = String(value || '').trim().toLowerCase();
+  if (valueText.includes('government')) return 'Government';
+  if (valueText.includes('private')) return 'Private';
+  if (valueText.includes('self')) return 'Self Employed';
+  if (valueText.includes('unemploy')) return 'Unemployed';
+  return 'Others';
+}
+
 router.get('/summary', authenticateToken, async (req, res) => {
   try {
     const agencies = AGENCIES;
@@ -87,9 +136,8 @@ router.get('/client-reports/:agency', authenticateToken, requireAgencyAccess, as
               COALESCE(l.total_amortization, COALESCE(l.principal, gcc.loan_amount, 0) + COALESCE(l.interest_amount, 0), gcc.loan_amount, 0) as total_loan
        FROM tblGovernmentComplianceClients gcc
        LEFT JOIN tblLoan l ON l.id = gcc.loan_id
-       WHERE gcc.agency = ?
-         AND gcc.assigned_user_id = ?`;
-    const p = [req.agency, req.user.id];
+       WHERE gcc.agency = ?`;
+    const p = [req.agency];
     if (startDate) {
       q += ` AND (DATE(gcc.created_at) >= ? OR gcc.release_date >= ?)`;
       p.push(startDate, startDate);
@@ -101,6 +149,71 @@ router.get('/client-reports/:agency', authenticateToken, requireAgencyAccess, as
     q += ` ORDER BY gcc.created_at DESC`;
     const rows = await dbAll(q, p);
     res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// The SEC summary is intentionally sourced from the BIR client-report records.
+// It provides a single reporting view without exposing a separate SEC client list.
+router.get('/bir-client-summary', authenticateToken, async (req, res) => {
+  try {
+    const rows = await dbAll(
+      `SELECT gcc.customer_id, gcc.loan_id, gcc.loan_amount,
+              c.gender, c.civil_status, c.educational_background, c.occupational_status, c.income_per_month,
+              COALESCE(l.principal, gcc.loan_amount, 0) AS principal,
+              COALESCE(l.interest_rate, 0) AS interest_rate,
+              COALESCE(l.interest_amount, 0) AS interest_amount,
+              COALESCE(l.total_amortization, COALESCE(l.principal, gcc.loan_amount, 0) + COALESCE(l.interest_amount, 0), gcc.loan_amount, 0) AS total_loan
+         FROM tblGovernmentComplianceClients gcc
+         LEFT JOIN tblCustomer c ON c.id = gcc.customer_id
+         LEFT JOIN tblLoan l ON l.id = gcc.loan_id
+        WHERE gcc.agency = 'BIR'`
+    );
+    const interestBreakdown = new Map();
+    rows.forEach(row => {
+      const rate = Number(row.interest_rate || 0);
+      const key = `${Number.isInteger(rate) ? rate : rate.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}%`;
+      const current = interestBreakdown.get(key) || { percentage: key, clients: 0, amount: 0, rate };
+      current.clients++;
+      current.amount += Number(row.principal || 0);
+      interestBreakdown.set(key, current);
+    });
+    const loanRanges = [
+      { label: 'Below ₱2,500', matches: amount => amount < 2_500 },
+      { label: '₱2,500 – ₱5,000', matches: amount => amount >= 2_500 && amount <= 5_000 },
+      { label: '₱5,001 – ₱10,000', matches: amount => amount >= 5_001 && amount <= 10_000 },
+      { label: '₱10,001 – ₱50,000', matches: amount => amount >= 10_001 && amount <= 50_000 },
+      { label: 'Above ₱50,000', matches: amount => amount > 50_000 },
+    ];
+    const incomeRanges = [
+      { label: 'Below ₱10,000', matches: amount => amount < 10_000 },
+      { label: '₱10,000 – ₱29,999', matches: amount => amount >= 10_000 && amount <= 29_999 },
+      { label: '₱30,000 – ₱49,999', matches: amount => amount >= 30_000 && amount <= 49_999 },
+      { label: '₱50,000 and above', matches: amount => amount >= 50_000 },
+    ];
+    const rangeCounts = (ranges, valueFor) => ranges.map(range => ({
+      label: range.label,
+      count: rows.filter(row => range.matches(valueFor(row))).length,
+    }));
+    res.json({
+      totals: {
+        loans: rows.length,
+        clients: new Set(rows.map(row => row.customer_id).filter(Boolean)).size,
+        loanAmount: rows.reduce((sum, row) => sum + Number(row.principal || 0), 0),
+        interest: rows.reduce((sum, row) => sum + Number(row.interest_amount || 0), 0),
+        loanWithInterest: rows.reduce((sum, row) => sum + Number(row.total_loan || 0), 0),
+      },
+      demographics: {
+        gender: countBy(rows, row => normalizedGender(row.gender), ['Male', 'Female', 'LGBTQ', 'Others']),
+        civilStatus: countBy(rows, row => normalizedCivilStatus(row.civil_status), ['Single', 'Married', 'Widow/er', 'Separated', 'Others']),
+        education: countBy(rows, row => normalizedEducation(row.educational_background), ['Elementary Level', 'High School Level', 'College Level', 'Others']),
+        employment: countBy(rows, row => normalizedEmployment(row.occupational_status), ['Government', 'Private', 'Self Employed', 'Unemployed', 'Others']),
+      },
+      financial: {
+        loanRanges: rangeCounts(loanRanges, row => Number(row.principal || 0)),
+        incomeRanges: rangeCounts(incomeRanges, row => normalizeIncome(row.income_per_month)),
+        interestBreakdown: [...interestBreakdown.values()].sort((a, b) => a.rate - b.rate),
+      },
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
