@@ -72,6 +72,14 @@ test('forty-five-day-rating calculate returns on-the-fly evaluations for date ra
     ) VALUES (?, ?, ?, 'OR-45-1', '2026-07-10', 12000, 10000, 0, 'active')
   `, [loan.lastID, customer.lastID, collector.lastID]);
 
+  // A recon payment that fully pays an account must not raise the collector's 45-day collection.
+  await dbRun(`
+    INSERT INTO tblPayment (
+      loan_id, customer_id, collector_id, or_number, date_paid, amount_paid,
+      balance_before, balance_after, payment_type, status
+    ) VALUES (?, ?, ?, 'OR-45-RECON', '2026-07-11', 2500, 2500, 0, 'recon', 'active')
+  `, [loan.lastID, customer.lastID, collector.lastID]);
+
   // Query calculate endpoint
   const response = await api('/forty-five-day-rating/calculate?start_date=2026-07-01&end_date=2026-08-15');
   assert.equal(response.status, 200);

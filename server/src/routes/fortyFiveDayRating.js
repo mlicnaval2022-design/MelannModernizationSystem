@@ -198,6 +198,11 @@ async function getActualCollectionTotal(collectorId, startDate, endDate) {
       AND p.status IN ('active', 'penalty')
       AND LOWER(COALESCE(p.payment_type, '')) != 'passbook'
       AND LOWER(COALESCE(p.remarks, '')) NOT LIKE '%passbook%'
+      -- A reconstruction payment that closes the account is not collector collection.
+      AND NOT (
+        LOWER(COALESCE(p.payment_type, '')) = 'recon'
+        AND COALESCE(p.balance_after, 0) <= 0
+      )
       AND ${sqlNotSunday('p.date_paid')}
   `, [collectorId, startDate, endDate]);
   return asAmount(paymentRow?.total);
