@@ -65,11 +65,38 @@ const tabulationGroupForExpense = category => {
 }
 const tabulationCategoryForExpense = category => String(category || '').split(' — ').slice(1).join(' — ').trim()
 
-function ExpenseShareGridCell({ initialValue, value, onChange, readOnly, saving }) {
+function ExpenseShareGridCell({ initialValue, value, onChange, readOnly, saving, rowIndex, columnIndex }) {
   const displayValue = value ?? (initialValue > 0 ? String(initialValue) : '')
 
+  const moveFocus = (input, rowOffset, columnOffset) => {
+    const nextRow = rowIndex + rowOffset
+    const nextColumn = columnIndex + columnOffset
+    const nextInput = input.closest('table')?.querySelector(
+      `input[data-expense-share-row="${nextRow}"][data-expense-share-column="${nextColumn}"]`
+    )
+
+    if (nextInput) {
+      nextInput.focus()
+      nextInput.select()
+    }
+  }
+
   return <td className="expense-tabulation-input-cell">
-    {readOnly ? (initialValue ? `PHP ${fmt(initialValue)}` : '—') : <input type="number" min="0" step="0.01" inputMode="decimal" value={displayValue} disabled={saving} placeholder="—" onWheel={event => event.currentTarget.blur()} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur() } }} onChange={event => onChange(event.target.value)} />}
+    {readOnly ? (initialValue ? `PHP ${fmt(initialValue)}` : '—') : <input type="number" min="0" step="0.01" inputMode="decimal" value={displayValue} disabled={saving} placeholder="—" data-expense-share-row={rowIndex} data-expense-share-column={columnIndex} onWheel={event => event.currentTarget.blur()} onKeyDown={event => {
+      const directions = {
+        ArrowLeft: [0, -1],
+        ArrowRight: [0, 1],
+        ArrowUp: [-1, 0],
+        ArrowDown: [1, 0],
+      }
+      if (directions[event.key]) {
+        event.preventDefault()
+        moveFocus(event.currentTarget, ...directions[event.key])
+      } else if (event.key === 'Enter') {
+        event.preventDefault()
+        event.currentTarget.blur()
+      }
+    }} onChange={event => onChange(event.target.value)} />}
   </td>
 }
 
@@ -2972,7 +2999,7 @@ export default function CollectorPerformance() {
                       ) : ratingContentTab === 'expense-share' ? (
                         <div className="expense-share-panel" style={{ padding: 20 }}>
                           <div className="expense-share-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
-                            <div><div className="forty-five-section-title"><FileText size={19} /> Expense Share</div><div style={{ color: '#64748b', fontSize: 13, marginTop: 6 }}>Office expenses are divided equally among {selectedRatingPeriod.evaluations.length} collector{selectedRatingPeriod.evaluations.length === 1 ? '' : 's'} in this 45-day evaluation. Misc expenses are shown for reference only.</div></div>
+                            <div><div className="forty-five-section-title"><FileText size={19} /> Expense Share</div><div style={{ color: '#64748b', fontSize: 13, marginTop: 6 }}>Office expenses are divided equally among {selectedRatingPeriod.evaluations.length} collector{selectedRatingPeriod.evaluations.length === 1 ? '' : 's'} in this 45-day evaluation. Misc expenses are shown for reference only.</div><div style={{ color: '#0f766e', fontSize: 12, marginTop: 6, fontWeight: 700 }}>Keyboard: use ← / → to move between categories, and ↑ / ↓ to move between dates.</div></div>
                             {canEditRatingPeriod && <button type="button" className="btn btn-primary" disabled={!pendingExpenseCellCount || expenseCellsSaving} onClick={saveExpenseCellDrafts}>
                               <Save size={16} /> {expenseCellsSaving ? 'Saving...' : pendingExpenseCellCount ? `Save changes (${pendingExpenseCellCount})` : 'Save changes'}
                             </button>}
@@ -2992,7 +3019,7 @@ export default function CollectorPerformance() {
                                   <th key={`${group.key}:total`} className={`expense-tabulation-total ${group.section}`}>Total</th>
                                 ])}</tr>
                               </thead>
-                              <tbody>{expenseTabulationRows.length ? expenseTabulationRows.map(group => {
+                              <tbody>{expenseTabulationRows.length ? expenseTabulationRows.map((group, rowIndex) => {
                                 const isExpanded = Boolean(expandedExpenseDates[group.date])
                                 return <Fragment key={group.date}>
                                   <tr data-expense-date={group.date} style={{ background: isExpanded ? '#f0fdfa' : '#fff' }}>
@@ -3008,7 +3035,8 @@ export default function CollectorPerformance() {
                                       ...expenseGroup.categories.map(category => {
                                         const categoryName = `${expenseGroup.source} — ${category}`
                                         const cellKey = `${group.date}:${categoryName}`
-                                        return <ExpenseShareGridCell key={`${expenseGroup.key}:${category}`} initialValue={group.categoryTotals[`${expenseGroup.key}:${category}`]} value={expenseCellDrafts[cellKey]?.value} readOnly={!canEditRatingPeriod} saving={expenseCellsSaving} onChange={value => setExpenseCellDraft(group.date, categoryName, value, group.categoryTotals[`${expenseGroup.key}:${category}`])} />
+                                        const columnIndex = EXPENSE_TABULATION_COLUMNS.findIndex(column => column.key === `${expenseGroup.key}:${category}`)
+                                        return <ExpenseShareGridCell key={`${expenseGroup.key}:${category}`} initialValue={group.categoryTotals[`${expenseGroup.key}:${category}`]} value={expenseCellDrafts[cellKey]?.value} readOnly={!canEditRatingPeriod} saving={expenseCellsSaving} rowIndex={rowIndex} columnIndex={columnIndex} onChange={value => setExpenseCellDraft(group.date, categoryName, value, group.categoryTotals[`${expenseGroup.key}:${category}`])} />
                                       }),
                                       <td key={`${expenseGroup.key}:total`} className={`expense-tabulation-amount expense-tabulation-total ${expenseGroup.section}`}>PHP {fmt(group.totals[expenseGroup.key])}</td>
                                     ])}
