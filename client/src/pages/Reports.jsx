@@ -64,10 +64,10 @@ const formatExcelDate = dateStr => {
   return `${parseInt(m, 10)}/${parseInt(d, 10)}/${y}`
 }
 
-function ExpenseGridCell({ initialValue, onSave, rowIndex, columnIndex }) {
+function ExpenseGridCell({ initialValue, onSave, rowIndex, colIndex, totalRows, totalCols }) {
   const [val, setVal] = useState(initialValue > 0 ? String(initialValue) : '')
   const [isFocused, setIsFocused] = useState(false)
-  const hasPendingCommit = useRef(false)
+  const inputRef = useRef(null)
 
   useEffect(() => {
     if (!isFocused) {
@@ -75,62 +75,121 @@ function ExpenseGridCell({ initialValue, onSave, rowIndex, columnIndex }) {
     }
   }, [initialValue, isFocused])
 
-  const commit = () => {
-    if (hasPendingCommit.current) return
-    hasPendingCommit.current = true
+  const commit = (nextVal) => {
+    const valueToSave = nextVal !== undefined ? nextVal : val
     setIsFocused(false)
-    const num = Math.max(0, parseFloat(val) || 0)
+    const num = Math.max(0, parseFloat(valueToSave) || 0)
     const prev = Math.max(0, parseFloat(initialValue) || 0)
     if (num !== prev) {
       onSave(num)
     }
   }
 
-  const moveFocus = (rowOffset, columnOffset) => {
-    const nextRow = rowIndex + rowOffset
-    const nextColumn = columnIndex + columnOffset
-    const nextInput = document.querySelector(
-      `input[data-expense-row="${nextRow}"][data-expense-column="${nextColumn}"]`
-    )
+  const navigateTo = (targetRow, targetCol) => {
+    const targetEl = document.querySelector(`input[data-expense-row="${targetRow}"][data-expense-col="${targetCol}"]`)
+    if (targetEl) {
+      targetEl.focus()
+      targetEl.select?.()
+    }
+  }
 
-    if (nextInput) {
-      nextInput.focus()
-      nextInput.select()
+  const handleKeyDown = (e) => {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      commit()
+      const targetRow = Math.max(0, rowIndex - 1)
+      navigateTo(targetRow, colIndex)
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      commit()
+      const targetRow = Math.min(totalRows - 1, rowIndex + 1)
+      navigateTo(targetRow, colIndex)
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      commit()
+      let targetRow = rowIndex
+      let targetCol = colIndex - 1
+      if (targetCol < 0) {
+        if (targetRow > 0) {
+          targetRow -= 1
+          targetCol = totalCols - 1
+        } else {
+          targetCol = 0
+        }
+      }
+      navigateTo(targetRow, targetCol)
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      commit()
+      let targetRow = rowIndex
+      let targetCol = colIndex + 1
+      if (targetCol >= totalCols) {
+        if (targetRow < totalRows - 1) {
+          targetRow += 1
+          targetCol = 0
+        } else {
+          targetCol = totalCols - 1
+        }
+      }
+      navigateTo(targetRow, targetCol)
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      commit()
+      if (e.shiftKey) {
+        const targetRow = Math.max(0, rowIndex - 1)
+        navigateTo(targetRow, colIndex)
+      } else {
+        if (rowIndex < totalRows - 1) {
+          navigateTo(rowIndex + 1, colIndex)
+        } else {
+          e.target.blur()
+        }
+      }
+    } else if (e.key === 'Tab') {
+      e.preventDefault()
+      commit()
+      if (e.shiftKey) {
+        let targetRow = rowIndex
+        let targetCol = colIndex - 1
+        if (targetCol < 0 && targetRow > 0) {
+          targetRow -= 1
+          targetCol = totalCols - 1
+        }
+        if (targetCol >= 0) {
+          navigateTo(targetRow, targetCol)
+        }
+      } else {
+        let targetRow = rowIndex
+        let targetCol = colIndex + 1
+        if (targetCol >= totalCols && targetRow < totalRows - 1) {
+          targetRow += 1
+          targetCol = 0
+        }
+        if (targetCol < totalCols) {
+          navigateTo(targetRow, targetCol)
+        }
+      }
     }
   }
 
   return (
     <td style={{ padding: 0, background: isFocused ? '#eff6ff' : 'transparent', minWidth: 85, border: '1px solid #cbd5e1', textAlign: 'right' }}>
       <input
+        ref={inputRef}
         type="number"
         step="0.01"
         min="0"
         value={val}
         placeholder="-"
-        onFocus={() => {
-          hasPendingCommit.current = false
-          setIsFocused(true)
-        }}
-        onBlur={commit}
         data-expense-row={rowIndex}
-        data-expense-column={columnIndex}
-        onKeyDown={e => {
-          const directions = {
-            ArrowLeft: [0, -1],
-            ArrowRight: [0, 1],
-            ArrowUp: [-1, 0],
-            ArrowDown: [1, 0],
-          }
-
-          if (directions[e.key]) {
-            e.preventDefault()
-            commit()
-            moveFocus(...directions[e.key])
-          } else if (e.key === 'Enter') {
-            e.preventDefault()
-            e.target.blur()
-          }
+        data-expense-col={colIndex}
+        onFocus={e => {
+          setIsFocused(true)
+          e.target.select?.()
         }}
+        onBlur={() => commit()}
+        onWheel={e => e.currentTarget.blur()}
+        onKeyDown={handleKeyDown}
         onChange={e => setVal(e.target.value)}
         style={{
           width: '100%',
@@ -2491,7 +2550,7 @@ export default function Reports() {
 
             {/* Instruction strip */}
             <div style={{ padding: '6px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 11, color: '#64748b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-              <span>💡 <strong>Tip:</strong> Click on any category cell to input or edit expenses. Values save automatically on Enter or blur.</span>
+              <span>💡 <strong>Tip:</strong> Click on any category cell to input or edit expenses. Use <strong>arrow keys (↑ ↓ ← →)</strong> or <strong>Enter/Tab</strong> to navigate between cells. Values save automatically.</span>
               <span style={{ fontSize: 11, color: '#0f766e', fontWeight: 600 }}>Releases automatically count Reloan & New only (excluding Recon)</span>
             </div>
 
@@ -2583,13 +2642,15 @@ export default function Reports() {
                           {categories.length === 0 ? (
                             <td style={{ border: '1px solid #cbd5e1', padding: '4px 8px', textAlign: 'center', color: '#cbd5e1' }}>-</td>
                           ) : (
-                            categories.map((cat, columnIndex) => (
+                            categories.map((cat, colIndex) => (
                               <ExpenseGridCell
                                 key={cat.id}
+                                rowIndex={rowIndex}
+                                colIndex={colIndex}
+                                totalRows={dates.length}
+                                totalCols={categories.length}
                                 initialValue={day.expenses?.[cat.category_name]?.amount || 0}
                                 onSave={val => handleExpenseCellChange(activeSheet.personnel_id, d, cat.category_name, val)}
-                                rowIndex={rowIndex}
-                                columnIndex={columnIndex}
                               />
                             ))
                           )}
