@@ -1185,10 +1185,6 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                                     <div className="po-field-val-wrap"><User size={14} className="po-field-icon" /><strong>{soaData.occupation || soaData.business_description || '-'}</strong></div>
                                   </div>
                                   <div className="po-field">
-                                    <span className="po-field-label">BUSINESS NAME</span>
-                                    <div className="po-field-val-wrap"><MapPin size={14} className="po-field-icon" /><strong>{soaData.business_name || '-'}</strong></div>
-                                  </div>
-                                  <div className="po-field">
                                     <span className="po-field-label">MONTHLY INCOME</span>
                                     <div className="po-field-val-wrap"><Wallet size={14} className="po-field-icon" /><strong>{soaData.income_per_month ? formatPhp(soaData.income_per_month) : '-'}</strong></div>
                                   </div>
