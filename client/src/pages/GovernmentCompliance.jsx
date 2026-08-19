@@ -400,7 +400,6 @@ function CICGenerator() {
   const [candidateRows, setCandidateRows] = useState([]);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [legacyCicServer, setLegacyCicServer] = useState(false);
-  const [selectedLoanIds, setSelectedLoanIds] = useState(new Set());
   const [candidateFilters, setCandidateFilters] = useState({ search: '', collector: '', branch: '' });
   const [candidateError, setCandidateError] = useState('');
   
@@ -418,15 +417,14 @@ function CICGenerator() {
     month,
     branch_id: branchId,
     file_reference_number: fileReferenceNumber,
-    selected_loan_ids: [...selectedLoanIds]
   });
 
   const loadCandidates = async () => {
     setCandidatesLoading(true);
     try {
       const { data } = await API.get('/cic/candidates', { params: { year, month, branch_id: branchId } });
-      setCandidateRows(data.clients || []);
-      setSelectedLoanIds(new Set());
+      const birClientReports = data.clients || [];
+      setCandidateRows(birClientReports);
       setSubmission(null);
       setLegacyCicServer(false);
       setCandidateError('');
@@ -437,7 +435,6 @@ function CICGenerator() {
       if (err.response?.status === 404) {
         setLegacyCicServer(true);
         setCandidateRows([]);
-        setSelectedLoanIds(new Set());
         setSubmission(null);
         setCandidateError('');
         return;
@@ -463,15 +460,6 @@ function CICGenerator() {
         && (!candidateFilters.branch || row.branch_name === candidateFilters.branch);
     });
   }, [candidateRows, candidateFilters]);
-
-  const toggleCandidate = loanId => setSelectedLoanIds(current => {
-    const next = new Set(current);
-    if (next.has(loanId)) next.delete(loanId);
-    else next.add(loanId);
-    return next;
-  });
-
-  const selectAllVisibleCandidates = () => setSelectedLoanIds(current => new Set([...current, ...filteredCandidateRows.map(row => row.loan_id)]));
 
   const previewSubmission = async () => {
     setLoading(true);
@@ -533,7 +521,7 @@ function CICGenerator() {
           <label className="form-label">File Reference Number</label>
           <input className="form-control" value={fileReferenceNumber} onChange={e => setFileReferenceNumber(e.target.value)} placeholder="Required in FT record" />
         </div>
-        <button className="btn btn-secondary" onClick={previewSubmission} disabled={loading || candidatesLoading || (!legacyCicServer && selectedLoanIds.size === 0)}>{loading ? 'Loading...' : legacyCicServer ? 'Preview available clients' : 'Validate selected clients'}</button>
+        <button className="btn btn-secondary" onClick={previewSubmission} disabled={loading || candidatesLoading || (!legacyCicServer && candidateRows.length === 0)}>{loading ? 'Loading...' : 'Validate BIR clients'}</button>
         <button className="btn btn-success" onClick={downloadCsv} disabled={loading || !fileReferenceNumber.trim() || !hasValidRecords}>Download CSV</button>
       </div>
       <div style={{ marginTop: -10, marginBottom: 20, color: '#64748b', fontSize: 13 }}>
@@ -542,27 +530,24 @@ function CICGenerator() {
 
       {legacyCicServer ? (
         <div className="forty-five-info" style={{ marginBottom: 20 }}>
-          Client selection is unavailable on this server version. Preview and download will include the available CIC reports for the selected month and branch.
+          Client selection is unavailable on this server version. Preview and download will include the BIR Client Reports whose Release Date is in the selected month and branch.
         </div>
       ) : <section className="table-wrapper" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
-          <div><h4 style={{ margin: 0 }}>Select Clients from Client Reports</h4><div style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>Only Client Reports assigned to your account are available for CIC processing.</div></div>
-          <strong style={{ color: '#0f766e' }}>{candidateRows.length} available · {selectedLoanIds.size} report{selectedLoanIds.size === 1 ? '' : 's'} selected</strong>
+          <div><h4 style={{ margin: 0 }}>BIR Client Reports for CIC</h4><div style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>Every BIR Client Report assigned to your account, with a Release Date in the selected month, is included in CIC validation.</div></div>
+          <strong style={{ color: '#0f766e' }}>{candidateRows.length} BIR report{candidateRows.length === 1 ? '' : 's'} to validate</strong>
         </div>
         <div className="gc-toolbar" style={{ marginBottom: 14 }}>
           <input className="form-control gc-filter" placeholder="Search client or loan" value={candidateFilters.search} onChange={e => setCandidateFilters(filters => ({ ...filters, search: e.target.value }))} />
           <select className="form-control gc-filter" value={candidateFilters.collector} onChange={e => setCandidateFilters(filters => ({ ...filters, collector: e.target.value }))}><option value="">All Collectors</option>{candidateCollectors.map(collector => <option key={collector} value={collector}>{collector}</option>)}</select>
           <select className="form-control gc-filter" value={candidateFilters.branch} onChange={e => setCandidateFilters(filters => ({ ...filters, branch: e.target.value }))}><option value="">All Branches</option>{candidateBranches.map(branch => <option key={branch} value={branch}>{branch}</option>)}</select>
-          <button className="btn btn-secondary" type="button" onClick={selectAllVisibleCandidates} disabled={!filteredCandidateRows.length}>Select All Eligible</button>
-          <button className="btn btn-secondary" type="button" onClick={() => setSelectedLoanIds(new Set())} disabled={!selectedLoanIds.size}>Clear Selection</button>
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table className="data-table">
-            <thead><tr><th>Select</th><th>Client Code</th><th>Client Name</th><th>Collector</th><th>Loan No.</th><th>Loan Date</th><th>Due Date</th><th>Balance</th><th>CIC Eligibility</th></tr></thead>
-            <tbody>{candidatesLoading ? <tr><td colSpan={9} className="empty-state">Loading Client Reports assigned to you...</td></tr>
-              : filteredCandidateRows.length === 0 ? <tr><td colSpan={9} className="empty-state">No Client Reports are available for this reporting month.</td></tr>
+            <thead><tr><th>Client Code</th><th>Client Name</th><th>Collector</th><th>Loan No.</th><th>Release Date</th><th>Due Date</th><th>Balance</th><th>CIC ID Validation</th></tr></thead>
+            <tbody>{candidatesLoading ? <tr><td colSpan={8} className="empty-state">Loading BIR Client Reports assigned to you...</td></tr>
+              : filteredCandidateRows.length === 0 ? <tr><td colSpan={8} className="empty-state">No BIR Client Reports have a Release Date in this reporting month.</td></tr>
                 : filteredCandidateRows.map(row => <tr key={row.loan_id}>
-                  <td><input type="checkbox" checked={selectedLoanIds.has(row.loan_id)} onChange={() => toggleCandidate(row.loan_id)} /></td>
                   <td>{row.customer_code}</td><td>{row.customer_name}</td><td>{row.collector_name || '-'}</td><td>{row.loan_code}</td><td>{row.date_released || '-'}</td><td>{row.date_maturity || '-'}</td><td>{Number(row.balance || 0).toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })}</td><td>{row.cic_eligibility}</td>
                 </tr>)}</tbody>
           </table>

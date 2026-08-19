@@ -49,8 +49,8 @@ test.before(async () => {
     INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_amount, loan_period, total_amortization, balance, date_released, date_maturity, status)
     VALUES ('CIC-ONLY', ?, ?, ?, 'New', 1000, 100, 45, 1100, 1100, '2026-06-12', '2026-07-26', 'active')
   `, [customer.lastID, collector.lastID, branch.id]);
-  await dbRun(`INSERT INTO tblGovernmentComplianceClients (agency, loan_id, customer_id, customer_code, customer_name, assigned_user_id, sent_by_user_id) VALUES ('BIR', ?, ?, 'CIC-CLIENT', 'CIC Client', 101, 101)`, [ownLoan.lastID, customer.lastID]);
-  await dbRun(`INSERT INTO tblGovernmentComplianceClients (agency, loan_id, customer_id, customer_code, customer_name, assigned_user_id, sent_by_user_id) VALUES ('BIR', ?, ?, 'CIC-CLIENT', 'CIC Client', 202, 202)`, [otherLoan.lastID, customer.lastID]);
+  await dbRun(`INSERT INTO tblGovernmentComplianceClients (agency, loan_id, customer_id, customer_code, customer_name, release_date, assigned_user_id, sent_by_user_id) VALUES ('BIR', ?, ?, 'CIC-CLIENT', 'CIC Client', '2026-06-10', 101, 101)`, [ownLoan.lastID, customer.lastID]);
+  await dbRun(`INSERT INTO tblGovernmentComplianceClients (agency, loan_id, customer_id, customer_code, customer_name, release_date, assigned_user_id, sent_by_user_id) VALUES ('BIR', ?, ?, 'CIC-CLIENT', 'CIC Client', '2026-06-11', 202, 202)`, [otherLoan.lastID, customer.lastID]);
   await dbRun(`INSERT INTO tblGovernmentComplianceClients (agency, loan_id, customer_id, customer_code, customer_name, assigned_user_id, sent_by_user_id) VALUES ('CIC', ?, ?, 'CIC-CLIENT', 'CIC Client', 101, 101)`, [cicOnlyLoan.lastID, customer.lastID]);
 });
 
@@ -59,7 +59,7 @@ test.after(async () => {
   await closeDb();
 });
 
-test('CIC candidates come from qualified BIR reports assigned to the logged-in user', async () => {
+test('CIC candidates and automatic preview use BIR reports with a release date in the selected month', async () => {
   const candidatesResponse = await request('/candidates?year=2026&month=6');
   assert.equal(candidatesResponse.status, 200);
   const candidates = await candidatesResponse.json();
@@ -67,7 +67,7 @@ test('CIC candidates come from qualified BIR reports assigned to the logged-in u
 
   const previewResponse = await request('/preview', {
     method: 'POST',
-    body: JSON.stringify({ year: 2026, month: 6, selected_loan_ids: [candidates.clients[0].loan_id] }),
+    body: JSON.stringify({ year: 2026, month: 6 }),
   });
   assert.equal(previewResponse.status, 200);
   const preview = await previewResponse.json();

@@ -198,18 +198,6 @@ function getCsdfFileName(period, now = new Date()) {
   return `${CSDF_FILE_PROVIDER_CODE}_CSDF_${reportingDate}${time}.txt`;
 }
 
-function validateCi(loan) {
-  const missing = [];
-  if (!normalize(loan.loan_code)) missing.push('Loan Number');
-  if (!dateForCic(loan.date_released)) missing.push('Loan Release Date');
-  if (!dateForCic(loan.date_maturity)) missing.push('Due Date');
-  if (Number(loan.principal || 0) <= 0) missing.push('Principal Amount');
-  if (Number(loan.loan_period || 0) <= 0) missing.push('Loan Term');
-  if (Number(loan.total_amortization || 0) <= 0) missing.push('Total Loan Amount');
-
-  return { missing };
-}
-
 function buildIdRow(loan, period, idCode, contact) {
   const row = Array(ID_HEADER.length).fill('');
   row[0] = 'ID';
@@ -320,7 +308,8 @@ async function loadLoans(period, branchId, assignedUserId, selectedLoanIds = nul
     LEFT JOIN tblBranch b ON l.branch_id = b.id
     LEFT JOIN tblCollector co ON l.collector_id = co.id
     -- The selected CIC month is based strictly on the BIR report's Release Date.
-    WHERE COALESCE(NULLIF(gcc.release_date, ''), l.date_released) BETWEEN ? AND ?
+    -- Date Sent and loan dates must not affect CIC inclusion.
+    WHERE DATE(gcc.release_date) BETWEEN ? AND ?
       AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
   `;
   const params = [assignedUserId, period.startDate, period.endDate];
@@ -338,12 +327,11 @@ async function loadLoans(period, branchId, assignedUserId, selectedLoanIds = nul
 
 async function buildSubmission({ year, month, branch_id, file_reference_number, selected_loan_ids }, userId) {
   if (!year || !month) throw new Error('Year and Month are required');
-  const selectedLoanIds = [...new Set((Array.isArray(selected_loan_ids) ? selected_loan_ids : []).map(Number).filter(Number.isInteger))];
-  if (selectedLoanIds.length === 0) throw new Error('Select at least one client report before validating CIC records.');
   const period = getPeriod(year, month);
   const availableLoans = await loadLoans(period, branch_id, userId);
-  const loans = await loadLoans(period, branch_id, userId, selectedLoanIds);
-  if (loans.length !== selectedLoanIds.length) throw new Error('One or more selected client reports are no longer available to you. Refresh the client list and try again.');
+  // CIC always validates every BIR Client Report in the selected release month.
+  // Ignore any legacy selected_loan_ids sent by older browser versions.
+  const loans = availableLoans;
   const availableClientReports = new Set(availableLoans.map(loan => loan.customer_id)).size;
   const selectedClients = new Map();
   loans.forEach(loan => {
@@ -373,22 +361,8 @@ async function buildSubmission({ year, month, branch_id, file_reference_number, 
     }
 
     validClients.push({ loan: client, ...idCheck });
-    for (const loan of clientLoans) {
-      const ciCheck = validateCi(loan);
-      if (ciCheck.missing.length > 0) {
-        validationErrors.push({
-          customerId: loan.customer_id,
-          clientCode: normalize(loan.customer_code),
-          clientName: cleanText(`${loan.first_name || ''} ${loan.middle_name || ''} ${loan.last_name || ''}`),
-          loanNumber: normalize(loan.loan_code),
-          reason: 'EXCLUDED — INVALID CI',
-          status: 'Excluded',
-          missingFields: ciCheck.missing
-        });
-      } else {
-        validCiLoans.push(loan);
-      }
-    }
+    // CIC inclusion is decided only by the required client ID fields.
+    validCiLoans.push(...clientLoans);
   }
 
   const rows = [];
@@ -436,7 +410,7 @@ async function buildSubmission({ year, month, branch_id, file_reference_number, 
       validCicClients: validClients.length,
       excludedClients: validationErrors.filter(error => error.reason === 'EXCLUDED — INCOMPLETE ID').length,
       validLoanAccounts: validCiLoans.length,
-      excludedLoanAccounts: validationErrors.filter(error => error.reason === 'EXCLUDED — INVALID CI').length
+      excludedLoanAccounts: 0
     },
     previewRecords,
     validationErrors,
@@ -451,13 +425,12 @@ router.get('/candidates', authenticateToken, async (req, res) => {
     if (!year || !month) return res.status(400).json({ error: 'Year and month are required' });
     const period = getPeriod(year, month);
     const loans = await loadLoans(period, branch_id, req.user.id);
-    const eligibleLoans = loans.filter(loan => (
-      validateId(loan).missing.length === 0 && validateCi(loan).missing.length === 0
-    ));
     res.json({
       period,
-      availableClientReports: new Set(eligibleLoans.map(loan => loan.customer_id)).size,
-      clients: eligibleLoans.map(loan => ({
+      availableClientReports: new Set(loans.map(loan => loan.customer_id)).size,
+      clients: loans.map(loan => {
+        const idCheck = validateId(loan);
+        return {
         loan_id: loan.id,
         customer_id: loan.customer_id,
         customer_code: loan.customer_code,
@@ -468,8 +441,10 @@ router.get('/candidates', authenticateToken, async (req, res) => {
         date_released: loan.date_released,
         date_maturity: loan.date_maturity,
         balance: loan.balance,
-        cic_eligibility: 'Eligible'
-      }))
+        cic_eligibility: idCheck.missing.length === 0 ? 'Eligible' : `Incomplete: ${idCheck.missing.join(', ')}`,
+        missing_fields: idCheck.missing
+        };
+      })
     });
   } catch (error) {
     console.error('CIC Candidates Error:', error);
