@@ -4,22 +4,18 @@ const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken } = require('../middleware/auth');
 
 const PROVIDER_CODE = 'PF022730';
-const CSDF_FILE_PROVIDER_CODE = 'PF022370';
+const CSDF_FILE_PROVIDER_CODE = PROVIDER_CODE;
 const CONTACT_TYPE_CODE = '3';
 const ADDRESS_TYPE_MAIN = 'MI';
 const ADDRESS_TYPE_ADDITIONAL = 'AI';
 
-const ID_HEADER = ["Record Type","Provider Code","Subject Reference Date\n(End Day of the Reporting Month)\nddmmyyy","Provider Subject No","Title","First Name","Last Name","Middle Name","Gender","Date of Birth","Place of Birth","Country of Birth (Code)","Nationality","Resident","Civil Status","Mother's Maiden First Name","Mother's Maiden FULL NAME","Mother's Maiden Middle Name","Father First Name","Father Last Name","Address 1: Address Type","Address 1: FullAddress","Address 1: House Owner/Lessee","Address 2: Address Type","Address 2: FullAddress","Address 2: StreetNo","Identification 1: Type","ID 1: Type","ID 1: Number","ID 1: IssueDate","ID 1: IssueCountry","ID 1: ExpiryDate","ID 1: Issued By","ID 2: Type","Contact 1: Type","Contact 1: Value"];
-const CI_HEADER = ["Record Type","Provider Code","Branch Code","Contract Reference Date\n(End Day of the Reporting Month)\nddmmyyy","Provider Subject No","Role","Provider Contract No","Contract Type","Contract Phase","Contract Status","Currency","Original Currency","Contract Start Date","Contract Request Date","Contract End Planned Date","Contract End Actual Date","Last Payment Date","Reorganized Credit Code","Board Resolution flag","Financed Amount","Installments Number","Transaction Type / Sub-facility","Purpose of credit","Payment Periodicity","Payment Method","Monthly Payment Amount","First Payment Date","Last payment amount","Next Payment Date","Next Payment","Outstanding Payments Number","Outstanding Balance","Overdue Payments Number","Overdue Payments Amount","Overdue Days","Good Type","Good Value","New/Used Code","Good Brand","Manufacturing Date","Registration number","Provider Guarantee No 1","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 2","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 3","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 4","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 5","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Guarantee No 6","Provider Subject No (Guarantor)","Guarantor Name","Guaranteed Amount","Currency","Validity Start Date","Validity End Date","Guarantee Type","Asset Code ","Asset Description","Asset Location","Asset Appraised Value","Asset Registry External Link","Customer Type","Provider Subject No (Linked Subject 1)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 2)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 3)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 4)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 5)","Role","Name of the Linked Subject","Provider Subject No (Linked Subject 6)","Role","Name of the Linked Subject"];
+// Fixed widths follow the supplied CIC sample file: 168 ID fields and 291 CI fields.
+const ID_HEADER = Array(168).fill('');
+const CI_HEADER = Array(291).fill('');
 const HD_HEADER = ["Record Type","Provider Code","File Reference Date\n(End Day of the Reporting Month)\nddmmyyy","Version","Submission Type","Provider Comments"];
 const FT_HEADER = ["Record Type","Provider Code","File Reference Date\n(End Day of the Reporting Month)\nddmmyyy","No. of records"];
 
-const MAX_COLS = 120;
-const padRow = (row) => {
-  const newRow = [...row];
-  while (newRow.length < MAX_COLS) newRow.push('');
-  return newRow;
-};
+const padRow = (row) => row;
 
 const ID_TYPE_CODES = new Map([
   ['PASSPORT', '12'],
@@ -113,20 +109,18 @@ function getPeriod(year, month) {
     coveredMonth: covered.getMonth() + 1,
     startDate: monthStart(covered),
     endDate: monthEnd(covered),
-    referenceDate: dateForCic(monthEnd(covered), 'YYYYMMDD'),
+    referenceDate: dateForCic(monthEnd(covered)),
     monthName: covered.toLocaleString('en-US', { month: 'long' }),
     filePeriod: `${selected.getFullYear()}${String(selected.getMonth() + 1).padStart(2, '0')}`
   };
 }
 
-function csvEscape(value) {
-  if (value === null || value === undefined) return '';
-  const text = String(value);
-  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+function csdfField(value) {
+  return String(value ?? '').replace(/[|\r\n]+/g, ' ').trim();
 }
 
-function toCsv(rows) {
-  return rows.map(row => row.map(csvEscape).join(',')).join('\n');
+function toCsdfText(rows) {
+  return rows.map(row => row.map(csdfField).join('|')).join('\r\n');
 }
 
 function titleCode(row) {
@@ -211,31 +205,31 @@ function buildIdRow(loan, period, idCode, contact) {
   const row = Array(ID_HEADER.length).fill('');
   row[0] = 'ID';
   row[1] = PROVIDER_CODE;
-  row[2] = period.referenceDate;
-  row[3] = normalize(loan.customer_code);
-  row[4] = titleCode(loan);
-  row[5] = cleanText(loan.first_name);
-  row[6] = cleanText(loan.last_name);
-  row[7] = cleanText(loan.middle_name);
-  row[8] = genderCode(loan.gender);
-  row[9] = dateForCic(loan.birth_date);
-  row[10] = cleanText(loan.address);
-  row[11] = 'PH';
-  row[12] = 'PH';
-  row[14] = civilStatusCode(loan.civil_status);
-  row[20] = ADDRESS_TYPE_MAIN;
-  row[21] = cleanText(loan.address);
-  row[23] = ADDRESS_TYPE_ADDITIONAL;
-  row[24] = cleanText(loan.address);
-  row[26] = idCode;
-  row[27] = idCode;
-  row[28] = normalize(loan.id_number);
-  row[29] = dateForCic(loan.id_issue_date);
-  row[30] = 'PH';
-  row[31] = dateForCic(loan.id_expiry_date);
-  row[32] = cleanText(loan.id_issued_by);
-  row[34] = CONTACT_TYPE_CODE;
-  row[35] = contact;
+  row[3] = period.referenceDate;
+  row[4] = normalize(loan.customer_code);
+  row[5] = titleCode(loan);
+  row[6] = cleanText(loan.first_name);
+  row[7] = cleanText(loan.last_name);
+  row[8] = cleanText(loan.middle_name);
+  row[12] = genderCode(loan.gender);
+  row[13] = dateForCic(loan.birth_date);
+  row[15] = 'PH';
+  row[16] = 'PH';
+  row[17] = '1';
+  row[18] = civilStatusCode(loan.civil_status);
+  row[31] = ADDRESS_TYPE_MAIN;
+  row[32] = cleanText(loan.address);
+  row[40] = '1';
+  row[42] = ADDRESS_TYPE_ADDITIONAL;
+  row[43] = cleanText(loan.address);
+  row[59] = idCode;
+  row[60] = normalize(loan.id_number);
+  row[61] = dateForCic(loan.id_issue_date);
+  row[62] = 'PH';
+  row[63] = dateForCic(loan.id_expiry_date);
+  row[64] = cleanText(loan.id_issued_by);
+  row[77] = CONTACT_TYPE_CODE;
+  row[78] = contact;
   return padRow(row);
 }
 
@@ -425,7 +419,7 @@ async function buildSubmission({ year, month, branch_id, file_reference_number, 
     previewRecords,
     validationErrors,
     rows,
-    csvData: toCsv(rows)
+    csvData: toCsdfText(rows)
   };
 }
 

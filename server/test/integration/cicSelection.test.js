@@ -99,8 +99,12 @@ test('CIC candidates and automatic preview use BIR reports with a release date i
   assert.equal(preview.counts.totalCiRecords, 2);
   assert.equal(preview.counts.totalRecordsForFt, 4);
   assert.deepEqual(preview.validationErrors.map(error => error.missingFields), [['Gender', 'Civil Status']]);
-  assert.equal(preview.previewRecords.find(record => record.recordType === 'ID' && record.clientCode === 'CIC-CLIENT').values[14], '1');
-  assert.equal(preview.previewRecords.find(record => record.recordType === 'ID' && record.clientCode === 'CIC-NO-MIDDLE').values[14], '3');
+  assert.equal(preview.previewRecords.find(record => record.recordType === 'ID' && record.clientCode === 'CIC-CLIENT').values[18], '1');
+  assert.equal(preview.previewRecords.find(record => record.recordType === 'ID' && record.clientCode === 'CIC-NO-MIDDLE').values[18], '3');
+  const textRecords = preview.csvData.split('\r\n');
+  assert.equal(textRecords[0], 'HD|PF022730|30062026|1.0|1|June 2026 Report');
+  assert.equal(textRecords.find(record => record.startsWith('ID|')).split('|').length, 168);
+  assert.equal(textRecords.find(record => record.startsWith('CI|')).split('|').length, 291);
   assert.deepEqual(preview.previewRecords.map(record => record.recordType), ['HD', 'ID', 'ID', 'CI', 'CI', 'FT']);
-  assert.match(preview.fileName, /^PF022370_CSDF_20260630\d{6}\.txt$/);
+  assert.match(preview.fileName, /^PF022730_CSDF_20260630\d{6}\.txt$/);
 });

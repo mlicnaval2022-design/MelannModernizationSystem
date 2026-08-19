@@ -601,7 +601,7 @@ function CICGenerator() {
           <input className="form-control" value={fileReferenceNumber} onChange={e => setFileReferenceNumber(e.target.value)} placeholder="Required in FT record" />
         </div>
         <button className="btn btn-secondary" onClick={previewSubmission} disabled={loading || candidatesLoading || (!legacyCicServer && candidateRows.length === 0)}>{loading ? 'Loading...' : 'Validate BIR clients'}</button>
-        <button className="btn btn-success" onClick={downloadCsv} disabled={loading || !fileReferenceNumber.trim() || !hasValidRecords}>Download CSV</button>
+        <button className="btn btn-success" onClick={downloadCsv} disabled={loading || !fileReferenceNumber.trim() || !hasValidRecords}>Download CIC TXT</button>
       </div>
       <div style={{ marginTop: -10, marginBottom: 20, color: '#64748b', fontSize: 13 }}>
         CIC gets records only from the BIR Client Reports tab. The selected reporting month matches the BIR report Release Date; all matching BIR clients are then checked for the required client information.
