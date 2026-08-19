@@ -64,7 +64,8 @@ function createApp() {
   app.use('/api/government-compliance', authenticateToken, authorizeModule('government-compliance'), governmentComplianceRoutes);
   app.use('/api/cic', authenticateToken, authorizeModule('government-compliance'), cicRoutes);
   app.use('/api/monitoring', authenticateToken, authorizeModule('monitoring'), monitoringRoutes);
-  app.use('/api/settings', authenticateToken, authorizeModule('monitoring-settings'), settingsRoutes);
+  // Monitoring settings are managed inside 3-Day Monitoring, not as a separate module.
+  app.use('/api/settings', authenticateToken, authorizeModule('monitoring'), settingsRoutes);
   app.use('/api/collector-performance', authenticateToken, authorizeModule('collector-performance'), collectorPerformanceRoutes);
   app.use('/api/forty-five-day-rating', authenticateToken, authorizeModule('collector-performance'), fortyFiveDayRatingRoutes);
   app.use('/api/demand-letters', authenticateToken, authorizeModule('demand-letter'), demandLetterRoutes);

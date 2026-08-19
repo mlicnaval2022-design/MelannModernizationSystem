@@ -1296,3 +1296,16 @@
     width: 100%;
   }
 }
+
+.npm-monitoring-settings-modal {
+  width: min(900px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
+
+.npm-monitoring-settings-modal .card {
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}

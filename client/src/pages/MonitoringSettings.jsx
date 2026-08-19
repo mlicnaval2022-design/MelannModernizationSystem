@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import API from '../services/api';
-import { useAuth } from '../context/AuthContext';
 
 export default function MonitoringSettings() {
-  const { user } = useAuth();
   const [settings, setSettings] = useState({});
   const [holidays, setHolidays] = useState([]);
   const [newHoliday, setNewHoliday] = useState({ date: '', desc: '' });

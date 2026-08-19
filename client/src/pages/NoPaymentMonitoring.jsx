@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import dayjs from 'dayjs';
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import {
   AlertTriangle,
   Bell,
@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import './NoPaymentMonitoring.css';
 import SoaModal from '../components/SoaModal';
+import MonitoringSettings from './MonitoringSettings';
 
 function fmtDate(d) {
   if (!d) return '-';
@@ -68,7 +69,6 @@ function groupByCollector(records) {
 
 export default function NoPaymentMonitoring() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const initialTab = params.get('tab') || 'new';
@@ -78,6 +78,7 @@ export default function NoPaymentMonitoring() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [scanning, setScanning] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [collectors, setCollectors] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -354,7 +355,7 @@ export default function NoPaymentMonitoring() {
             </button>
           )}
           {user.role === 'admin' && (
-            <button className="npm-button npm-button-secondary" onClick={() => navigate('/monitoring-settings')}>
+            <button className="npm-button npm-button-secondary" onClick={() => setSettingsOpen(true)}>
               <Settings size={16} />
               Settings
             </button>
@@ -653,6 +654,20 @@ export default function NoPaymentMonitoring() {
           meta={toastModal.meta}
           onClose={() => setToastModal({ show: false, type: 'success', title: '', message: '', meta: null })}
         />
+      )}
+
+      {settingsOpen && (
+        <div className="modal-overlay" onMouseDown={event => event.target === event.currentTarget && setSettingsOpen(false)}>
+          <div className="modal npm-monitoring-settings-modal">
+            <div className="modal-header">
+              <span className="modal-title">3-Day Monitoring Settings</span>
+              <button className="modal-close" onClick={() => setSettingsOpen(false)}>x</button>
+            </div>
+            <div className="modal-body">
+              <MonitoringSettings />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
