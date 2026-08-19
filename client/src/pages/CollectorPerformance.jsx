@@ -67,6 +67,7 @@ const tabulationCategoryForExpense = category => String(category || '').split(' 
 
 function ExpenseShareGridCell({ initialValue, value, onChange, readOnly, saving, rowIndex, columnIndex }) {
   const displayValue = value ?? (initialValue > 0 ? String(initialValue) : '')
+  const handleValueInput = event => onChange(event.currentTarget.value)
 
   const moveFocus = (input, rowOffset, columnOffset) => {
     const nextRow = rowIndex + rowOffset
@@ -100,7 +101,7 @@ function ExpenseShareGridCell({ initialValue, value, onChange, readOnly, saving,
         event.preventDefault()
         event.currentTarget.blur()
       }
-    }} onChange={event => onChange(event.target.value)} />}
+    }} onInput={handleValueInput} />}
   </td>
 }
 
