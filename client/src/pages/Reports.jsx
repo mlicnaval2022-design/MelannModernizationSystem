@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import API from '../services/api'
 import logoImg from '../assets/logo.png'
 import html2pdf from 'html2pdf.js'
@@ -714,6 +715,8 @@ const REPORT_TYPES = [
 
 export default function Reports() {
   const { hasPermission } = useAuth()
+  const [searchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab') || searchParams.get('type') || ''
   const autoLoaded = useRef(false)
   const [active, setActive] = useState('')
   const [collectionSubTab, setCollectionSubTab] = useState('daily')
@@ -2095,12 +2098,13 @@ export default function Reports() {
   }
 
   useEffect(() => {
-    const firstAllowedReport = allowedReportTypes[0]
-    if (!firstAllowedReport) return
-    if (autoLoaded.current && allowedReportTypes.some(report => report.key === active)) return
+    const targetReport = requestedTab && allowedReportTypes.find(r => r.key === requestedTab)
+    const initialReport = targetReport || allowedReportTypes[0]
+    if (!initialReport) return
+    if (autoLoaded.current && active === initialReport.key) return
     autoLoaded.current = true
-    handleSelect(firstAllowedReport.key)
-  }, [allowedReportKeys, active])
+    handleSelect(initialReport.key)
+  }, [allowedReportKeys, requestedTab])
 
   const renderSubTabs = () => {
     if (active === 'collection-report') {

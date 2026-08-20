@@ -675,7 +675,10 @@ export default function Dashboard() {
             </div>
 
             <div className="card-v2">
-              <div className="card-v2-title">Aging Report</div>
+              <div className="card-v2-title" style={{ justifyContent: 'space-between' }}>
+                <span>Aging Report</span>
+                <button className="dashboard-table-link" onClick={() => navigate('/reports?tab=aging-report')}>Open</button>
+              </div>
               <table className="data-table" style={{ fontSize: 12 }}>
                 <thead>
                   <tr>
@@ -687,22 +690,22 @@ export default function Dashboard() {
                 <tbody>
                   {data.aging_report ? (
                     <>
-                      <tr>
+                      <tr style={{ cursor: 'pointer' }} onClick={() => navigate('/reports?tab=aging-report')}>
                         <td>1-30 Days</td>
                         <td className="fw-600">{data.aging_report.tier1 || 0}</td>
                         <td style={{ textAlign: 'right' }}><span className="badge badge-warning" style={{ background: '#fef3c7', color: '#d97706' }}>Low Risk</span></td>
                       </tr>
-                      <tr>
+                      <tr style={{ cursor: 'pointer' }} onClick={() => navigate('/reports?tab=aging-report')}>
                         <td>31-60 Days</td>
                         <td className="fw-600">{data.aging_report.tier2 || 0}</td>
                         <td style={{ textAlign: 'right' }}><span className="badge" style={{ background: '#ffedd5', color: '#ea580c' }}>Medium</span></td>
                       </tr>
-                      <tr>
+                      <tr style={{ cursor: 'pointer' }} onClick={() => navigate('/reports?tab=aging-report')}>
                         <td>61-90 Days</td>
                         <td className="fw-600">{data.aging_report.tier3 || 0}</td>
                         <td style={{ textAlign: 'right' }}><span className="badge badge-danger">High Risk</span></td>
                       </tr>
-                      <tr>
+                      <tr style={{ cursor: 'pointer' }} onClick={() => navigate('/reports?tab=aging-report')}>
                         <td>90+ Days</td>
                         <td className="fw-600">{data.aging_report.tier4 || 0}</td>
                         <td style={{ textAlign: 'right' }}><span className="badge" style={{ background: '#991b1b', color: 'white' }}>Critical</span></td>
@@ -820,39 +823,18 @@ export default function Dashboard() {
 
               {data.pending_ci && data.pending_ci.length > 0 ? (
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#fffbeb', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>CI</div>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#fffbeb', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>!</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                      <h5 style={{ margin: 0, fontSize: 12, color: '#d97706' }}>{data.pending_ci.length} Pending CI Applications</h5>
-                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Now</span>
+                      <h5 style={{ margin: 0, fontSize: 12, color: '#d97706' }}>{data.pending_ci_count} Loan Applications</h5>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Today</span>
                     </div>
-                    <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>Awaiting review.</p>
+                    <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>Awaiting Credit Investigation (CI).</p>
                   </div>
                 </div>
               ) : null}
-
-              {data.total_pastdue === 0 && (!data.pending_ci || data.pending_ci.length === 0) && (
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No new notifications.</div>
-              )}
-
             </div>
           </div>
-        </div>
-      </div>
-
-      <div className="card" style={{ marginTop: '20px' }}>
-        <div className="card-header">
-          <div>
-            <div className="card-title">System Updates</div>
-            <div className="card-subtitle">Recent changes to the platform</div>
-          </div>
-        </div>
-        <div className="card-body" style={{ padding: '20px' }}>
-          <ul style={{ listStyleType: 'disc', paddingLeft: '20px', color: '#475569', fontSize: '14px', lineHeight: '1.6' }}>
-            <li><strong>Encode Payments:</strong> Redesigned workflow with Command Prompt, auto-calculation, and collector validation.</li>
-            <li><strong>UI Enhancements:</strong> Upgraded dashboard metrics, color palette, and layout styling.</li>
-            <li><strong>Credit Scoring:</strong> Restructured pending loans and applications into a dedicated module.</li>
-          </ul>
         </div>
       </div>
     </div>
