@@ -126,6 +126,7 @@ const getCollectionTrend = async ({ mode = 'daily', endDate = toLocalDateString(
     date_from: dateFrom,
     date_to: dateTo,
     current_day_excluded: currentDayExcluded,
+    current_day_in_progress: endDate === today && !currentDayExcluded,
     rows,
   };
 };

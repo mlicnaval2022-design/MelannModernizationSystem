@@ -68,7 +68,7 @@ const trendModeCopy = {
   '45-days': { average: 'Average Per Period', highest: 'Highest 45-Day Period', lowest: 'Lowest 45-Day Period', total: 'Periods', comparison: 'vs. first period', windowDays: 270 },
 }
 
-const getCollectionTrendStats = trend => {
+const getCollectionTrendStats = (trend, { excludeCurrentDayFromLowest = false } = {}) => {
   const rows = (trend || []).map(row => ({
     ...row,
     total: Number(row.total || 0)
@@ -76,7 +76,10 @@ const getCollectionTrendStats = trend => {
   const total = rows.reduce((sum, row) => sum + row.total, 0)
   const average = rows.length ? total / rows.length : 0
   const highest = rows.reduce((best, row) => row.total > best.total ? row : best, { total: 0, date: '' })
-  const lowest = rows.reduce((best, row) => row.total < best.total ? row : best, rows[0] || { total: 0, date: '' })
+  const rowsEligibleForLowest = excludeCurrentDayFromLowest && rows.length > 1
+    ? rows.slice(0, -1)
+    : rows
+  const lowest = rowsEligibleForLowest.reduce((best, row) => row.total < best.total ? row : best, rowsEligibleForLowest[0] || { total: 0, date: '' })
   const first = rows[0]?.total || 0
   const last = rows[rows.length - 1]?.total || 0
   const trendPct = first > 0 ? ((last - first) / first) * 100 : 0
@@ -192,7 +195,9 @@ export default function Dashboard() {
     date_from: data.weekly_collection_trend?.[0]?.date,
     date_to: data.weekly_collection_trend?.[data.weekly_collection_trend?.length - 1]?.date,
   }
-  const collectionTrend = getCollectionTrendStats(resolvedTrendData.rows)
+  const collectionTrend = getCollectionTrendStats(resolvedTrendData.rows, {
+    excludeCurrentDayFromLowest: trendMode === 'daily' && resolvedTrendData.current_day_in_progress === true
+  })
   const activeTrendCopy = trendModeCopy[trendMode]
   const todayKey = toDateKey(new Date())
   const changeTrendEndDate = value => {
