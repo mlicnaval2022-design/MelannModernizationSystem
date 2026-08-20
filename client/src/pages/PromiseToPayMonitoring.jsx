@@ -26,11 +26,13 @@ import {
   History,
   Layers,
   Loader2,
+  Pencil,
   Phone,
   PlusCircle,
   Printer,
   RefreshCw,
   RotateCcw,
+  Save,
   Search,
   SlidersHorizontal,
   Sparkles,
@@ -58,11 +60,7 @@ function fmtDate(d) {
 }
 
 export default function PromiseToPayMonitoring() {
-  const { user } = useAuth();
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  // Tab State: 'set' | 'monitoring' | 'update'
+  const { hasPermission } = useAuth();
   const [activeTab, setActiveTab] = useState('monitoring');
 
   // Common State
@@ -97,6 +95,9 @@ export default function PromiseToPayMonitoring() {
     remarks: ''
   });
   const [savingPtp, setSavingPtp] = useState(false);
+  const canCreatePtp = hasPermission('ptp-monitoring', 'create');
+  const canUpdatePtp = hasPermission('ptp-monitoring', 'update');
+  const canDeletePtp = hasPermission('ptp-monitoring', 'delete');
 
   // -------------------------------------------------------------
   // TAB 2: PTP MONITORING STATE
@@ -121,6 +122,8 @@ export default function PromiseToPayMonitoring() {
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
 
+
+
   // -------------------------------------------------------------
   // TAB 3: PTP UPDATE STATE
   // -------------------------------------------------------------
@@ -143,6 +146,32 @@ export default function PromiseToPayMonitoring() {
     remarks: '',
     saving: false
   });
+
+  // Delete Confirmation Modal
+  const [deleteModal, setDeleteModal] = useState({
+    show: false,
+    record: null,
+    deleting: false
+  });
+
+  // Edit Modal State
+  const [editModal, setEditModal] = useState({
+    show: false,
+    record: null,
+    form: {
+      promise_date: '',
+      follow_up_date: '',
+      recurring_schedule: 'One-time',
+      payment_method: 'Field Collection',
+      collector_id: '',
+      remarks: '',
+      status: 'Pending'
+    },
+    saving: false
+  });
+
+  // Feedback / Success Popup Modal
+  const [successModal, setSuccessModal] = useState(null);
 
   // Client Quick View Details Modal
   const [quickClientModal, setQuickClientModal] = useState({ show: false, data: null, history: [] });
@@ -263,6 +292,10 @@ export default function PromiseToPayMonitoring() {
         ...prev,
         loan_id: activeLoan ? activeLoan.id : '',
         collector_id: activeLoan?.collector_id || client.collector_id || '',
+        promise_date: '',
+        follow_up_date: '',
+        recurring_schedule: 'One-time',
+        recurring_days: [],
         remarks: ''
       }));
     } catch (err) {
@@ -276,6 +309,10 @@ export default function PromiseToPayMonitoring() {
   // Submit Set PTP Form
   const handleSubmitPtp = async (e) => {
     e.preventDefault();
+    if (!canCreatePtp) {
+      showToast('Input or Full Access is required to create a Promise-to-Pay record.', 'error');
+      return;
+    }
     if (!selectedClient) {
       showToast('Please search and select a client first.', 'error');
       return;
@@ -291,7 +328,7 @@ export default function PromiseToPayMonitoring() {
 
     setSavingPtp(true);
     try {
-      await API.post('/ptp', {
+      const res = await API.post('/ptp', {
         customer_id: selectedClient.id,
         loan_id: ptpForm.loan_id || null,
         collector_id: ptpForm.collector_id || null,
@@ -303,10 +340,28 @@ export default function PromiseToPayMonitoring() {
         remarks: ptpForm.remarks
       });
 
-      showToast('✅ Promise-to-Pay successfully recorded and added to monitoring!');
       // Refresh client history
       const histRes = await API.get(`/ptp/client/${selectedClient.id}`);
       setClientPtpHistory(histRes.data.history || []);
+
+      const assignedCollectorObj = collectors.find(c => String(c.id) === String(ptpForm.collector_id));
+      const collectorName = assignedCollectorObj ? `${assignedCollectorObj.first_name} ${assignedCollectorObj.last_name}` : 'Unassigned';
+
+      // Show Success Modal
+      setSuccessModal({
+        title: 'Promise-to-Pay Saved Successfully!',
+        message: `Promise-to-Pay commitment for ${selectedClient.full_name} (${selectedClient.customer_code}) has been recorded.`,
+        type: 'create',
+        details: {
+          clientCode: selectedClient.customer_code,
+          clientName: selectedClient.full_name,
+          promiseDate: ptpForm.promise_date,
+          followUpDate: ptpForm.follow_up_date,
+          schedule: ptpForm.recurring_schedule,
+          paymentMethod: ptpForm.payment_method,
+          collector: collectorName
+        }
+      });
 
       // Reset form fields slightly
       setPtpForm(prev => ({
@@ -317,11 +372,6 @@ export default function PromiseToPayMonitoring() {
         recurring_days: [],
         remarks: ''
       }));
-
-      // Switch to monitoring tab after 800ms
-      setTimeout(() => {
-        setActiveTab('monitoring');
-      }, 800);
     } catch (err) {
       console.error('Save PTP error:', err);
       showToast(err.response?.data?.error || 'Failed to save Promise-to-Pay', 'error');
@@ -341,22 +391,108 @@ export default function PromiseToPayMonitoring() {
     });
   };
 
-  const handleDeletePtp = async (record) => {
-    const clientName = record.customer_name || 'this client';
-    if (!window.confirm(`Delete the Promise-to-Pay record for ${clientName}? This cannot be undone.`)) return;
+  // Open Delete Confirmation Modal
+  const handleOpenDeleteModal = (record) => {
+    if (!canDeletePtp) {
+      showToast('Full Access (CRUD) is required to delete a Promise-to-Pay record.', 'error');
+      return;
+    }
+    setDeleteModal({
+      show: true,
+      record,
+      deleting: false
+    });
+  };
 
+  // Confirm Delete
+  const handleConfirmDelete = async () => {
+    if (!deleteModal.record) return;
+    const clientName = deleteModal.record.customer_name || 'this client';
+    setDeleteModal(prev => ({ ...prev, deleting: true }));
     try {
-      await API.delete(`/ptp/${record.id}`);
-      showToast('Promise-to-Pay record deleted.');
-      await fetchMonitoringData();
+      await API.delete(`/ptp/${deleteModal.record.id}`);
+      setDeleteModal({ show: false, record: null, deleting: false });
+      if (activeTab === 'monitoring') fetchMonitoringData();
+      else if (activeTab === 'update') fetchDueUpdates();
+
+      setSuccessModal({
+        title: 'Promise-to-Pay Deleted',
+        message: `The Promise-to-Pay record for ${clientName} has been permanently deleted.`,
+        type: 'delete'
+      });
     } catch (err) {
       console.error('Delete PTP error:', err);
       showToast(err.response?.data?.error || 'Failed to delete Promise-to-Pay record.', 'error');
+      setDeleteModal(prev => ({ ...prev, deleting: false }));
+    }
+  };
+
+  // Open Edit Modal
+  const handleOpenEditModal = (record) => {
+    if (!canUpdatePtp) {
+      showToast('Edit or Full Access is required to edit a Promise-to-Pay record.', 'error');
+      return;
+    }
+    setEditModal({
+      show: true,
+      record,
+      form: {
+        promise_date: record.promise_date ? record.promise_date.slice(0, 10) : '',
+        follow_up_date: record.follow_up_date ? record.follow_up_date.slice(0, 10) : '',
+        recurring_schedule: record.recurring_schedule || 'One-time',
+        payment_method: record.payment_method || 'Field Collection',
+        collector_id: record.collector_id || '',
+        remarks: record.remarks || '',
+        status: record.status || 'Pending'
+      },
+      saving: false
+    });
+  };
+
+  // Submit Edit Modal
+  const handleSubmitEdit = async (e) => {
+    e.preventDefault();
+    if (!editModal.record) return;
+    if (!canUpdatePtp) {
+      showToast('Edit or Full Access is required to edit a Promise-to-Pay record.', 'error');
+      return;
+    }
+
+    setEditModal(prev => ({ ...prev, saving: true }));
+    try {
+      await API.put(`/ptp/${editModal.record.id}`, {
+        promise_date: editModal.form.promise_date || null,
+        follow_up_date: editModal.form.follow_up_date || null,
+        recurring_schedule: editModal.form.recurring_schedule,
+        payment_method: editModal.form.payment_method,
+        collector_id: editModal.form.collector_id || null,
+        remarks: editModal.form.remarks,
+        status: editModal.form.status
+      });
+
+      const clientName = editModal.record.customer_name || 'Client';
+      setEditModal(prev => ({ ...prev, show: false, saving: false }));
+      if (activeTab === 'monitoring') fetchMonitoringData();
+      else if (activeTab === 'update') fetchDueUpdates();
+
+      setSuccessModal({
+        title: 'Changes Saved Successfully!',
+        message: `Promise-to-Pay details for ${clientName} have been updated.`,
+        type: 'edit'
+      });
+    } catch (err) {
+      console.error('Edit PTP error:', err);
+      showToast(err.response?.data?.error || 'Failed to save changes.', 'error');
+      setEditModal(prev => ({ ...prev, saving: false }));
     }
   };
 
   // Open Quick Update Modal
   const handleOpenUpdateModal = (record) => {
+    if (!canUpdatePtp) {
+      showToast('Edit or Full Access is required to update a Promise-to-Pay record.', 'error');
+      return;
+    }
     const todayStr = dayjs().format('YYYY-MM-DD');
     setUpdateModal({
       show: true,
@@ -376,6 +512,10 @@ export default function PromiseToPayMonitoring() {
   const handleSubmitUpdate = async (e) => {
     e.preventDefault();
     if (!updateModal.record) return;
+    if (!canUpdatePtp) {
+      showToast('Edit or Full Access is required to update a Promise-to-Pay record.', 'error');
+      return;
+    }
 
     setUpdateModal(prev => ({ ...prev, saving: true }));
     try {
@@ -389,11 +529,18 @@ export default function PromiseToPayMonitoring() {
         remarks: updateModal.remarks
       });
 
-      showToast(`✅ Promise-to-Pay marked as ${updateModal.status}`);
+      const clientName = updateModal.record.customer_name || 'Client';
+      const statusLabel = updateModal.status;
       setUpdateModal(prev => ({ ...prev, show: false, saving: false }));
 
       if (activeTab === 'monitoring') fetchMonitoringData();
       else if (activeTab === 'update') fetchDueUpdates();
+
+      setSuccessModal({
+        title: 'Status Updated Successfully!',
+        message: `Promise-to-Pay record for ${clientName} has been marked as "${statusLabel}".`,
+        type: 'update'
+      });
     } catch (err) {
       console.error('Update PTP error:', err);
       showToast(err.response?.data?.error || 'Failed to update status', 'error');
@@ -488,7 +635,6 @@ export default function PromiseToPayMonitoring() {
 
   return (
     <div className="ptp-container">
-      {/* Toast Alert */}
       {toast && (
         <div className={`ptp-toast ${toast.type === 'error' ? 'ptp-toast-error' : 'ptp-toast-success'}`}>
           {toast.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
@@ -512,14 +658,16 @@ export default function PromiseToPayMonitoring() {
 
         {/* TOP TAB SWITCHER */}
         <div className="ptp-top-tabs">
-          <button
-            type="button"
-            className={`ptp-top-tab-btn ${activeTab === 'set' ? 'active' : ''}`}
-            onClick={() => setActiveTab('set')}
-          >
-            <CalendarPlus size={18} />
-            <span>Set Promise-to-Pay</span>
-          </button>
+          {canCreatePtp && (
+            <button
+              type="button"
+              className={`ptp-top-tab-btn ${activeTab === 'set' ? 'active' : ''}`}
+              onClick={() => setActiveTab('set')}
+            >
+              <CalendarPlus size={18} />
+              <span>Set Promise-to-Pay</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -1332,14 +1480,26 @@ export default function PromiseToPayMonitoring() {
                         {/* Actions */}
                         <td>
                           <div className="ptp-actions-cell">
-                            <button
-                              type="button"
-                              className="ptp-btn-action-primary"
-                              onClick={() => handleOpenUpdateModal(r)}
-                              title="Update Status / Outcome"
-                            >
-                              <Check size={14} /> Update
-                            </button>
+                            {canUpdatePtp && (
+                              <button
+                                type="button"
+                                className="ptp-btn-action-primary"
+                                onClick={() => handleOpenUpdateModal(r)}
+                                title="Update Status / Outcome"
+                              >
+                                <Check size={14} /> Update
+                              </button>
+                            )}
+                            {canUpdatePtp && (
+                              <button
+                                type="button"
+                                className="ptp-btn-action-icon ptp-btn-action-edit"
+                                onClick={() => handleOpenEditModal(r)}
+                                title="Edit Promise-to-Pay Details"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                            )}
                             <button
                               type="button"
                               className="ptp-btn-action-icon"
@@ -1356,11 +1516,11 @@ export default function PromiseToPayMonitoring() {
                             >
                               <Eye size={14} />
                             </button>
-                            {['admin', 'manager'].includes(String(user?.role || '').toLowerCase()) && (
+                            {canDeletePtp && (
                               <button
                                 type="button"
                                 className="ptp-btn-action-icon ptp-btn-action-delete"
-                                onClick={() => handleDeletePtp(r)}
+                                onClick={() => handleOpenDeleteModal(r)}
                                 title="Delete Promise-to-Pay"
                                 aria-label={`Delete Promise-to-Pay for ${r.customer_name}`}
                               >
@@ -1593,13 +1753,15 @@ export default function PromiseToPayMonitoring() {
                         {/* Actions */}
                         <td>
                           <div className="flex items-center justify-center gap-1">
-                            <button
-                              type="button"
-                              className="ptp-btn-action-primary"
-                              onClick={() => handleOpenUpdateModal(r)}
-                            >
-                              <Check size={14} /> Update
-                            </button>
+                            {canUpdatePtp && (
+                              <button
+                                type="button"
+                                className="ptp-btn-action-primary"
+                                onClick={() => handleOpenUpdateModal(r)}
+                              >
+                                <Check size={14} /> Update
+                              </button>
+                            )}
                             <button
                               type="button"
                               className="ptp-btn-action-icon"
@@ -1896,6 +2058,332 @@ export default function PromiseToPayMonitoring() {
           onClose={() => setSoaModal({ show: false, customerId: null, loanId: null })}
         />
       )}
+
+      {/* ========================================================================= */}
+      {/* DELETE CONFIRMATION POPUP MODAL */}
+      {/* ========================================================================= */}
+      {deleteModal.show && deleteModal.record && (
+        <div className="ptp-modal-overlay" onClick={() => !deleteModal.deleting && setDeleteModal({ show: false, record: null, deleting: false })}>
+          <div className="ptp-modal-content ptp-confirm-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="ptp-confirm-icon-wrap danger">
+              <AlertTriangle size={32} />
+            </div>
+
+            <h3 className="text-lg font-bold text-gray-900 text-center mb-1">Delete Promise-to-Pay</h3>
+            <p className="text-xs text-gray-500 text-center mb-4">
+              Are you sure you want to permanently delete this Promise-to-Pay record? This action cannot be undone.
+            </p>
+
+            <div className="ptp-confirm-details-card">
+              <div className="ptp-confirm-detail-row">
+                <span className="label">Customer:</span>
+                <span className="value font-semibold text-gray-900">
+                  {deleteModal.record.customer_code} - {deleteModal.record.customer_name}
+                </span>
+              </div>
+              <div className="ptp-confirm-detail-row">
+                <span className="label">Loan Account:</span>
+                <span className="value text-indigo-700 font-mono">
+                  {deleteModal.record.loan_code || 'N/A'} {deleteModal.record.loan_balance ? `(Bal: ₱${fmtAmt(deleteModal.record.loan_balance)})` : ''}
+                </span>
+              </div>
+              <div className="ptp-confirm-detail-row">
+                <span className="label">Promise Date:</span>
+                <span className="value text-gray-800">{fmtDate(deleteModal.record.promise_date)}</span>
+              </div>
+              <div className="ptp-confirm-detail-row">
+                <span className="label">Assigned Collector:</span>
+                <span className="value text-gray-800">{deleteModal.record.collector_name || 'Unassigned'}</span>
+              </div>
+              <div className="ptp-confirm-detail-row">
+                <span className="label">Current Status:</span>
+                <span className="value">{renderStatusBadge(deleteModal.record.effective_status || deleteModal.record.status)}</span>
+              </div>
+            </div>
+
+            <div className="ptp-confirm-actions">
+              <button
+                type="button"
+                className="ptp-btn-secondary flex-1"
+                onClick={() => setDeleteModal({ show: false, record: null, deleting: false })}
+                disabled={deleteModal.deleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="ptp-btn-danger flex-1"
+                onClick={handleConfirmDelete}
+                disabled={deleteModal.deleting}
+              >
+                {deleteModal.deleting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" /> Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} /> Yes, Delete Record
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* EDIT PROMISE-TO-PAY DETAILS MODAL */}
+      {/* ========================================================================= */}
+      {editModal.show && editModal.record && (
+        <div className="ptp-modal-overlay" onClick={() => !editModal.saving && setEditModal(prev => ({ ...prev, show: false }))}>
+          <div className="ptp-modal-content max-w-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="ptp-modal-header">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+                  <Pencil size={18} />
+                </div>
+                <div>
+                  <h3 className="ptp-modal-title">Edit Promise-to-Pay Details</h3>
+                  <p className="ptp-modal-subtitle">
+                    {editModal.record.customer_code} • {editModal.record.customer_name} ({editModal.record.loan_code || 'Loan'})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="ptp-modal-close"
+                onClick={() => !editModal.saving && setEditModal(prev => ({ ...prev, show: false }))}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitEdit} className="ptp-modal-body">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                {/* Promise Date */}
+                <div className="ptp-form-group">
+                  <label className="ptp-label required">Promise Date</label>
+                  <input
+                    type="date"
+                    required
+                    className="ptp-input"
+                    value={editModal.form.promise_date}
+                    onChange={(e) => setEditModal(prev => ({ ...prev, form: { ...prev.form, promise_date: e.target.value } }))}
+                  />
+                </div>
+
+                {/* Follow-up Date */}
+                <div className="ptp-form-group">
+                  <label className="ptp-label">Follow-up Date</label>
+                  <input
+                    type="date"
+                    className="ptp-input"
+                    value={editModal.form.follow_up_date}
+                    onChange={(e) => setEditModal(prev => ({ ...prev, form: { ...prev.form, follow_up_date: e.target.value } }))}
+                  />
+                </div>
+
+                {/* Recurring Schedule */}
+                <div className="ptp-form-group">
+                  <label className="ptp-label">Commitment Schedule</label>
+                  <select
+                    className="ptp-input"
+                    value={editModal.form.recurring_schedule}
+                    onChange={(e) => setEditModal(prev => ({ ...prev, form: { ...prev.form, recurring_schedule: e.target.value } }))}
+                  >
+                    <option value="One-time">One-time Promise</option>
+                    <option value="Daily">Daily Recurring</option>
+                    <option value="Weekly">Weekly Recurring</option>
+                    <option value="Semi-Monthly">Semi-Monthly (15th/30th)</option>
+                    <option value="Monthly">Monthly Recurring</option>
+                  </select>
+                </div>
+
+                {/* Payment Method / Channel */}
+                <div className="ptp-form-group">
+                  <label className="ptp-label">Payment Channel</label>
+                  <select
+                    className="ptp-input"
+                    value={editModal.form.payment_method}
+                    onChange={(e) => setEditModal(prev => ({ ...prev, form: { ...prev.form, payment_method: e.target.value } }))}
+                  >
+                    <option value="Field Collection">Field Collection (Collector Pickup)</option>
+                    <option value="Office / Branch Visit">Office / Branch Visit</option>
+                    <option value="GCash / E-Wallet">GCash / Maya / E-Wallet</option>
+                    <option value="Bank Transfer">Bank Transfer / Online Banking</option>
+                    <option value="Check Payment">Post-dated Check (PDC)</option>
+                    <option value="Other">Other / Direct Remittance</option>
+                  </select>
+                </div>
+
+                {/* Assigned Collector */}
+                <div className="ptp-form-group">
+                  <label className="ptp-label">Assigned Collector</label>
+                  <select
+                    className="ptp-input"
+                    value={editModal.form.collector_id}
+                    onChange={(e) => setEditModal(prev => ({ ...prev, form: { ...prev.form, collector_id: e.target.value } }))}
+                  >
+                    <option value="">-- Unassigned --</option>
+                    {collectors.map(col => (
+                      <option key={col.id} value={col.id}>
+                        {col.first_name} {col.last_name} {col.branch_name ? `(${col.branch_name})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Record Status */}
+                <div className="ptp-form-group">
+                  <label className="ptp-label">Status</label>
+                  <select
+                    className="ptp-input"
+                    value={editModal.form.status}
+                    onChange={(e) => setEditModal(prev => ({ ...prev, form: { ...prev.form, status: e.target.value } }))}
+                  >
+                    <option value="Pending">Pending / Active</option>
+                    <option value="Paid">Kept / Paid (Fulfilled)</option>
+                    <option value="Partially Paid">Partially Paid</option>
+                    <option value="Rescheduled">Rescheduled</option>
+                    <option value="Broken">Broken Promise</option>
+                    <option value="Cancelled">Cancelled</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Remarks */}
+              <div className="ptp-form-group mb-4">
+                <label className="ptp-label">Remarks & Collection Notes</label>
+                <textarea
+                  rows="3"
+                  className="ptp-input"
+                  placeholder="Update collection notes, customer reason, payment breakdown..."
+                  value={editModal.form.remarks}
+                  onChange={(e) => setEditModal(prev => ({ ...prev, form: { ...prev.form, remarks: e.target.value } }))}
+                />
+              </div>
+
+              <div className="ptp-modal-footer">
+                <button
+                  type="button"
+                  className="ptp-btn-secondary"
+                  onClick={() => setEditModal(prev => ({ ...prev, show: false }))}
+                  disabled={editModal.saving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="ptp-btn-primary"
+                  disabled={editModal.saving}
+                >
+                  {editModal.saving ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" /> Saving Changes...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} /> Save Changes
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SUCCESS / FEEDBACK POPUP MODAL */}
+      {/* ========================================================================= */}
+      {successModal && (
+        <div className="ptp-modal-overlay" onClick={() => setSuccessModal(null)}>
+          <div className="ptp-modal-content ptp-confirm-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className={`ptp-confirm-icon-wrap ${successModal.type === 'delete' ? 'danger' : 'success'}`}>
+              {successModal.type === 'delete' ? (
+                <Trash2 size={32} />
+              ) : (
+                <CheckCircle2 size={32} />
+              )}
+            </div>
+
+            <h3 className="text-lg font-bold text-gray-900 text-center mb-1">
+              {successModal.title}
+            </h3>
+            <p className="text-xs text-gray-600 text-center mb-4 leading-relaxed">
+              {successModal.message}
+            </p>
+
+            {successModal.details && (
+              <div className="ptp-confirm-details-card mb-4">
+                <div className="ptp-confirm-detail-row">
+                  <span className="label">Customer:</span>
+                  <span className="value font-semibold text-gray-900">
+                    {successModal.details.clientCode} - {successModal.details.clientName}
+                  </span>
+                </div>
+                {successModal.details.promiseDate && (
+                  <div className="ptp-confirm-detail-row">
+                    <span className="label">Promise Date:</span>
+                    <span className="value text-indigo-700 font-semibold">{fmtDate(successModal.details.promiseDate)}</span>
+                  </div>
+                )}
+                {successModal.details.schedule && (
+                  <div className="ptp-confirm-detail-row">
+                    <span className="label">Schedule:</span>
+                    <span className="value text-gray-800">{successModal.details.schedule}</span>
+                  </div>
+                )}
+                {successModal.details.collector && (
+                  <div className="ptp-confirm-detail-row">
+                    <span className="label">Collector:</span>
+                    <span className="value text-gray-800">{successModal.details.collector}</span>
+                  </div>
+                )}
+                {successModal.details.paymentMethod && (
+                  <div className="ptp-confirm-detail-row">
+                    <span className="label">Channel:</span>
+                    <span className="value text-gray-800">{successModal.details.paymentMethod}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="ptp-confirm-actions">
+              {successModal.type === 'create' ? (
+                <>
+                  <button
+                    type="button"
+                    className="ptp-btn-secondary flex-1"
+                    onClick={() => setSuccessModal(null)}
+                  >
+                    Set Another PTP
+                  </button>
+                  <button
+                    type="button"
+                    className="ptp-btn-primary flex-1"
+                    onClick={() => {
+                      setSuccessModal(null);
+                      setActiveTab('monitoring');
+                    }}
+                  >
+                    View in Monitoring
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="ptp-btn-primary w-full"
+                  onClick={() => setSuccessModal(null)}
+                >
+                  OK, Done
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

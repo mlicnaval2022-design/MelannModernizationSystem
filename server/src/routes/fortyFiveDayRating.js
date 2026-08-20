@@ -593,8 +593,8 @@ router.delete('/periods/:id', authenticateToken, async (req, res) => {
     const branch = getBranchFilter(req.user.branch_id, 'branch_id');
     const period = await dbGet(`SELECT * FROM tblFortyFiveDayRatingPeriod WHERE id = ?${branch.sql}`, [req.params.id, ...branch.params]);
     if (!period) return res.status(404).json({ error: 'Rating period not found.' });
-    if (isFinalStatus(period.status) && req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Only administrators can delete a final/locked rating period.' });
+    if (isFinalStatus(period.status) && req.modulePermission?.access_level !== 'crud') {
+      return res.status(403).json({ error: 'Full Access is required to delete a final/locked rating period.' });
     }
     await dbRun('DELETE FROM tblFortyFiveDayRatingAudit WHERE period_id = ?', [period.id]);
     await dbRun('DELETE FROM tblFortyFiveDayRatingEvaluation WHERE period_id = ?', [period.id]);

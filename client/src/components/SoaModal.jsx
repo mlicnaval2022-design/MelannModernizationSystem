@@ -38,7 +38,8 @@ import {
 } from 'lucide-react';
 
 export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefresh }) {
-  const { user } = useAuth();
+  const { hasPermission } = useAuth();
+  const canEditPayments = hasPermission('payments', 'edit');
   const [soaLoading, setSoaLoading] = useState(true);
   const [soaData, setSoaData] = useState(null);
   const [soaTab, setSoaTab] = useState('summary');
@@ -1687,7 +1688,7 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENT TYPE</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>NOTES / REMARKS</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>STATUS</th>
-                              {user?.role === 'admin' && <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>ACTION</th>}
+                              {canEditPayments && <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>ACTION</th>}
                             </tr>
                           </thead>
                           <tbody>
@@ -1730,7 +1731,7 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                                       {statusText}
                                     </span>
                                   </td>
-                                  {user?.role === 'admin' && (
+                                  {canEditPayments && (
                                     <td style={{ padding: '16px 24px' }}>
                                       {p.status === 'penalty' && (
                                         <button

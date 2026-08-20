@@ -1507,3 +1507,132 @@
     flex-direction: column;
   }
 }
+
+/* ========================================================================= */
+/* POPUP MODALS & CONFIRMATION BOXES                                         */
+/* ========================================================================= */
+
+.ptp-btn-action-edit {
+  color: #0284c7;
+  background: #f0f9ff;
+  border-color: #bae6fd;
+}
+
+.ptp-btn-action-edit:hover {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+}
+
+.ptp-confirm-modal-box {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 32px 28px 24px;
+  max-width: 440px;
+  width: 92%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  animation: ptpPopIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes ptpPopIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.ptp-confirm-icon-wrap {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px auto;
+}
+
+.ptp-confirm-icon-wrap.icon-success {
+  background: #ecfdf5;
+  color: #10b981;
+  box-shadow: 0 0 0 8px #f0fdf4;
+}
+
+.ptp-confirm-icon-wrap.icon-danger {
+  background: #fef2f2;
+  color: #ef4444;
+  box-shadow: 0 0 0 8px #fff1f2;
+}
+
+.ptp-confirm-icon-wrap.icon-info {
+  background: #eff6ff;
+  color: #3b82f6;
+  box-shadow: 0 0 0 8px #f0f9ff;
+}
+
+.ptp-confirm-title {
+  font-size: 19px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 8px 0;
+}
+
+.ptp-confirm-message {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0 0 20px 0;
+}
+
+.ptp-confirm-details-card {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 22px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.ptp-confirm-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.ptp-confirm-detail-row span {
+  color: #64748b;
+}
+
+.ptp-confirm-detail-row strong {
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.ptp-confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.ptp-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  background: #dc2626;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+}
+
+.ptp-btn-danger:hover {
+  background: #b91c1c;
+}

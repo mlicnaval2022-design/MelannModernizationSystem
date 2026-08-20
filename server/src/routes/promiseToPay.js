@@ -1,6 +1,7 @@
 const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
-const { authenticateToken, requireRole } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
+const { requireModuleAccess } = require('../middleware/permissions');
 const dayjs = require('dayjs');
 const { synchronizePromiseToPayStatuses } = require('../services/promiseToPayStatus');
 
@@ -802,8 +803,95 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
   }
 });
 
+// 6.1 Edit PTP Full Record Details
+router.put('/:id', authenticateToken, requireModuleAccess('edit'), async (req, res) => {
+  try {
+    const ptpId = req.params.id;
+    const {
+      promise_date,
+      follow_up_date,
+      recurring_schedule,
+      promised_amount,
+      payment_method,
+      reason,
+      collector_id,
+      branch_id,
+      remarks,
+      status
+    } = req.body;
+
+    const existing = await dbGet(`SELECT * FROM tblPromiseToPay WHERE id = ?`, [ptpId]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Promise-to-Pay record not found' });
+    }
+
+    const parsedAmount = (promised_amount === undefined || promised_amount === null || promised_amount === '')
+      ? 0
+      : Number(promised_amount);
+
+    if (isNaN(parsedAmount) || parsedAmount < 0) {
+      return res.status(400).json({ error: 'Valid Promised Amount (0 or higher) is required' });
+    }
+
+    const todayStr = dayjs().format('YYYY-MM-DD');
+    const pDate = promise_date ? promise_date.slice(0, 10) : existing.promise_date;
+    let nextStatus = status || existing.status;
+
+    if (['Pending', 'Due Today', 'Overdue'].includes(nextStatus)) {
+      if (pDate === todayStr) nextStatus = 'Due Today';
+      else if (pDate < todayStr) nextStatus = 'Overdue';
+      else nextStatus = 'Pending';
+    }
+
+    await dbRun(`
+      UPDATE tblPromiseToPay
+      SET promise_date = ?,
+          follow_up_date = ?,
+          recurring_schedule = ?,
+          promised_amount = ?,
+          payment_method = ?,
+          reason = ?,
+          collector_id = ?,
+          branch_id = ?,
+          remarks = ?,
+          status = ?,
+          updated_by = ?,
+          updated_at = datetime('now')
+      WHERE id = ?
+    `, [
+      pDate,
+      follow_up_date ? follow_up_date.slice(0, 10) : null,
+      recurring_schedule || existing.recurring_schedule || 'One-time',
+      parsedAmount,
+      payment_method || existing.payment_method,
+      reason || existing.reason,
+      collector_id !== undefined ? collector_id : existing.collector_id,
+      branch_id !== undefined ? branch_id : existing.branch_id,
+      remarks !== undefined ? remarks : existing.remarks,
+      nextStatus,
+      req.user.id,
+      ptpId
+    ]);
+
+    await logAudit(
+      req.user.id,
+      req.user.role,
+      'EDIT_PTP',
+      existing.promise_date,
+      pDate,
+      `Edited PTP #${ptpId} for Customer #${existing.customer_id}`,
+      ptpId
+    );
+
+    const updated = await dbGet(`SELECT * FROM tblPromiseToPay WHERE id = ?`, [ptpId]);
+    res.json({ message: 'Promise-to-Pay record updated successfully', data: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 7. Delete PTP Record
-router.delete('/:id', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+router.delete('/:id', authenticateToken, requireModuleAccess('crud'), async (req, res) => {
   try {
     const ptpId = req.params.id;
     const existing = await dbGet(`SELECT * FROM tblPromiseToPay WHERE id = ?`, [ptpId]);
