@@ -4,6 +4,7 @@ const { authenticateToken, requireRole } = require('../middleware/auth');
 const { authorizeReportType } = require('../middleware/reportPermissions');
 const { runPastDueUpdate } = require('../services/pastDueUpdater');
 const { requireOperationDate, sqlNotSunday, isSundayDate } = require('../services/operationDays');
+const { synchronizePromiseToPayStatuses } = require('../services/promiseToPayStatus');
 const router = express.Router();
 router.use(authorizeReportType);
 const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
@@ -1104,6 +1105,50 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
     const cycleStartStr = cycleStart.toISOString().split('T')[0];
     const cycleEndStr = cycleEnd.toISOString().split('T')[0];
 
+    try {
+      await synchronizePromiseToPayStatuses();
+    } catch (e) {
+      console.error('PTP Sync error on dashboard:', e.message);
+    }
+
+    const ptpCounts = await dbGet(`
+      SELECT 
+        SUM(CASE WHEN status IN ('Pending', 'Due Today', 'Overdue PTP') AND (date(promise_date) < date(?) OR date(follow_up_date) < date(?)) THEN 1 ELSE 0 END) as overdue_count,
+        SUM(CASE WHEN status IN ('Pending', 'Due Today', 'Overdue PTP') AND (date(promise_date) = date(?) OR date(follow_up_date) = date(?)) THEN 1 ELSE 0 END) as due_today_count,
+        COUNT(*) as total_count
+      FROM tblPromiseToPay
+      WHERE status IN ('Pending', 'Due Today', 'Overdue PTP')
+    `, [today, today, today, today]);
+
+    const ptpDueToday = Number(ptpCounts?.due_today_count || 0);
+    const ptpOverdue = Number(ptpCounts?.overdue_count || 0);
+    const ptpDueTotal = ptpDueToday + ptpOverdue;
+
+    const demandRows = await dbAll(`
+      SELECT id, status, follow_up_date, date_received
+      FROM tblDemandLetter
+      WHERE (
+          (follow_up_date != '' AND follow_up_date <= ?)
+          OR COALESCE(status, '') IN ('Sent', 'Awaiting Receipt', 'Generated', 'Pending', 'Urgent Action Require', '2nd Demand on Process', 'For Follow-up', 'Follow-up Due')
+        )
+        AND COALESCE(status, '') NOT IN (
+          'Draft', 'Closed', 'Superseded',
+          'Settled(Recon)', 'Settled(Reloan)', 'Settled(Fully Paid)'
+        )
+    `, [today, today]);
+
+    const activeDemandRows = demandRows.filter(row => !String(row.status || '').toLowerCase().startsWith('settled('));
+    const demandDueFollowups = activeDemandRows.filter(row => {
+      const followUpDate = String(row.follow_up_date || '').slice(0, 10);
+      return Boolean(row.date_received && followUpDate && followUpDate <= today);
+    });
+    const demandAwaitingReceipt = activeDemandRows.filter(row => {
+      const isDue = Boolean(row.date_received && String(row.follow_up_date || '').slice(0, 10) <= today);
+      return !isDue;
+    });
+    const demandDueTodayCount = demandDueFollowups.filter(row => String(row.follow_up_date || '').slice(0, 10) === today).length;
+    const demandOverdueCount = demandDueFollowups.filter(row => String(row.follow_up_date || '').slice(0, 10) < today).length;
+
     res.json({
       weekly_collection_trend: (await getCollectionTrend({ mode: 'daily', endDate: today })).rows,
       cycle_start: cycleStartStr,
@@ -1211,6 +1256,15 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
           AND DATE(m.resolved_at) = ?
           AND ${buildMonitoringEligibilityCondition()}
       `, [today, today])).c,
+      ptp_due_today: ptpDueToday,
+      ptp_overdue: ptpOverdue,
+      ptp_due_count: ptpDueTotal,
+      ptp_active_count: Number(ptpCounts?.total_count || 0),
+      demand_letters_active: activeDemandRows.length,
+      demand_letters_due_today: demandDueTodayCount,
+      demand_letters_overdue: demandOverdueCount,
+      demand_letters_due_count: demandDueFollowups.length,
+      demand_letters_awaiting_count: demandAwaitingReceipt.length,
       account_status_distribution: await dbAll(`SELECT status, COUNT(*) as count FROM tblLoan GROUP BY status`),
       aging_report: await dbGet(`
         SELECT 
