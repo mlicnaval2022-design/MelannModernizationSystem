@@ -1381,7 +1381,7 @@ export default function PromiseToPayMonitoring() {
                 <thead>
                   <tr>
                     <th>Client Code & Name</th>
-                    <th>Collector & Branch</th>
+                    <th>Collector</th>
                     <th>Loan Details</th>
                     <th>Promise Date</th>
                     <th>Follow-up</th>
@@ -1423,11 +1423,10 @@ export default function PromiseToPayMonitoring() {
                           </div>
                         </td>
 
-                        {/* Collector & Branch */}
+                        {/* Collector */}
                         <td>
                           <div className="ptp-collector-cell">
                             <span className="font-medium text-gray-800">{r.collector_name}</span>
-                            <span className="text-xs text-gray-500">{r.branch_name || 'Main Branch'}</span>
                           </div>
                         </td>
 
@@ -1435,7 +1434,7 @@ export default function PromiseToPayMonitoring() {
                         <td>
                           <div className="ptp-loan-cell">
                             <span className="font-mono text-xs font-semibold text-indigo-700">{r.loan_code || 'N/A'}</span>
-                            <span className="text-xs text-gray-600">Bal: ₱{fmtAmt(r.loan_balance)}</span>
+                            <span className="ptp-loan-balance">Bal: ₱{fmtAmt(r.loan_balance)}</span>
                           </div>
                         </td>
 
@@ -1444,10 +1443,10 @@ export default function PromiseToPayMonitoring() {
                           <div className="ptp-date-cell">
                             <span className="font-semibold text-gray-900">{fmtDate(r.promise_date)}</span>
                             {r.effective_status === 'Due Today' && (
-                              <span className="text-[11px] text-amber-600 font-medium">Due Today!</span>
+                              <span className="ptp-promise-status text-amber-600">Due Today!</span>
                             )}
                             {['Overdue', 'Overdue PTP'].includes(r.effective_status) && (
-                              <span className="text-[11px] text-red-600 font-medium">Overdue!</span>
+                              <span className="ptp-promise-status text-red-600">Overdue!</span>
                             )}
                           </div>
                         </td>

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
@@ -267,6 +267,7 @@ export default function Dashboard() {
           <div className="metric-icon-circle" style={{ background: '#ef4444', color: 'white', fontSize: 13 }}>PD</div>
           <div style={{ marginTop: 10 }}>
             <svg viewBox="0 0 100 30" width="100%" height="40" preserveAspectRatio="none">
+
               <path d="M0,25 L20,25 L40,20 L60,15 L80,10 L100,5 L100,30 L0,30 Z" fill="rgba(239,68,68,0.1)" />
               <path d="M0,25 L20,25 L40,20 L60,15 L80,10 L100,5" fill="none" stroke="#ef4444" strokeWidth="2" />
             </svg>
@@ -304,8 +305,8 @@ export default function Dashboard() {
         <div className="dashboard-table-stack">
           <div className="card-v2 dashboard-status-table-card">
             <div className="card-v2-title" style={{ justifyContent: 'space-between' }}>
-              <span>3-Day No-Payment Alerts</span>
-              <button className="dashboard-table-link" onClick={() => navigate('/monitoring?tab=monitoring')}>Open</button>
+              <span>Monitoring Cards</span>
+              <button className="dashboard-table-link" onClick={() => navigate('/monitoring')}>Open</button>
             </div>
             <table className="data-table dashboard-status-table">
               <thead>
@@ -316,20 +317,53 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                <tr onClick={() => navigate('/monitoring?tab=monitoring')}>
-                  <td><strong>All Active Alerts</strong><span>Unresolved eligible records</span></td>
+                <tr onClick={() => navigate('/monitoring')}>
+                  <td>
+                    <strong>3-Day No-Payment</strong>
+                    <span>
+                      {(data.monitoring_alerts_escalated || 0) > 0
+                        ? `${data.monitoring_alerts_escalated} escalated (Day 4+) · ${data.monitoring_alerts_resolved_today || 0} resolved`
+                        : 'Unresolved eligible records'}
+                    </span>
+                  </td>
                   <td className="text-right fw-bold" style={{ color: '#dc2626' }}>{data.monitoring_alerts_active || 0}</td>
-                  <td><span className="dashboard-status-pill danger">Active</span></td>
+                  <td>
+                    <span className={`dashboard-status-pill ${(data.monitoring_alerts_escalated || 0) > 0 ? 'critical' : 'danger'}`}>
+                      {(data.monitoring_alerts_escalated || 0) > 0 ? 'Escalated' : 'Active'}
+                    </span>
+                  </td>
                 </tr>
-                <tr onClick={() => navigate('/monitoring?tab=escalated')}>
-                  <td><strong>Escalated (Day 4+)</strong><span>Requires immediate follow-up</span></td>
-                  <td className="text-right fw-bold" style={{ color: '#991b1b' }}>{data.monitoring_alerts_escalated || 0}</td>
-                  <td><span className="dashboard-status-pill critical">Escalated</span></td>
+                <tr onClick={() => navigate('/ptp-monitoring')}>
+                  <td>
+                    <strong>Promise to Pay</strong>
+                    <span>
+                      {(data.ptp_due_count || 0) > 0
+                        ? `${data.ptp_overdue || 0} overdue · ${data.ptp_due_today || 0} due today`
+                        : 'Active client payment commitments'}
+                    </span>
+                  </td>
+                  <td className="text-right fw-bold" style={{ color: '#0284c7' }}>{data.ptp_due_count || 0}</td>
+                  <td>
+                    <span className={`dashboard-status-pill ${(data.ptp_overdue || 0) > 0 ? 'danger' : (data.ptp_due_today || 0) > 0 ? 'info' : 'info'}`}>
+                      {(data.ptp_overdue || 0) > 0 ? 'Overdue' : (data.ptp_due_today || 0) > 0 ? 'Due Today' : 'PTP Due'}
+                    </span>
+                  </td>
                 </tr>
-                <tr onClick={() => navigate('/monitoring?tab=resolved')}>
-                  <td><strong>Resolved Today</strong><span>Cleared monitoring records</span></td>
-                  <td className="text-right fw-bold" style={{ color: '#059669' }}>{data.monitoring_alerts_resolved_today || 0}</td>
-                  <td><span className="dashboard-status-pill success">Resolved</span></td>
+                <tr onClick={() => navigate('/demand-letter')}>
+                  <td>
+                    <strong>Demand Letter Alert</strong>
+                    <span>
+                      {(data.demand_letters_active || 0) > 0
+                        ? `${data.demand_letters_due_count || 0} follow-up due · ${data.demand_letters_awaiting_count || 0} awaiting receipt`
+                        : 'Sent & follow-up demand letters'}
+                    </span>
+                  </td>
+                  <td className="text-right fw-bold" style={{ color: '#d97706' }}>{data.demand_letters_active || 0}</td>
+                  <td>
+                    <span className={`dashboard-status-pill ${(data.demand_letters_due_count || 0) > 0 ? 'warning' : 'warning'}`}>
+                      {(data.demand_letters_due_count || 0) > 0 ? 'Follow-up' : 'Action Req'}
+                    </span>
+                  </td>
                 </tr>
               </tbody>
             </table>
