@@ -77,14 +77,14 @@ async function testPtpModule() {
         promise_date: '2026-08-25',
         follow_up_date: '2026-08-24',
         recurring_schedule: 'Weekly',
-        promised_amount: 1500,
+        promised_amount: 0,
         payment_method: 'Field Collection',
         reason: 'Salary Delay',
-        remarks: 'Test PTP commitment entry'
+        remarks: 'Test PTP commitment entry with 0 amount'
       });
 
-      console.log(`Create PTP status: ${createRes.status}, body:`, createRes.body);
-      if (createRes.status !== 201) throw new Error('Create PTP failed: ' + JSON.stringify(createRes.body));
+      console.log(`Create PTP with 0 amount status: ${createRes.status}, body:`, createRes.body);
+      if (createRes.status !== 201 || createRes.body.data.promised_amount !== 0) throw new Error('Create PTP with 0 amount failed: ' + JSON.stringify(createRes.body));
       const createdId = createRes.body.data.id;
 
       // 3. Test monitoring retrieval

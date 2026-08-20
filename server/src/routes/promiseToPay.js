@@ -192,8 +192,12 @@ router.post('/', authenticateToken, async (req, res) => {
     if (!promise_date) {
       return res.status(400).json({ error: 'Promise-to-Pay Date is required' });
     }
-    if (promised_amount === undefined || promised_amount === null || isNaN(Number(promised_amount)) || Number(promised_amount) < 0) {
-      return res.status(400).json({ error: 'Valid Promised Amount is required' });
+    const parsedAmount = (promised_amount === undefined || promised_amount === null || promised_amount === '')
+      ? 0
+      : Number(promised_amount);
+
+    if (isNaN(parsedAmount) || parsedAmount < 0) {
+      return res.status(400).json({ error: 'Valid Promised Amount (0 or higher) is required' });
     }
 
     const todayStr = dayjs().format('YYYY-MM-DD');
@@ -245,7 +249,7 @@ router.post('/', authenticateToken, async (req, res) => {
       pDate,
       follow_up_date ? follow_up_date.slice(0, 10) : null,
       recurring_schedule || 'One-time',
-      Number(promised_amount),
+      parsedAmount,
       payment_method || 'Field Collection',
       reason || 'Payment Commitment',
       remarks || null,
