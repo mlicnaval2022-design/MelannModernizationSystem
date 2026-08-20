@@ -1106,7 +1106,7 @@ export default function DemandLetter() {
                           </button>
                           {getNextDemandType(row.demand_type) && !['Awaiting Receipt', 'Sent'].includes(status) && (
                             <button className="btn btn-primary demand-advance-btn" onClick={() => openProgressionModal(row)}>
-                              <ArrowRightCircle size={14} /> Advance
+                              <ArrowRightCircle size={14} /> Proceed
                             </button>
                           )}
                         </div>
@@ -1434,7 +1434,7 @@ export default function DemandLetter() {
                         </button>
                         {getNextDemandType(row.demand_type) && !['Superseded', 'Awaiting Receipt', 'Sent'].includes(getDemandStatus(row)) && (
                           <button className="btn btn-primary demand-advance-btn" onClick={() => openProgressionModal(row)}>
-                            <ArrowRightCircle size={13} /> Advance
+                            <ArrowRightCircle size={13} /> Proceed
                           </button>
                         )}
                         <button className="demand-delete-btn" title="Delete record" onClick={() => openDeleteModal(row)}>
