@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import API from '../services/api';
+import ConfirmModal from '../components/ConfirmModal';
 
 export default function MonitoringSettings() {
   const [settings, setSettings] = useState({});
@@ -8,6 +9,7 @@ export default function MonitoringSettings() {
   const [loading, setLoading] = useState(true);
   const [runningManual, setRunningManual] = useState(false);
   const [manualResult, setManualResult] = useState('');
+  const [saveSuccessOpen, setSaveSuccessOpen] = useState(false);
 
   const fetchSettings = async () => {
     try {
@@ -31,7 +33,7 @@ export default function MonitoringSettings() {
     e.preventDefault();
     try {
       await API.post('/settings', { settings });
-      alert('Settings saved successfully');
+      setSaveSuccessOpen(true);
     } catch (err) {
       alert(err.response?.data?.error || err.message);
     }
@@ -62,6 +64,15 @@ export default function MonitoringSettings() {
 
   return (
     <div className="card" style={{ padding: '20px', maxWidth: 800, margin: '0 auto' }}>
+      <ConfirmModal
+        isOpen={saveSuccessOpen}
+        type="success"
+        title="Settings saved"
+        message="Your monitoring configuration has been saved successfully."
+        confirmText="Done"
+        cancelText={null}
+        onConfirm={() => setSaveSuccessOpen(false)}
+      />
       <h2>⚙️ Monitoring System Settings</h2>
       
       <div style={{ marginTop: 20 }}>
