@@ -69,7 +69,32 @@ const getCollectionTrend = async ({ mode = 'daily', endDate = toLocalDateString(
     throw error;
   }
 
-  const periods = buildCollectionTrendPeriods(normalizedMode, endDate);
+  const today = toLocalDateString();
+  let effectiveEndDate = endDate;
+  let currentDayExcluded = false;
+
+  // A workday in progress should not be treated as a completed zero-collection
+  // period. Until a payment is posted today, use the prior operating day for
+  // the trend so its low point and comparison are based on finished days.
+  if (endDate === today) {
+    const todayCollections = await dbGet(`
+      SELECT COUNT(*) as count
+      FROM tblPayment
+      WHERE date_paid = ?
+        AND status IN ('active', 'penalty')
+        AND status != 'recon'
+        AND LOWER(COALESCE(payment_type, '')) != 'recon'
+        AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%'
+        AND ${sqlNotSunday('date_paid')}
+    `, [today]);
+
+    if (!Number(todayCollections?.count || 0)) {
+      effectiveEndDate = getPreviousOperationDate(today);
+      currentDayExcluded = true;
+    }
+  }
+
+  const periods = buildCollectionTrendPeriods(normalizedMode, effectiveEndDate);
   const dateFrom = periods[0].start_date;
   const dateTo = periods[periods.length - 1].end_date;
   const payments = await dbAll(`
@@ -96,9 +121,11 @@ const getCollectionTrend = async ({ mode = 'daily', endDate = toLocalDateString(
 
   return {
     mode: normalizedMode,
-    end_date: endDate,
+    requested_end_date: endDate,
+    end_date: effectiveEndDate,
     date_from: dateFrom,
     date_to: dateTo,
+    current_day_excluded: currentDayExcluded,
     rows,
   };
 };

@@ -19,6 +19,20 @@ const getTrend = (mode, endDate = '2026-08-15') => fetch(
   { headers: { authorization: `Bearer ${token}` } },
 );
 
+const localDateKey = (date = new Date()) => {
+  const local = new Date(date);
+  local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
+  return local.toISOString().slice(0, 10);
+};
+
+const previousOperationDate = dateKey => {
+  const date = new Date(`${dateKey}T00:00:00`);
+  do {
+    date.setDate(date.getDate() - 1);
+  } while (date.getDay() === 0);
+  return localDateKey(date);
+};
+
 test.before(async () => {
   await initializeDatabase();
   server = createApp().listen(0, '127.0.0.1');
@@ -47,6 +61,16 @@ test('daily collection trend returns seven operating days with zero-filled total
   assert.equal(trend.date_to, '2026-08-15');
   assert.ok(trend.rows.every(row => new Date(`${row.date}T00:00:00`).getDay() !== 0));
   assert.ok(trend.rows.every(row => Number.isFinite(row.total)));
+});
+
+test('daily trend excludes an unfinished current day with no posted collection', async () => {
+  const today = localDateKey();
+  const trend = await (await getTrend('daily', today)).json();
+
+  assert.equal(trend.requested_end_date, today);
+  assert.equal(trend.current_day_excluded, true);
+  assert.equal(trend.date_to, previousOperationDate(today));
+  assert.equal(trend.rows.at(-1).date, previousOperationDate(today));
 });
 
 test('weekly and 45-day modes return complete rolling periods', async () => {

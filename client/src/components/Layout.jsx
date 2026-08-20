@@ -338,30 +338,23 @@ export default function Layout() {
 
       {/* Backup Before Logout Modal */}
       {backupModal && (
-        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && !backupSaving && setBackupModal(false)}>
-          <div className="modal" style={{ maxWidth: 440 }}>
-            <div className="modal-header">
-              <span className="modal-title"><LogOut size={18} /> Let's Back up first</span>
-              <button className="modal-close" disabled={backupSaving} onClick={() => setBackupModal(false)}><X size={18} /></button>
+        <div className="logout-modal-overlay" onMouseDown={e => e.target === e.currentTarget && !backupSaving && setBackupModal(false)}>
+          <section className="logout-modal" role="dialog" aria-modal="true" aria-labelledby="logout-modal-title">
+            <button type="button" className="logout-modal-close" aria-label="Close" disabled={backupSaving} onClick={() => setBackupModal(false)}><X size={18} /></button>
+            <div className="logout-modal-icon"><LogOut size={28} /></div>
+            <h2 id="logout-modal-title">Ready to sign out?</h2>
+            <p className="logout-modal-copy">We’ll first create a fresh database backup so your latest work is safely stored.</p>
+            <div className="logout-modal-backup-note"><Database size={18} /><span>Automatic backup before logout</span></div>
+            {backupError && <div className="logout-modal-message is-error">{backupError}</div>}
+            {backupSuccess && <div className="logout-modal-message is-success">{backupSuccess}</div>}
+            <div className="logout-modal-actions">
+              <button type="button" className="logout-modal-cancel" onClick={() => setBackupModal(false)} disabled={backupSaving}>Stay signed in</button>
+              <button type="button" className="logout-modal-confirm" onClick={handleBackupAndLogout} disabled={backupSaving || !!backupSuccess}>
+                <LogOut size={16} className={backupSaving ? 'logout-modal-spin' : ''} />
+                {backupSaving ? 'Creating backup...' : 'Back up & sign out'}
+              </button>
             </div>
-            <div className="modal-body">
-              <p style={{ marginTop: 0, color: '#475569', fontSize: 14, lineHeight: 1.5 }}>
-                The system will create a fresh database backup before signing you out.
-              </p>
-              {backupError && <div className="login-error" style={{ marginBottom: 14 }}>{backupError}</div>}
-              {backupSuccess && (
-                <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 6, padding: '10px 12px', marginBottom: 14, fontSize: 13, color: 'var(--accent-success)' }}>
-                  {backupSuccess}
-                </div>
-              )}
-              <div className="form-actions">
-                <button type="button" className="btn btn-secondary" onClick={() => setBackupModal(false)} disabled={backupSaving}>Cancel</button>
-                <button type="button" className="btn btn-primary" onClick={handleBackupAndLogout} disabled={backupSaving || !!backupSuccess}>
-                  {backupSaving ? 'Backing up...' : 'Proceed'}
-                </button>
-              </div>
-            </div>
-          </div>
+          </section>
         </div>
       )}
 

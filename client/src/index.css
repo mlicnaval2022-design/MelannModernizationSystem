@@ -205,6 +205,109 @@ table { border-collapse: collapse; width: 100%; }
 }
 .btn-logout:hover { background: rgba(255,255,255,0.1); color: #fff; }
 
+/* SIGN-OUT BACKUP MODAL */
+.logout-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.64);
+  backdrop-filter: blur(7px);
+  animation: logoutOverlayIn 160ms ease-out;
+}
+
+.logout-modal {
+  position: relative;
+  width: min(100%, 448px);
+  padding: 30px;
+  overflow: hidden;
+  text-align: center;
+  background: #fff;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 22px;
+  box-shadow: 0 28px 60px rgba(15, 23, 42, 0.28);
+  animation: logoutModalIn 220ms cubic-bezier(.16, 1, .3, 1);
+}
+
+.logout-modal::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, #0f766e, #14b8a6, #38bdf8);
+}
+
+.logout-modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  transition: var(--transition);
+}
+
+.logout-modal-close:hover:not(:disabled) { color: #0f172a; background: #f1f5f9; }
+
+.logout-modal-icon {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  margin: 4px auto 18px;
+  place-items: center;
+  color: #0f766e;
+  background: linear-gradient(145deg, #e6fffb, #eef9ff);
+  border: 1px solid #bdebe2;
+  border-radius: 21px;
+  box-shadow: 0 12px 22px rgba(15, 118, 110, 0.12);
+}
+
+.logout-modal h2 { margin: 0; color: #0f172a; font-size: 22px; font-weight: 800; letter-spacing: -0.025em; }
+.logout-modal-copy { max-width: 345px; margin: 10px auto 18px; color: #64748b; font-size: 14px; line-height: 1.6; }
+
+.logout-modal-backup-note {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 14px;
+  color: #0f766e;
+  background: #f0fdfa;
+  border: 1px solid #c6eee7;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.logout-modal-message { margin-top: 14px; padding: 10px 12px; border-radius: 10px; font-size: 12px; line-height: 1.45; text-align: left; }
+.logout-modal-message.is-error { color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; }
+.logout-modal-message.is-success { color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; }
+
+.logout-modal-actions { display: flex; gap: 10px; margin-top: 22px; }
+.logout-modal-actions button { min-height: 44px; border-radius: 11px; font-size: 13px; font-weight: 700; transition: var(--transition); }
+.logout-modal-cancel { flex: 1; color: #475569; background: #fff; border: 1px solid #cbd5e1; }
+.logout-modal-cancel:hover:not(:disabled) { color: #0f172a; background: #f8fafc; border-color: #94a3b8; }
+.logout-modal-confirm { display: inline-flex; flex: 1.35; align-items: center; justify-content: center; gap: 8px; color: #fff; background: linear-gradient(135deg, #0f766e, #0d9488); box-shadow: 0 8px 18px rgba(13, 148, 136, 0.25); }
+.logout-modal-confirm:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 20px rgba(13, 148, 136, 0.3); }
+.logout-modal-actions button:disabled, .logout-modal-close:disabled { cursor: not-allowed; opacity: .65; }
+.logout-modal-spin { animation: logoutSpinner .8s linear infinite; }
+
+@keyframes logoutOverlayIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes logoutModalIn { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes logoutSpinner { to { transform: rotate(360deg); } }
+
+@media (max-width: 480px) {
+  .logout-modal { padding: 28px 20px 22px; border-radius: 18px; }
+  .logout-modal-actions { flex-direction: column-reverse; }
+}
+
 /* MAIN CONTENT */
 .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .topbar {
