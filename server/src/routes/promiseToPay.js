@@ -435,13 +435,18 @@ router.get('/monitoring', authenticateToken, async (req, res) => {
       overdue_count: 0
     });
 
-    // Also get all collectors in DB to ensure every collector has a sheet tab
-    const allCollectors = await dbAll(`SELECT id, collector_code, first_name || ' ' || last_name as name FROM tblCollector ORDER BY first_name ASC`);
+    // Also get all active collectors in DB to match Collectors Module
+    const allCollectors = await dbAll(`
+      SELECT id, collector_code, TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) as name 
+      FROM tblCollector 
+      WHERE is_active = 1 
+      ORDER BY CAST(collector_code AS INTEGER) ASC, id ASC
+    `);
     allCollectors.forEach(col => {
       collectorStatsMap.set(String(col.id), {
         collector_id: col.id,
         collector_code: col.collector_code,
-        collector_name: col.name,
+        collector_name: col.name || `Collector ${col.collector_code}`,
         count: 0,
         total_promised: 0,
         due_today_count: 0,
@@ -481,11 +486,15 @@ router.get('/monitoring', authenticateToken, async (req, res) => {
       if (effStatus === 'Overdue') colEntry.overdue_count += 1;
     });
 
-    const collectorTabs = Array.from(collectorStatsMap.values()).sort((a, b) => {
-      if (a.collector_id === 'unassigned') return 1;
-      if (b.collector_id === 'unassigned') return -1;
-      return a.collector_name.localeCompare(b.collector_name);
-    });
+    const collectorTabs = Array.from(collectorStatsMap.values())
+      .filter(col => col.collector_id !== 'unassigned' || col.count > 0)
+      .sort((a, b) => {
+        if (a.collector_id === 'unassigned') return 1;
+        if (b.collector_id === 'unassigned') return -1;
+        const codeA = Number(a.collector_code) || a.collector_id;
+        const codeB = Number(b.collector_code) || b.collector_id;
+        return codeA - codeB;
+      });
 
     res.json({
       records: processedRecords,
