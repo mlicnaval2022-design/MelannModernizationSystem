@@ -629,6 +629,46 @@ router.get('/due-updates', authenticateToken, async (req, res) => {
   }
 });
 
+// 5.1 Quick due notification count for sidebar badge & topbar
+router.get('/notifications', authenticateToken, async (req, res) => {
+  try {
+    const todayStr = dayjs().format('YYYY-MM-DD');
+    let query = `
+      SELECT 
+        SUM(CASE WHEN status IN ('Pending', 'Due Today', 'Overdue') AND date(promise_date) < date(?) THEN 1 ELSE 0 END) as overdue_count,
+        SUM(CASE WHEN status IN ('Pending', 'Due Today') AND date(promise_date) = date(?) THEN 1 ELSE 0 END) as due_today_count,
+        COUNT(*) as total_count
+      FROM tblPromiseToPay
+      WHERE 1=1
+    `;
+    const params = [todayStr, todayStr];
+
+    if (req.user.role === 'collector') {
+      query += ` AND collector_id = ?`;
+      params.push(req.user.id);
+    } else if (req.user.role === 'teller' || req.user.role === 'manager') {
+      if (req.user.branch_id) {
+        query += ` AND branch_id = ?`;
+        params.push(req.user.branch_id);
+      }
+    }
+
+    const counts = await dbGet(query, params);
+    const dueToday = Number(counts?.due_today_count || 0);
+    const overdue = Number(counts?.overdue_count || 0);
+    const dueCount = dueToday + overdue;
+
+    res.json({
+      count: dueCount,
+      due_today_count: dueToday,
+      overdue_count: overdue,
+      total_count: Number(counts?.total_count || 0)
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 6. Update PTP Status & Follow-up (Quick Update Modal)
 router.put('/:id/status', authenticateToken, async (req, res) => {
   try {

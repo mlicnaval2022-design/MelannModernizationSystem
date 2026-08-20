@@ -107,6 +107,15 @@ async function testPtpModule() {
       console.log(`Due updates status: ${dueRes.status}, total count: ${dueRes.body.counts.total}`);
       if (dueRes.status !== 200) throw new Error('Due updates failed');
 
+      // 4.1 Test notifications endpoint for badge
+      console.log('4.1 Testing notifications endpoint...');
+      const notifRes = await makeRequest(server, {
+        path: '/api/ptp/notifications',
+        headers: authHeaders
+      });
+      console.log(`Notifications status: ${notifRes.status}, count: ${notifRes.body.count}`);
+      if (notifRes.status !== 200 || typeof notifRes.body.count !== 'number') throw new Error('Notifications failed');
+
       // 5. Test update status
       console.log('5. Testing update PTP status...');
       const updateRes = await makeRequest(server, {
