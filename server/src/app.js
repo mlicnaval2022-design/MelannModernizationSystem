@@ -19,6 +19,7 @@ const dcrRoutes = require('./routes/dcr');
 const governmentComplianceRoutes = require('./routes/governmentCompliance');
 const cicRoutes = require('./routes/cic');
 const monitoringRoutes = require('./routes/monitoring');
+const promiseToPayRoutes = require('./routes/promiseToPay');
 const settingsRoutes = require('./routes/settings');
 const collectorPerformanceRoutes = require('./routes/collectorPerformance');
 const fortyFiveDayRatingRoutes = require('./routes/fortyFiveDayRating');
@@ -64,6 +65,7 @@ function createApp() {
   app.use('/api/government-compliance', authenticateToken, authorizeModule('government-compliance'), governmentComplianceRoutes);
   app.use('/api/cic', authenticateToken, authorizeModule('government-compliance'), cicRoutes);
   app.use('/api/monitoring', authenticateToken, authorizeModule('monitoring'), monitoringRoutes);
+  app.use('/api/ptp', authenticateToken, authorizeModule('ptp-monitoring'), promiseToPayRoutes);
   // Monitoring settings are managed inside 3-Day Monitoring, not as a separate module.
   app.use('/api/settings', authenticateToken, authorizeModule('monitoring'), settingsRoutes);
   app.use('/api/collector-performance', authenticateToken, authorizeModule('collector-performance'), collectorPerformanceRoutes);

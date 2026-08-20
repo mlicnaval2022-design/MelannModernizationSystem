@@ -13,6 +13,7 @@ export const ACCESS_MODULES = [
   { key: 'promissory-disclosure', label: 'For Print', path: '/promissory-disclosure', section: 'Operations' },
   { key: 'payments', label: 'Encode Payments', path: '/payments', section: 'Operations' },
   { key: 'monitoring', label: '3-Day Monitoring', path: '/monitoring', section: 'Operations' },
+  { key: 'ptp-monitoring', label: 'Promise to Pay', path: '/ptp-monitoring', section: 'Operations' },
   { key: 'collectors', label: 'Collectors', path: '/collectors', section: 'Operations' },
   { key: 'demand-letter', label: 'Demand Letter', path: '/demand-letter', section: 'Operations' },
   { key: 'deposits', label: 'Deposits', path: '/deposits', section: 'Finance' },

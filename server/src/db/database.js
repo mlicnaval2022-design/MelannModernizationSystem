@@ -655,16 +655,24 @@ async function initializeDatabase() {
     );
     CREATE TABLE IF NOT EXISTS tblPromiseToPay (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      alert_id INTEGER NOT NULL,
+      alert_id INTEGER,
       customer_id INTEGER NOT NULL,
+      loan_id INTEGER,
+      collector_id INTEGER,
+      branch_id INTEGER,
       user_id INTEGER NOT NULL,
       promise_date TEXT NOT NULL,
       promised_amount REAL NOT NULL,
+      recurring_schedule TEXT DEFAULT 'One-time',
       payment_method TEXT,
       reason TEXT,
       follow_up_date TEXT,
       remarks TEXT,
       status TEXT DEFAULT 'Pending',
+      paid_amount REAL DEFAULT 0,
+      payment_date TEXT,
+      last_update_remarks TEXT,
+      updated_by INTEGER,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -878,6 +886,23 @@ async function initializeDatabase() {
     if (!demandColNames.has(c)) await dbRun(`ALTER TABLE tblDemandLetter ADD COLUMN ${c} REAL DEFAULT 0`);
   }
 
+  // PTP Monitoring table columns & indexes
+  const ptpCols = await dbAll(`PRAGMA table_info(tblPromiseToPay)`);
+  const ptpColNames = new Set(ptpCols.map(c => c.name));
+  if (!ptpColNames.has('loan_id')) await dbRun(`ALTER TABLE tblPromiseToPay ADD COLUMN loan_id INTEGER`);
+  if (!ptpColNames.has('collector_id')) await dbRun(`ALTER TABLE tblPromiseToPay ADD COLUMN collector_id INTEGER`);
+  if (!ptpColNames.has('branch_id')) await dbRun(`ALTER TABLE tblPromiseToPay ADD COLUMN branch_id INTEGER`);
+  if (!ptpColNames.has('recurring_schedule')) await dbRun(`ALTER TABLE tblPromiseToPay ADD COLUMN recurring_schedule TEXT DEFAULT 'One-time'`);
+  if (!ptpColNames.has('paid_amount')) await dbRun(`ALTER TABLE tblPromiseToPay ADD COLUMN paid_amount REAL DEFAULT 0`);
+  if (!ptpColNames.has('payment_date')) await dbRun(`ALTER TABLE tblPromiseToPay ADD COLUMN payment_date TEXT`);
+  if (!ptpColNames.has('last_update_remarks')) await dbRun(`ALTER TABLE tblPromiseToPay ADD COLUMN last_update_remarks TEXT`);
+  if (!ptpColNames.has('updated_by')) await dbRun(`ALTER TABLE tblPromiseToPay ADD COLUMN updated_by INTEGER`);
+
+  await dbRun(`CREATE INDEX IF NOT EXISTS idx_ptp_customer ON tblPromiseToPay(customer_id)`);
+  await dbRun(`CREATE INDEX IF NOT EXISTS idx_ptp_collector ON tblPromiseToPay(collector_id)`);
+  await dbRun(`CREATE INDEX IF NOT EXISTS idx_ptp_promise_date ON tblPromiseToPay(promise_date)`);
+  await dbRun(`CREATE INDEX IF NOT EXISTS idx_ptp_status ON tblPromiseToPay(status)`);
+
   // Seed default admin
   const userCount = await dbGet('SELECT COUNT(*) as count FROM tblUser');
   if (userCount.count === 0) {
@@ -922,7 +947,7 @@ async function initializeDatabase() {
   }
 
   const legacyViewModules = new Set([
-    'dashboard', 'customers', 'credit-scoring', 'promissory-disclosure', 'monitoring',
+    'dashboard', 'customers', 'credit-scoring', 'promissory-disclosure', 'monitoring', 'ptp-monitoring',
     'collectors', 'demand-letter', 'dcr', 'reports', 'collector-performance'
   ]);
   for (const roleKey of [...legacyRoleKeys].filter(key => key !== 'admin')) {
