@@ -1014,17 +1014,6 @@ export default function PromiseToPayMonitoring() {
               </div>
             </div>
 
-            <div className="ptp-kpi-card kpi-purple">
-              <div className="ptp-kpi-icon-wrap">
-                <Banknote size={22} />
-              </div>
-              <div className="ptp-kpi-info">
-                <span className="ptp-kpi-label">Total Promised</span>
-                <h3 className="ptp-kpi-val">₱{fmtAmt(monitoringSummary.total_promised_amount)}</h3>
-                <span className="ptp-kpi-sub">Expected collections</span>
-              </div>
-            </div>
-
             <div className="ptp-kpi-card kpi-amber">
               <div className="ptp-kpi-icon-wrap">
                 <Clock size={22} />
@@ -1211,7 +1200,6 @@ export default function PromiseToPayMonitoring() {
                     <th>Promise Date</th>
                     <th>Follow-up</th>
                     <th>Schedule</th>
-                    <th className="text-right">Promised Amount</th>
                     <th>Status</th>
                     <th>Channel & Remarks</th>
                     <th className="text-center">Actions</th>
@@ -1220,14 +1208,14 @@ export default function PromiseToPayMonitoring() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan="10" className="ptp-table-loading">
+                      <td colSpan="9" className="ptp-table-loading">
                         <Loader2 size={24} className="animate-spin text-blue-600 mb-2" />
                         <span>Loading Promise-to-Pay records...</span>
                       </td>
                     </tr>
                   ) : monitoringRecords.length === 0 ? (
                     <tr>
-                      <td colSpan="10" className="ptp-table-empty">
+                      <td colSpan="9" className="ptp-table-empty">
                         <FileSpreadsheet size={36} className="text-gray-300 mb-2" />
                         <p className="font-semibold text-gray-600">No Promise-to-Pay Records Found</p>
                         <span className="text-xs text-gray-400">
@@ -1286,14 +1274,6 @@ export default function PromiseToPayMonitoring() {
                         {/* Schedule */}
                         <td>
                           <span className="ptp-schedule-badge">{r.recurring_schedule || 'One-time'}</span>
-                        </td>
-
-                        {/* Promised Amount */}
-                        <td className="text-right">
-                          <span className="ptp-amount-cell">₱{fmtAmt(r.promised_amount)}</span>
-                          {r.paid_amount > 0 && (
-                            <span className="text-[11px] block text-green-600">Paid: ₱{fmtAmt(r.paid_amount)}</span>
-                          )}
                         </td>
 
                         {/* Status */}
