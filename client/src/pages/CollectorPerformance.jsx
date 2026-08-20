@@ -760,7 +760,7 @@ function FortyFiveEvaluationTable({ entityLabel, rows = [], childRows = () => []
               {renderCells(row)}
             </tr>
         })}</tbody>
-        {rows.length > 0 && <tfoot><tr className="forty-five-overall-row"><td><span className="forty-five-static-name"><span className="forty-five-person-avatar">{footerRow ? 'OM' : 'Σ'}</span>{overallRow.name || 'Overall Total'}</span></td>{renderCells(overallRow)}</tr></tfoot>}
+        {rows.length > 0 && variant !== 'collector' && <tfoot><tr className="forty-five-overall-row"><td><span className="forty-five-static-name"><span className="forty-five-person-avatar">{footerRow ? 'OM' : 'Σ'}</span>{overallRow.name || 'Overall Total'}</span></td>{renderCells(overallRow)}</tr></tfoot>}
       </table>
     </div>
     <div className="forty-five-formula">💡 Net Income = Collections − Non-Recon Releases − Expense Share. Reported Pastdue is shown separately and is not included in the formula.</div>
