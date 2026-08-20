@@ -6,7 +6,7 @@ import './Payments.css'
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 
 export default function ReversePayment() {
-  const { hasRole } = useAuth()
+  const { hasRole, hasPermission } = useAuth()
   const [clientCode, setClientCode] = useState('')
   const [paymentCode, setPaymentCode] = useState('')
   const [payment, setPayment] = useState(null)
@@ -189,7 +189,7 @@ export default function ReversePayment() {
               <div style={{ padding: '20px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
                 <button 
                   className="btn btn-danger" 
-                  disabled={payment.status === 'reversed' || !hasRole(['admin', 'manager'])}
+                  disabled={payment.status === 'reversed' || (!hasRole('admin', 'manager') && !hasPermission('payments', 'crud'))}
                   onClick={handleReverse}
                   style={{ padding: '10px 24px', fontWeight: 700 }}
                 >

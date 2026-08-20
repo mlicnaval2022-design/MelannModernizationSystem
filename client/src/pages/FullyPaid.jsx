@@ -6,7 +6,7 @@ import ReloanModal from '../components/ReloanModal';
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function FullyPaid({ search = '' }) {
-  const { hasRole } = useAuth();
+  const { hasRole, hasPermission } = useAuth();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -191,7 +191,7 @@ export default function FullyPaid({ search = '' }) {
         <div style={{ fontWeight: note ? 700 : 500, color: note ? '#0f172a' : '#94a3b8', flex: 1 }}>
           {note || '-'}
         </div>
-        {hasRole('admin', 'manager') && (
+        {(hasRole('admin', 'manager') || hasPermission('reports', 'edit') || hasPermission('reports', 'crud') || hasPermission('report:full-paid', 'edit') || hasPermission('report:full-paid', 'crud') || hasPermission('customers', 'edit') || hasPermission('customers', 'crud')) && (
           <button
             type="button"
             onClick={() => {
@@ -286,7 +286,7 @@ export default function FullyPaid({ search = '' }) {
                           </span>
                         </td>
                         <td>
-                          {hasRole('admin', 'manager') ? (
+                          {(hasRole('admin', 'manager') || hasPermission('reports', 'edit') || hasPermission('reports', 'crud') || hasPermission('report:full-paid', 'edit') || hasPermission('report:full-paid', 'crud') || hasPermission('customers', 'edit') || hasPermission('customers', 'crud')) ? (
                             <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
                               <button
                                 className="btn btn-dark btn-sm"

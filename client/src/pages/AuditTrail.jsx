@@ -14,7 +14,7 @@ const ACTION_COLORS = {
 }
 
 export default function AuditTrail() {
-  const { hasRole } = useAuth()
+  const { hasRole, hasPermission } = useAuth()
   const [rows, setRows] = useState([])
   const [modules, setModules] = useState([])
   const [users, setUsers] = useState([])
@@ -35,8 +35,8 @@ export default function AuditTrail() {
     e.preventDefault(); load()
   }
 
-  if (!hasRole('admin', 'manager')) return (
-    <div className="empty-state"><div className="empty-icon">🔐</div><p>Access restricted to Admins and Managers.</p></div>
+  if (!hasRole('admin', 'manager') && !hasPermission('audit', 'view')) return (
+    <div className="empty-state"><div className="empty-icon">🔐</div><p>Access restricted to authorized users.</p></div>
   )
 
   return (
@@ -59,7 +59,7 @@ export default function AuditTrail() {
               {modules.map(m => <option key={m}>{m}</option>)}
             </select>
           </div>
-          {hasRole('admin') && (
+          {(hasRole('admin') || hasPermission('audit', 'crud')) && (
             <div className="form-group">
               <label className="form-label">User</label>
               <select className="form-control" value={filters.user_id} onChange={e => setFilters(f => ({ ...f, user_id: e.target.value }))}>
