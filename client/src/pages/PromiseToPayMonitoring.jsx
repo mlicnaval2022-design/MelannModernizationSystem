@@ -440,14 +440,20 @@ export default function PromiseToPayMonitoring() {
     if (s === 'Due Today') {
       return <span className="ptp-badge ptp-badge-due-today"><Clock size={12} /> Due Today</span>;
     }
-    if (s === 'Overdue') {
-      return <span className="ptp-badge ptp-badge-overdue"><AlertTriangle size={12} /> Overdue</span>;
+    if (s === 'Overdue PTP' || s === 'Overdue') {
+      return <span className="ptp-badge ptp-badge-overdue"><AlertTriangle size={12} /> Overdue PTP</span>;
     }
     if (s === 'Paid') {
       return <span className="ptp-badge ptp-badge-paid"><CheckCircle2 size={12} /> Kept / Paid</span>;
     }
     if (s === 'Partially Paid') {
       return <span className="ptp-badge ptp-badge-partial"><Banknote size={12} /> Partial Paid</span>;
+    }
+    if (s === 'Partial Paid Done') {
+      return <span className="ptp-badge ptp-badge-partial"><Banknote size={12} /> Partial Paid Done</span>;
+    }
+    if (s === 'Fully Paid(Recon)' || s === 'Fully Paid(Reloan)' || s === 'Fully Paid') {
+      return <span className="ptp-badge ptp-badge-paid"><CheckCircle2 size={12} /> {s}</span>;
     }
     if (s === 'Rescheduled') {
       return <span className="ptp-badge ptp-badge-rescheduled"><RotateCcw size={12} /> Rescheduled</span>;
@@ -911,7 +917,7 @@ export default function PromiseToPayMonitoring() {
                               <div className="ptp-timeline-badge">
                                 {item.effective_status === 'Paid' ? (
                                   <CheckCircle2 size={16} className="text-green-500" />
-                                ) : item.effective_status === 'Overdue' ? (
+                                ) : ['Overdue', 'Overdue PTP'].includes(item.effective_status) ? (
                                   <AlertTriangle size={16} className="text-red-500" />
                                 ) : (
                                   <Clock size={16} className="text-blue-500" />
@@ -1112,8 +1118,12 @@ export default function PromiseToPayMonitoring() {
                   <option value="due_today">Due Today</option>
                   <option value="overdue">Overdue</option>
                   <option value="pending">Pending</option>
-                  <option value="paid">Kept / Paid</option>
-                  <option value="partially paid">Partially Paid</option>
+                  <option value="fully paid">Fully Paid</option>
+                  <option value="fully paid(recon)">Fully Paid (Recon)</option>
+                  <option value="fully paid(reloan)">Fully Paid (Reloan)</option>
+                  <option value="partial paid done">Partial Paid Done</option>
+                  <option value="paid">Kept / Paid (Manual)</option>
+                  <option value="partially paid">Partially Paid (Manual)</option>
                   <option value="rescheduled">Rescheduled</option>
                   <option value="broken">Broken Promise</option>
                   <option value="cancelled">Cancelled</option>
@@ -1260,7 +1270,7 @@ export default function PromiseToPayMonitoring() {
                             {r.effective_status === 'Due Today' && (
                               <span className="text-[11px] text-amber-600 font-medium">Due Today!</span>
                             )}
-                            {r.effective_status === 'Overdue' && (
+                            {['Overdue', 'Overdue PTP'].includes(r.effective_status) && (
                               <span className="text-[11px] text-red-600 font-medium">Overdue!</span>
                             )}
                           </div>
@@ -1477,10 +1487,10 @@ export default function PromiseToPayMonitoring() {
                     </tr>
                   ) : (
                     dueRecords.map((r) => (
-                      <tr key={r.id} className={`ptp-row-due ${r.effective_status === 'Overdue' ? 'ptp-row-overdue-alert' : ''}`}>
+                      <tr key={r.id} className={`ptp-row-due ${['Overdue', 'Overdue PTP'].includes(r.effective_status) ? 'ptp-row-overdue-alert' : ''}`}>
                         {/* Urgency indicator */}
                         <td>
-                          {r.effective_status === 'Overdue' ? (
+                          {['Overdue', 'Overdue PTP'].includes(r.effective_status) ? (
                             <span className="ptp-urgency-tag urgency-red">
                               <AlertTriangle size={12} /> {Math.abs(r.days_difference || 0)}d Overdue
                             </span>
@@ -1795,7 +1805,7 @@ export default function PromiseToPayMonitoring() {
                     <div className="ptp-timeline-badge">
                       {item.effective_status === 'Paid' ? (
                         <CheckCircle2 size={16} className="text-green-500" />
-                      ) : item.effective_status === 'Overdue' ? (
+                      ) : ['Overdue', 'Overdue PTP'].includes(item.effective_status) ? (
                         <AlertTriangle size={16} className="text-red-500" />
                       ) : (
                         <Clock size={16} className="text-blue-500" />

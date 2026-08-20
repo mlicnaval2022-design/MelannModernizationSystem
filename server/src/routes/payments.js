@@ -4,6 +4,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { triggerLoanRecalculation } = require('../services/noPaymentMonitoring');
 const { requireOperationDate, sqlNotSunday } = require('../services/operationDays');
 const { recalculateLoanBalances } = require('../services/loanBalanceRecalculator');
+const { synchronizePromiseToPayStatuses } = require('../services/promiseToPayStatus');
 const router = express.Router();
 const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
 const formatDate = value => {
@@ -106,6 +107,8 @@ router.post('/', authenticateToken, async (req, res) => {
     
     // Trigger No Payment Monitoring recalculation
     await triggerLoanRecalculation(loan_id).catch(e => console.error('Error triggering recalculation:', e));
+    await synchronizePromiseToPayStatuses({ customerId: loan.customer_id })
+      .catch(e => console.error('Error synchronizing PTP after payment:', e));
 
     const postedPayment = await dbGet(`SELECT balance_before, balance_after FROM tblPayment WHERE id = ?`, [result.lastID]);
     res.status(201).json({

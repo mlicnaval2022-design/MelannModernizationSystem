@@ -2,6 +2,7 @@ const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const dayjs = require('dayjs');
+const { synchronizePromiseToPayStatuses } = require('../services/promiseToPayStatus');
 
 const router = express.Router();
 
@@ -21,12 +22,12 @@ async function logAudit(userId, role, action, prevVal, newVal, details, refId) {
 // Compute dynamic status based on promise_date if unresolved
 function getEffectiveStatus(record, todayStr = dayjs().format('YYYY-MM-DD')) {
   const currentStatus = record.status || 'Pending';
-  if (['Paid', 'Partially Paid', 'Broken', 'Cancelled', 'Rescheduled'].includes(currentStatus)) {
+  if (['Paid', 'Partially Paid', 'Partial Paid Done', 'Fully Paid', 'Fully Paid(Recon)', 'Fully Paid(Reloan)', 'Broken', 'Cancelled', 'Rescheduled'].includes(currentStatus)) {
     return currentStatus;
   }
   const pDate = record.promise_date ? record.promise_date.slice(0, 10) : '';
   if (!pDate) return currentStatus;
-  if (pDate < todayStr) return 'Overdue';
+  if (pDate < todayStr) return 'Overdue PTP';
   if (pDate === todayStr) return 'Due Today';
   return 'Pending';
 }
@@ -34,6 +35,7 @@ function getEffectiveStatus(record, todayStr = dayjs().format('YYYY-MM-DD')) {
 // 1. Search Client for "Set Promise-to-Pay"
 router.get('/search-client', authenticateToken, async (req, res) => {
   try {
+    await synchronizePromiseToPayStatuses();
     const { q, branch_id } = req.query;
     if (!q || !q.trim()) {
       return res.json([]);
@@ -99,7 +101,7 @@ router.get('/search-client', authenticateToken, async (req, res) => {
 
       // Recent PTP count
       const ptpCount = await dbGet(
-        `SELECT COUNT(*) as cnt FROM tblPromiseToPay WHERE customer_id = ? AND status IN ('Pending', 'Due Today', 'Overdue')`,
+        `SELECT COUNT(*) as cnt FROM tblPromiseToPay WHERE customer_id = ? AND status IN ('Pending', 'Due Today', 'Overdue PTP', 'Overdue')`,
         [cust.id]
       );
       cust.active_ptp_count = ptpCount?.cnt || 0;
@@ -115,6 +117,7 @@ router.get('/search-client', authenticateToken, async (req, res) => {
 router.get('/client/:id', authenticateToken, async (req, res) => {
   try {
     const customerId = req.params.id;
+    await synchronizePromiseToPayStatuses({ customerId });
     const customer = await dbGet(`
       SELECT c.*, 
              TRIM(c.first_name || ' ' || c.last_name) as full_name,
@@ -204,7 +207,7 @@ router.post('/', authenticateToken, async (req, res) => {
     const pDate = promise_date.slice(0, 10);
     let initialStatus = 'Pending';
     if (pDate === todayStr) initialStatus = 'Due Today';
-    else if (pDate < todayStr) initialStatus = 'Overdue';
+    else if (pDate < todayStr) initialStatus = 'Overdue PTP';
 
     // Auto-resolve branch & collector if missing
     let resolvedCollectorId = collector_id || null;
@@ -290,6 +293,7 @@ router.post('/', authenticateToken, async (req, res) => {
 // 4. PTP Monitoring (List & Metrics grouped by Collector)
 router.get('/monitoring', authenticateToken, async (req, res) => {
   try {
+    await synchronizePromiseToPayStatuses();
     const {
       search,
       status,
@@ -389,7 +393,7 @@ router.get('/monitoring', authenticateToken, async (req, res) => {
         baseQuery += ` AND ptp.status IN ('Pending', 'Due Today') AND date(ptp.promise_date) = date(?)`;
         params.push(todayStr);
       } else if (status === 'overdue') {
-        baseQuery += ` AND ptp.status IN ('Pending', 'Due Today', 'Overdue') AND date(ptp.promise_date) < date(?)`;
+        baseQuery += ` AND ptp.status IN ('Pending', 'Due Today', 'Overdue PTP') AND date(ptp.promise_date) < date(?)`;
         params.push(todayStr);
       } else if (status === 'pending') {
         baseQuery += ` AND ptp.status IN ('Pending', 'Due Today') AND date(ptp.promise_date) >= date(?)`;
@@ -467,9 +471,9 @@ router.get('/monitoring', authenticateToken, async (req, res) => {
       totalCollected += paidAmt;
 
       if (effStatus === 'Due Today') dueTodayCount++;
-      else if (effStatus === 'Overdue') overdueCount++;
+      else if (effStatus === 'Overdue PTP') overdueCount++;
       else if (effStatus === 'Pending') pendingCount++;
-      else if (effStatus === 'Paid' || effStatus === 'Partially Paid') fulfilledCount++;
+      else if (['Paid', 'Partially Paid', 'Partial Paid Done', 'Fully Paid', 'Fully Paid(Recon)', 'Fully Paid(Reloan)'].includes(effStatus)) fulfilledCount++;
       else if (effStatus === 'Broken') brokenCount++;
 
       const colKey = item.collector_id ? String(item.collector_id) : 'unassigned';
@@ -487,7 +491,7 @@ router.get('/monitoring', authenticateToken, async (req, res) => {
       colEntry.count += 1;
       colEntry.total_promised += promisedAmt;
       if (effStatus === 'Due Today') colEntry.due_today_count += 1;
-      if (effStatus === 'Overdue') colEntry.overdue_count += 1;
+      if (effStatus === 'Overdue PTP') colEntry.overdue_count += 1;
     });
 
     const collectorTabs = Array.from(collectorStatsMap.values())
@@ -523,6 +527,7 @@ router.get('/monitoring', authenticateToken, async (req, res) => {
 // 5. PTP Due Updates (Specifically for "PTP Update" Tab)
 router.get('/due-updates', authenticateToken, async (req, res) => {
   try {
+    await synchronizePromiseToPayStatuses();
     const { due_filter, collector_id, branch_id, search } = req.query;
     const todayStr = dayjs().format('YYYY-MM-DD');
     const threeDaysLater = dayjs().add(3, 'day').format('YYYY-MM-DD');
@@ -551,7 +556,7 @@ router.get('/due-updates', authenticateToken, async (req, res) => {
 
     // Filter by due status
     if (due_filter === 'overdue') {
-      q += ` AND ptp.status IN ('Pending', 'Due Today', 'Overdue') AND date(ptp.promise_date) < date(?)`;
+      q += ` AND ptp.status IN ('Pending', 'Due Today', 'Overdue PTP') AND date(ptp.promise_date) < date(?)`;
       params.push(todayStr);
     } else if (due_filter === 'due_today') {
       q += ` AND ptp.status IN ('Pending', 'Due Today') AND date(ptp.promise_date) = date(?)`;
@@ -563,7 +568,7 @@ router.get('/due-updates', authenticateToken, async (req, res) => {
       // no restriction
     } else {
       // Default: 'all_due' (Overdue + Due Today)
-      q += ` AND ptp.status IN ('Pending', 'Due Today', 'Overdue') AND date(ptp.promise_date) <= date(?)`;
+      q += ` AND ptp.status IN ('Pending', 'Due Today', 'Overdue PTP') AND date(ptp.promise_date) <= date(?)`;
       params.push(todayStr);
     }
 
@@ -607,7 +612,7 @@ router.get('/due-updates', authenticateToken, async (req, res) => {
     // Also get quick counts for the tabs
     const counts = await dbGet(`
       SELECT 
-        SUM(CASE WHEN status IN ('Pending', 'Due Today', 'Overdue') AND date(promise_date) < date(?) THEN 1 ELSE 0 END) as overdue_count,
+        SUM(CASE WHEN status IN ('Pending', 'Due Today', 'Overdue PTP') AND date(promise_date) < date(?) THEN 1 ELSE 0 END) as overdue_count,
         SUM(CASE WHEN status IN ('Pending', 'Due Today') AND date(promise_date) = date(?) THEN 1 ELSE 0 END) as due_today_count,
         SUM(CASE WHEN status IN ('Pending', 'Due Today') AND date(promise_date) > date(?) AND date(promise_date) <= date(?) THEN 1 ELSE 0 END) as upcoming_count,
         COUNT(*) as total_count
@@ -632,11 +637,12 @@ router.get('/due-updates', authenticateToken, async (req, res) => {
 // 5.1 Quick due notification count for sidebar badge & topbar
 router.get('/notifications', authenticateToken, async (req, res) => {
   try {
+    await synchronizePromiseToPayStatuses();
     const todayStr = dayjs().format('YYYY-MM-DD');
     let query = `
       SELECT 
-        SUM(CASE WHEN status IN ('Pending', 'Due Today', 'Overdue') AND date(promise_date) < date(?) THEN 1 ELSE 0 END) as overdue_count,
-        SUM(CASE WHEN status IN ('Pending', 'Due Today') AND date(promise_date) = date(?) THEN 1 ELSE 0 END) as due_today_count,
+        SUM(CASE WHEN status IN ('Pending', 'Due Today', 'Overdue PTP') AND date(promise_date) < date(?) THEN 1 ELSE 0 END) as overdue_count,
+        SUM(CASE WHEN status IN ('Pending', 'Due Today', 'Overdue PTP') AND date(promise_date) = date(?) THEN 1 ELSE 0 END) as due_today_count,
         COUNT(*) as total_count
       FROM tblPromiseToPay
       WHERE 1=1
@@ -706,7 +712,7 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
       const newPDate = new_promise_date.slice(0, 10);
       let initialStatus = 'Pending';
       if (newPDate === todayStr) initialStatus = 'Due Today';
-      else if (newPDate < todayStr) initialStatus = 'Overdue';
+      else if (newPDate < todayStr) initialStatus = 'Overdue PTP';
 
       const newRec = await dbRun(`
         INSERT INTO tblPromiseToPay (

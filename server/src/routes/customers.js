@@ -4,6 +4,7 @@ const { authenticateToken, requireRole } = require('../middleware/auth');
 const { computeMaturityDate, generateAmortizationSchedule, getWorkingDays } = require('../services/loanCalculator');
 const { requireOperationDate } = require('../services/operationDays');
 const { recalculateLoanBalances } = require('../services/loanBalanceRecalculator');
+const { synchronizePromiseToPayStatuses } = require('../services/promiseToPayStatus');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -1151,6 +1152,8 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, actionName, 'CUSTOMER', customer.id, `${normalizedLoanType} application created: ${loan_code} for ₱${amount}`]);
     await dbRun('COMMIT');
     transactionStarted = false;
+    await synchronizePromiseToPayStatuses({ customerId: customer.id })
+      .catch(e => console.error('Error synchronizing PTP after loan release:', e));
     res.json({
       message: loanStatus === 'active' ? `${normalizedLoanType} saved to Active Loans successfully` : `${normalizedLoanType} application submitted successfully`,
       loan_code,

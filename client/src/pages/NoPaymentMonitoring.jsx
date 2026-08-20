@@ -135,7 +135,6 @@ export default function NoPaymentMonitoring() {
   const tabs = [
     { id: 'new', label: 'New (Day 3)', Icon: Bell, tone: 'blue' },
     { id: 'monitoring', label: 'Under Monitoring', Icon: Eye, tone: 'indigo' },
-    { id: 'ptp', label: 'Promise to Pay', Icon: Handshake, tone: 'emerald' },
     { id: 'escalated', label: 'Escalated', Icon: Flame, tone: 'red' },
     { id: 'resolved', label: 'Resolved', Icon: CheckCircle2, tone: 'green' },
     { id: 'history', label: 'History', Icon: History, tone: 'slate' }
@@ -289,8 +288,6 @@ export default function NoPaymentMonitoring() {
           {item.repeat_risk} (Seq: {item.sequence_number})
         </span>
       </td>
-      {activeTab === 'ptp' && <td><strong>{fmtDate(item.ptp_date)}</strong></td>}
-      {activeTab === 'ptp' && <td><strong className="npm-money">PHP {fmtAmt(item.ptp_amount)}</strong></td>}
       <td>
         {item.last_follow_up_date ? (
           <div className="npm-followup">
@@ -417,8 +414,6 @@ export default function NoPaymentMonitoring() {
                 <th>Consecutive Days</th>
                 <th>First Missed</th>
                 <th>Repeat Risk</th>
-                {activeTab === 'ptp' && <th>PTP Date</th>}
-                {activeTab === 'ptp' && <th>PTP Amount</th>}
                 <th>Last Follow-up</th>
                 <th>Actions</th>
               </tr>
@@ -426,7 +421,7 @@ export default function NoPaymentMonitoring() {
             <tbody>
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={shouldGroupByCollector ? 8 : activeTab === 'ptp' ? 11 : 9}>
+                  <td colSpan={shouldGroupByCollector ? 8 : 9}>
                     <div className="npm-empty">
                       <CheckCircle2 size={28} />
                       <strong>No alerts found</strong>
