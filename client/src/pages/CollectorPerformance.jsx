@@ -16,6 +16,15 @@ const getRatingPresentation = rating => {
   if (value.includes('unsatisfactory') || value.includes('below')) return { color: '#c56a00', background: '#fff7e6', border: '#fde3ad' }
   return { color: '#64748b', background: '#f1f5f9', border: '#dbe4f0' }
 }
+const ratingForAccomplishment = accomplishment => {
+  if (!Number.isFinite(accomplishment)) return 'Not rated'
+  if (accomplishment >= 115) return 'Outstanding Performance'
+  if (accomplishment >= 110) return 'Passing / Very Satisfactory'
+  if (accomplishment >= 105) return 'Below Passing Standard'
+  if (accomplishment >= 95) return 'Unsatisfactory Performance'
+  if (accomplishment >= 90) return 'Poor Performance'
+  return 'Critical Performance Failure'
+}
 const countFmt = value => Number(value || 0).toLocaleString('en-PH')
 const printAmount = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const COLLECTOR_EDITS_STORAGE_KEY = 'collectorPerformanceEdits'
@@ -700,6 +709,25 @@ function FortyFivePrintReport({ period, selectedRatingPeriod, collectorEdits }) 
 }
 
 function FortyFiveEvaluationTable({ entityLabel, rows = [], childRows = () => [], childEntityLabel = 'Details', onOpenChildren, footerRow }) {
+  const overallRow = useMemo(() => {
+    if (footerRow) return footerRow
+    const totals = rows.reduce((sum, row) => ({
+      collection_total: sum.collection_total + Number(row.collection_total || 0),
+      release_total: sum.release_total + Number(row.release_total || 0),
+      expense_total: sum.expense_total + Number(row.expense_total || 0),
+      reported_pastdue: sum.reported_pastdue + Number(row.reported_pastdue || 0)
+    }), { collection_total: 0, release_total: 0, expense_total: 0, reported_pastdue: 0 })
+    const denominator = totals.release_total + totals.expense_total
+    const accomplishment = denominator > 0 ? (totals.collection_total / denominator) * 100 : null
+    return {
+      name: 'Overall Total',
+      ...totals,
+      net_income: totals.collection_total - totals.release_total - totals.expense_total,
+      accomplishment_percentage: accomplishment,
+      rating: ratingForAccomplishment(accomplishment)
+    }
+  }, [footerRow, rows])
+
   const renderCells = row => {
     const ratingStyle = getRatingPresentation(row.rating)
     const accomplishment = Number(row.accomplishment_percentage || 0)
@@ -732,7 +760,7 @@ function FortyFiveEvaluationTable({ entityLabel, rows = [], childRows = () => []
               {renderCells(row)}
             </tr>
         })}</tbody>
-        {footerRow && <tfoot><tr className="forty-five-overall-row"><td><span className="forty-five-static-name"><span className="forty-five-person-avatar">OM</span>{footerRow.name || 'Operations Manager Overall'}</span></td>{renderCells(footerRow)}</tr></tfoot>}
+        {rows.length > 0 && <tfoot><tr className="forty-five-overall-row"><td><span className="forty-five-static-name"><span className="forty-five-person-avatar">{footerRow ? 'OM' : 'Σ'}</span>{overallRow.name || 'Overall Total'}</span></td>{renderCells(overallRow)}</tr></tfoot>}
       </table>
     </div>
     <div className="forty-five-formula">💡 Net Income = Collections − Non-Recon Releases − Expense Share. Reported Pastdue is shown separately and is not included in the formula.</div>
