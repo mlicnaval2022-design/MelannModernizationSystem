@@ -566,6 +566,33 @@ const loanInterest = loan => {
 }
 const loanTotalAmount = loan => loanPrincipal(loan) + loanInterest(loan)
 
+const getNewClientCollectorRows = loans => Object.entries((loans || [])
+  .filter(loan => {
+    const type = String(loan?.loan_type || '').toLowerCase()
+    return !type.includes('reloan') && !type.includes('re-loan') && !type.includes('recon')
+  })
+  .reduce((rows, loan) => {
+    const collector = loan.collector_name || 'Unassigned'
+    if (!rows[collector]) {
+      rows[collector] = {
+        collector,
+        clientIds: new Set(),
+        principal: 0,
+        interest: 0,
+        totalLoan: 0
+      }
+    }
+
+    const row = rows[collector]
+    row.clientIds.add(loan.customer_id || loan.customer_code || loan.id)
+    row.principal += loanPrincipal(loan)
+    row.interest += loanInterest(loan)
+    row.totalLoan += loanTotalAmount(loan)
+    return rows
+  }, {}))
+  .map(([, row]) => ({ ...row, newClientCount: row.clientIds.size }))
+  .sort((a, b) => a.collector.localeCompare(b.collector))
+
 const getMaturityCollectorRows = loans => Object.entries(loans.reduce((acc, l) => {
   const name = l.collector_name || 'Unassigned'
   if (!acc[name]) {
@@ -4031,6 +4058,13 @@ export default function Reports() {
         : `Release Period: ${displayDate(reportFrom)} to ${displayDate(reportTo)}`
       
       const collectorRows = getReleaseCollectorRows(loans)
+      const newClientRows = getNewClientCollectorRows(loans)
+      const newClientTotals = newClientRows.reduce((totals, row) => ({
+        newClientCount: totals.newClientCount + row.newClientCount,
+        principal: totals.principal + row.principal,
+        interest: totals.interest + row.interest,
+        totalLoan: totals.totalLoan + row.totalLoan
+      }), { newClientCount: 0, principal: 0, interest: 0, totalLoan: 0 })
       const releaseChartLabel = releaseChartMetric === 'non-recon' ? 'Non-Recon Release' : 'Overall Total'
       const releaseChartColor = releaseChartMetric === 'non-recon' ? '#dc2626' : '#2563eb'
       const releaseChartSoftColor = releaseChartMetric === 'non-recon' ? '#fecaca' : '#bfdbfe'
@@ -4068,11 +4102,15 @@ export default function Reports() {
               }
             }
             @media print {
-              ${printMode === 'detailed' ? `
+              ${printMode === 'new-clients' ? `
+              .reports-screen-only, .reports-print-only { display: none !important; }
+              .release-new-clients-print { display: block !important; }
+              ` : printMode === 'detailed' ? `
               .reports-screen-only { display: none !important; }
               .reports-print-only { display: block !important; }
+              .release-new-clients-print { display: none !important; }
               ` : `
-              .reports-print-only { display: none !important; }
+              .reports-print-only, .release-new-clients-print { display: none !important; }
               .reports-screen-only { display: flex !important; flex-direction: column !important; }
               .reports-screen-only > div:first-child { order: 2; }
               .reports-screen-only > div:last-child { order: 1; margin-bottom: 30px; }
@@ -4272,6 +4310,52 @@ export default function Reports() {
                   </div>
                 </div>
               </div>
+            )}
+          </div>
+          <div id={(!selectedCollector && printMode === 'new-clients') ? "printable-area" : undefined} className="release-new-clients-print" style={{ display: 'none', padding: 20, background: '#fff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, borderBottom: '2px solid var(--blue-dark)', paddingBottom: 12, marginBottom: 18 }}>
+              <div>
+                <h2 style={{ margin: 0, color: 'var(--blue-dark)' }}>New Clients Release Summary</h2>
+                <div style={{ fontSize: 13, color: '#64748b', marginTop: 5 }}>{transactionLabel}</div>
+              </div>
+              <div style={{ textAlign: 'right', fontSize: 12, color: '#475569' }}>
+                <div>Total New Clients: <strong style={{ color: 'var(--blue-dark)' }}>{newClientTotals.newClientCount}</strong></div>
+                <div style={{ marginTop: 4 }}>Total Loans: <strong style={{ color: '#059669' }}>PHP {fmt(newClientTotals.totalLoan)}</strong></div>
+              </div>
+            </div>
+
+            {newClientRows.length === 0 ? <div className="empty-state">No new-client releases found for this period.</div> : (
+              <table className="data-table" style={{ width: '100%', fontSize: 12 }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left' }}>Collector</th>
+                    <th className="text-center">New Clients</th>
+                    <th className="text-right">Principal</th>
+                    <th className="text-right">Interest</th>
+                    <th className="text-right">Total Loans</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {newClientRows.map(row => (
+                    <tr key={row.collector}>
+                      <td className="fw-600">{row.collector}</td>
+                      <td className="text-center">{row.newClientCount}</td>
+                      <td className="text-right">PHP {fmt(row.principal)}</td>
+                      <td className="text-right">PHP {fmt(row.interest)}</td>
+                      <td className="text-right fw-bold text-success">PHP {fmt(row.totalLoan)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: 'rgba(18,58,99,0.05)', borderTop: '2px solid var(--blue-dark)' }}>
+                    <td className="fw-bold" style={{ color: 'var(--blue-dark)' }}>OVERALL TOTAL</td>
+                    <td className="text-center fw-bold">{newClientTotals.newClientCount}</td>
+                    <td className="text-right fw-bold">PHP {fmt(newClientTotals.principal)}</td>
+                    <td className="text-right fw-bold">PHP {fmt(newClientTotals.interest)}</td>
+                    <td className="text-right fw-bold text-success">PHP {fmt(newClientTotals.totalLoan)}</td>
+                  </tr>
+                </tfoot>
+              </table>
             )}
           </div>
         </>
@@ -5541,6 +5625,7 @@ export default function Reports() {
                       <button className="btn btn-secondary" onClick={handleExportExcel} disabled={loading || data?.error}>Export Excel</button>
                       <button className="btn btn-secondary" onClick={() => handlePrint('summary')}><Printer size={15} /> Print Summary</button>
                       <button className="btn btn-secondary" onClick={() => handlePrint('detailed')}><Printer size={15} /> Print Detailed</button>
+                      {active === 'monthly-releases' && releaseSubTab === 'daily' && <button className="btn btn-secondary" onClick={() => handlePrint('new-clients')}><Printer size={15} /> Print New Clients</button>}
                     </>
                   ) : (
                     <>

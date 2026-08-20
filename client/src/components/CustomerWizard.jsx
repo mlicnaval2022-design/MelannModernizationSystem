@@ -112,8 +112,8 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
   const handleUpper = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value.toUpperCase() }));
   const handleLower = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value.toLowerCase() }));
   const loanTypeForClassification = (classification) => {
-    if (classification === 'Re-Loan') return 'Re-Loan';
-    if (classification === 'Returning Client') return 'Re-Loan';
+    if (classification === 'Reloan') return 'Reloan';
+    if (classification === 'Returning Client') return 'Reloan';
     return 'New';
   };
 
@@ -261,12 +261,12 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
 
           <label className="section-label">Customer Classification *</label>
           <div className="radio-cards">
-            {['New Client', 'Re-Loan', 'Returning Client'].map(type => (
+            {['New Client', 'Reloan', 'Returning Client'].map(type => (
               <div key={type} className={`radio-card ${form.customer_classification === type ? 'active' : ''}`} onClick={() => setForm({...form, customer_classification: type, loan_type: loanTypeForClassification(type)})}>
                 <input type="radio" checked={form.customer_classification === type} readOnly />
                 <div className="radio-content">
                   <strong>{type}</strong>
-                  <span>{type === 'New Client' ? 'First time borrower' : type === 'Re-Loan' ? 'Existing client' : 'Inactive client'}</span>
+                  <span>{type === 'New Client' ? 'First time borrower' : type === 'Reloan' ? 'Existing client' : 'Inactive client'}</span>
                 </div>
               </div>
             ))}

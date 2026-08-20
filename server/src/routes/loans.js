@@ -7,6 +7,14 @@ const router = express.Router();
 const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
 
 const isNewLoanType = type => ['new', 'new loan'].includes(String(type || '').trim().toLowerCase());
+const canonicalLoanType = type => {
+  const value = String(type || '').trim();
+  const normalized = value.toLowerCase().replace(/[-\s]/g, '');
+  if (normalized === 'reloan') return 'Reloan';
+  if (normalized === 'recon') return 'Recon';
+  if (normalized === 'new' || normalized === 'newloan') return 'New';
+  return value || 'New';
+};
 const passbookForLoan = loan => isNewLoanType(loan?.loan_type) ? 50 : Number(loan?.passbook || 0);
 const buildClientAddress = loan => [
   loan.customer_address_line || loan.customer_address || loan.address,
@@ -213,7 +221,7 @@ router.post('/', authenticateToken, async (req, res) => {
     const loan_code = await generateLoanReference(date_released);
     const loan_status = status || 'pending';
     const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, service_fee, insurance, notarial_fee, filing_fee, total_deductions, net_proceeds, balance, previous_balance, penalty, passbook, or_number, remarks, created_by, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [loan_code, customer_id, collector_id, branch_id || null, loan_type || 'New', principal, interest_rate || 0, interest_amount, 45, date_released, date_maturity, amortization, total_amortization, 0, 0, 0, 0, 0, net_proceeds, total_amortization, balanceAmount, penaltyAmount, passbookAmount, '', remarks, req.user.id, loan_status]);
+      [loan_code, customer_id, collector_id, branch_id || null, canonicalLoanType(loan_type), principal, interest_rate || 0, interest_amount, 45, date_released, date_maturity, amortization, total_amortization, 0, 0, 0, 0, 0, net_proceeds, total_amortization, balanceAmount, penaltyAmount, passbookAmount, '', remarks, req.user.id, loan_status]);
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'LOAN', result.lastID, `New loan created (${loan_status}): ${loan_code}`]);
     res.status(201).json({ id: result.lastID, loan_code, amortization, total_amortization, date_maturity, net_proceeds });
   } catch (err) { sendRouteError(res, err); }
@@ -228,7 +236,7 @@ router.put('/:id/edit', authenticateToken, requireRole('admin', 'manager'), asyn
     if (!loan) return res.status(404).json({ error: 'Loan not found' });
 
     if (loan_type_only) {
-      const loanType = String(loan_type || loan.loan_type || 'New').trim() || 'New';
+      const loanType = canonicalLoanType(loan_type || loan.loan_type);
       await dbRun(`UPDATE tblLoan SET loan_type = ?, updated_at = datetime('now') WHERE id = ?`, [loanType, loan_id]);
       await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
         [req.user.id, req.user.username, 'EDIT', 'LOAN', loan_id, `Edited loan type ${loan.loan_code}. Old: ${loan.loan_type || 'New'}. New: ${loanType}.`]);
@@ -243,7 +251,7 @@ router.put('/:id/edit', authenticateToken, requireRole('admin', 'manager'), asyn
     const period = parseInt(loan_period) || 45;
     const interestRate = parseFloat(interest_rate) || 0;
     const principalAmount = parseFloat(principal);
-    const loanType = String(loan_type || loan.loan_type || 'New').trim() || 'New';
+    const loanType = canonicalLoanType(loan_type || loan.loan_type);
     const normalizeDateOnly = value => String(value || '').slice(0, 10);
     const sameMoney = (a, b) => Math.abs(Number(a || 0) - Number(b || 0)) < 0.01;
     const sameNumber = (a, b) => Number(a || 0) === Number(b || 0);
@@ -486,7 +494,7 @@ router.post('/:id/approve-reloan', authenticateToken, async (req, res) => {
 
     await dbRun(`UPDATE tblLoan SET status='approved', updated_at=datetime('now') WHERE id=?`, [loan_id]);
     await dbRun(`UPDATE tblCustomer SET status='RELOAN APPROVED', updated_at=datetime('now') WHERE id=?`, [loan.customer_id]);
-    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'APPROVE_RELOAN', 'LOAN', loan_id, `Manager Approved Re-Loan`]);
+    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'APPROVE_RELOAN', 'LOAN', loan_id, `Manager Approved Reloan`]);
     res.json({ message: 'Reloan approved successfully' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -503,7 +511,7 @@ router.post('/:id/reject-reloan', authenticateToken, async (req, res) => {
 
     await dbRun(`UPDATE tblLoan SET status='rejected', remarks=?, updated_at=datetime('now') WHERE id=?`, [remarks, loan_id]);
     await dbRun(`UPDATE tblCustomer SET status='RELOAN REJECTED', updated_at=datetime('now') WHERE id=?`, [loan.customer_id]);
-    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REJECT_RELOAN', 'LOAN', loan_id, `Manager Rejected Re-Loan: ${remarks}`]);
+    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REJECT_RELOAN', 'LOAN', loan_id, `Manager Rejected Reloan: ${remarks}`]);
     res.json({ message: 'Reloan rejected successfully' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

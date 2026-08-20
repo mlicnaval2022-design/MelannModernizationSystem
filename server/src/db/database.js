@@ -803,6 +803,19 @@ async function initializeDatabase() {
   if (!loanColNames.has('previous_balance')) await dbRun(`ALTER TABLE tblLoan ADD COLUMN previous_balance REAL DEFAULT 0`);
   if (!loanColNames.has('penalty')) await dbRun(`ALTER TABLE tblLoan ADD COLUMN penalty REAL DEFAULT 0`);
   if (!loanColNames.has('passbook')) await dbRun(`ALTER TABLE tblLoan ADD COLUMN passbook REAL DEFAULT 0`);
+  // Keep a single canonical loan-type value so filters and reports do not split Reloan/Re-Loan.
+  await dbRun(`
+    UPDATE tblLoan
+    SET loan_type = 'Reloan'
+    WHERE LOWER(REPLACE(REPLACE(TRIM(COALESCE(loan_type, '')), '-', ''), ' ', '')) = 'reloan'
+      AND loan_type <> 'Reloan'
+  `);
+  await dbRun(`
+    UPDATE tblCustomer
+    SET customer_classification = 'Reloan'
+    WHERE LOWER(REPLACE(REPLACE(TRIM(COALESCE(customer_classification, '')), '-', ''), ' ', '')) = 'reloan'
+      AND customer_classification <> 'Reloan'
+  `);
 
   const ciCols = await dbAll(`PRAGMA table_info(tblCreditInvestigation)`);
   const ciColNames = new Set(ciCols.map(c => c.name));

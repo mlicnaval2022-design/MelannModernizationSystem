@@ -80,7 +80,7 @@ async function postPriorLoanBalancePayment({ customerId, sourceLoanId, amount, u
   const paymentAmount = Number(amount || 0);
   if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) return null;
   const loanTypeLabel = String(loanType || '').toUpperCase() === 'RELOAN'
-    ? 'Re-Loan'
+    ? 'Reloan'
     : String(loanType || '').toUpperCase() === 'RECON'
       ? 'RECON'
       : loanType;
@@ -902,7 +902,7 @@ router.post('/', authenticateToken, async (req, res) => {
     const placeholders = cols.map(() => '?').join(',');
     const result = await dbRun(`INSERT INTO tblCustomer (${cols.join(',')}) VALUES (${placeholders})`, vals);
     
-    // Auto-create CI Application (pending loan) or Active (Re-Loan)
+    // Auto-create CI Application (pending loan) or Active (Reloan)
     const maxLoan = await dbGet("SELECT MAX(CAST(REPLACE(loan_code, 'LN-', '') AS INTEGER)) as c FROM tblLoan");
     const loan_code = `LN-${String((maxLoan?.c || 0) + 1).padStart(6, '0')}`;
     const date_released = new Date().toISOString().split('T')[0];
@@ -910,8 +910,8 @@ router.post('/', authenticateToken, async (req, res) => {
     const principal = Number(proposed_principal) || 0;
     
     const requestedLoanType = normalizeLoanType(req.body.loan_type) || normalizeLoanType(customer_classification);
-    const parsedLoanType = requestedLoanType === 'RELOAN' ? 'Re-Loan' : 'New';
-    const loanStatus = parsedLoanType === 'Re-Loan' ? 'active' : 'pending';
+    const parsedLoanType = requestedLoanType === 'RELOAN' ? 'Reloan' : 'New';
+    const loanStatus = parsedLoanType === 'Reloan' ? 'active' : 'pending';
     
     const interestRate = 15;
     const loanPeriod = 45;
@@ -1035,7 +1035,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
     const loanStatus = 'active';
     const actionName = normalizedLoanType === 'RECON' ? 'RECON_APP' : normalizedLoanType === 'NEW' ? 'NEW_LOAN_APP' : 'RELOAN_APP';
     const defaultRemarks = `Auto-created via ${normalizedLoanType} loan input`;
-    const storedLoanType = normalizedLoanType === 'RELOAN' ? 'Re-Loan' : normalizedLoanType === 'NEW' ? 'New' : 'RECON';
+    const storedLoanType = normalizedLoanType === 'RELOAN' ? 'Reloan' : normalizedLoanType === 'NEW' ? 'New' : 'RECON';
     const interestAmount = amount * (interestRate / 100);
     const totalAmortization = Math.ceil(amount + interestAmount);
     const workingDays = getWorkingDays(period);

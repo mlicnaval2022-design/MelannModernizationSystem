@@ -1154,8 +1154,8 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       pending_ci_count: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='pending'`)).c,
       for_approval_count: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='for_approval'`)).c,
       pending_reloan_count: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='reloan_pending'`)).c,
-      approved_reloan_count: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='approved' AND loan_type='Re-Loan'`)).c,
-      rejected_reloan_count: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='rejected' AND loan_type='Re-Loan'`)).c,
+      approved_reloan_count: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='approved' AND LOWER(REPLACE(REPLACE(COALESCE(loan_type, ''), '-', ''), ' ', ''))='reloan'`)).c,
+      rejected_reloan_count: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='rejected' AND LOWER(REPLACE(REPLACE(COALESCE(loan_type, ''), '-', ''), ' ', ''))='reloan'`)).c,
       approved_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='approved' AND DATE(updated_at)=?`, [today])).c,
       rejected_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='rejected' AND DATE(updated_at)=?`, [today])).c,
       monitoring_alerts_active: (await dbGet(`
