@@ -6,7 +6,7 @@ const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits:
 const EMPTY = { customer_id: '', collector_id: '', branch_id: '', loan_type: 'New', principal: '', interest_rate: '15', loan_period: '45', date_released: new Date().toISOString().split('T')[0], previous_balance: '', or_number: '', remarks: '' }
 
 export default function CreditScoring() {
-  const { hasRole } = useAuth()
+  const { hasRole, hasPermission } = useAuth()
   const [rows, setRows] = useState([])
   const [customers, setCustomers] = useState([])
   const [collectors, setCollectors] = useState([])
@@ -358,7 +358,7 @@ export default function CreditScoring() {
                       ) : (
                         <button style={{ padding: '6px 12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }} onClick={() => openCI(r)}>View CI</button>
                       )}
-                      {(hasRole('admin') || hasRole('manager')) && (
+                      {(hasRole('admin', 'manager') || hasPermission('credit-scoring', 'crud') || hasPermission('loans', 'crud')) && (
                         <button 
                           style={{ padding: '6px 12px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }} 
                           onClick={() => handleDeleteApp(r.id)}
@@ -725,7 +725,7 @@ export default function CreditScoring() {
                   )}
 
                   <div style={{ display: 'flex', gap: 15, marginTop: 20 }}>
-                    {hasRole('admin', 'manager') ? (
+                    {(hasRole('admin', 'manager') || hasPermission('credit-scoring', 'edit') || hasPermission('credit-scoring', 'crud') || hasPermission('loans', 'edit') || hasPermission('loans', 'crud')) ? (
                       managerForm.decision ? (
                         <div style={{ display: 'flex', gap: 10, width: '100%' }}>
                           <button type="button" className="btn btn-secondary" onClick={() => setManagerForm(f => ({ ...f, decision: '' }))} style={{ flex: 1 }}>← Back</button>

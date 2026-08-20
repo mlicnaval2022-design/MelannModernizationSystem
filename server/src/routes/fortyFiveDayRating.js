@@ -495,7 +495,7 @@ router.post('/periods/:id/refresh', authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.post('/periods/:id/lock', authenticateToken, requireRole('admin'), async (req, res) => {
+router.post('/periods/:id/lock', authenticateToken, requireRole('admin', 'manager', 'accounting', 'it', 'it_accounting_clerk'), async (req, res) => {
   try {
     const branch = getBranchFilter(req.user.branch_id, 'branch_id');
     const period = await dbGet(`SELECT * FROM tblFortyFiveDayRatingPeriod WHERE id = ?${branch.sql}`, [req.params.id, ...branch.params]);
@@ -511,7 +511,7 @@ router.post('/periods/:id/lock', authenticateToken, requireRole('admin'), async 
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.post('/periods/:id/unlock', authenticateToken, requireRole('admin'), async (req, res) => {
+router.post('/periods/:id/unlock', authenticateToken, requireRole('admin', 'manager', 'accounting', 'it', 'it_accounting_clerk'), async (req, res) => {
   try {
     const reason = String(req.body?.reason || '').trim();
     if (!reason) return res.status(400).json({ error: 'An unlock reason is required.' });

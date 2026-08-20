@@ -21,7 +21,7 @@ router.get('/week-lock', authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.post('/week-lock', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+router.post('/week-lock', authenticateToken, requireRole('admin', 'manager', 'accounting', 'it', 'it_accounting_clerk'), async (req, res) => {
   try {
     const { week_start: weekStart, week_end: weekEnd, snapshot } = req.body || {};
     if (!validWeekStart(weekStart) || !dayjs(weekEnd).isSame(dayjs(weekStart).add(5, 'day'), 'day') || !snapshot?.collectors?.length) {
@@ -42,7 +42,7 @@ router.post('/week-lock', authenticateToken, requireRole('admin', 'manager'), as
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.post('/week-lock/:weekStart/unlock', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+router.post('/week-lock/:weekStart/unlock', authenticateToken, requireRole('admin', 'manager', 'accounting', 'it', 'it_accounting_clerk'), async (req, res) => {
   try {
     const reason = String(req.body?.reason || '').trim();
     if (!reason) return res.status(400).json({ error: 'An unlock reason is required.' });

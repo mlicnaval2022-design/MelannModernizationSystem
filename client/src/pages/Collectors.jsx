@@ -3,7 +3,7 @@ import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 
 export default function Collectors() {
-  const { hasRole } = useAuth()
+  const { hasRole, hasPermission } = useAuth()
   const [rows, setRows] = useState([])
   const [branches, setBranches] = useState([])
   const [loading, setLoading] = useState(true)
@@ -115,7 +115,7 @@ export default function Collectors() {
   return (
     <div>
       <div className="page-toolbar">
-        {hasRole('admin', 'manager') && <button id="btn-new-collector" className="btn btn-primary" onClick={openNew}>+ New Collector</button>}
+        {(hasRole('admin', 'manager') || hasPermission('collectors', 'input') || hasPermission('collectors', 'crud')) && <button id="btn-new-collector" className="btn btn-primary" onClick={openNew}>+ New Collector</button>}
       </div>
       <div className="card">
         <div className="table-wrapper">
@@ -137,7 +137,7 @@ export default function Collectors() {
                         {r.active_loans}
                       </button>
                     </td>
-                    <td>{hasRole('admin', 'manager') && <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Edit</button>}</td>
+                    <td>{(hasRole('admin', 'manager') || hasPermission('collectors', 'edit') || hasPermission('collectors', 'crud')) && <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Edit</button>}</td>
                   </tr>
                 ))}
             </tbody>

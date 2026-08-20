@@ -847,7 +847,7 @@ function FortyFiveHierarchyModal({ details, onClose }) {
 }
 
 export default function CollectorPerformance() {
-  const { hasRole } = useAuth()
+  const { hasRole, hasPermission } = useAuth()
   const defaultRange = useMemo(() => getDefaultRange(), [])
   const [filters, setFilters] = useState(defaultRange)
   const [data, setData] = useState(null)
@@ -1693,9 +1693,9 @@ export default function CollectorPerformance() {
   const performanceWeekDates = getOperationWeek(lockedCollections?.dateTo || filters.date_to)
   const currentWeekDates = getOperationWeek(filters.date_to)
   const isWeekLocked = Boolean(lockedCollections && lockedCollections.dateFrom === currentWeekDates[0] && lockedCollections.dateTo === currentWeekDates[5])
-  const canManageWeekLock = hasRole('admin', 'manager')
-  const canManageManualExpenses = hasRole('admin', 'manager', 'accounting', 'it', 'it_accounting_clerk')
-  const canManageRatingLock = hasRole('admin')
+  const canManageWeekLock = hasRole('admin', 'manager', 'accounting', 'it', 'it_accounting_clerk') || hasPermission('collector-performance', 'edit') || hasPermission('collector-performance', 'crud')
+  const canManageManualExpenses = hasRole('admin', 'manager', 'accounting', 'it', 'it_accounting_clerk') || hasPermission('collector-performance', 'input') || hasPermission('collector-performance', 'edit') || hasPermission('collector-performance', 'crud')
+  const canManageRatingLock = hasRole('admin', 'manager', 'accounting', 'it', 'it_accounting_clerk') || hasPermission('collector-performance', 'edit') || hasPermission('collector-performance', 'crud')
   const isRatingPeriodLocked = isFinalRatingStatus(selectedRatingPeriod?.period?.status)
   const canEditRatingPeriod = canManageManualExpenses && !isRatingPeriodLocked
   const isValidRatingRange = Boolean(ratingDateRange.start_date && ratingDateRange.end_date && ratingDateRange.end_date >= ratingDateRange.start_date)
@@ -2615,7 +2615,7 @@ export default function CollectorPerformance() {
                     <button className="btn btn-secondary" type="button" onClick={loadCollections} disabled={collectionsLoading || isWeekLocked}>
                       <RefreshCw size={16} /> {collectionsLoading ? 'Syncing...' : 'Sync Dates'}
                     </button>
-                    <button className={`btn ${isWeekLocked ? 'btn-success' : 'btn-secondary'}`} type="button" onClick={() => isWeekLocked ? unlockWeek() : lockWeekForPrinting()} disabled={collectionsLoading || !collectionRows.length || !canManageWeekLock} title={!canManageWeekLock ? 'Only managers and administrators can lock or unlock a week.' : undefined}>
+                    <button className={`btn ${isWeekLocked ? 'btn-success' : 'btn-secondary'}`} type="button" onClick={() => isWeekLocked ? unlockWeek() : lockWeekForPrinting()} disabled={collectionsLoading || !collectionRows.length || !canManageWeekLock} title={!canManageWeekLock ? 'You do not have permission to lock or unlock this week.' : undefined}>
                       {isWeekLocked ? <Unlock size={16} /> : <Lock size={16} />} {isWeekLocked ? 'Unlock Week' : 'Lock Week'}
                     </button>
                     <button className="btn btn-secondary" type="button" onClick={previewLockedPerformance} disabled={collectionsLoading || !collectionRows.length}>
@@ -3067,7 +3067,7 @@ export default function CollectorPerformance() {
                           <button type="button" className={ratingContentTab === 'ranking' ? 'active' : ''} onClick={() => setRatingContentTab('ranking')}>Ranking</button>
                           <button type="button" className={ratingContentTab === 'print-report' ? 'active' : ''} onClick={() => setRatingContentTab('print-report')}>Print Report</button>
                         </div>
-                        <button className={`btn ${isRatingPeriodLocked ? 'btn-success' : 'btn-secondary'}`} type="button" onClick={isRatingPeriodLocked ? unlockRatingPeriod : lockRatingPeriod} disabled={fortyFiveDayLoading || !canManageRatingLock} title={!canManageRatingLock ? 'Only administrators can finalize or unlock a 45-day period.' : undefined}>
+                        <button className={`btn ${isRatingPeriodLocked ? 'btn-success' : 'btn-secondary'}`} type="button" onClick={isRatingPeriodLocked ? unlockRatingPeriod : lockRatingPeriod} disabled={fortyFiveDayLoading || !canManageRatingLock} title={!canManageRatingLock ? 'You do not have permission to finalize or unlock this 45-day period.' : undefined}>
                           {isRatingPeriodLocked ? <Unlock size={16} /> : <Lock size={16} />} {isRatingPeriodLocked ? 'Unlock Period' : 'Finalize / Lock Period'}
                         </button>
                       </div>

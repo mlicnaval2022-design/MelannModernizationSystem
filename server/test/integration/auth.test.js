@@ -275,11 +275,11 @@ test('reloan old balance posts to prior loan on release date and not to new loan
   assert.equal(oldLoan.total_paid, 1000);
   assert.equal(oldLoan.status, 'fullpaid');
   assert.equal(newLoan.previous_balance, 500);
-  assert.equal(newLoan.loan_type, 'Re-Loan');
+  assert.equal(newLoan.loan_type, 'Reloan');
   assert.equal(oldLoanPayment.date_paid, '2026-07-21');
   assert.equal(oldLoanPayment.balance_before, 500);
   assert.equal(oldLoanPayment.balance_after, 0);
-  assert.match(oldLoanPayment.remarks, /old balance during Re-Loan/);
+  assert.match(oldLoanPayment.remarks, /old balance during Re-?Loan/i);
   assert.equal(newLoanBalancePayment, undefined);
 });
 

@@ -3,7 +3,7 @@ import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 
 export default function Branches() {
-  const { hasRole } = useAuth()
+  const { hasRole, hasPermission } = useAuth()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
@@ -30,14 +30,14 @@ export default function Branches() {
     finally { setSaving(false) }
   }
 
-  if (!hasRole('admin', 'manager')) return (
-    <div className="empty-state"><div className="empty-icon">🔐</div><p>Access restricted to Admins and Managers.</p></div>
+  if (!hasRole('admin', 'manager') && !hasPermission('branches', 'view')) return (
+    <div className="empty-state"><div className="empty-icon">🔐</div><p>Access restricted to authorized users.</p></div>
   )
 
   return (
     <div>
       <div className="page-toolbar">
-        {hasRole('admin') && <button id="btn-new-branch" className="btn btn-primary" onClick={openNew}>+ New Branch</button>}
+        {(hasRole('admin') || hasPermission('branches', 'input') || hasPermission('branches', 'crud')) && <button id="btn-new-branch" className="btn btn-primary" onClick={openNew}>+ New Branch</button>}
       </div>
       <div className="card">
         <div className="table-wrapper">
@@ -54,7 +54,7 @@ export default function Branches() {
                     <td>{r.contact || '—'}</td>
                     <td><span className={`badge badge-${r.is_active ? 'active' : 'inactive'}`}>{r.is_active ? 'Active' : 'Inactive'}</span></td>
                     <td>
-                      {hasRole('admin') && <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Edit</button>}
+                      {(hasRole('admin') || hasPermission('branches', 'edit') || hasPermission('branches', 'crud')) && <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Edit</button>}
                     </td>
                   </tr>
                 ))}
