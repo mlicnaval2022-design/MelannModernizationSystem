@@ -192,8 +192,12 @@ router.post('/', authenticateToken, async (req, res) => {
     if (!promise_date) {
       return res.status(400).json({ error: 'Promise-to-Pay Date is required' });
     }
-    if (promised_amount === undefined || promised_amount === null || isNaN(Number(promised_amount)) || Number(promised_amount) < 0) {
-      return res.status(400).json({ error: 'Valid Promised Amount is required' });
+    const parsedAmount = (promised_amount === undefined || promised_amount === null || promised_amount === '')
+      ? 0
+      : Number(promised_amount);
+
+    if (isNaN(parsedAmount) || parsedAmount < 0) {
+      return res.status(400).json({ error: 'Valid Promised Amount (0 or higher) is required' });
     }
 
     const todayStr = dayjs().format('YYYY-MM-DD');
@@ -245,7 +249,7 @@ router.post('/', authenticateToken, async (req, res) => {
       pDate,
       follow_up_date ? follow_up_date.slice(0, 10) : null,
       recurring_schedule || 'One-time',
-      Number(promised_amount),
+      parsedAmount,
       payment_method || 'Field Collection',
       reason || 'Payment Commitment',
       remarks || null,
@@ -435,13 +439,18 @@ router.get('/monitoring', authenticateToken, async (req, res) => {
       overdue_count: 0
     });
 
-    // Also get all collectors in DB to ensure every collector has a sheet tab
-    const allCollectors = await dbAll(`SELECT id, collector_code, first_name || ' ' || last_name as name FROM tblCollector ORDER BY first_name ASC`);
+    // Also get all active collectors in DB to match Collectors Module
+    const allCollectors = await dbAll(`
+      SELECT id, collector_code, TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) as name 
+      FROM tblCollector 
+      WHERE is_active = 1 
+      ORDER BY CAST(collector_code AS INTEGER) ASC, id ASC
+    `);
     allCollectors.forEach(col => {
       collectorStatsMap.set(String(col.id), {
         collector_id: col.id,
         collector_code: col.collector_code,
-        collector_name: col.name,
+        collector_name: col.name || `Collector ${col.collector_code}`,
         count: 0,
         total_promised: 0,
         due_today_count: 0,
@@ -481,11 +490,15 @@ router.get('/monitoring', authenticateToken, async (req, res) => {
       if (effStatus === 'Overdue') colEntry.overdue_count += 1;
     });
 
-    const collectorTabs = Array.from(collectorStatsMap.values()).sort((a, b) => {
-      if (a.collector_id === 'unassigned') return 1;
-      if (b.collector_id === 'unassigned') return -1;
-      return a.collector_name.localeCompare(b.collector_name);
-    });
+    const collectorTabs = Array.from(collectorStatsMap.values())
+      .filter(col => col.collector_id !== 'unassigned' || col.count > 0)
+      .sort((a, b) => {
+        if (a.collector_id === 'unassigned') return 1;
+        if (b.collector_id === 'unassigned') return -1;
+        const codeA = Number(a.collector_code) || a.collector_id;
+        const codeB = Number(b.collector_code) || b.collector_id;
+        return codeA - codeB;
+      });
 
     res.json({
       records: processedRecords,
@@ -610,6 +623,46 @@ router.get('/due-updates', authenticateToken, async (req, res) => {
         all_due: (counts?.overdue_count || 0) + (counts?.due_today_count || 0),
         total: counts?.total_count || 0
       }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5.1 Quick due notification count for sidebar badge & topbar
+router.get('/notifications', authenticateToken, async (req, res) => {
+  try {
+    const todayStr = dayjs().format('YYYY-MM-DD');
+    let query = `
+      SELECT 
+        SUM(CASE WHEN status IN ('Pending', 'Due Today', 'Overdue') AND date(promise_date) < date(?) THEN 1 ELSE 0 END) as overdue_count,
+        SUM(CASE WHEN status IN ('Pending', 'Due Today') AND date(promise_date) = date(?) THEN 1 ELSE 0 END) as due_today_count,
+        COUNT(*) as total_count
+      FROM tblPromiseToPay
+      WHERE 1=1
+    `;
+    const params = [todayStr, todayStr];
+
+    if (req.user.role === 'collector') {
+      query += ` AND collector_id = ?`;
+      params.push(req.user.id);
+    } else if (req.user.role === 'teller' || req.user.role === 'manager') {
+      if (req.user.branch_id) {
+        query += ` AND branch_id = ?`;
+        params.push(req.user.branch_id);
+      }
+    }
+
+    const counts = await dbGet(query, params);
+    const dueToday = Number(counts?.due_today_count || 0);
+    const overdue = Number(counts?.overdue_count || 0);
+    const dueCount = dueToday + overdue;
+
+    res.json({
+      count: dueCount,
+      due_today_count: dueToday,
+      overdue_count: overdue,
+      total_count: Number(counts?.total_count || 0)
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

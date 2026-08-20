@@ -1,6 +1,7 @@
 const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
-const { authenticateToken, requireRole } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
+const { requireModuleAccess } = require('../middleware/permissions');
 const { logAudit, createNotification, runDailyMonitoring } = require('../services/noPaymentMonitoring');
 const dayjs = require('dayjs');
 const router = express.Router();
@@ -142,7 +143,7 @@ router.post('/resolve', authenticateToken, async (req, res) => {
   }
 });
 
-router.post('/escalate', authenticateToken, requireRole('manager', 'admin'), async (req, res) => {
+router.post('/escalate', authenticateToken, requireModuleAccess('crud'), async (req, res) => {
   try {
     const { alert_id, remarks } = req.body;
     const alert = await dbGet(`SELECT alert_level FROM tblMonitoringAlert WHERE id = ?`, [alert_id]);
@@ -208,7 +209,7 @@ router.get('/timeline/:alert_id', authenticateToken, async (req, res) => {
   }
 });
 
-router.post('/run-daily', authenticateToken, requireRole('admin'), async (req, res) => {
+router.post('/run-daily', authenticateToken, requireModuleAccess('crud'), async (req, res) => {
   try {
     await runDailyMonitoring();
     const active = await dbGet(`

@@ -1,6 +1,7 @@
 const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
-const { authenticateToken, requireRole } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
+const { requireModuleAccess } = require('../middleware/permissions');
 const router = express.Router();
 
 router.get('/', authenticateToken, async (req, res) => {
@@ -13,7 +14,7 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
-router.post('/', authenticateToken, requireRole('admin'), async (req, res) => {
+router.post('/', authenticateToken, requireModuleAccess('crud'), async (req, res) => {
   try {
     const { settings } = req.body;
     // settings is expected to be an object: { 'daily_cutoff': '20:00', ... }
@@ -28,7 +29,7 @@ router.post('/', authenticateToken, requireRole('admin'), async (req, res) => {
   }
 });
 
-router.post('/holiday', authenticateToken, requireRole('admin'), async (req, res) => {
+router.post('/holiday', authenticateToken, requireModuleAccess('crud'), async (req, res) => {
   try {
     const { holiday_date, description } = req.body;
     await dbRun(`INSERT INTO tblHoliday (holiday_date, description) VALUES (?, ?)`, [holiday_date, description]);
@@ -38,7 +39,7 @@ router.post('/holiday', authenticateToken, requireRole('admin'), async (req, res
   }
 });
 
-router.delete('/holiday/:id', authenticateToken, requireRole('admin'), async (req, res) => {
+router.delete('/holiday/:id', authenticateToken, requireModuleAccess('crud'), async (req, res) => {
   try {
     await dbRun(`DELETE FROM tblHoliday WHERE id = ?`, [req.params.id]);
     res.json({ message: 'Holiday removed' });

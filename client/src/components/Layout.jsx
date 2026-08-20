@@ -36,10 +36,10 @@ const NAV = [
   { path: '/loans', label: 'Loans', Icon: Wallet, section: 'Operations', color: '#6366f1', bg: 'rgba(99, 102, 241, 0.18)' },
   { path: '/promissory-disclosure', label: 'For Print', Icon: FileText, section: 'Operations', color: '#06b6d4', bg: 'rgba(6, 182, 212, 0.16)' },
   { path: '/payments', label: 'Encode Payments', Icon: CreditCard, section: 'Operations', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.18)' },
-  { path: '/monitoring', label: '3-Day Monitoring', Icon: Bell, section: 'Operations', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.16)' },
-  { path: '/ptp-monitoring', label: 'Promise to Pay', Icon: Handshake, section: 'Operations', color: '#0284c7', bg: 'rgba(2, 132, 199, 0.16)' },
   { path: '/collectors', label: 'Collectors', Icon: Users, section: 'Operations', color: '#14b8a6', bg: 'rgba(20, 184, 166, 0.16)' },
-  { path: '/demand-letter', label: 'Demand Letter', Icon: FileText, section: 'Operations', color: '#f97316', bg: 'rgba(249, 115, 22, 0.18)' },
+  { path: '/monitoring', label: '3-Day Monitoring', Icon: Bell, section: 'Monitoring', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.16)' },
+  { path: '/ptp-monitoring', label: 'Promise to Pay', Icon: Handshake, section: 'Monitoring', color: '#0284c7', bg: 'rgba(2, 132, 199, 0.16)' },
+  { path: '/demand-letter', label: 'Demand Letter', Icon: FileText, section: 'Monitoring', color: '#f97316', bg: 'rgba(249, 115, 22, 0.18)' },
   { path: '/deposits', label: 'Deposits', Icon: Landmark, section: 'Finance', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.16)' },
   { path: '/transactions', label: 'Transactions', Icon: ReceiptText, section: 'Finance', color: '#0ea5e9', bg: 'rgba(14, 165, 233, 0.16)' },
   { path: '/dcr', label: 'Daily Cash Report', Icon: ClipboardList, section: 'Finance', color: '#eab308', bg: 'rgba(234, 179, 8, 0.18)' },
@@ -69,6 +69,7 @@ export default function Layout() {
   const [logoFailed, setLogoFailed] = useState(false)
   const [showNotif, setShowNotif] = useState(false)
   const [demandLetterBadgeCount, setDemandLetterBadgeCount] = useState(0)
+  const [ptpBadgeCount, setPtpBadgeCount] = useState(0)
   const [notifications, setNotifications] = useState([
     { id: 1, title: 'System Update', message: 'Your weekly collection report is ready to download.', time: '10 mins ago', color: '#3b82f6' },
     { id: 2, title: 'Past Due Alert', message: '3 accounts have moved to past due status today.', time: '1 hour ago', color: '#ef4444' },
@@ -111,6 +112,29 @@ export default function Layout() {
     API.get('/demand-letters/notifications')
       .then(r => {
         setDemandLetterBadgeCount(Number(r.data.today_count || r.data.count || 0))
+      })
+      .catch(() => {})
+
+    API.get('/ptp/notifications')
+      .then(r => {
+        const dueCount = Number(r.data.count || 0)
+        setPtpBadgeCount(dueCount)
+        if (dueCount > 0) {
+          setNotifications(prev => {
+            const id = 'ptp-due-alert'
+            if (prev.some(p => p.id === id)) return prev
+            return [
+              {
+                id,
+                title: 'Promise-to-Pay Due',
+                message: `${dueCount} client promise-to-pay commitment(s) are due today or overdue.`,
+                time: 'PTP Due',
+                color: '#0284c7'
+              },
+              ...prev
+            ]
+          })
+        }
       })
       .catch(() => {})
   }, [])
@@ -190,6 +214,9 @@ export default function Layout() {
                   <span className="nav-label">{nav.label}</span>
                   {nav.path === '/demand-letter' && demandLetterBadgeCount > 0 && (
                     <span className="nav-count-badge">{demandLetterBadgeCount}</span>
+                  )}
+                  {nav.path === '/ptp-monitoring' && ptpBadgeCount > 0 && (
+                    <span className="nav-count-badge">{ptpBadgeCount}</span>
                   )}
                 </NavLink>
               )})}

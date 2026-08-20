@@ -287,8 +287,13 @@ export default function PromiseToPayMonitoring() {
       showToast('Please enter a valid Promise-to-Pay Date.', 'error');
       return;
     }
-    if (!ptpForm.promised_amount || Number(ptpForm.promised_amount) <= 0) {
-      showToast('Please specify a valid Promised Amount.', 'error');
+    
+    const parsedAmount = (ptpForm.promised_amount === '' || ptpForm.promised_amount === null || ptpForm.promised_amount === undefined)
+      ? 0
+      : Number(ptpForm.promised_amount);
+
+    if (isNaN(parsedAmount) || parsedAmount < 0) {
+      showToast('Please specify a valid non-negative Promised Amount (or 0 if unstated).', 'error');
       return;
     }
 
@@ -302,7 +307,7 @@ export default function PromiseToPayMonitoring() {
         promise_date: ptpForm.promise_date,
         follow_up_date: ptpForm.follow_up_date || null,
         recurring_schedule: ptpForm.recurring_schedule,
-        promised_amount: Number(ptpForm.promised_amount),
+        promised_amount: parsedAmount,
         payment_method: ptpForm.payment_method,
         reason: ptpForm.reason,
         remarks: ptpForm.remarks
@@ -720,7 +725,7 @@ export default function PromiseToPayMonitoring() {
 
                       {/* Promised Amount */}
                       <div className="ptp-form-group">
-                        <label className="ptp-label required">
+                        <label className="ptp-label">
                           <Banknote size={14} /> Promised Amount (₱)
                         </label>
                         <input
@@ -728,12 +733,11 @@ export default function PromiseToPayMonitoring() {
                           step="0.01"
                           min="0"
                           className="ptp-input ptp-input-amount"
-                          placeholder="0.00"
+                          placeholder="0.00 (0 if unstated)"
                           value={ptpForm.promised_amount}
                           onChange={(e) => setPtpForm({ ...ptpForm, promised_amount: e.target.value })}
-                          required
                         />
-                        <span className="ptp-field-hint">Agreed amount client will pay</span>
+                        <span className="ptp-field-hint">Agreed amount client will pay (enter 0 or leave blank if unspecified)</span>
                       </div>
                     </div>
 
