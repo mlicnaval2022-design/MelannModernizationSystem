@@ -173,8 +173,73 @@ export default function PromiseToPayMonitoring() {
   // Feedback / Success Popup Modal
   const [successModal, setSuccessModal] = useState(null);
 
+  // Print Modal State
+  const [printModal, setPrintModal] = useState({
+    show: false,
+    collectorId: 'all'
+  });
+
   // Client Quick View Details Modal
   const [quickClientModal, setQuickClientModal] = useState({ show: false, data: null, history: [] });
+
+  // Grouped records for 8.5 x 13 in printing by collector
+  const printableGroups = useMemo(() => {
+    const rawData = activeTab === 'update' ? dueRecords : monitoringRecords;
+    if (!rawData || rawData.length === 0) {
+      if (printModal.collectorId !== 'all') {
+        const colObj = collectors.find(c => String(c.id) === String(printModal.collectorId));
+        return [{
+          collectorId: printModal.collectorId,
+          collectorName: colObj ? `${colObj.first_name} ${colObj.last_name}` : 'Selected Collector',
+          branchName: colObj?.branch_name || 'Main Branch',
+          records: []
+        }];
+      }
+      return [];
+    }
+
+    let filtered = [...rawData];
+
+    if (printModal.collectorId !== 'all') {
+      if (printModal.collectorId === 'unassigned') {
+        filtered = filtered.filter(r => !r.collector_id);
+      } else {
+        filtered = filtered.filter(r => String(r.collector_id) === String(printModal.collectorId));
+      }
+    }
+
+    const groupsMap = new Map();
+
+    filtered.forEach(r => {
+      const cId = r.collector_id ? String(r.collector_id) : 'unassigned';
+      const cName = r.collector_name || (cId === 'unassigned' ? 'Unassigned Collector' : 'Collector');
+      const bName = r.branch_name || 'Main Branch';
+
+      if (!groupsMap.has(cId)) {
+        groupsMap.set(cId, {
+          collectorId: cId,
+          collectorName: cName,
+          branchName: bName,
+          records: []
+        });
+      }
+      groupsMap.get(cId).records.push(r);
+    });
+
+    const groups = Array.from(groupsMap.values()).sort((a, b) => a.collectorName.localeCompare(b.collectorName));
+
+    if (groups.length === 0 && printModal.collectorId !== 'all') {
+      const colObj = collectors.find(c => String(c.id) === String(printModal.collectorId));
+      return [{
+        collectorId: printModal.collectorId,
+        collectorName: colObj ? `${colObj.first_name} ${colObj.last_name}` : 'Selected Collector',
+        branchName: colObj?.branch_name || 'Main Branch',
+        records: []
+      }];
+    }
+
+    return groups;
+  }, [monitoringRecords, dueRecords, activeTab, printModal.collectorId, collectors]);
 
   // Load initial dropdowns
   useEffect(() => {
@@ -598,6 +663,29 @@ export default function PromiseToPayMonitoring() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Open Print Modal
+  const handleOpenPrintModal = () => {
+    setPrintModal({
+      show: true,
+      collectorId: selectedCollectorTab === 'all' ? 'all' : selectedCollectorTab
+    });
+  };
+
+  // Trigger Native Print (8.5 x 13 in)
+  const handleTriggerPrint = () => {
+    document.body.classList.add('ptp-printing-active');
+    const cleanup = () => {
+      document.body.classList.remove('ptp-printing-active');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+
+    setTimeout(() => {
+      window.print();
+      setTimeout(cleanup, 1200);
+    }, 150);
   };
 
   // Render Status Badge
@@ -1370,6 +1458,14 @@ export default function PromiseToPayMonitoring() {
                 >
                   <Download size={14} /> Export CSV
                 </button>
+                <button
+                  type="button"
+                  className="ptp-btn-secondary ptp-btn-print"
+                  onClick={handleOpenPrintModal}
+                  title="Print Collector Promise-to-Pay Sheet (8.5 x 13 in)"
+                >
+                  <Printer size={14} /> Print Sheet
+                </button>
               </div>
             </div>
           </div>
@@ -1645,6 +1741,14 @@ export default function PromiseToPayMonitoring() {
                 title="Refresh"
               >
                 <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+              </button>
+              <button
+                type="button"
+                className="ptp-btn-secondary ptp-btn-print"
+                onClick={handleOpenPrintModal}
+                title="Print Due Promise-to-Pay Sheet (8.5 x 13 in)"
+              >
+                <Printer size={14} /> Print Sheet
               </button>
             </div>
           </div>
@@ -2382,7 +2486,263 @@ export default function PromiseToPayMonitoring() {
           </div>
         </div>
       )}
+    
+      {/* ========================================================================= */}
+      {/* PRINT OPTIONS & PREVIEW POPUP MODAL */}
+      {/* ========================================================================= */}
+      {printModal.show && (
+        <div className="ptp-modal-overlay" onClick={() => setPrintModal(prev => ({ ...prev, show: false }))}>
+          <div className="ptp-modal-content ptp-print-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="ptp-print-modal-header">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+                  <Printer size={20} />
+                </div>
+                <div>
+                  <h3 className="ptp-modal-title">Print Promise-to-Pay Sheet</h3>
+                  <p className="ptp-modal-subtitle">Generate printable collection sheet for field collectors</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="ptp-modal-close"
+                onClick={() => setPrintModal(prev => ({ ...prev, show: false }))}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="ptp-print-modal-body">
+              {/* Paper Format Notice */}
+              <div className="ptp-print-info-banner">
+                <FileText size={18} className="text-green-700 flex-shrink-0" />
+                <div>
+                  <strong>Default Paper Size:</strong> Standard Long Bond Paper (8.5" x 13" Folio) in Portrait orientation.
+                </div>
+              </div>
+
+              {/* Collector Selector */}
+              <div className="ptp-form-group">
+                <label className="ptp-label">Select Collector to Print:</label>
+                <select
+                  className="ptp-input font-medium"
+                  value={printModal.collectorId}
+                  onChange={(e) => setPrintModal(prev => ({ ...prev, collectorId: e.target.value }))}
+                >
+                  <option value="all">📑 All Collectors (Grouped with Page Breaks)</option>
+                  <optgroup label="Individual Collectors">
+                    {collectors.map(c => (
+                      <option key={c.id} value={String(c.id)}>
+                        👤 {c.first_name} {c.last_name} {c.branch_name ? `(${c.branch_name})` : ''}
+                      </option>
+                    ))}
+                    <option value="unassigned">⚠️ Unassigned Accounts</option>
+                  </optgroup>
+                </select>
+                <span className="text-[11px] text-gray-500 mt-1 block">
+                  {printModal.collectorId === 'all'
+                    ? 'Generates a separate page per collector for easy distribution to each field officer.'
+                    : 'Prints only the accounts assigned to the selected collector.'}
+                </span>
+              </div>
+
+              {/* Sheet Columns Preview */}
+              <div>
+                <label className="ptp-label mb-1.5 block">Sheet Columns Included:</label>
+                <div className="ptp-print-columns-list">
+                  <div className="ptp-print-col-item">
+                    <Check size={14} className="text-green-600" />
+                    <span>1. Client Code & Name</span>
+                  </div>
+                  <div className="ptp-print-col-item">
+                    <Check size={14} className="text-green-600" />
+                    <span>2. Loan Details (Bal)</span>
+                  </div>
+                  <div className="ptp-print-col-item">
+                    <Check size={14} className="text-green-600" />
+                    <span>3. Promise Date</span>
+                  </div>
+                  <div className="ptp-print-col-item">
+                    <Check size={14} className="text-green-600" />
+                    <span>4. Status</span>
+                  </div>
+                  <div className="ptp-print-col-item">
+                    <Check size={14} className="text-green-600" />
+                    <span>5. Channel & Remarks</span>
+                  </div>
+                  <div className="ptp-print-col-item highlight">
+                    <Check size={14} className="text-blue-600" />
+                    <span>6. Remarks (Blank Field)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Preview Stats */}
+              <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-200 text-xs">
+                <div>
+                  <span className="text-gray-500">Collector Pages: </span>
+                  <strong className="text-gray-900">{printableGroups.length}</strong>
+                </div>
+                <div>
+                  <span className="text-gray-500">Total Accounts: </span>
+                  <strong className="text-indigo-700 font-mono text-sm">
+                    {printableGroups.reduce((acc, g) => acc + g.records.length, 0)}
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            <div className="ptp-modal-footer">
+              <button
+                type="button"
+                className="ptp-btn-secondary"
+                onClick={() => setPrintModal(prev => ({ ...prev, show: false }))}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="ptp-btn-primary"
+                onClick={handleTriggerPrint}
+              >
+                <Printer size={16} /> Print Document (8.5 x 13 in)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* HIDDEN PRINT ROOT (FOR 8.5 x 13 INCH BOND PAPER PRINTING) */}
+      {/* ========================================================================= */}
+      <div id="ptp-printable-sheet" className="ptp-printable-sheet">
+        {printableGroups.map((group, gIdx) => (
+          <div key={group.collectorId || gIdx} className="ptp-print-page">
+            {/* Melann Header */}
+            <div className="ptp-print-header">
+              <h2 className="ptp-print-company">MELANN LENDING INVESTOR CORP.</h2>
+              <h3 className="ptp-print-title">PROMISE-TO-PAY (PTP) COLLECTION MONITORING SHEET</h3>
+              <div className="ptp-print-meta-grid">
+                <div>
+                  <strong>Collector:</strong> {group.collectorName}
+                </div>
+                <div>
+                  <strong>Branch:</strong> {group.branchName || 'Main Branch'}
+                </div>
+                <div>
+                  <strong>Date Printed:</strong> {dayjs().format('MMMM D, YYYY h:mm A')}
+                </div>
+                <div>
+                  <strong>Total Accounts:</strong> {group.records.length}
+                </div>
+              </div>
+            </div>
+
+            {/* Printable Table */}
+            <table className="ptp-print-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '4%', textAlign: 'center' }}>#</th>
+                  <th style={{ width: '22%' }}>Client Code & Name</th>
+                  <th style={{ width: '13%' }}>Loan Details</th>
+                  <th style={{ width: '13%' }}>Promise Date</th>
+                  <th style={{ width: '11%' }}>Status</th>
+                  <th style={{ width: '17%' }}>Channel & Remarks</th>
+                  <th style={{ width: '20%' }}>Remarks (Field Notes)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.records.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" style={{ textAlign: 'center', padding: '16px', fontStyle: 'italic', color: '#64748b' }}>
+                      No active Promise-to-Pay records for this collector.
+                    </td>
+                  </tr>
+                ) : (
+                  group.records.map((r, rIdx) => (
+                    <tr key={r.id || rIdx}>
+                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{rIdx + 1}</td>
+                      <td>
+                        <div className="ptp-print-client-name">
+                          <span className="ptp-print-code">{r.customer_code}</span> - {r.customer_name}
+                        </div>
+                        {r.contact && <div className="ptp-print-contact">📞 {r.contact}</div>}
+                      </td>
+                      <td>
+                        <div className="ptp-print-loan-code">{r.loan_code || 'N/A'}</div>
+                        <div className="ptp-print-loan-bal">Bal: ₱{fmtAmt(r.loan_balance)}</div>
+                      </td>
+                      <td>
+                        <div className="ptp-print-pdate">{fmtDate(r.promise_date)}</div>
+                        {r.follow_up_date && (
+                          <div className="ptp-print-fdate">F/U: {fmtDate(r.follow_up_date)}</div>
+                        )}
+                        {r.recurring_schedule && r.recurring_schedule !== 'One-time' && (
+                          <div className="ptp-print-sched">({r.recurring_schedule})</div>
+                        )}
+                      </td>
+                      <td>
+                        <span className={`ptp-print-status-tag status-${(r.effective_status || '').toLowerCase().replace(/\s+/g, '-')}`}>
+                          {r.effective_status || r.status}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="ptp-print-method">{r.payment_method || 'Field Collection'}</div>
+                        {r.remarks && <div className="ptp-print-remarks">{r.remarks}</div>}
+                        {r.last_update_remarks && (
+                          <div className="ptp-print-last-update">Note: {r.last_update_remarks}</div>
+                        )}
+                      </td>
+                      {/* Blank Column for manual pen handwriting */}
+                      <td className="ptp-print-blank-col">
+                        <div className="ptp-print-blank-lines">
+                          <div className="ptp-print-line"></div>
+                          <div className="ptp-print-line"></div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+
+            {/* Summary & Signatures */}
+            <div className="ptp-print-footer">
+              <div className="ptp-print-stats">
+                <span><strong>Total Accounts:</strong> {group.records.length}</span>
+                <span><strong>Total Balance:</strong> ₱{fmtAmt(group.records.reduce((sum, item) => sum + (Number(item.loan_balance) || 0), 0))}</span>
+                <span><strong>Due Today:</strong> {group.records.filter(i => i.effective_status === 'Due Today').length}</span>
+                <span><strong>Overdue:</strong> {group.records.filter(i => ['Overdue', 'Overdue PTP'].includes(i.effective_status)).length}</span>
+              </div>
+
+              <div className="ptp-print-signatures">
+                <div className="ptp-print-sig-col">
+                  <div className="ptp-print-sig-label">Prepared By:</div>
+                  <div className="ptp-print-sig-line">
+                    {user?.name || 'Authorized Staff'}
+                  </div>
+                  <div className="ptp-print-sig-role">Melann Staff / Credit Officer</div>
+                </div>
+
+                <div className="ptp-print-sig-col">
+                  <div className="ptp-print-sig-label">Received & Acknowledged By:</div>
+                  <div className="ptp-print-sig-line">
+                    {group.collectorName !== 'All Collectors' ? group.collectorName : 'Collector Signature'}
+                  </div>
+                  <div className="ptp-print-sig-role">Assigned Collector</div>
+                </div>
+
+                <div className="ptp-print-sig-col">
+                  <div className="ptp-print-sig-label">Supervised / Noted By:</div>
+                  <div className="ptp-print-sig-line">Branch Manager / Supervisor</div>
+                  <div className="ptp-print-sig-role">Melann Lending Management</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
     </div>
   );
 }
-

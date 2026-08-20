@@ -1654,3 +1654,368 @@
 .ptp-btn-danger:hover {
   background: #b91c1c;
 }
+
+/* ========================================================================= */
+/* PRINT MODAL & PREVIEW STYLES */
+/* ========================================================================= */
+.ptp-print-modal-box {
+  max-width: 540px;
+  width: 100%;
+}
+
+.ptp-print-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.ptp-print-modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ptp-print-info-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  color: #166534;
+  font-size: 12px;
+}
+
+.ptp-print-paper-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #0284c7;
+  color: #ffffff;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.ptp-print-columns-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 12px;
+  color: #334155;
+}
+
+.ptp-print-col-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.ptp-print-col-item.highlight {
+  color: #0284c7;
+  font-weight: 700;
+}
+
+/* ========================================================================= */
+/* PRINT LAYOUT (8.5 x 13 INCHES / LONG BOND PAPER) */
+/* ========================================================================= */
+.ptp-printable-sheet {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: 8.5in 13in portrait;
+    margin: 0.35in 0.4in;
+  }
+
+  html, body {
+    width: 8.5in !important;
+    min-height: 13in !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body.ptp-printing-active > :not(.ptp-printable-sheet) {
+    display: none !important;
+  }
+
+  .ptp-printable-sheet {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .ptp-print-page {
+    page-break-after: always;
+    break-after: page;
+    padding-bottom: 24px;
+  }
+
+  .ptp-print-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  /* Header */
+  .ptp-print-header {
+    text-align: center;
+    border-bottom: 2px solid #0f172a;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+  }
+
+  .ptp-print-company {
+    font-size: 14pt;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 2px 0;
+    color: #0f172a;
+  }
+
+  .ptp-print-title {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #334155;
+    margin: 0 0 6px 0;
+    letter-spacing: 0.2px;
+  }
+
+  .ptp-print-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    font-size: 8pt;
+    color: #1e293b;
+    margin-top: 6px;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    padding: 5px 8px;
+    text-align: left;
+  }
+
+  .ptp-print-meta-grid strong {
+    color: #0f172a;
+  }
+
+  /* Table */
+  .ptp-print-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 7.8pt;
+    line-height: 1.25;
+    margin-top: 8px;
+  }
+
+  .ptp-print-table th,
+  .ptp-print-table td {
+    border: 1px solid #334155;
+    padding: 5px 6px;
+    vertical-align: top;
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .ptp-print-table th {
+    background-color: #e2e8f0 !important;
+    font-weight: 800;
+    text-transform: uppercase;
+    font-size: 7.2pt;
+    letter-spacing: 0.2px;
+    color: #0f172a;
+    text-align: left;
+  }
+
+  .ptp-print-client-name {
+    font-weight: 700;
+    color: #0f172a;
+    font-size: 8pt;
+  }
+
+  .ptp-print-code {
+    font-family: monospace;
+    font-weight: 800;
+    color: #1e3a8a;
+  }
+
+  .ptp-print-contact {
+    font-size: 7pt;
+    color: #475569;
+    margin-top: 2px;
+  }
+
+  .ptp-print-loan-code {
+    font-family: monospace;
+    font-weight: 700;
+    color: #4338ca;
+  }
+
+  .ptp-print-loan-bal {
+    font-weight: 700;
+    color: #b91c1c;
+    font-size: 7.5pt;
+    margin-top: 2px;
+  }
+
+  .ptp-print-pdate {
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  .ptp-print-fdate {
+    font-size: 6.8pt;
+    color: #64748b;
+    margin-top: 1px;
+  }
+
+  .ptp-print-sched {
+    font-size: 6.8pt;
+    color: #0369a1;
+    font-weight: 600;
+  }
+
+  .ptp-print-status-tag {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 6.8pt;
+    font-weight: 700;
+    border: 1px solid #94a3b8;
+    background: #f1f5f9;
+  }
+
+  .ptp-print-status-tag.status-due-today {
+    background: #fef3c7 !important;
+    color: #92400e !important;
+    border-color: #f59e0b !important;
+  }
+
+  .ptp-print-status-tag.status-overdue,
+  .ptp-print-status-tag.status-overdue-ptp {
+    background: #fee2e2 !important;
+    color: #991b1b !important;
+    border-color: #ef4444 !important;
+  }
+
+  .ptp-print-status-tag.status-paid,
+  .ptp-print-status-tag.status-fully-paid {
+    background: #dcfce7 !important;
+    color: #166534 !important;
+    border-color: #22c55e !important;
+  }
+
+  .ptp-print-method {
+    font-weight: 600;
+    color: #334155;
+  }
+
+  .ptp-print-remarks {
+    font-size: 7pt;
+    color: #1e293b;
+    margin-top: 2px;
+  }
+
+  .ptp-print-last-update {
+    font-size: 6.8pt;
+    font-style: italic;
+    color: #475569;
+    margin-top: 2px;
+  }
+
+  /* Blank handwritten remarks column */
+  .ptp-print-blank-col {
+    background: #ffffff !important;
+    height: 38px;
+  }
+
+  .ptp-print-blank-lines {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    min-height: 28px;
+    gap: 12px;
+    padding-top: 10px;
+  }
+
+  .ptp-print-line {
+    border-bottom: 1px dashed #94a3b8;
+    width: 100%;
+    height: 1px;
+  }
+
+  /* Footer & Signatures */
+  .ptp-print-footer {
+    margin-top: 16px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .ptp-print-stats {
+    display: flex;
+    justify-content: space-around;
+    padding: 6px 10px;
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    font-size: 7.5pt;
+    margin-bottom: 24px;
+  }
+
+  .ptp-print-signatures {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+  }
+
+  .ptp-print-sig-col {
+    flex: 1;
+    text-align: center;
+    font-size: 7.5pt;
+  }
+
+  .ptp-print-sig-label {
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 34px;
+    text-align: left;
+  }
+
+  .ptp-print-sig-line {
+    border-top: 1.5px solid #0f172a;
+    padding-top: 4px;
+    font-weight: 700;
+    font-size: 8pt;
+    color: #0f172a;
+  }
+
+  .ptp-print-sig-role {
+    font-size: 6.8pt;
+    color: #64748b;
+    margin-top: 2px;
+  }
+}
