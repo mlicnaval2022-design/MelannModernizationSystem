@@ -470,7 +470,10 @@ router.get('/periods/:id', authenticateToken, async (req, res) => {
     const branch = getBranchFilter(req.user.branch_id, 'branch_id');
     const period = await dbGet(`SELECT * FROM tblFortyFiveDayRatingPeriod WHERE id = ?${branch.sql}`, [req.params.id, ...branch.params]);
     if (!period) return res.status(404).json({ error: 'Rating period not found.' });
-    if (!isFinalStatus(period.status)) await buildPeriodEvaluations(period);
+    // A rating period is a saved date range, not a frozen financial ledger.
+    // Rebuild it when opened so fixes to the shared collection rules (including
+    // Melann Office and release charges) immediately stay aligned with reports.
+    await buildPeriodEvaluations(period);
     const evaluations = await dbAll(`
       SELECT e.*, co.first_name || ' ' || co.last_name AS collector_name,
         co.supervisor, co.branch_id, b.branch_name
