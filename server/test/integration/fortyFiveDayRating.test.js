@@ -61,8 +61,8 @@ test('forty-five-day-rating calculate returns on-the-fly evaluations for date ra
 
   // Insert loan and payments (2026-07-06 is Monday)
   const loan = await dbRun(`
-    INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, balance, date_released, status, created_by)
-    VALUES ('LN-45-1', ?, ?, ?, 'New', 10000, 10000, '2026-07-06', 'active', ?)
+    INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, balance, previous_balance, penalty, date_released, status, created_by)
+    VALUES ('LN-45-1', ?, ?, ?, 'New', 10000, 10000, 100, 25, '2026-07-06', 'active', ?)
   `, [customer.lastID, collector.lastID, branch.id, adminUser.id]);
 
   await dbRun(`
@@ -109,10 +109,14 @@ test('forty-five-day-rating calculate returns on-the-fly evaluations for date ra
 
   const torretaEval = data.evaluations.find(e => e.collector_name.includes('Torreta'));
   assert.ok(torretaEval);
-  assert.equal(torretaEval.collection_total, 12000);
+  assert.equal(torretaEval.collection_total, 12125);
   assert.equal(torretaEval.release_total, 10000);
-  assert.equal(torretaEval.accomplishment_percentage, 120);
+  assert.ok(Math.abs(torretaEval.accomplishment_percentage - 121.25) < 0.000001);
   assert.equal(torretaEval.rating, 'Outstanding Performance');
+
+  const collectionReportResponse = await api('/reports/daily-collection?date_from=2026-07-01&date_to=2026-08-15');
+  const collectionReport = await collectionReportResponse.json();
+  assert.equal(collectionReport.total, data.evaluations.reduce((sum, row) => sum + Number(row.collection_total || 0), 0));
 
   const officeEval = data.evaluations.find(e => e.collector_name === 'Melann Office');
   assert.ok(officeEval);

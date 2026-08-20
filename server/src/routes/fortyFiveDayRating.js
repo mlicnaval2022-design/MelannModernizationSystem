@@ -187,28 +187,75 @@ function getPreviousCompanyPeriod(startDate) {
     .sort((a, b) => b.end_date.localeCompare(a.end_date))[0] || null;
 }
 
-async function getActualCollectionTotal(collectorId, startDate, endDate) {
-  const paymentRow = await dbGet(`
-    SELECT COALESCE(SUM(p.amount_paid), 0) AS total
+const normalizeCollectionCollectorName = value => {
+  const name = String(value || '').trim();
+  return (name.replace(/\s+past\s*due$/i, '').trim() || 'Unassigned').toLowerCase();
+};
+
+async function getCollectionTotalsByCollector(startDate, endDate) {
+  const paymentRows = await dbAll(`
+    SELECT p.amount_paid,
+      COALESCE(
+        NULLIF(TRIM(cco.first_name || ' ' || cco.last_name), ''),
+        NULLIF(TRIM(lco.first_name || ' ' || lco.last_name), ''),
+        NULLIF(TRIM(co.first_name || ' ' || co.last_name), ''),
+        'Unassigned'
+      ) AS collector_name
     FROM tblPayment p
     LEFT JOIN tblLoan l ON l.id = p.loan_id
     LEFT JOIN tblCustomer c ON c.id = p.customer_id
-    WHERE COALESCE(p.collector_id, l.collector_id, c.collector_id) = ?
-      AND date(p.date_paid) BETWEEN date(?) AND date(?)
+    LEFT JOIN tblCollector co ON co.id = p.collector_id
+    LEFT JOIN tblCollector lco ON lco.id = l.collector_id
+    LEFT JOIN tblCollector cco ON cco.id = c.collector_id
+    WHERE date(p.date_paid) BETWEEN date(?) AND date(?)
       AND p.status IN ('active', 'penalty')
       AND p.status != 'recon'
       AND LOWER(COALESCE(p.payment_type, '')) != 'recon'
       AND LOWER(COALESCE(p.remarks, '')) NOT LIKE '%recon%'
-      AND LOWER(COALESCE(p.payment_type, '')) != 'passbook'
-      AND LOWER(COALESCE(p.remarks, '')) NOT LIKE '%passbook%'
-      -- A reconstruction payment that closes the account is not collector collection.
-      AND NOT (
-        LOWER(COALESCE(p.payment_type, '')) = 'recon'
-        AND COALESCE(p.balance_after, 0) <= 0
-      )
       AND ${sqlNotSunday('p.date_paid')}
-  `, [collectorId, startDate, endDate]);
-  return asAmount(paymentRow?.total);
+  `, [startDate, endDate]);
+  const releaseRows = await dbAll(`
+    WITH penalty_payments AS (
+      SELECT loan_id, COUNT(*) AS payment_count FROM tblPayment WHERE status = 'penalty' GROUP BY loan_id
+    ), balance_payments AS (
+      SELECT customer_id, date_paid, COUNT(*) AS payment_count
+      FROM tblPayment
+      WHERE status = 'active' AND status != 'recon'
+        AND LOWER(COALESCE(payment_type, '')) != 'recon'
+        AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%'
+        AND (LOWER(COALESCE(remarks, '')) LIKE '%old balance%' OR LOWER(COALESCE(payment_type, '')) IN ('balance', 'old_balance'))
+      GROUP BY customer_id, date_paid
+    )
+    SELECT COALESCE(
+        NULLIF(TRIM(cco.first_name || ' ' || cco.last_name), ''),
+        NULLIF(TRIM(co.first_name || ' ' || co.last_name), ''),
+        'Unassigned'
+      ) AS collector_name,
+      l.previous_balance, l.penalty,
+      COALESCE(pp.payment_count, 0) AS penalty_payment_count,
+      COALESCE(bp.payment_count, 0) AS balance_payment_count
+    FROM tblLoan l
+    LEFT JOIN tblCustomer c ON l.customer_id = c.id
+    LEFT JOIN tblCollector co ON l.collector_id = co.id
+    LEFT JOIN tblCollector cco ON c.collector_id = cco.id
+    LEFT JOIN penalty_payments pp ON pp.loan_id = l.id
+    LEFT JOIN balance_payments bp ON bp.customer_id = l.customer_id AND bp.date_paid = l.date_released
+    WHERE l.date_released BETWEEN ? AND ?
+      AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
+      AND LOWER(COALESCE(l.loan_type, '')) NOT IN ('recon', 'reconstruct', 'reconstructed')
+      AND ${sqlNotSunday('l.date_released')}
+  `, [startDate, endDate]);
+  const totals = new Map();
+  const add = (name, amount) => {
+    const key = normalizeCollectionCollectorName(name);
+    totals.set(key, (totals.get(key) || 0) + asAmount(amount));
+  };
+  paymentRows.forEach(row => add(row.collector_name, row.amount_paid));
+  releaseRows.forEach(row => {
+    if (!Number(row.balance_payment_count || 0)) add(row.collector_name, row.previous_balance);
+    if (!Number(row.penalty_payment_count || 0)) add(row.collector_name, row.penalty);
+  });
+  return totals;
 }
 
 async function getManualExpenseTotal(branchId, startDate, endDate) {
@@ -249,6 +296,7 @@ async function computeEvaluations({ branch_id, start_date, end_date }) {
   // Expense Share is controlled from the 45-Day Performance Expense Share tab.
   // This prevents unrelated DCR expenses from affecting collector ratings.
   const manualExpenseTotal = await getManualExpenseTotal(branch_id, start, end);
+  const collectionTotalsByCollector = await getCollectionTotalsByCollector(start, end);
   // Melann Office is reported alongside the collectors, but it must not receive
   // (or dilute) a share of the expenses that are apportioned to collectors.
   const expenseShareRecipients = collectors.filter(collector => collector.name.trim().toLowerCase() !== 'melann office');
@@ -283,7 +331,7 @@ async function computeEvaluations({ branch_id, start_date, end_date }) {
           OR LOWER(COALESCE(l.loan_type, '')) NOT LIKE '%recon%'
         )
     `, [collector.id, start, end]);
-    const collectionTotal = await getActualCollectionTotal(collector.id, start, end);
+    const collectionTotal = collectionTotalsByCollector.get(normalizeCollectionCollectorName(collector.name)) || 0;
     const releaseTotal = asAmount(releaseRow?.total);
     const collectorExpenseShare = collector.name.trim().toLowerCase() === 'melann office' ? 0 : expenseShare;
     const netIncome = collectionTotal - releaseTotal - collectorExpenseShare;
@@ -491,13 +539,16 @@ router.get('/periods/:id', authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.post('/periods/:id/refresh', authenticateToken, async (req, res) => {
+router.post('/periods/:id/refresh', authenticateToken, requireRole('admin', 'manager', 'accounting', 'it', 'it_accounting_clerk'), async (req, res) => {
   try {
     const branch = getBranchFilter(req.user.branch_id, 'branch_id');
     const period = await dbGet(`SELECT * FROM tblFortyFiveDayRatingPeriod WHERE id = ?${branch.sql}`, [req.params.id, ...branch.params]);
     if (!period) return res.status(404).json({ error: 'Rating period not found.' });
-    if (isFinalStatus(period.status)) return res.status(409).json({ error: 'Final periods cannot be refreshed.' });
     await buildPeriodEvaluations(period);
+    if (isFinalStatus(period.status)) {
+      await dbRun(`INSERT INTO tblFortyFiveDayRatingAudit (period_id, action, old_status, new_status, changed_by)
+        VALUES (?, 'Refresh calculated totals', ?, ?, ?)`, [period.id, period.status, period.status, req.user.id]);
+    }
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

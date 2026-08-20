@@ -767,7 +767,7 @@ function FortyFiveEvaluationTable({ entityLabel, rows = [], childRows = () => []
   </>
 }
 
-function FortyFiveCollectorEvaluationOverview({ rows = [], period, onRefresh, refreshing, locked }) {
+function FortyFiveCollectorEvaluationOverview({ rows = [], period, onRefresh, refreshing, locked, canRefresh }) {
   const totals = rows.reduce((sum, row) => ({
     collection: sum.collection + Number(row.collection_total || 0),
     release: sum.release + Number(row.release_total || 0),
@@ -789,7 +789,7 @@ function FortyFiveCollectorEvaluationOverview({ rows = [], period, onRefresh, re
         <div className="collector-evaluation-title-icon"><Users size={25} /></div>
         <div><h2>45-Day Role Evaluation</h2><p>{displayDate(period.start_date)} to {displayDate(period.end_date)}</p></div>
       </div>
-      <button className="btn btn-primary collector-evaluation-refresh" type="button" onClick={onRefresh} disabled={refreshing || locked}><RefreshCw size={16} /> Refresh automated totals</button>
+      <button className="btn btn-primary collector-evaluation-refresh" type="button" onClick={onRefresh} disabled={refreshing || !canRefresh}><RefreshCw size={16} /> Refresh automated totals</button>
     </div>
     <div className="collector-evaluation-kpis">
       {cards.map(card => <article className={`collector-evaluation-kpi ${card.tone}`} key={card.label}>
@@ -3071,10 +3071,10 @@ export default function CollectorPerformance() {
                           {isRatingPeriodLocked ? <Unlock size={16} /> : <Lock size={16} />} {isRatingPeriodLocked ? 'Unlock Period' : 'Finalize / Lock Period'}
                         </button>
                       </div>
-                      {isRatingPeriodLocked && ratingContentTab !== 'print-report' && <div className="forty-five-info" style={{ marginBottom: 12 }}><Lock size={15} style={{ verticalAlign: 'text-bottom', marginRight: 7 }} /> This 45-day period is finalized/locked. Evaluation, ranking, and expense share are view-only until unlocked.</div>}
+                          {isRatingPeriodLocked && ratingContentTab !== 'print-report' && <div className="forty-five-info" style={{ marginBottom: 12 }}><Lock size={15} style={{ verticalAlign: 'text-bottom', marginRight: 7 }} /> This 45-day period is finalized/locked. Evaluation, ranking, and expense share are view-only; authorized users may still refresh calculated totals.</div>}
                       {ratingContentTab === 'evaluation' ? (
                         <>
-                          {ratingEvaluationTab === 'collector' ? <FortyFiveCollectorEvaluationOverview rows={selectedRatingPeriod.evaluations} period={selectedRatingPeriod.period} onRefresh={refreshRatingPeriod} refreshing={fortyFiveDayLoading} locked={isRatingPeriodLocked} /> : <div className="forty-five-eval-header">
+                          {ratingEvaluationTab === 'collector' ? <FortyFiveCollectorEvaluationOverview rows={selectedRatingPeriod.evaluations} period={selectedRatingPeriod.period} onRefresh={refreshRatingPeriod} refreshing={fortyFiveDayLoading} locked={isRatingPeriodLocked} canRefresh={!isRatingPeriodLocked || canManageRatingLock} /> : <div className="forty-five-eval-header">
                             <div>
                               <div className="forty-five-section-title" style={{ marginBottom: 5 }}><Users size={19} /> 45-Day Role Evaluation</div>
                               <div style={{ color: '#64748b', fontSize: 12, fontWeight: 700 }}>
