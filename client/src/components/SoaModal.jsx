@@ -1685,6 +1685,7 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>USER</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>OFFICIAL RECEIPT NO.</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENT TYPE</th>
+                              <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>NOTES / REMARKS</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>STATUS</th>
                               {user?.role === 'admin' && <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>ACTION</th>}
                             </tr>
@@ -1706,6 +1707,16 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '600', color: isReversed ? '#94a3b8' : '#475569', textDecoration: isReversed ? 'line-through' : 'none', whiteSpace: 'nowrap' }}>{getPaymentUserName(p)}</td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', color: isReversed ? '#94a3b8' : '#64748b', textDecoration: isReversed ? 'line-through' : 'none' }}>{p.or_number || '-'}</td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', color: isReversed ? '#94a3b8' : '#64748b', textDecoration: isReversed ? 'line-through' : 'none' }}>{p.payment_type || p.or_type || '-'}</td>
+                                  <td style={{ padding: '16px 24px', fontSize: '13px', color: isReversed ? '#94a3b8' : '#475569', textDecoration: isReversed ? 'line-through' : 'none', maxWidth: '220px', wordBreak: 'break-word' }}>
+                                    {p.remarks ? (
+                                      <span style={{ display: 'inline-flex', alignItems: 'flex-start', gap: '6px' }}>
+                                        <i className="bi bi-chat-left-text" style={{ color: '#2563eb', fontSize: '12px', marginTop: '3px', flexShrink: 0 }}></i>
+                                        <span>{p.remarks}</span>
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: '#94a3b8' }}>—</span>
+                                    )}
+                                  </td>
                                   <td style={{ padding: '16px 24px' }}>
                                     <span style={{
                                       display: 'inline-block',

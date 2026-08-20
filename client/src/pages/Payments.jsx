@@ -718,6 +718,7 @@ export default function Payments() {
                 <th>Amount Paid</th>
                 <th>Date Encoded</th>
                 <th>Collector</th>
+                <th>Notes</th>
                 <th>Fully Paid</th>
               </tr>
             </thead>
@@ -736,6 +737,16 @@ export default function Payments() {
                   <td className="fw-bold" style={{ color: '#1e3a8a' }}>₱ {fmt(p.amount_paid)}</td>
                   <td>{formatDateTime(p.created_at)}</td>
                   <td>{p.collector_name}</td>
+                  <td style={{ maxWidth: '180px', fontSize: '12px' }}>
+                    {p.remarks ? (
+                      <span title={p.remarks} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', maxWidth: '170px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#334155' }}>
+                        <i className="bi bi-chat-left-text" style={{ color: '#2563eb', flexShrink: 0 }}></i>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.remarks}</span>
+                      </span>
+                    ) : (
+                      <span style={{ color: '#94a3b8' }}>—</span>
+                    )}
+                  </td>
                   <td>
                     {p.status === 'recon' || p.payment_type === 'recon' || String(p.remarks || '').toLowerCase().includes('recon') ? (
                       <span style={{ color: '#7c3aed', fontWeight: '700', background: '#ede9fe', padding: '4px 8px', borderRadius: '4px' }}>
@@ -751,7 +762,7 @@ export default function Payments() {
               ))}
               {recentPayments.length === 0 && (
                 <tr>
-                  <td colSpan="13" style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>No recent payments found.</td>
+                  <td colSpan="14" style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>No recent payments found.</td>
                 </tr>
               )}
             </tbody>
@@ -878,13 +889,14 @@ export default function Payments() {
                         <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>Loan ID</th>
                         <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>Balance Before</th>
                         <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>Balance After</th>
+                        <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>Notes</th>
                         <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>Posted By</th>
                         <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>Status</th>
                       </tr>
                     </thead>
                     <tbody>
                       {reversePayments.length === 0 ? (
-                        <tr><td colSpan="10" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No payments found for this client.</td></tr>
+                        <tr><td colSpan="11" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No payments found for this client.</td></tr>
                       ) : reversePayments.map(p => {
                         const isReversed = p.status === 'reversed';
                         const isPenalty = p.status === 'penalty';
@@ -907,6 +919,16 @@ export default function Payments() {
                             <td style={{ padding: '12px', color: '#3b82f6', fontWeight: 600 }}>{p.loan_code}</td>
                             <td style={{ padding: '12px', color: '#475569' }}>{formatCurrency(p.balance_before)}</td>
                             <td style={{ padding: '12px', color: '#475569' }}>{formatCurrency(p.balance_after)}</td>
+                            <td style={{ padding: '12px', color: '#475569', fontSize: '12px', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.remarks || ''}>
+                              {p.remarks ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <i className="bi bi-chat-left-text" style={{ color: '#2563eb', flexShrink: 0 }}></i>
+                                  <span>{p.remarks}</span>
+                                </span>
+                              ) : (
+                                <span style={{ color: '#94a3b8' }}>—</span>
+                              )}
+                            </td>
                             <td style={{ padding: '12px', color: '#334155' }}>{p.encoded_by_name || 'System'}</td>
                             <td style={{ padding: '12px' }}>
                               <span style={{ 

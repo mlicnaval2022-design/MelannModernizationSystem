@@ -924,6 +924,7 @@ function ClientProfileModal({ data, loading, onClose }) {
                           <th>Running Balance</th>
                           <th>Type</th>
                           <th>OR No.</th>
+                          <th>Notes</th>
                           <th>Status</th>
                         </tr>
                       </thead>
@@ -945,6 +946,9 @@ function ClientProfileModal({ data, loading, onClose }) {
                             </td>
                             <td>{p.payment_type || p.or_type || '—'}</td>
                             <td>{p.or_number || '—'}</td>
+                            <td style={{ fontSize: '12px', color: '#475569', maxWidth: '160px', wordBreak: 'break-word' }}>
+                              {p.remarks || '—'}
+                            </td>
                             <td>
                               <span className={`npm-profile-pay-status ${p.status !== 'active' ? 'voided' : 'active'}`}>
                                 {p.status}

@@ -2073,6 +2073,7 @@ export default function Customers() {
                               <th><i className="bi bi-coin"></i> PAYMENTS</th>
                               <th><i className="bi bi-scales"></i> RUNNING BALANCE</th>
                               <th><i className="bi bi-person-fill"></i> USER</th>
+                              <th><i className="bi bi-chat-left-text"></i> REMARKS / NOTES</th>
                               <th><i className="bi bi-flag-fill"></i> STATUS</th>
                             </tr>
                           </thead>
@@ -2084,10 +2085,11 @@ export default function Customers() {
                                 <td className="fw-bold">{formatMoney(p.amount_paid)}</td>
                                 <td>{formatMoney(p.balance_after)}</td>
                                 <td>{getPaymentUserName(p)}</td>
+                                <td style={{ fontSize: '11px', color: '#475569' }}>{p.remarks || '-'}</td>
                                 <td><span className="f-soa-status-badge"><i className="bi bi-check2"></i> Active</span></td>
                               </tr>
                             )) : (
-                              <tr><td colSpan="6" className="f-soa-empty">No payments found.</td></tr>
+                              <tr><td colSpan="7" className="f-soa-empty">No payments found.</td></tr>
                             )}
                           </tbody>
                           <tfoot>
@@ -2102,6 +2104,7 @@ export default function Customers() {
                                 <div className="f-soa-footer-text">TOTAL RUNNING BALANCE</div>
                                 <div className="f-soa-footer-amount">{formatMoney(totalRunningBalance)}</div>
                               </td>
+                              <td></td>
                               <td></td>
                               <td></td>
                             </tr>
@@ -2528,6 +2531,7 @@ export default function Customers() {
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENTS</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>RUNNING BALANCE</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>USER</th>
+                              <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>NOTES / REMARKS</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>STATUS</th>
                             </tr>
                           </thead>
@@ -2566,6 +2570,16 @@ export default function Customers() {
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: isReversed ? '#94a3b8' : '#0f172a', textDecoration: isReversed ? 'line-through' : 'none' }}>{formatPhp(p.amount_paid)}</td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: isReversed ? '#94a3b8' : '#0f172a', textDecoration: isReversed ? 'line-through' : 'none' }}>{formatPhp(p.balance_after)}</td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '600', color: isReversed ? '#94a3b8' : '#475569', textDecoration: isReversed ? 'line-through' : 'none', whiteSpace: 'nowrap' }}>{getPaymentUserName(p)}</td>
+                                  <td style={{ padding: '16px 24px', fontSize: '13px', color: isReversed ? '#94a3b8' : '#475569', textDecoration: isReversed ? 'line-through' : 'none', maxWidth: '240px', wordBreak: 'break-word' }}>
+                                    {p.remarks ? (
+                                      <span style={{ display: 'inline-flex', alignItems: 'flex-start', gap: '6px' }}>
+                                        <i className="bi bi-chat-left-text" style={{ color: '#2563eb', fontSize: '12px', marginTop: '3px', flexShrink: 0 }}></i>
+                                        <span>{p.remarks}</span>
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: '#94a3b8' }}>—</span>
+                                    )}
+                                  </td>
                                   <td style={{ padding: '16px 24px', textAlign: 'center' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '9999px', backgroundColor: pillBg, color: pillColor, fontSize: '12px', fontWeight: '600' }}>
