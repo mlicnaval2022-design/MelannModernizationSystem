@@ -596,6 +596,18 @@
   color: #0f172a;
 }
 
+.ptp-btn-action-delete {
+  color: #dc2626;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.ptp-btn-action-delete:hover {
+  color: #ffffff;
+  border-color: #dc2626;
+  background: #dc2626;
+}
+
 /* ========================================================================= */
 /* TAB 1: SET PROMISE-TO-PAY LAYOUT                                          */
 /* ========================================================================= */

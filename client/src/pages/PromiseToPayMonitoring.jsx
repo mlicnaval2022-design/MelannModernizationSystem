@@ -35,6 +35,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   TrendingUp,
+  Trash2,
   User,
   UserCheck,
   Users,
@@ -338,6 +339,20 @@ export default function PromiseToPayMonitoring() {
       loan_id: '', collector_id: '', promise_date: '', follow_up_date: '',
       recurring_schedule: 'One-time', recurring_days: [], payment_method: 'Field Collection', remarks: ''
     });
+  };
+
+  const handleDeletePtp = async (record) => {
+    const clientName = record.customer_name || 'this client';
+    if (!window.confirm(`Delete the Promise-to-Pay record for ${clientName}? This cannot be undone.`)) return;
+
+    try {
+      await API.delete(`/ptp/${record.id}`);
+      showToast('Promise-to-Pay record deleted.');
+      await fetchMonitoringData();
+    } catch (err) {
+      console.error('Delete PTP error:', err);
+      showToast(err.response?.data?.error || 'Failed to delete Promise-to-Pay record.', 'error');
+    }
   };
 
   // Open Quick Update Modal
@@ -1341,6 +1356,17 @@ export default function PromiseToPayMonitoring() {
                             >
                               <Eye size={14} />
                             </button>
+                            {['admin', 'manager'].includes(String(user?.role || '').toLowerCase()) && (
+                              <button
+                                type="button"
+                                className="ptp-btn-action-icon ptp-btn-action-delete"
+                                onClick={() => handleDeletePtp(r)}
+                                title="Delete Promise-to-Pay"
+                                aria-label={`Delete Promise-to-Pay for ${r.customer_name}`}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
