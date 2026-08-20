@@ -36,4 +36,17 @@ function authorizeModule(...moduleKeys) {
   };
 }
 
-module.exports = { authorizeModule };
+// Use this for exceptional module operations (for example, changing system
+// settings or starting a system-wide scan).  The parent route registration
+// has already resolved the caller's module permission in `authorizeModule`;
+// keeping the check here prevents individual features from falling back to a
+// hard-coded role name such as "admin".
+function requireModuleAccess(accessLevel = 'crud') {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (req.modulePermission?.access_level === 'crud') return next();
+    return res.status(403).json({ error: 'Full Access is required for this action.' });
+  };
+}
+
+module.exports = { authorizeModule, requireModuleAccess };

@@ -68,7 +68,7 @@ function groupByCollector(records) {
 }
 
 export default function NoPaymentMonitoring() {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const initialTab = params.get('tab') || 'new';
@@ -179,7 +179,8 @@ export default function NoPaymentMonitoring() {
     }
   };
 
-  const canFilter = user.role === 'admin' || user.role === 'manager' || user.role === 'teller' || user.role === 'accounting';
+  const canManageMonitoring = hasPermission('monitoring', 'crud');
+  const canFilter = canManageMonitoring || user.role === 'manager' || user.role === 'teller' || user.role === 'accounting';
 
   const handlePrint = () => {
     const printGroups = shouldGroupByCollector ? collectorGroups : groupByCollector(filteredRecords);
@@ -337,7 +338,7 @@ export default function NoPaymentMonitoring() {
             <Printer size={16} />
             Print {activeTabLabel}
           </button>
-          {user.role === 'admin' && (
+          {canManageMonitoring && (
             <button className="npm-button npm-button-danger" disabled={scanning} onClick={async () => {
               setScanning(true);
               try {
@@ -354,7 +355,7 @@ export default function NoPaymentMonitoring() {
               {scanning ? 'Scanning...' : 'Run Scan'}
             </button>
           )}
-          {user.role === 'admin' && (
+          {canManageMonitoring && (
             <button className="npm-button npm-button-secondary" onClick={() => setSettingsOpen(true)}>
               <Settings size={16} />
               Settings
