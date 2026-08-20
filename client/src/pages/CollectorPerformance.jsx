@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, BarChart3, Building2, CalendarDays, CheckCircle2, ChevronRight, Download, Edit3, FileText, Grid2X2, Info, List, Lock, MapPin, Plus, Printer, RefreshCw, Save, Search, Sparkles, Trash2, TrendingUp, Trophy, Unlock, User, Users, X } from 'lucide-react'
+import { ArrowLeft, BarChart3, Building2, CalendarDays, CheckCircle2, ChevronRight, ChevronsUpDown, Download, Edit3, FileText, Grid2X2, Info, List, Lock, MapPin, Plus, Printer, RefreshCw, Save, Search, Sparkles, Trash2, TrendingDown, TrendingUp, Trophy, Unlock, User, Users, X } from 'lucide-react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import ConfirmModal from '../components/ConfirmModal'
@@ -708,7 +708,7 @@ function FortyFivePrintReport({ period, selectedRatingPeriod, collectorEdits }) 
   </section>
 }
 
-function FortyFiveEvaluationTable({ entityLabel, rows = [], childRows = () => [], childEntityLabel = 'Details', onOpenChildren, footerRow }) {
+function FortyFiveEvaluationTable({ entityLabel, rows = [], childRows = () => [], childEntityLabel = 'Details', onOpenChildren, footerRow, variant }) {
   const overallRow = useMemo(() => {
     if (footerRow) return footerRow
     const totals = rows.reduce((sum, row) => ({
@@ -744,8 +744,8 @@ function FortyFiveEvaluationTable({ entityLabel, rows = [], childRows = () => []
 
   return <>
     <div style={{ overflowX: 'auto' }}>
-      <table className="data-table forty-five-hierarchy-table" style={{ margin: 0, minWidth: 1100 }}>
-        <thead><tr><th>{entityLabel}</th><th style={{ textAlign: 'right' }}>Collection (PHP)</th><th style={{ textAlign: 'right' }}>Non-Recon Release (PHP)</th><th style={{ textAlign: 'right' }}>Expense Share (PHP)</th><th style={{ textAlign: 'right' }}>Reported Pastdue (PHP)</th><th style={{ textAlign: 'right' }}>Net Income (PHP)</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Rating</th></tr></thead>
+      <table className={`data-table forty-five-hierarchy-table${variant === 'collector' ? ' forty-five-collector-table' : ''}`} style={{ margin: 0, minWidth: 1100 }}>
+        <thead><tr><th>{entityLabel}{variant === 'collector' && <ChevronsUpDown size={12} />}</th><th style={{ textAlign: 'right' }}>Collection (PHP){variant === 'collector' && <ChevronsUpDown size={12} />}</th><th style={{ textAlign: 'right' }}>Non-Recon Release (PHP){variant === 'collector' && <ChevronsUpDown size={12} />}</th><th style={{ textAlign: 'right' }}>Expense Share (PHP){variant === 'collector' && <ChevronsUpDown size={12} />}</th><th style={{ textAlign: 'right' }}>Reported Pastdue (PHP){variant === 'collector' && <ChevronsUpDown size={12} />}</th><th style={{ textAlign: 'right' }}>Net Income (PHP){variant === 'collector' && <ChevronsUpDown size={12} />}</th><th style={{ textAlign: 'right' }}>Accomplishment</th><th>Rating</th></tr></thead>
         <tbody>{rows.map((row, index) => {
           const name = row.collector_name || row.name
           const children = childRows(row) || []
@@ -764,6 +764,40 @@ function FortyFiveEvaluationTable({ entityLabel, rows = [], childRows = () => []
       </table>
     </div>
     <div className="forty-five-formula">💡 Net Income = Collections − Non-Recon Releases − Expense Share. Reported Pastdue is shown separately and is not included in the formula.</div>
+  </>
+}
+
+function FortyFiveCollectorEvaluationOverview({ rows = [], period, onRefresh, refreshing, locked }) {
+  const totals = rows.reduce((sum, row) => ({
+    collection: sum.collection + Number(row.collection_total || 0),
+    release: sum.release + Number(row.release_total || 0),
+    negativeNetIncome: sum.negativeNetIncome + Math.min(0, Number(row.net_income || 0)),
+    accomplishment: sum.accomplishment + (Number.isFinite(Number(row.accomplishment_percentage)) ? Number(row.accomplishment_percentage) : 0),
+    ratedCount: sum.ratedCount + (Number.isFinite(Number(row.accomplishment_percentage)) ? 1 : 0)
+  }), { collection: 0, release: 0, negativeNetIncome: 0, accomplishment: 0, ratedCount: 0 })
+  const averageAccomplishment = totals.ratedCount ? totals.accomplishment / totals.ratedCount : 0
+  const cards = [
+    { label: 'Total Collection (PHP)', value: `PHP ${fmt(totals.collection)}`, icon: <BarChart3 size={22} />, tone: 'teal' },
+    { label: 'Total Non-Recon Release (PHP)', value: `PHP ${fmt(totals.release)}`, icon: <FileText size={22} />, tone: 'orange' },
+    { label: 'Avg. Accomplishment', value: `${averageAccomplishment.toFixed(2)}%`, icon: <TrendingUp size={22} />, tone: 'blue' },
+    { label: 'Total Negative Net Income (PHP)', value: `PHP ${fmt(totals.negativeNetIncome)}`, icon: <TrendingDown size={22} />, tone: 'red' }
+  ]
+
+  return <>
+    <div className="collector-evaluation-head">
+      <div className="collector-evaluation-title-wrap">
+        <div className="collector-evaluation-title-icon"><Users size={25} /></div>
+        <div><h2>45-Day Role Evaluation</h2><p>{displayDate(period.start_date)} to {displayDate(period.end_date)}</p></div>
+      </div>
+      <button className="btn btn-primary collector-evaluation-refresh" type="button" onClick={onRefresh} disabled={refreshing || locked}><RefreshCw size={16} /> Refresh automated totals</button>
+    </div>
+    <div className="collector-evaluation-kpis">
+      {cards.map(card => <article className={`collector-evaluation-kpi ${card.tone}`} key={card.label}>
+        <span className="collector-evaluation-kpi-icon">{card.icon}</span>
+        <div><small>{card.label}</small><strong>{card.value}</strong></div>
+        <ChevronRight size={18} className="collector-evaluation-kpi-arrow" aria-hidden="true" />
+      </article>)}
+    </div>
   </>
 }
 
@@ -1799,11 +1833,32 @@ export default function CollectorPerformance() {
         .forty-five-page .data-table thead th { padding: 12px 10px; border-color: #e1e8ee; color: #405269; font-size: 10px; font-weight: 950; text-transform: uppercase; letter-spacing: .25px; }
         .forty-five-page .data-table tbody td { padding: 12px 10px; border-color: #e7edf1; color: #223148; font-size: 12px; }
         .forty-five-eval-header { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+        .collector-evaluation-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: -2px 0 16px; padding: 4px 0; }
+        .collector-evaluation-title-wrap { display: flex; align-items: center; gap: 13px; }
+        .collector-evaluation-title-icon { display: grid; place-items: center; width: 48px; height: 48px; border: 1px solid #c8ece6; border-radius: 50%; color: #087d73; background: linear-gradient(145deg, #edfbf8, #d7f3ee); box-shadow: inset 0 1px 0 #fff; }
+        .collector-evaluation-title-wrap h2 { margin: 0; color: #102b48; font-size: 22px; font-weight: 950; letter-spacing: -.35px; text-transform: uppercase; }
+        .collector-evaluation-title-wrap p { margin: 4px 0 0; color: #52677e; font-size: 12px; font-weight: 800; }
+        .collector-evaluation-refresh { min-height: 36px; border-color: #087d73 !important; background: linear-gradient(120deg, #078b80, #066a64) !important; box-shadow: 0 7px 15px rgba(7, 125, 115, .18); }
+        .collector-evaluation-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+        .collector-evaluation-kpi { display: grid; grid-template-columns: 48px minmax(0, 1fr) 18px; align-items: center; gap: 12px; min-height: 88px; padding: 14px; border: 1px solid #dce7ed; border-radius: 9px; background: linear-gradient(135deg, #fff, #fbfdfe); box-shadow: 0 5px 12px rgba(15, 50, 65, .055); }
+        .collector-evaluation-kpi-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; }
+        .collector-evaluation-kpi small { display: block; color: #53677d; font-size: 9px; font-weight: 950; letter-spacing: .15px; line-height: 1.25; text-transform: uppercase; }
+        .collector-evaluation-kpi strong { display: block; margin-top: 7px; font-size: 16px; font-weight: 950; white-space: nowrap; }
+        .collector-evaluation-kpi-arrow { color: #54718b; }
+        .collector-evaluation-kpi.teal .collector-evaluation-kpi-icon { color: #07877d; background: #e2f7f2; }.collector-evaluation-kpi.teal strong { color: #07877d; }
+        .collector-evaluation-kpi.orange .collector-evaluation-kpi-icon { color: #dc7813; background: #fff1df; }.collector-evaluation-kpi.orange strong { color: #e67a0a; }
+        .collector-evaluation-kpi.blue .collector-evaluation-kpi-icon { color: #2769d9; background: #e8f0ff; }.collector-evaluation-kpi.blue strong { color: #2563eb; }
+        .collector-evaluation-kpi.red .collector-evaluation-kpi-icon { color: #df4141; background: #ffeded; }.collector-evaluation-kpi.red strong { color: #e03737; }
         .forty-five-tabs { display: flex; gap: 5px; overflow-x: auto; padding: 0 !important; margin: 0 0 10px !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; }
         .forty-five-tabs .btn { min-width: 205px; justify-content: center; border-radius: 6px 6px 0 0; color: #17345b; background: #fff; border-color: #d9e3eb; }
         .forty-five-tabs .btn.btn-primary { color: #fff; background: linear-gradient(90deg, #087d73, #006b65); border-color: #087d73; }
         .forty-five-info { padding: 11px 14px; border: 1px solid #dbeafe; border-radius: 6px; background: #f0f7ff; color: #465c74 !important; font-size: 11px !important; }
         .forty-five-rating-pill { display: inline-flex; align-items: center; gap: 7px; max-width: 170px; padding: 7px 10px; border: 1px solid; border-radius: 6px; font-size: 10px; font-weight: 900; line-height: 1.25; }
+        .forty-five-collector-table { border: 1px solid #e0e9ee !important; border-radius: 8px; overflow: hidden; }
+        .forty-five-collector-table thead th { background: linear-gradient(180deg, #f9fbfc, #f4f8fa); color: #40556c; font-size: 9px !important; }
+        .forty-five-collector-table thead th svg { display: inline-block; margin-left: 5px; vertical-align: -2px; color: #94a3b8; }
+        .forty-five-collector-table tbody tr:hover td { background: #f5fbfa; }
+        .forty-five-collector-table tbody td { padding-top: 11px !important; padding-bottom: 11px !important; }
         .forty-five-rating-dot { width: 18px; height: 18px; flex: 0 0 18px; display: grid; place-items: center; border: 1px solid currentColor; border-radius: 50%; font-size: 10px; }
         .forty-five-progress { width: 82px; height: 5px; margin: 7px 0 0 auto; border-radius: 999px; overflow: hidden; background: #dfe7ed; }
         .forty-five-progress > span { display: block; height: 100%; border-radius: inherit; }
@@ -2015,6 +2070,7 @@ export default function CollectorPerformance() {
         @media (max-width: 1100px) {
           .forty-five-shell { grid-template-columns: 1fr; }
           .forty-five-hero, .forty-five-evaluation { grid-column: 1; }
+          .collector-evaluation-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .ranking-kpis { grid-template-columns: repeat(2, 1fr); }
           .print-report-kpis { grid-template-columns: repeat(3, 1fr); }
           .print-report-forms { grid-template-columns: repeat(2, minmax(230px, 1fr)); }
@@ -2025,6 +2081,10 @@ export default function CollectorPerformance() {
         @media (max-width: 680px) {
           .forty-five-page { padding: 6px; }
           .forty-five-shell { padding: 7px; }
+          .collector-evaluation-head { align-items: flex-start; flex-direction: column; }
+          .collector-evaluation-title-wrap h2 { font-size: 18px; }
+          .collector-evaluation-kpis { grid-template-columns: 1fr; }
+          .collector-evaluation-refresh { width: 100%; justify-content: center; }
           .forty-five-graphic { display: none; }
           .forty-five-form-grid { grid-template-columns: 1fr; }
           .forty-five-generate-button { grid-column: 1; }
@@ -3014,7 +3074,7 @@ export default function CollectorPerformance() {
                       {isRatingPeriodLocked && ratingContentTab !== 'print-report' && <div className="forty-five-info" style={{ marginBottom: 12 }}><Lock size={15} style={{ verticalAlign: 'text-bottom', marginRight: 7 }} /> This 45-day period is finalized/locked. Evaluation, ranking, and expense share are view-only until unlocked.</div>}
                       {ratingContentTab === 'evaluation' ? (
                         <>
-                          <div className="forty-five-eval-header">
+                          {ratingEvaluationTab === 'collector' ? <FortyFiveCollectorEvaluationOverview rows={selectedRatingPeriod.evaluations} period={selectedRatingPeriod.period} onRefresh={refreshRatingPeriod} refreshing={fortyFiveDayLoading} locked={isRatingPeriodLocked} /> : <div className="forty-five-eval-header">
                             <div>
                               <div className="forty-five-section-title" style={{ marginBottom: 5 }}><Users size={19} /> 45-Day Role Evaluation</div>
                               <div style={{ color: '#64748b', fontSize: 12, fontWeight: 700 }}>
@@ -3026,7 +3086,7 @@ export default function CollectorPerformance() {
                                 <RefreshCw size={16} /> Refresh automated totals
                               </button>
                             </div>
-                          </div>
+                          </div>}
                           <div className="forty-five-tabs">
                             {[['collector', 'Collector Evaluation', <User size={16} />], ['supervisor', 'Supervisor Evaluation', <Users size={16} />], ['branch-manager', 'Branch Manager Evaluation', <Building2 size={16} />], ['operations-manager', 'Operations Manager Evaluation', <TrendingUp size={16} />]].map(([tab, label, icon]) => (
                               <button key={tab} className={`btn ${ratingEvaluationTab === tab ? 'btn-primary' : 'btn-secondary'}`} type="button" onClick={() => setRatingEvaluationTab(tab)} style={{ flexShrink: 0 }}>
@@ -3038,7 +3098,7 @@ export default function CollectorPerformance() {
                             Collection is summed for Torreta, Domingono, Caballes, Jugar, Rosal, and Laude only. Recon releases are excluded. Expense Share uses Office expenses only and is divided equally among the collectors in this 45-day evaluation; President's, EVP's, and Miscellaneous expenses are excluded. Reported Pastdue is display-only and is not included in the formula.
                             {selectedRatingPeriod.period.reported_pastdue_period && <> Reported Pastdue period: {displayDate(selectedRatingPeriod.period.reported_pastdue_period.start_date)} to {displayDate(selectedRatingPeriod.period.reported_pastdue_period.end_date)}.</>}
                           </div>
-                          {ratingEvaluationTab === 'collector' && <FortyFiveEvaluationTable entityLabel="Collector" rows={selectedRatingPeriod.evaluations} />}
+                          {ratingEvaluationTab === 'collector' && <FortyFiveEvaluationTable entityLabel="Collector" rows={selectedRatingPeriod.evaluations} variant="collector" />}
                           {ratingEvaluationTab === 'supervisor' && <FortyFiveEvaluationTable entityLabel="Supervisor" rows={selectedRatingPeriod.supervisor_evaluations || []} childRows={row => row.collector_results?.length ? row.collector_results : selectedRatingPeriod.evaluations.filter(evaluation => (String(evaluation.supervisor || '').trim() || 'Unassigned Supervisor') === row.name)} childEntityLabel="Collector" onOpenChildren={setRatingHierarchyModal} />}
                           {ratingEvaluationTab === 'branch-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.branch_manager_evaluations || []} childRows={row => row.supervisor_results?.length ? row.supervisor_results : (selectedRatingPeriod.supervisor_evaluations || []).filter(supervisor => (row.supervisors || []).includes(supervisor.name))} childEntityLabel="Supervisor" onOpenChildren={setRatingHierarchyModal} />}
                           {ratingEvaluationTab === 'operations-manager' && <FortyFiveEvaluationTable entityLabel="Branch Manager" rows={selectedRatingPeriod.operations_manager_evaluation?.branch_results || []} childRows={row => row.supervisor_results} childEntityLabel="Supervisor" onOpenChildren={setRatingHierarchyModal} footerRow={selectedRatingPeriod.operations_manager_evaluation} />}
