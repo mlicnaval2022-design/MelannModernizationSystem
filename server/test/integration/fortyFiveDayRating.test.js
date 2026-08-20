@@ -78,7 +78,24 @@ test('forty-five-day-rating calculate returns on-the-fly evaluations for date ra
       loan_id, customer_id, collector_id, or_number, date_paid, amount_paid,
       balance_before, balance_after, payment_type, status
     ) VALUES (?, ?, ?, 'OR-45-RECON', '2026-07-11', 2500, 2500, 0, 'recon', 'active')
-  `, [loan.lastID, customer.lastID, collector.lastID]);
+    `, [loan.lastID, customer.lastID, collector.lastID]);
+
+  const officeCollector = await dbRun(`
+    INSERT INTO tblCollector (collector_code, first_name, last_name, branch_id, is_active)
+    VALUES ('MELANN-OFFICE', 'Melann', 'Office', ?, 1)
+  `, [branch.id]);
+  const officeCustomer = await dbRun(`
+    INSERT INTO tblCustomer (customer_code, first_name, last_name, full_name, branch_id, collector_id)
+    VALUES ('CUST-45-OFFICE', 'Office', 'Client', 'Office Client', ?, ?)
+  `, [branch.id, officeCollector.lastID]);
+  const officeLoan = await dbRun(`
+    INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, balance, date_released, date_maturity, status, created_by)
+    VALUES ('LN-45-OFFICE', ?, ?, ?, 'New', 3000, 900, '2026-07-07', '2026-06-20', 'active', ?)
+  `, [officeCustomer.lastID, officeCollector.lastID, branch.id, adminUser.id]);
+  await dbRun(`
+    INSERT INTO tblPayment (loan_id, customer_id, collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, status)
+    VALUES (?, ?, ?, 'OR-45-OFFICE', '2026-07-10', 4000, 3000, 0, 'active')
+  `, [officeLoan.lastID, officeCustomer.lastID, officeCollector.lastID]);
 
   // Query calculate endpoint
   const response = await api('/forty-five-day-rating/calculate?start_date=2026-07-01&end_date=2026-08-15');
@@ -96,6 +113,13 @@ test('forty-five-day-rating calculate returns on-the-fly evaluations for date ra
   assert.equal(torretaEval.release_total, 10000);
   assert.equal(torretaEval.accomplishment_percentage, 120);
   assert.equal(torretaEval.rating, 'Outstanding Performance');
+
+  const officeEval = data.evaluations.find(e => e.collector_name === 'Melann Office');
+  assert.ok(officeEval);
+  assert.equal(officeEval.collection_total, 4000);
+  assert.equal(officeEval.release_total, 3000);
+  assert.equal(officeEval.reported_pastdue, 900);
+  assert.equal(officeEval.expense_total, 0);
 
   assert.ok(Array.isArray(data.supervisor_evaluations));
   assert.ok(Array.isArray(data.branch_manager_evaluations));

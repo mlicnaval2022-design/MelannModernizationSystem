@@ -240,13 +240,19 @@ async function computeEvaluations({ branch_id, start_date, end_date }) {
     FROM tblCollector co
     LEFT JOIN tblBranch b ON b.id = co.branch_id
     WHERE co.is_active = 1
-      AND LOWER(TRIM(co.last_name)) IN (${ratedCollectorLastNames.map(() => '?').join(', ')})${collectorBranch.sql}
+      AND (
+        LOWER(TRIM(co.last_name)) IN (${ratedCollectorLastNames.map(() => '?').join(', ')})
+        OR LOWER(TRIM(co.first_name || ' ' || co.last_name)) = 'melann office'
+      )${collectorBranch.sql}
     ORDER BY co.last_name, co.first_name
   `, [...ratedCollectorLastNames, ...collectorBranch.params]);
   // Expense Share is controlled from the 45-Day Performance Expense Share tab.
   // This prevents unrelated DCR expenses from affecting collector ratings.
   const manualExpenseTotal = await getManualExpenseTotal(branch_id, start, end);
-  const expenseShare = collectors.length ? manualExpenseTotal / collectors.length : 0;
+  // Melann Office is reported alongside the collectors, but it must not receive
+  // (or dilute) a share of the expenses that are apportioned to collectors.
+  const expenseShareRecipients = collectors.filter(collector => collector.name.trim().toLowerCase() !== 'melann office');
+  const expenseShare = expenseShareRecipients.length ? manualExpenseTotal / expenseShareRecipients.length : 0;
   const previousPeriod = getPreviousCompanyPeriod(start);
   const reportedPastdueByCollector = new Map();
   if (previousPeriod) {
@@ -279,8 +285,9 @@ async function computeEvaluations({ branch_id, start_date, end_date }) {
     `, [collector.id, start, end]);
     const collectionTotal = await getActualCollectionTotal(collector.id, start, end);
     const releaseTotal = asAmount(releaseRow?.total);
-    const netIncome = collectionTotal - releaseTotal - expenseShare;
-    const denominator = releaseTotal + expenseShare;
+    const collectorExpenseShare = collector.name.trim().toLowerCase() === 'melann office' ? 0 : expenseShare;
+    const netIncome = collectionTotal - releaseTotal - collectorExpenseShare;
+    const denominator = releaseTotal + collectorExpenseShare;
     const accomplishment = denominator > 0 ? (collectionTotal / denominator) * 100 : null;
     evaluations.push({
       collector_id: collector.id,
@@ -290,7 +297,7 @@ async function computeEvaluations({ branch_id, start_date, end_date }) {
       branch_name: collector.branch_name,
       collection_total: collectionTotal,
       release_total: releaseTotal,
-      expense_total: expenseShare,
+      expense_total: collectorExpenseShare,
       reported_pastdue: reportedPastdueByCollector.get(Number(collector.id)) || 0,
       net_income: netIncome,
       accomplishment_percentage: accomplishment,
