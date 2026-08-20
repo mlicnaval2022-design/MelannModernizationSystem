@@ -77,6 +77,7 @@ async function testPtpModule() {
         promise_date: '2026-08-25',
         follow_up_date: '2026-08-24',
         recurring_schedule: 'Weekly',
+        recurring_days: ['Tuesday'],
         promised_amount: 0,
         payment_method: 'Field Collection',
         reason: 'Salary Delay',

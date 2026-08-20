@@ -88,13 +88,11 @@ export default function PromiseToPayMonitoring() {
   const [ptpForm, setPtpForm] = useState({
     loan_id: '',
     collector_id: '',
-    branch_id: '',
-    promise_date: dayjs().add(1, 'day').format('YYYY-MM-DD'),
-    follow_up_date: dayjs().format('YYYY-MM-DD'),
+    promise_date: '',
+    follow_up_date: '',
     recurring_schedule: 'One-time',
-    promised_amount: '',
+    recurring_days: [],
     payment_method: 'Field Collection',
-    reason: 'Salary Delay',
     remarks: ''
   });
   const [savingPtp, setSavingPtp] = useState(false);
@@ -264,8 +262,6 @@ export default function PromiseToPayMonitoring() {
         ...prev,
         loan_id: activeLoan ? activeLoan.id : '',
         collector_id: activeLoan?.collector_id || client.collector_id || '',
-        branch_id: activeLoan?.branch_id || client.branch_id || '',
-        promised_amount: activeLoan ? (activeLoan.amortization || activeLoan.balance || '') : '',
         remarks: ''
       }));
     } catch (err) {
@@ -283,17 +279,12 @@ export default function PromiseToPayMonitoring() {
       showToast('Please search and select a client first.', 'error');
       return;
     }
-    if (!ptpForm.promise_date) {
-      showToast('Please enter a valid Promise-to-Pay Date.', 'error');
+    if (!ptpForm.promise_date && !ptpForm.follow_up_date && ptpForm.recurring_schedule === 'One-time') {
+      showToast('Set a Promise-to-Pay Date, Follow-up Date, or Recurring Schedule.', 'error');
       return;
     }
-    
-    const parsedAmount = (ptpForm.promised_amount === '' || ptpForm.promised_amount === null || ptpForm.promised_amount === undefined)
-      ? 0
-      : Number(ptpForm.promised_amount);
-
-    if (isNaN(parsedAmount) || parsedAmount < 0) {
-      showToast('Please specify a valid non-negative Promised Amount (or 0 if unstated).', 'error');
+    if (['Monthly', 'Weekly'].includes(ptpForm.recurring_schedule) && ptpForm.recurring_days.length === 0) {
+      showToast(`Select at least one ${ptpForm.recurring_schedule === 'Monthly' ? 'day of the month' : 'day of the week'}.`, 'error');
       return;
     }
 
@@ -303,13 +294,11 @@ export default function PromiseToPayMonitoring() {
         customer_id: selectedClient.id,
         loan_id: ptpForm.loan_id || null,
         collector_id: ptpForm.collector_id || null,
-        branch_id: ptpForm.branch_id || null,
-        promise_date: ptpForm.promise_date,
+        promise_date: ptpForm.promise_date || null,
         follow_up_date: ptpForm.follow_up_date || null,
         recurring_schedule: ptpForm.recurring_schedule,
-        promised_amount: parsedAmount,
+        recurring_days: ptpForm.recurring_days,
         payment_method: ptpForm.payment_method,
-        reason: ptpForm.reason,
         remarks: ptpForm.remarks
       });
 
@@ -321,6 +310,10 @@ export default function PromiseToPayMonitoring() {
       // Reset form fields slightly
       setPtpForm(prev => ({
         ...prev,
+        promise_date: '',
+        follow_up_date: '',
+        recurring_schedule: 'One-time',
+        recurring_days: [],
         remarks: ''
       }));
 
@@ -334,6 +327,17 @@ export default function PromiseToPayMonitoring() {
     } finally {
       setSavingPtp(false);
     }
+  };
+
+  const handleCancelPtp = () => {
+    setSelectedClient(null);
+    setClientLoans([]);
+    setClientPtpHistory([]);
+    setSearchQuery('');
+    setPtpForm({
+      loan_id: '', collector_id: '', promise_date: '', follow_up_date: '',
+      recurring_schedule: 'One-time', recurring_days: [], payment_method: 'Field Collection', remarks: ''
+    });
   };
 
   // Open Quick Update Modal
@@ -663,9 +667,7 @@ export default function PromiseToPayMonitoring() {
                             setPtpForm(prev => ({
                               ...prev,
                               loan_id: lId,
-                              collector_id: found?.collector_id || prev.collector_id,
-                              branch_id: found?.branch_id || prev.branch_id,
-                              promised_amount: found ? (found.amortization || found.balance || '') : prev.promised_amount
+                              collector_id: found?.collector_id || prev.collector_id
                             }));
                           }}
                         >
@@ -678,10 +680,12 @@ export default function PromiseToPayMonitoring() {
                       </div>
                     )}
 
+                    <p className="ptp-schedule-intro">Set one or more schedule details as applicable. All three fields are optional individually.</p>
+
                     <div className="ptp-form-row">
                       {/* Promise-to-Pay Date */}
                       <div className="ptp-form-group">
-                        <label className="ptp-label required">
+                        <label className="ptp-label">
                           <Calendar size={14} /> Promise-to-Pay Date
                         </label>
                         <input
@@ -689,7 +693,6 @@ export default function PromiseToPayMonitoring() {
                           className="ptp-input ptp-input-highlight"
                           value={ptpForm.promise_date}
                           onChange={(e) => setPtpForm({ ...ptpForm, promise_date: e.target.value })}
-                          required
                         />
                         <span className="ptp-field-hint">Target date client promised to make payment</span>
                       </div>
@@ -709,42 +712,82 @@ export default function PromiseToPayMonitoring() {
                       </div>
                     </div>
 
-                    <div className="ptp-form-row">
-                      {/* Recurring Schedule */}
-                      <div className="ptp-form-group">
-                        <label className="ptp-label">
-                          <Layers size={14} /> Recurring Schedule
-                        </label>
-                        <select
-                          className="ptp-input"
-                          value={ptpForm.recurring_schedule}
-                          onChange={(e) => setPtpForm({ ...ptpForm, recurring_schedule: e.target.value })}
-                        >
-                          <option value="One-time">One-time Commitment</option>
-                          <option value="Daily">Daily Schedule</option>
-                          <option value="Weekly">Weekly Schedule</option>
-                          <option value="Semi-Monthly">Semi-Monthly (Every 15 Days)</option>
-                          <option value="Monthly">Monthly Schedule</option>
-                        </select>
-                        <span className="ptp-field-hint">Frequency of promised payment</span>
+                    <div className="ptp-recurring-card">
+                      <div className="ptp-recurring-header">
+                        <div>
+                          <label className="ptp-label"><Layers size={14} /> Recurring Schedule</label>
+                          <span className="ptp-field-hint">Use this only when the client has a repeating payment schedule.</span>
+                        </div>
+                        <button
+                          type="button"
+                          className={`ptp-switch ${ptpForm.recurring_schedule !== 'One-time' ? 'is-on' : ''}`}
+                          role="switch"
+                          aria-checked={ptpForm.recurring_schedule !== 'One-time'}
+                          onClick={() => setPtpForm(prev => ({
+                            ...prev,
+                            recurring_schedule: prev.recurring_schedule === 'One-time' ? 'Monthly' : 'One-time',
+                            recurring_days: []
+                          }))}
+                        ><span /></button>
                       </div>
 
-                      {/* Promised Amount */}
-                      <div className="ptp-form-group">
-                        <label className="ptp-label">
-                          <Banknote size={14} /> Promised Amount (₱)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          className="ptp-input ptp-input-amount"
-                          placeholder="0.00 (0 if unstated)"
-                          value={ptpForm.promised_amount}
-                          onChange={(e) => setPtpForm({ ...ptpForm, promised_amount: e.target.value })}
-                        />
-                        <span className="ptp-field-hint">Agreed amount client will pay (enter 0 or leave blank if unspecified)</span>
-                      </div>
+                      {ptpForm.recurring_schedule !== 'One-time' && (
+                        <>
+                          <div className="ptp-recurring-tabs" role="tablist" aria-label="Recurring schedule type">
+                            {['Monthly', 'Weekly', 'Daily'].map(type => (
+                              <button
+                                type="button"
+                                key={type}
+                                className={ptpForm.recurring_schedule === type ? 'active' : ''}
+                                onClick={() => setPtpForm(prev => ({ ...prev, recurring_schedule: type, recurring_days: [] }))}
+                              >{type === 'Daily' ? 'Everyday' : type}</button>
+                            ))}
+                          </div>
+
+                          {ptpForm.recurring_schedule === 'Monthly' && (
+                            <div className="ptp-day-picker">
+                              <span>Select day(s) of the month</span>
+                              <div className="ptp-day-grid">
+                                {Array.from({ length: 31 }, (_, index) => index + 1).map(day => (
+                                  <button
+                                    type="button"
+                                    key={day}
+                                    className={ptpForm.recurring_days.includes(day) ? 'selected' : ''}
+                                    onClick={() => setPtpForm(prev => ({
+                                      ...prev,
+                                      recurring_days: prev.recurring_days.includes(day)
+                                        ? prev.recurring_days.filter(value => value !== day)
+                                        : [...prev.recurring_days, day]
+                                    }))}
+                                  >{day}</button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {ptpForm.recurring_schedule === 'Weekly' && (
+                            <div className="ptp-day-picker">
+                              <span>Select day(s) of the week</span>
+                              <div className="ptp-week-grid">
+                                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                                  <button
+                                    type="button"
+                                    key={day}
+                                    className={ptpForm.recurring_days.includes(day) ? 'selected' : ''}
+                                    onClick={() => setPtpForm(prev => ({
+                                      ...prev,
+                                      recurring_days: prev.recurring_days.includes(day)
+                                        ? prev.recurring_days.filter(value => value !== day)
+                                        : [...prev.recurring_days, day]
+                                    }))}
+                                  >{day}</button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {ptpForm.recurring_schedule === 'Daily' && <p className="ptp-recurring-everyday">Payment is expected every day.</p>}
+                        </>
+                      )}
                     </div>
 
                     <div className="ptp-form-row">
@@ -764,27 +807,10 @@ export default function PromiseToPayMonitoring() {
                         </select>
                       </div>
 
-                      {/* Reason */}
-                      <div className="ptp-form-group">
-                        <label className="ptp-label">Reason for Promise / Delay</label>
-                        <select
-                          className="ptp-input"
-                          value={ptpForm.reason}
-                          onChange={(e) => setPtpForm({ ...ptpForm, reason: e.target.value })}
-                        >
-                          <option value="Salary Delay">Salary / Payroll Delay</option>
-                          <option value="Business Collection">Business Receivable Delay</option>
-                          <option value="Emergency / Medical">Family / Medical Emergency</option>
-                          <option value="Remittance Waiting">Waiting for Remittance</option>
-                          <option value="Promised on Payday">Promised Next Payday</option>
-                          <option value="Out of Town">Out of Town / Traveling</option>
-                          <option value="Other">Other Specific Reason</option>
-                        </select>
-                      </div>
                     </div>
 
                     {/* Assigned Collector */}
-                    <div className="ptp-form-row">
+                    <div className="ptp-form-row ptp-form-row-single">
                       <div className="ptp-form-group">
                         <label className="ptp-label">Assigned Collector</label>
                         <select
@@ -796,22 +822,6 @@ export default function PromiseToPayMonitoring() {
                           {collectors.map(c => (
                             <option key={c.id} value={c.id}>
                               {c.first_name} {c.last_name} ({c.collector_code})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="ptp-form-group">
-                        <label className="ptp-label">Branch</label>
-                        <select
-                          className="ptp-input"
-                          value={ptpForm.branch_id}
-                          onChange={(e) => setPtpForm({ ...ptpForm, branch_id: e.target.value })}
-                        >
-                          <option value="">-- Select Branch --</option>
-                          {branches.map(b => (
-                            <option key={b.id} value={b.id}>
-                              {b.branch_name}
                             </option>
                           ))}
                         </select>
@@ -838,6 +848,9 @@ export default function PromiseToPayMonitoring() {
                       >
                         {savingPtp ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
                         <span>Save Promise-to-Pay Commitment</span>
+                      </button>
+                      <button type="button" className="ptp-btn-cancel" onClick={handleCancelPtp} disabled={savingPtp}>
+                        <X size={18} /> <span>Cancel</span>
                       </button>
                     </div>
                   </div>

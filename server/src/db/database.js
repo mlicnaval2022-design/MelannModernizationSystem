@@ -897,6 +897,61 @@ async function initializeDatabase() {
   if (!ptpColNames.has('payment_date')) await dbRun(`ALTER TABLE tblPromiseToPay ADD COLUMN payment_date TEXT`);
   if (!ptpColNames.has('last_update_remarks')) await dbRun(`ALTER TABLE tblPromiseToPay ADD COLUMN last_update_remarks TEXT`);
   if (!ptpColNames.has('updated_by')) await dbRun(`ALTER TABLE tblPromiseToPay ADD COLUMN updated_by INTEGER`);
+  if (!ptpColNames.has('recurring_days')) await dbRun(`ALTER TABLE tblPromiseToPay ADD COLUMN recurring_days TEXT`);
+
+  // PTP may be a promise date, a follow-up, or a recurring payment schedule.
+  // SQLite cannot remove NOT NULL in place, so rebuild only legacy tables that
+  // still require a promise date.
+  if (ptpCols.find(column => column.name === 'promise_date')?.notnull) {
+    await dbRun('BEGIN TRANSACTION');
+    try {
+      await dbRun(`
+        CREATE TABLE tblPromiseToPay_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          alert_id INTEGER,
+          customer_id INTEGER NOT NULL,
+          loan_id INTEGER,
+          collector_id INTEGER,
+          branch_id INTEGER,
+          user_id INTEGER NOT NULL,
+          promise_date TEXT,
+          promised_amount REAL NOT NULL DEFAULT 0,
+          recurring_schedule TEXT DEFAULT 'One-time',
+          recurring_days TEXT,
+          payment_method TEXT,
+          reason TEXT,
+          follow_up_date TEXT,
+          remarks TEXT,
+          status TEXT DEFAULT 'Pending',
+          paid_amount REAL DEFAULT 0,
+          payment_date TEXT,
+          last_update_remarks TEXT,
+          updated_by INTEGER,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+      await dbRun(`
+        INSERT INTO tblPromiseToPay_new (
+          id, alert_id, customer_id, loan_id, collector_id, branch_id, user_id,
+          promise_date, promised_amount, recurring_schedule, recurring_days,
+          payment_method, reason, follow_up_date, remarks, status, paid_amount,
+          payment_date, last_update_remarks, updated_by, created_at, updated_at
+        )
+        SELECT id, alert_id, customer_id, loan_id, collector_id, branch_id, user_id,
+          NULLIF(promise_date, ''), COALESCE(promised_amount, 0), recurring_schedule,
+          recurring_days, payment_method, reason, follow_up_date, remarks, status,
+          paid_amount, payment_date, last_update_remarks, updated_by, created_at, updated_at
+        FROM tblPromiseToPay
+      `);
+      await dbRun(`DROP TABLE tblPromiseToPay`);
+      await dbRun(`ALTER TABLE tblPromiseToPay_new RENAME TO tblPromiseToPay`);
+      await dbRun('COMMIT');
+    } catch (err) {
+      await dbRun('ROLLBACK').catch(() => {});
+      throw err;
+    }
+  }
 
   await dbRun(`CREATE INDEX IF NOT EXISTS idx_ptp_customer ON tblPromiseToPay(customer_id)`);
   await dbRun(`CREATE INDEX IF NOT EXISTS idx_ptp_collector ON tblPromiseToPay(collector_id)`);

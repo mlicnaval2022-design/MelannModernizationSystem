@@ -183,6 +183,7 @@ router.post('/', authenticateToken, async (req, res) => {
       promise_date,
       follow_up_date,
       recurring_schedule,
+      recurring_days,
       promised_amount,
       payment_method,
       reason,
@@ -192,8 +193,15 @@ router.post('/', authenticateToken, async (req, res) => {
     if (!customer_id) {
       return res.status(400).json({ error: 'Customer is required' });
     }
-    if (!promise_date) {
-      return res.status(400).json({ error: 'Promise-to-Pay Date is required' });
+    const pDate = promise_date ? promise_date.slice(0, 10) : null;
+    const followUpDate = follow_up_date ? follow_up_date.slice(0, 10) : null;
+    const schedule = recurring_schedule && recurring_schedule !== 'One-time' ? recurring_schedule : 'One-time';
+    const recurringDays = Array.isArray(recurring_days) ? recurring_days : [];
+    if (!pDate && !followUpDate && schedule === 'One-time') {
+      return res.status(400).json({ error: 'Set at least one: Promise-to-Pay Date, Follow-up Date, or a Recurring Schedule.' });
+    }
+    if (['Monthly', 'Weekly'].includes(schedule) && recurringDays.length === 0) {
+      return res.status(400).json({ error: `Select at least one recurring ${schedule === 'Monthly' ? 'day of the month' : 'day of the week'}.` });
     }
     const parsedAmount = (promised_amount === undefined || promised_amount === null || promised_amount === '')
       ? 0
@@ -204,10 +212,9 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 
     const todayStr = dayjs().format('YYYY-MM-DD');
-    const pDate = promise_date.slice(0, 10);
     let initialStatus = 'Pending';
     if (pDate === todayStr) initialStatus = 'Due Today';
-    else if (pDate < todayStr) initialStatus = 'Overdue PTP';
+    else if (pDate && pDate < todayStr) initialStatus = 'Overdue PTP';
 
     // Auto-resolve branch & collector if missing
     let resolvedCollectorId = collector_id || null;
@@ -238,10 +245,10 @@ router.post('/', authenticateToken, async (req, res) => {
     const result = await dbRun(`
       INSERT INTO tblPromiseToPay (
         alert_id, customer_id, loan_id, collector_id, branch_id, user_id,
-        promise_date, follow_up_date, recurring_schedule,
+        promise_date, follow_up_date, recurring_schedule, recurring_days,
         promised_amount, payment_method, reason, remarks, status,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     `, [
       0,
       customer_id,
@@ -250,8 +257,9 @@ router.post('/', authenticateToken, async (req, res) => {
       resolvedBranchId,
       req.user.id,
       pDate,
-      follow_up_date ? follow_up_date.slice(0, 10) : null,
-      recurring_schedule || 'One-time',
+      followUpDate,
+      schedule,
+      recurringDays.length ? JSON.stringify(recurringDays) : null,
       parsedAmount,
       payment_method || 'Field Collection',
       reason || 'Payment Commitment',
@@ -264,7 +272,7 @@ router.post('/', authenticateToken, async (req, res) => {
       req.user.role,
       'SET_PTP',
       null,
-      `${pDate} - ₱${Number(promised_amount).toLocaleString()}`,
+      `PTP: ${pDate || 'No promise date'}; Follow-up: ${followUpDate || 'None'}; Schedule: ${schedule}`,
       `Created PTP for Cust #${customer_id}`,
       result.lastID
     );
@@ -556,20 +564,25 @@ router.get('/due-updates', authenticateToken, async (req, res) => {
 
     // Filter by due status
     if (due_filter === 'overdue') {
-      q += ` AND ptp.status IN ('Pending', 'Due Today', 'Overdue PTP') AND date(ptp.promise_date) < date(?)`;
-      params.push(todayStr);
+      q += ` AND ptp.status IN ('Pending', 'Due Today', 'Overdue PTP')
+        AND (date(ptp.promise_date) < date(?) OR date(ptp.follow_up_date) < date(?))`;
+      params.push(todayStr, todayStr);
     } else if (due_filter === 'due_today') {
-      q += ` AND ptp.status IN ('Pending', 'Due Today') AND date(ptp.promise_date) = date(?)`;
-      params.push(todayStr);
+      q += ` AND ptp.status IN ('Pending', 'Due Today')
+        AND (date(ptp.promise_date) = date(?) OR date(ptp.follow_up_date) = date(?))`;
+      params.push(todayStr, todayStr);
     } else if (due_filter === 'upcoming_3days') {
-      q += ` AND ptp.status IN ('Pending', 'Due Today') AND date(ptp.promise_date) > date(?) AND date(ptp.promise_date) <= date(?)`;
-      params.push(todayStr, threeDaysLater);
+      q += ` AND ptp.status IN ('Pending', 'Due Today')
+        AND ((date(ptp.promise_date) > date(?) AND date(ptp.promise_date) <= date(?))
+          OR (date(ptp.follow_up_date) > date(?) AND date(ptp.follow_up_date) <= date(?)))`;
+      params.push(todayStr, threeDaysLater, todayStr, threeDaysLater);
     } else if (due_filter === 'all_records') {
       // no restriction
     } else {
       // Default: 'all_due' (Overdue + Due Today)
-      q += ` AND ptp.status IN ('Pending', 'Due Today', 'Overdue PTP') AND date(ptp.promise_date) <= date(?)`;
-      params.push(todayStr);
+      q += ` AND ptp.status IN ('Pending', 'Due Today', 'Overdue PTP')
+        AND (date(ptp.promise_date) <= date(?) OR date(ptp.follow_up_date) <= date(?))`;
+      params.push(todayStr, todayStr);
     }
 
     if (collector_id && collector_id !== 'all') {
@@ -606,18 +619,18 @@ router.get('/due-updates', authenticateToken, async (req, res) => {
     const processed = records.map(r => ({
       ...r,
       effective_status: getEffectiveStatus(r, todayStr),
-      days_difference: dayjs(r.promise_date).diff(dayjs(todayStr), 'day')
+      days_difference: dayjs(r.follow_up_date || r.promise_date).diff(dayjs(todayStr), 'day')
     }));
 
     // Also get quick counts for the tabs
     const counts = await dbGet(`
       SELECT 
-        SUM(CASE WHEN status IN ('Pending', 'Due Today', 'Overdue PTP') AND date(promise_date) < date(?) THEN 1 ELSE 0 END) as overdue_count,
-        SUM(CASE WHEN status IN ('Pending', 'Due Today') AND date(promise_date) = date(?) THEN 1 ELSE 0 END) as due_today_count,
-        SUM(CASE WHEN status IN ('Pending', 'Due Today') AND date(promise_date) > date(?) AND date(promise_date) <= date(?) THEN 1 ELSE 0 END) as upcoming_count,
+        SUM(CASE WHEN status IN ('Pending', 'Due Today', 'Overdue PTP') AND (date(promise_date) < date(?) OR date(follow_up_date) < date(?)) THEN 1 ELSE 0 END) as overdue_count,
+        SUM(CASE WHEN status IN ('Pending', 'Due Today') AND (date(promise_date) = date(?) OR date(follow_up_date) = date(?)) THEN 1 ELSE 0 END) as due_today_count,
+        SUM(CASE WHEN status IN ('Pending', 'Due Today') AND ((date(promise_date) > date(?) AND date(promise_date) <= date(?)) OR (date(follow_up_date) > date(?) AND date(follow_up_date) <= date(?))) THEN 1 ELSE 0 END) as upcoming_count,
         COUNT(*) as total_count
       FROM tblPromiseToPay
-    `, [todayStr, todayStr, todayStr, threeDaysLater]);
+    `, [todayStr, todayStr, todayStr, todayStr, todayStr, threeDaysLater, todayStr, threeDaysLater]);
 
     res.json({
       records: processed,
@@ -641,13 +654,13 @@ router.get('/notifications', authenticateToken, async (req, res) => {
     const todayStr = dayjs().format('YYYY-MM-DD');
     let query = `
       SELECT 
-        SUM(CASE WHEN status IN ('Pending', 'Due Today', 'Overdue PTP') AND date(promise_date) < date(?) THEN 1 ELSE 0 END) as overdue_count,
-        SUM(CASE WHEN status IN ('Pending', 'Due Today', 'Overdue PTP') AND date(promise_date) = date(?) THEN 1 ELSE 0 END) as due_today_count,
+        SUM(CASE WHEN status IN ('Pending', 'Due Today', 'Overdue PTP') AND (date(promise_date) < date(?) OR date(follow_up_date) < date(?)) THEN 1 ELSE 0 END) as overdue_count,
+        SUM(CASE WHEN status IN ('Pending', 'Due Today', 'Overdue PTP') AND (date(promise_date) = date(?) OR date(follow_up_date) = date(?)) THEN 1 ELSE 0 END) as due_today_count,
         COUNT(*) as total_count
       FROM tblPromiseToPay
       WHERE 1=1
     `;
-    const params = [todayStr, todayStr];
+    const params = [todayStr, todayStr, todayStr, todayStr];
 
     if (req.user.role === 'collector') {
       query += ` AND collector_id = ?`;
