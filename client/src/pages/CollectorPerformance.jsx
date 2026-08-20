@@ -7,7 +7,7 @@ import logo from '../assets/logo.png'
 import printLetterhead from '../assets/new-letter-head-logo.jpg'
 import '../dashboard.css'
 
-const fmt = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
+const fmt = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const isFinalRatingStatus = status => ['final', 'finalized'].includes(String(status || '').toLowerCase())
 const getRatingPresentation = rating => {
   const value = String(rating || 'Not rated').toLowerCase()
@@ -353,7 +353,7 @@ const getSortOrder = name => {
 
 const isRankingComplete = row => row?.accomplishment_percentage != null && Number.isFinite(Number(row.accomplishment_percentage))
 const getRankingName = row => row?.collector_name || row?.name || 'Unknown'
-const rankingMoney = value => Number(value || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })
+const rankingMoney = fmt
 const rankingGuides = [
   { range: '115% and above', label: 'Outstanding Performance', color: '#10b981' },
   { range: '110% - 114.99%', label: 'Passing/Very Satisfactory', color: '#3b82f6' },
