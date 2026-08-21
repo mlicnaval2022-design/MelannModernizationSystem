@@ -3183,7 +3183,7 @@ export default function Customers() {
         onClose={() => setReloanModalOpen(false)} 
         customerId={soaData?.id} 
         customer={soaData}
-        loanType="NEW"
+        loanType={String(soaData?.customer_classification || '').toUpperCase().replace(/[-\s]/g, '') === 'RELOAN' ? 'RELOAN' : 'NEW'}
         onReloanSubmitted={() => {
           setReloanModalOpen(false);
           openSoa(soaData.id);

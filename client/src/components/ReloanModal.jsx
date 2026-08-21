@@ -130,6 +130,7 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
   const latestLoan = findLatestLoan(account?.loans);
   const activeLoan = (account?.loans || []).find(l => activeStatuses.includes(String(l.status || '').toLowerCase()) && Number(l.balance || 0) > 0);
   const status = String(account?.status || activeCustomer?.status || '').toUpperCase();
+  const classifiedForReloan = normalizeLoanType(account?.customer_classification || activeCustomer?.customer_classification) === 'RELOAN';
   const collectorName = account?.collector_name || activeCustomer?.collector_name || 'Unassigned';
   const branchName = account?.branch_name || activeCustomer?.branch_name || 'Unassigned';
   const clientName = account?.full_name || activeCustomer?.full_name || activeCustomer?.client_name || '';
@@ -172,10 +173,10 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
     if (!type) return { ok: false, message: 'Loan Type is required.' };
     if (status === 'HOLD') return { ok: false, message: `This client is not eligible for ${type}. Client is on ${status} status.` };
     if (type === 'NEW' && activeLoan) return { ok: false, message: 'This client already has an active loan and cannot be processed as NEW.' };
-    if (type === 'RELOAN' && !latestLoan) return { ok: false, message: 'This client is not eligible for RELOAN. No previous loan record found. Use NEW loan type.' };
+    if (type === 'RELOAN' && !latestLoan && !classifiedForReloan) return { ok: false, message: 'This client is not eligible for RELOAN. No previous loan record or Reloan classification found. Use NEW loan type.' };
     if (type === 'RECON' && !latestLoan) return { ok: false, message: 'This client is not eligible for RECON. Please review the account status and required approval.' };
     return { ok: true, message: 'Eligible for loan encoding subject to approval controls.' };
-  }, [activeCustomerId, activeLoan, form.loanType, latestLoan, status]);
+  }, [activeCustomerId, activeLoan, classifiedForReloan, form.loanType, latestLoan, status]);
 
   if (!isOpen) return null;
 

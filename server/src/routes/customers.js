@@ -841,10 +841,11 @@ router.get('/:id/reloan-eval', authenticateToken, async (req, res) => {
     const customerStatus = String(customer.status || '').trim().toUpperCase();
     const is_fully_paid = customerStatus === 'FULLY PAID';
     const is_relax = customerStatus === 'RELAX';
+    const is_reloan_classification = normalizeLoanType(customer.customer_classification) === 'RELOAN';
     const no_active_loan = !activeOrPastDueLoans || activeOrPastDueLoans.count === 0;
     const no_outstanding_balance = !activeOrPastDueLoans || !activeOrPastDueLoans.total_balance || activeOrPastDueLoans.total_balance <= 0;
     const has_loan_history = Number(stats?.total_loans || 0) > 0;
-    const is_good_standing = (is_fully_paid || (is_relax && has_loan_history)) && no_active_loan && no_outstanding_balance;
+    const is_good_standing = ((is_reloan_classification && customerStatus !== 'HOLD') || is_fully_paid || (is_relax && has_loan_history)) && no_active_loan && no_outstanding_balance;
 
     const can_proceed = no_outstanding_balance;
     const last_loan = stats && stats.last_loan_amount ? stats.last_loan_amount : 0;
@@ -1043,6 +1044,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
       [customer.id]
     );
     const customerStatus = String(customer.status || '').trim().toUpperCase();
+    const customerIsClassifiedForReloan = normalizeLoanType(customer.customer_classification) === 'RELOAN';
     if (normalizedLoanType === 'NEW' && activeLoan) {
       const err = new Error('This client already has an active loan and cannot be processed as NEW.');
       err.statusCode = 400;
@@ -1054,8 +1056,8 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
       throw err;
     }
     if (normalizedLoanType === 'RELOAN') {
-      if (!latestLoan) {
-        const err = new Error('This client is not eligible for RELOAN. No previous loan record found. Use NEW loan type.');
+      if (!latestLoan && !customerIsClassifiedForReloan) {
+        const err = new Error('This client is not eligible for RELOAN. No previous loan record or Reloan classification found. Use NEW loan type.');
         err.statusCode = 400;
         throw err;
       }
