@@ -60,7 +60,7 @@ test.before(async () => {
 
   const noMiddleNameCustomer = await dbRun(`
     INSERT INTO tblCustomer (customer_code, first_name, last_name, full_name, branch_id, collector_id, gender, birth_date, civil_status, id_type)
-    VALUES ('CIC-NO-MIDDLE', 'No', 'Middle', 'No Middle', ?, ?, 'M', '1991-02-03', 'Divorced/Separated', 'Passport')
+    VALUES ('CIC-NO-MIDDLE', 'No', 'Middle', 'No Middle', ?, ?, 'M', '1991-02-03', 'Divorced/Separated', 'Philippine Identification (PhilID / ePhilID)')
   `, [branch.id, collector.lastID]);
   const noMiddleNameLoan = await dbRun(`
     INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_amount, loan_period, total_amortization, balance, date_released, date_maturity, status)

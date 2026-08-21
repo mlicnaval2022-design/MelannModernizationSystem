@@ -45,17 +45,57 @@ test('creating a customer does not automatically create a loan', async () => {
       first_name: 'Customer',
       last_name: 'Only',
       customer_classification: 'New Client',
+      id_type: 'Philippine Identification (PhilID / ePhilID)',
+      id_number: '24029158710035018',
       proposed_principal: 5000,
       loan_type: 'New',
     }),
   });
   const body = await response.json();
-  const customer = await dbGet('SELECT id, first_name, last_name FROM tblCustomer WHERE id = ?', [body.id]);
+  const detailsResponse = await fetch(`${baseUrl}/api/customers/${body.id}`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const details = await detailsResponse.json();
+  const customer = await dbGet('SELECT id, first_name, last_name, id_type, id_number FROM tblCustomer WHERE id = ?', [body.id]);
   const loan = await dbGet('SELECT id FROM tblLoan WHERE customer_id = ?', [body.id]);
 
   assert.equal(response.status, 201, body.error);
-  assert.deepEqual(customer, { id: body.id, first_name: 'Customer', last_name: 'Only' });
+  assert.equal(detailsResponse.status, 200, details.error);
+  assert.equal(details.id_type, 'Philippine Identification (PhilID / ePhilID)');
+  assert.deepEqual(customer, {
+    id: body.id,
+    first_name: 'Customer',
+    last_name: 'Only',
+    id_type: 'Philippine Identification (PhilID / ePhilID)',
+    id_number: '24029158710035018',
+  });
   assert.equal(loan, undefined);
+});
+
+test('an ID number cannot be saved without an ID type', async () => {
+  const loginResponse = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: 'admin123' }),
+  });
+  const { token } = await loginResponse.json();
+
+  const response = await fetch(`${baseUrl}/api/customers`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      first_name: 'Missing',
+      last_name: 'Id Type',
+      id_number: '123456789',
+    }),
+  });
+  const body = await response.json();
+
+  assert.equal(response.status, 400);
+  assert.equal(body.error, 'Type of ID is required when an ID number is provided.');
 });
 
 test('a customer classified as Reloan is eligible without a previous loan record', async () => {

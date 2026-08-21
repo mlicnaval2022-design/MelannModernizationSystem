@@ -10,7 +10,44 @@ const STEPS = [
   { id: 5, title: 'Identification', sub: 'ID and document details', icon: '🪪' }
 ];
 
-export default function CustomerWizard({ initialData, onClose, onSaved, collectors, branches }) {
+const PHILID_TYPE = 'Philippine Identification (PhilID / ePhilID)';
+const ID_TYPE_OPTIONS = [
+  PHILID_TYPE,
+  "Driver's License",
+  'Passport',
+  'UMID (Unified Multi-Purpose ID)',
+  'SSS ID',
+  'GSIS ID',
+  'PRC ID',
+  "Voter's ID / Certification",
+  'Postal ID',
+  'Senior Citizen ID',
+  'PWD ID',
+  'NBI Clearance',
+  'Police Clearance',
+  'Barangay Clearance / Certificate',
+  'PhilHealth ID',
+  'TIN ID',
+  'Pag-IBIG ID (HDMF)',
+  'OFW ID',
+  "Seaman's Book",
+  'Alien Certificate of Registration (ACR)',
+  'Government Office / GOCC ID',
+  'Integrated Bar of the Philippines (IBP) ID',
+  'Company ID',
+  'School ID',
+  "Business Permit / Mayor's Permit",
+  'DTI Certificate of Registration',
+  'SEC Certificate of Registration',
+  'Others'
+];
+
+const normalizeIdType = value => {
+  const idType = String(value || '').trim();
+  return idType === 'Philippine Identification (PhilID)' ? PHILID_TYPE : idType;
+};
+
+export default function CustomerWizard({ initialData, onClose, onSaved, collectors }) {
   const educationalBackgroundOptions = ['Primary', 'Secondary', 'College', 'Undergraduate'];
   const occupationalStatusOptions = ['Government', 'Private', 'Self-Employed', 'Unemployed'];
   const businessTypeOptions = [
@@ -46,14 +83,17 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
     'PENSIONER'
   ];
   const [step, setStep] = useState(1);
-  const [form, setForm] = useState(initialData || {
+  const [form, setForm] = useState(initialData ? {
+    ...initialData,
+    id_type: normalizeIdType(initialData.id_type)
+  } : {
     customer_classification: 'New Client', risk_category: 'Medium Risk', cic_verification: 'Verified',
     first_name: '', last_name: '', middle_name: '', gender: 'Male', birth_date: '', civil_status: 'Single', nationality: 'Filipino',
     educational_background: '', occupational_status: '',
     address: '', sitio: '', purok: '', brgy: '', city: '', province: '', zip_code: '', home_status: 'Owned', length_of_stay: '', previous_address: '',
     contact: '', secondary_contact: '', email: '', fb_account: '', messenger_account: '', contact_notes: '',
     business_type: 'SARI-SARI STORE', business_type_other: '', occupation: 'Retail', business_name: '', business_address: '', business_years: '', business_months: '', income_per_month: '', business_employees: '', business_ownership: 'Sole Proprietorship', business_permit: 'Yes', permit_date_issued: '', permit_place_issued: '', permit_no: '',
-    id_type: 'Philippine Identification (PhilID)', id_number: '', id_issue_date: '', id_expiry_date: '', id_issued_by: 'PSA', id_place_of_issue: '', tin_number: '', sss_number: '', id_notes: '',
+    id_type: '', id_number: '', id_issue_date: '', id_expiry_date: '', id_issued_by: 'PSA', id_place_of_issue: '', tin_number: '', sss_number: '', id_notes: '',
     loan_purpose: '', branch_id: '', collector_id: '',
     photo_id_front: null, photo_id_back: null, photo_business_proof: null, photo_client: null
   });
@@ -156,11 +196,17 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
   );
 
   const handleSave = async () => {
+    if (String(form.id_number || '').trim() && !normalizeIdType(form.id_type)) {
+      setStep(5);
+      setError('Please select the Type of ID before saving the customer.');
+      return;
+    }
     try {
       setSaving(true);
       setError('');
       const payload = {
         ...form,
+        id_type: normalizeIdType(form.id_type),
         business_type: form.business_type === 'OTHERS' ? form.business_type_other : form.business_type,
         messenger_account: '',
         business_name: '',
@@ -418,10 +464,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
             <div className="form-group"><label>Years in Business</label><input type="number" className="form-control" value={form.business_years} onChange={e => setForm({...form, business_years: e.target.value})} /></div>
             <div className="form-group"><label>Months in Business</label><input type="number" className="form-control" value={form.business_months} onChange={e => setForm({...form, business_months: e.target.value})} /></div>
           </div>
-          <div className="form-grid">
-            <div className="form-group"><label>Average Monthly Gross Income</label><input type="number" className="form-control" value={form.income_per_month} onChange={e => setForm({...form, income_per_month: e.target.value})} /></div>
-            <div className="form-group"><label>Number of Employees (including owner)</label><input type="number" className="form-control" value={form.business_employees} onChange={e => setForm({...form, business_employees: e.target.value})} /></div>
-          </div>
+          <div className="form-group"><label>Average Monthly Gross Income</label><input type="number" className="form-control" value={form.income_per_month} onChange={e => setForm({...form, income_per_month: e.target.value})} /></div>
           <div className="form-grid">
             <div className="form-group"><label>Business Ownership</label>
               <select className="form-control" value={form.business_ownership} onChange={e => setForm({...form, business_ownership: e.target.value})}>
@@ -455,34 +498,8 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
           <div className="form-grid">
             <div className="form-group"><label>Type of ID *</label>
               <select className="form-control" value={form.id_type} onChange={e => setForm({...form, id_type: e.target.value})}>
-                <option value="Philippine Identification (PhilID / ePhilID)">Philippine Identification (PhilID / ePhilID)</option>
-                <option value="Driver's License">Driver's License</option>
-                <option value="Passport">Passport</option>
-                <option value="UMID (Unified Multi-Purpose ID)">UMID (Unified Multi-Purpose ID)</option>
-                <option value="SSS ID">SSS ID</option>
-                <option value="GSIS ID">GSIS ID</option>
-                <option value="PRC ID">PRC ID</option>
-                <option value="Voter's ID / Certification">Voter's ID / Certification</option>
-                <option value="Postal ID">Postal ID</option>
-                <option value="Senior Citizen ID">Senior Citizen ID</option>
-                <option value="PWD ID">PWD ID</option>
-                <option value="NBI Clearance">NBI Clearance</option>
-                <option value="Police Clearance">Police Clearance</option>
-                <option value="Barangay Clearance / Certificate">Barangay Clearance / Certificate</option>
-                <option value="PhilHealth ID">PhilHealth ID</option>
-                <option value="TIN ID">TIN ID</option>
-                <option value="Pag-IBIG ID (HDMF)">Pag-IBIG ID (HDMF)</option>
-                <option value="OFW ID">OFW ID</option>
-                <option value="Seaman's Book">Seaman's Book</option>
-                <option value="Alien Certificate of Registration (ACR)">Alien Certificate of Registration (ACR)</option>
-                <option value="Government Office / GOCC ID">Government Office / GOCC ID</option>
-                <option value="Integrated Bar of the Philippines (IBP) ID">Integrated Bar of the Philippines (IBP) ID</option>
-                <option value="Company ID">Company ID</option>
-                <option value="School ID">School ID</option>
-                <option value="Business Permit / Mayor's Permit">Business Permit / Mayor's Permit</option>
-                <option value="DTI Certificate of Registration">DTI Certificate of Registration</option>
-                <option value="SEC Certificate of Registration">SEC Certificate of Registration</option>
-                <option value="Others">Others</option>
+                <option value="">Select ID Type</option>
+                {ID_TYPE_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
               </select>
             </div>
             <div className="form-group"><label>ID Number *</label><input className="form-control" value={form.id_number} onChange={handleUpper('id_number')} /></div>
@@ -492,7 +509,6 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
             <div className="form-group"><label>Expiry Date</label><input type="date" className="form-control" value={form.id_expiry_date} onChange={e => setForm({...form, id_expiry_date: e.target.value})} /></div>
           </div>
           <div className="form-group"><label>Issued By</label><input className="form-control" value={form.id_issued_by} onChange={e => setForm({...form, id_issued_by: e.target.value})} /></div>
-          <div className="form-group"><label>Place of Issue</label><input className="form-control" value={form.id_place_of_issue} onChange={handleUpper('id_place_of_issue')} /></div>
           
           <label className="section-label">Additional Information (Optional)</label>
           <div className="form-grid">
@@ -649,6 +665,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
           </div>
 
           <div className="wizard-center">
+            {error && <div className="alert alert-danger" style={{ marginBottom: 14 }}>{error}</div>}
             {renderStepContent()}
           </div>
 

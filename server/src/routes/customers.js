@@ -41,6 +41,23 @@ function assertCustomerPhotoFilesExist(body) {
   }
 }
 
+function normalizeCustomerIdType(value) {
+  const idType = String(value || '').trim();
+  if (idType === 'Philippine Identification (PhilID)') {
+    return 'Philippine Identification (PhilID / ePhilID)';
+  }
+  return idType || null;
+}
+
+function assertCustomerIdentification(body) {
+  const idNumber = String(body.id_number || '').trim();
+  if (idNumber && !normalizeCustomerIdType(body.id_type)) {
+    const err = new Error('Type of ID is required when an ID number is provided.');
+    err.statusCode = 400;
+    throw err;
+  }
+}
+
 const storage = multer.diskStorage({
   destination: function(req, file, cb) { cb(null, uploadDir); },
   filename: function(req, file, cb) {
@@ -891,6 +908,7 @@ router.post('/', authenticateToken, async (req, res) => {
       id_place_of_issue, tin_number, sss_number, id_notes, photo_id_front, photo_id_back, photo_business_proof, photo_client
     } = req.body;
     if (!first_name || !last_name) return res.status(400).json({ error: 'First and last name required' });
+    assertCustomerIdentification(req.body);
     assertCustomerPhotoFilesExist(req.body);
     const full_name = `${last_name}, ${first_name}${middle_name ? ' ' + middle_name : ''}`;
     const maxCust = await dbGet('SELECT MAX(CAST(customer_code AS INTEGER)) as c FROM tblCustomer');
@@ -898,14 +916,14 @@ router.post('/', authenticateToken, async (req, res) => {
     
     const cols = ['customer_code', 'first_name', 'last_name', 'middle_name', 'full_name', 'address', 'contact', 'birth_date', 'civil_status', 'occupation', 'branch_id', 'collector_id', 'status', 'sitio', 'purok', 'brgy', 'city', 'gender', 'secondary_contact', 'email', 'income_per_month', 'expenses_per_month', 'loan_purpose', 'collateral', 'id_type', 'id_number', 'id_issue_date', 'id_expiry_date', 'id_issued_by', 'fb_account', 'nationality', 'educational_background', 'occupational_status', 'home_status', 'business_address', 'business_location', 'business_years', 'business_months', 'business_ownership', 'business_permit', 'customer_classification', 'risk_category', 'cic_verification', 'province', 'zip_code', 'length_of_stay', 'previous_address', 'messenger_account', 'preferred_contact_method', 'preferred_contact_time_from', 'preferred_contact_time_to', 'contact_notes', 'business_type', 'business_name', 'business_employees', 'permit_date_issued', 'permit_place_issued', 'permit_no', 'id_place_of_issue', 'tin_number', 'sss_number', 'id_notes', 'photo_id_front', 'photo_id_back', 'photo_business_proof', 'photo_client'];
     
-    const vals = [customer_code, first_name, last_name, middle_name || null, full_name, address, contact, birth_date, civil_status, occupation, branch_id, collector_id, 'active', sitio, purok, brgy, city, gender, secondary_contact, email, income_per_month, expenses_per_month, loan_purpose, collateral, id_type, id_number, id_issue_date, id_expiry_date, id_issued_by, fb_account, nationality, educational_background, occupational_status, home_status, business_address, business_location, business_years, business_months, business_ownership, business_permit, customer_classification, risk_category, cic_verification, province, zip_code, length_of_stay, previous_address, messenger_account, preferred_contact_method, preferred_contact_time_from, preferred_contact_time_to, contact_notes, business_type, business_name, business_employees, permit_date_issued, permit_place_issued, permit_no, id_place_of_issue, tin_number, sss_number, id_notes, photo_id_front, photo_id_back, photo_business_proof, photo_client];
+    const vals = [customer_code, first_name, last_name, middle_name || null, full_name, address, contact, birth_date, civil_status, occupation, branch_id, collector_id, 'active', sitio, purok, brgy, city, gender, secondary_contact, email, income_per_month, expenses_per_month, loan_purpose, collateral, normalizeCustomerIdType(id_type), id_number, id_issue_date, id_expiry_date, id_issued_by, fb_account, nationality, educational_background, occupational_status, home_status, business_address, business_location, business_years, business_months, business_ownership, business_permit, customer_classification, risk_category, cic_verification, province, zip_code, length_of_stay, previous_address, messenger_account, preferred_contact_method, preferred_contact_time_from, preferred_contact_time_to, contact_notes, business_type, business_name, business_employees, permit_date_issued, permit_place_issued, permit_no, id_place_of_issue, tin_number, sss_number, id_notes, photo_id_front, photo_id_back, photo_business_proof, photo_client];
 
     const placeholders = cols.map(() => '?').join(',');
     const result = await dbRun(`INSERT INTO tblCustomer (${cols.join(',')}) VALUES (${placeholders})`, vals);
 
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'CUSTOMER', result.lastID, `Created: ${full_name}`]);
     res.status(201).json({ id: result.lastID, customer_code, full_name });
-  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+  } catch (err) { sendRouteError(res, err); }
 });
 
 router.put('/:id', authenticateToken, async (req, res) => {
@@ -920,12 +938,13 @@ router.put('/:id', authenticateToken, async (req, res) => {
       business_type, business_name, business_employees, permit_date_issued, permit_place_issued, permit_no,
       id_place_of_issue, tin_number, sss_number, id_notes, photo_id_front, photo_id_back, photo_business_proof, photo_client
     } = req.body;
+    assertCustomerIdentification(req.body);
     assertCustomerPhotoFilesExist(req.body);
     const full_name = `${last_name}, ${first_name}${middle_name ? ' ' + middle_name : ''}`;
     
     const updateCols = ['first_name', 'last_name', 'middle_name', 'full_name', 'address', 'contact', 'birth_date', 'civil_status', 'occupation', 'branch_id', 'collector_id', 'status', 'sitio', 'purok', 'brgy', 'city', 'gender', 'secondary_contact', 'email', 'income_per_month', 'expenses_per_month', 'loan_purpose', 'collateral', 'id_type', 'id_number', 'id_issue_date', 'id_expiry_date', 'id_issued_by', 'fb_account', 'nationality', 'educational_background', 'occupational_status', 'home_status', 'business_address', 'business_location', 'business_years', 'business_months', 'business_ownership', 'business_permit', 'customer_classification', 'risk_category', 'cic_verification', 'province', 'zip_code', 'length_of_stay', 'previous_address', 'messenger_account', 'preferred_contact_method', 'preferred_contact_time_from', 'preferred_contact_time_to', 'contact_notes', 'business_type', 'business_name', 'business_employees', 'permit_date_issued', 'permit_place_issued', 'permit_no', 'id_place_of_issue', 'tin_number', 'sss_number', 'id_notes', 'photo_id_front', 'photo_id_back', 'photo_business_proof', 'photo_client', 'updated_at'];
     
-    const vals = [first_name, last_name, middle_name || null, full_name, address, contact, birth_date, civil_status, occupation, branch_id, collector_id, status || 'active', sitio, purok, brgy, city, gender, secondary_contact, email, income_per_month, expenses_per_month, loan_purpose, collateral, id_type, id_number, id_issue_date, id_expiry_date, id_issued_by, fb_account, nationality, educational_background, occupational_status, home_status, business_address, business_location, business_years, business_months, business_ownership, business_permit, customer_classification, risk_category, cic_verification, province, zip_code, length_of_stay, previous_address, messenger_account, preferred_contact_method, preferred_contact_time_from, preferred_contact_time_to, contact_notes, business_type, business_name, business_employees, permit_date_issued, permit_place_issued, permit_no, id_place_of_issue, tin_number, sss_number, id_notes, photo_id_front, photo_id_back, photo_business_proof, photo_client, req.params.id];
+    const vals = [first_name, last_name, middle_name || null, full_name, address, contact, birth_date, civil_status, occupation, branch_id, collector_id, status || 'active', sitio, purok, brgy, city, gender, secondary_contact, email, income_per_month, expenses_per_month, loan_purpose, collateral, normalizeCustomerIdType(id_type), id_number, id_issue_date, id_expiry_date, id_issued_by, fb_account, nationality, educational_background, occupational_status, home_status, business_address, business_location, business_years, business_months, business_ownership, business_permit, customer_classification, risk_category, cic_verification, province, zip_code, length_of_stay, previous_address, messenger_account, preferred_contact_method, preferred_contact_time_from, preferred_contact_time_to, contact_notes, business_type, business_name, business_employees, permit_date_issued, permit_place_issued, permit_no, id_place_of_issue, tin_number, sss_number, id_notes, photo_id_front, photo_id_back, photo_business_proof, photo_client, req.params.id];
     
     const setClause = updateCols.map(c => c === 'updated_at' ? "updated_at=datetime('now')" : `${c}=?`).join(', ');
     await dbRun(`UPDATE tblCustomer SET ${setClause} WHERE id=?`, vals);
@@ -935,7 +954,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
     }
 
     res.json({ message: 'Customer updated' });
-  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+  } catch (err) { sendRouteError(res, err); }
 });
 
 router.put('/:id/relax', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
