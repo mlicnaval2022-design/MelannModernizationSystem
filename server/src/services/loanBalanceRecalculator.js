@@ -1,4 +1,5 @@
 const { dbAll, dbGet, dbRun } = require('../db/database');
+const { SPECIAL_PAYMENT_TYPES } = require('./paymentClassification');
 
 const roundMoney = value => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 const terminalLoanStatuses = new Set(['reversed', 'cancelled', 'rejected']);
@@ -84,13 +85,14 @@ async function recalculateLoanBalances(loanId, options = {}) {
   const loan = await dbGet(`SELECT * FROM tblLoan WHERE id = ?`, [loanId]);
   if (!loan) throw new Error(`Loan ${loanId} not found`);
 
+  const balancePaymentStatuses = ['active', ...SPECIAL_PAYMENT_TYPES];
   const payments = await dbAll(
     `SELECT *
      FROM tblPayment
      WHERE loan_id = ?
-       AND status IN ('active', 'recon')
+       AND status IN (${balancePaymentStatuses.map(() => '?').join(', ')})
      ORDER BY date_paid ASC, id ASC`,
-    [loanId]
+    [loanId, ...balancePaymentStatuses]
   );
 
   let runningBalance = getOpeningBalance(loan);

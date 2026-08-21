@@ -3,6 +3,7 @@ const { dbGet, dbRun, dbAll } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { triggerLoanRecalculation } = require('../services/noPaymentMonitoring');
 const { recalculateLoanBalances } = require('../services/loanBalanceRecalculator');
+const { SPECIAL_PAYMENT_TYPES } = require('../services/paymentClassification');
 const router = express.Router();
 
 router.get('/search', authenticateToken, async (req, res) => {
@@ -140,8 +141,9 @@ router.post('/payment/by-code', authenticateToken, requireRole('admin', 'manager
 
 router.post('/payment/:id', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   try {
-    const payment = await dbGet(`SELECT * FROM tblPayment WHERE id = ? AND status IN ('active', 'recon')`, [req.params.id]);
-    if (!payment) return res.status(404).json({ error: 'Active or Recon payment not found' });
+    const reversibleStatuses = ['active', ...SPECIAL_PAYMENT_TYPES];
+    const payment = await dbGet(`SELECT * FROM tblPayment WHERE id = ? AND status IN (${reversibleStatuses.map(() => '?').join(', ')})`, [req.params.id, ...reversibleStatuses]);
+    if (!payment) return res.status(404).json({ error: 'Active settlement payment not found' });
     await dbRun('BEGIN TRANSACTION');
     await dbRun(`UPDATE tblPayment SET status='reversed', reversed_at=datetime('now'), reversed_by=? WHERE id=?`, [req.user.id, payment.id]);
     await recalculateLoanBalances(payment.loan_id, { userId: req.user.id });

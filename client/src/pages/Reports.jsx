@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ClipboardList,
+  FileX,
   FileText,
   Filter,
   Pencil,
@@ -710,6 +711,7 @@ const REPORT_TYPES = [
   { key: 'collection-sheet', label: 'Collection Sheet', desc: 'Per-collector active loan list', Icon: ClipboardList, color: '#4f46e5', bg: '#e0e7ff' },
   { key: 'disclosure-statement', label: 'Disclosure Statement', desc: 'Client disclosure for every reloan', Icon: FileText, color: '#0f766e', bg: '#ccfbf1' },
   { key: 'aging-report', label: 'Aging Report', desc: 'Overdue aging by period and collector', Icon: Bell, color: '#ca8a04', bg: '#fef3c7' },
+  { key: 'special-accounts', label: 'Deceased & Written-Off Accounts', desc: 'Deceased and written-off account reports', Icon: FileX, color: '#b91c1c', bg: '#fee2e2' },
   { key: 'expenses-report', label: 'Expenses Reports', desc: 'Employee expense input and summary', Icon: WalletCards, color: '#0f766e', bg: '#ccfbf1' },
 ]
 
@@ -795,6 +797,7 @@ export default function Reports() {
   const [advanceManualSuccess, setAdvanceManualSuccess] = useState(null)
   const [printMode, setPrintMode] = useState('detailed')
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const [specialAccountsTab, setSpecialAccountsTab] = useState('deceased')
   const [expensesTab, setExpensesTab] = useState('summary')
   const [expenseSummaryTab, setExpenseSummaryTab] = useState('total-each-employee')
   const [configurationTab, setConfigurationTab] = useState('personnel')
@@ -1974,6 +1977,32 @@ export default function Reports() {
       return
     }
 
+    if (active === 'special-accounts') {
+      const isDeceased = specialAccountsTab === 'deceased'
+      const accounts = isDeceased ? (data.deceased || []) : (data.written_off || [])
+      const reportLabel = isDeceased ? 'Deceased Accounts' : 'Written-Off Accounts'
+      const totalAmount = accounts.reduce((sum, account) => sum + Number(account.amount_paid || 0), 0)
+      const rows = [
+        ['Client Code', 'Client Name', 'Loan Number', 'Principal', 'Total Loans', 'Collector', 'Settlement Date', 'Amount', 'Balance Before', 'Payment Code', 'Remarks', 'Encoded By'],
+        ...accounts.map(account => [
+          account.customer_code,
+          account.customer_name,
+          account.loan_code,
+          rawMoney(account.principal),
+          rawMoney(account.total_amortization),
+          account.collector_name,
+          dateOnly(account.settlement_date),
+          rawMoney(account.amount_paid),
+          rawMoney(account.balance_before),
+          account.payment_code || account.or_number,
+          account.remarks,
+          account.encoded_by_name,
+        ]),
+      ]
+      write(`special-accounts-${specialAccountsTab}-${periodLabel}`, addMeta(rows, reportLabel, [['Period', periodLabel], ['Total Accounts', accounts.length], ['Total Amount', rawMoney(totalAmount)]]))
+      return
+    }
+
     if (active === 'aging-report') {
       const overall = data.buckets || []
       const collectorsRows = (data.collectors || []).flatMap(group => (group.buckets || []).map((row, index) => ({ ...row, collector: index === 0 ? group.collector : '' })))
@@ -2041,6 +2070,12 @@ export default function Reports() {
     if (key === 'aging-report') {
       const nextParams = { ...params, date_from: '', date_to: toDateInputValue(new Date()) }
       setParams(nextParams)
+      run(key, nextParams)
+    }
+    if (key === 'special-accounts') {
+      const nextParams = { ...params, date_from: '', date_to: toDateInputValue(new Date()) }
+      setParams(nextParams)
+      setSpecialAccountsTab('deceased')
       run(key, nextParams)
     }
     if (key === 'expenses-report') {
@@ -2139,6 +2174,14 @@ export default function Reports() {
         </div>
       )
     }
+    if (active === 'special-accounts') {
+      return (
+        <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 12 }}>
+          <button className={`btn ${specialAccountsTab === 'deceased' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSpecialAccountsTab('deceased')}>Deceased</button>
+          <button className={`btn ${specialAccountsTab === 'written-off' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSpecialAccountsTab('written-off')}>Written-Off</button>
+        </div>
+      )
+    }
     if (active === 'expenses-report') {
       const tabs = [
         { key: 'summary', label: 'Summary', Icon: BarChart3 },
@@ -2207,7 +2250,7 @@ export default function Reports() {
         <div className="form-group"><label className="form-label">Date To</label><input type="date" className="form-control" value={params.date_to} onChange={e => setParams(p => ({ ...p, date_to: e.target.value }))} /></div>
       </>
     )
-    if (active === 'aging-report') return (
+    if (['aging-report', 'special-accounts'].includes(active)) return (
       <>
         <div className="form-group"><label className="form-label">Date From</label><input type="date" className="form-control" value={params.date_from || ''} onChange={e => setParams(p => ({ ...p, date_from: e.target.value }))} /></div>
         <div className="form-group"><label className="form-label">Date To</label><input type="date" className="form-control" value={params.date_to || toDateInputValue(new Date())} onChange={e => setParams(p => ({ ...p, date_to: e.target.value }))} /></div>
@@ -3604,6 +3647,80 @@ export default function Reports() {
             )}
           </div>
         </>
+      )
+    }
+
+    if (active === 'special-accounts') {
+      if (data.error) {
+        return (
+          <div className="empty-state" style={{ color: '#b91c1c' }}>
+            <p>Unable to load Deceased & Written-Off Accounts.</p>
+            <p style={{ fontSize: 12 }}>{data.error}</p>
+          </div>
+        )
+      }
+      const isDeceased = specialAccountsTab === 'deceased'
+      const accounts = isDeceased ? (data.deceased || []) : (data.written_off || [])
+      const reportLabel = isDeceased ? 'Deceased Accounts' : 'Written-Off Accounts'
+      const totalAmount = accounts.reduce((sum, account) => sum + Number(account.amount_paid || 0), 0)
+      const from = dateOnly(data.date_from || params.date_from)
+      const to = dateOnly(data.date_to || params.date_to || toDateInputValue(new Date()))
+      const accountPeriod = from ? `${displayDate(from)} to ${displayDate(to)}` : `Up to ${displayDate(to)}`
+      return (
+        <div id="printable-area" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <style>{`${REPORT_PRINT_CLARITY_CSS}
+            @media print {
+              @page { size: landscape; margin: 9mm; }
+              .special-account-actions { display: none !important; }
+              #printable-area table.data-table th,
+              #printable-area table.data-table td { font-size: 9px !important; padding: 5px 6px !important; }
+            }
+          `}</style>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
+            <div>
+              <h3 style={{ margin: 0 }}>{reportLabel}</h3>
+              <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>Settlement Period: {accountPeriod}</div>
+            </div>
+            <div className="special-account-actions">
+              <button className="btn btn-secondary" onClick={() => handlePrint('summary')}>Print</button>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+            <div className="card-v2" style={{ padding: 16 }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Total Accounts</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: '#0D1B3D', marginTop: 6 }}>{accounts.length}</div>
+            </div>
+            <div className="card-v2" style={{ padding: 16 }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Total Settlement Amount</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: isDeceased ? '#b45309' : '#b91c1c', marginTop: 6 }}>PHP {fmtMoney(totalAmount)}</div>
+            </div>
+          </div>
+          <div className="table-responsive-print" style={{ overflowX: 'auto' }}>
+            <table className="data-table" style={{ minWidth: 1420 }}>
+              <thead><tr><th>Client Code</th><th>Client Name</th><th>Loan Number</th><th className="text-right">Principal</th><th className="text-right">Total Loans</th><th>Collector</th><th>Settlement Date</th><th className="text-right">Amount</th><th className="text-right">Balance Before</th><th>Payment Code</th><th>Remarks</th><th>Encoded By</th></tr></thead>
+              <tbody>
+                {accounts.length === 0 ? (
+                  <tr><td colSpan={12} className="empty-state">No {reportLabel.toLowerCase()} found for this period.</td></tr>
+                ) : accounts.map(account => (
+                  <tr key={account.payment_id}>
+                    <td className="mono">{account.customer_code || '-'}</td>
+                    <td className="fw-600">{account.customer_name || '-'}</td>
+                    <td className="mono">{account.loan_code || '-'}</td>
+                    <td className="text-right">PHP {fmtMoney(account.principal)}</td>
+                    <td className="text-right fw-bold">PHP {fmtMoney(account.total_amortization)}</td>
+                    <td>{account.collector_name || 'Unassigned'}</td>
+                    <td>{displayDate(dateOnly(account.settlement_date))}</td>
+                    <td className="text-right fw-bold">PHP {fmtMoney(account.amount_paid)}</td>
+                    <td className="text-right">PHP {fmtMoney(account.balance_before)}</td>
+                    <td className="mono">{account.payment_code || account.or_number || '-'}</td>
+                    <td>{account.remarks || '-'}</td>
+                    <td>{account.encoded_by_name || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )
     }
 

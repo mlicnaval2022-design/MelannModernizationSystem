@@ -17,6 +17,7 @@ function permissionKeysForReportPath(pathname) {
     '/collection-sheet': ['report:collection-sheet'],
     '/disclosure-statement': ['report:disclosure-statement'],
     '/aging-report': ['report:aging-report'],
+    '/special-accounts': ['report:special-accounts'],
   };
   return routePermissions[pathname] || null;
 }

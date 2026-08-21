@@ -3,6 +3,7 @@ const dayjs = require('dayjs');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { sqlNotSunday } = require('../services/operationDays');
+const { buildCollectionPaymentExclusionSql } = require('../services/paymentClassification');
 
 const router = express.Router();
 
@@ -140,8 +141,7 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
         WHERE p.loan_id = l.id
           AND date(p.date_paid) = date(?)
           AND p.status IN ('active', 'penalty')
-          AND p.status != 'recon'
-          AND LOWER(COALESCE(p.payment_type, '')) != 'recon'
+          AND ${buildCollectionPaymentExclusionSql('p', { includeRemarks: false })}
           AND ${sqlNotSunday('p.date_paid')}
       ), 0) as collected_today,
       COALESCE((
@@ -150,8 +150,7 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
         WHERE p.loan_id = l.id
           AND date(p.date_paid) = date(?)
           AND p.status IN ('active', 'penalty')
-          AND p.status != 'recon'
-          AND LOWER(COALESCE(p.payment_type, '')) != 'recon'
+          AND ${buildCollectionPaymentExclusionSql('p', { includeRemarks: false })}
           AND ${sqlNotSunday('p.date_paid')}
       ), 0) as payment_count_today
       ,
@@ -161,8 +160,7 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
         WHERE p.loan_id = l.id
           AND date(p.date_paid) = date(?)
           AND p.status = 'active'
-          AND p.status != 'recon'
-          AND LOWER(COALESCE(p.payment_type, '')) != 'recon'
+          AND ${buildCollectionPaymentExclusionSql('p', { includeRemarks: false })}
           AND (
             LOWER(COALESCE(p.remarks, '')) LIKE '%old balance%'
             OR LOWER(COALESCE(p.payment_type, '')) IN ('balance', 'old_balance')
@@ -188,8 +186,7 @@ async function getCollectorSheetStats(collectorId, targetDate, pastdueCutoff) {
           WHERE p.loan_id = l.id
             AND date(p.date_paid) >= date(?)
             AND p.status IN ('active', 'penalty')
-            AND p.status != 'recon'
-            AND LOWER(COALESCE(p.payment_type, '')) != 'recon'
+            AND ${buildCollectionPaymentExclusionSql('p', { includeRemarks: false })}
         )
       )
   `, [targetDate, targetDate, targetDate, targetDate, collectorId, targetDate, targetDate]);

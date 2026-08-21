@@ -315,7 +315,7 @@ async function loadLoans(period) {
            (SELECT p.date_paid FROM tblPayment p WHERE p.loan_id = l.id AND p.status = 'active' ORDER BY p.date_paid ASC, p.id ASC LIMIT 1) as first_payment_date,
            (SELECT p.date_paid FROM tblPayment p WHERE p.loan_id = l.id AND p.status = 'active' ORDER BY p.date_paid DESC, p.id DESC LIMIT 1) as last_payment_date,
            (SELECT p.amount_paid FROM tblPayment p WHERE p.loan_id = l.id AND p.status = 'active' ORDER BY p.date_paid DESC, p.id DESC LIMIT 1) as last_payment_amount,
-           (SELECT p.date_paid FROM tblPayment p WHERE p.loan_id = l.id AND p.status IN ('active', 'recon') AND p.balance_after <= 0 ORDER BY p.date_paid DESC, p.id DESC LIMIT 1) as fully_paid_date
+           (SELECT p.date_paid FROM tblPayment p WHERE p.loan_id = l.id AND p.status IN ('active', 'recon', 'deceased', 'writeoff') AND p.balance_after <= 0 ORDER BY p.date_paid DESC, p.id DESC LIMIT 1) as fully_paid_date
     FROM tblLoan l
     JOIN tblCustomer c ON l.customer_id = c.id
     -- CIC submission is based on the BIR client-report queue. A client must

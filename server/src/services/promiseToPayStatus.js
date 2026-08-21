@@ -1,5 +1,6 @@
 const dayjs = require('dayjs');
 const { dbAll, dbGet, dbRun } = require('../db/database');
+const { SPECIAL_PAYMENT_TYPES } = require('./paymentClassification');
 
 const MANUALLY_RESOLVED_STATUSES = new Set([
   'Paid', 'Partially Paid', 'Broken', 'Cancelled', 'Rescheduled'
@@ -7,6 +8,7 @@ const MANUALLY_RESOLVED_STATUSES = new Set([
 const normalizeLoanType = value => String(value || '')
   .toLowerCase()
   .replace(/[^a-z]/g, '');
+const balancePaymentStatusesSql = ['active', ...SPECIAL_PAYMENT_TYPES].map(status => `'${status}'`).join(', ');
 
 function getAutomaticStatus({ payments, loan, outcomeLoan, promiseDate, today }) {
   if (!payments.length) {
@@ -55,7 +57,7 @@ async function synchronizePromiseToPayStatuses({ customerId = null, today = dayj
       WHERE p.customer_id = ?
         AND date(p.date_paid) >= date(?)
         AND date(p.date_paid) <= date(?)
-        AND LOWER(COALESCE(p.status, '')) IN ('active', 'recon')
+        AND LOWER(COALESCE(p.status, '')) IN (${balancePaymentStatusesSql})
         ${paymentScope}
       ORDER BY date(p.date_paid) ASC, p.id ASC
     `, paymentParams);

@@ -33,6 +33,7 @@ const REPORT_TYPE_PERMISSIONS = [
   { key: 'report:collection-sheet', report_key: 'collection-sheet', label: 'Collection Sheet' },
   { key: 'report:disclosure-statement', report_key: 'disclosure-statement', label: 'Disclosure Statement' },
   { key: 'report:aging-report', report_key: 'aging-report', label: 'Aging Report' },
+  { key: 'report:special-accounts', report_key: 'special-accounts', label: 'Deceased & Written-Off Accounts' },
   { key: 'report:expenses-report', report_key: 'expenses-report', label: 'Expenses Reports' },
 ];
 
