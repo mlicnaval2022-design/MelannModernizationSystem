@@ -535,8 +535,6 @@ function CICGenerator() {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
-  const [branchId, setBranchId] = useState('');
-  const [branches, setBranches] = useState([]);
   const [fileReferenceNumber, setFileReferenceNumber] = useState('');
   const [submission, setSubmission] = useState(null);
   const [history, setHistory] = useState([]);
@@ -546,11 +544,10 @@ function CICGenerator() {
   const [candidateRows, setCandidateRows] = useState([]);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [legacyCicServer, setLegacyCicServer] = useState(false);
-  const [candidateFilters, setCandidateFilters] = useState({ search: '', collector: '', branch: '' });
+  const [candidateFilters, setCandidateFilters] = useState({ search: '', collector: '' });
   const [candidateError, setCandidateError] = useState('');
   
   useEffect(() => {
-    API.get('/branches').then(res => setBranches(res.data)).catch(console.error);
     loadHistory();
   }, []);
 
@@ -561,14 +558,13 @@ function CICGenerator() {
   const requestPayload = () => ({
     year,
     month,
-    branch_id: branchId,
     file_reference_number: fileReferenceNumber,
   });
 
   const loadCandidates = async () => {
     setCandidatesLoading(true);
     try {
-      const { data } = await API.get('/cic/candidates', { params: { year, month, branch_id: branchId } });
+      const { data } = await API.get('/cic/candidates', { params: { year, month } });
       const birClientReports = data.clients || [];
       setCandidateRows(birClientReports);
       setSubmission(null);
@@ -586,24 +582,22 @@ function CICGenerator() {
         return;
       }
       setLegacyCicServer(false);
-      setCandidateError(err.response?.data?.error || 'Could not load Client Reports assigned to you.');
+      setCandidateError(err.response?.data?.error || 'Could not load BIR Client Reports.');
       setCandidateRows([]);
     } finally {
       setCandidatesLoading(false);
     }
   };
 
-  useEffect(() => { loadCandidates(); }, [year, month, branchId]);
+  useEffect(() => { loadCandidates(); }, [year, month]);
 
   const candidateCollectors = useMemo(() => [...new Set(candidateRows.map(row => row.collector_name).filter(Boolean))].sort(), [candidateRows]);
-  const candidateBranches = useMemo(() => [...new Set(candidateRows.map(row => row.branch_name).filter(Boolean))].sort(), [candidateRows]);
   const filteredCandidateRows = useMemo(() => {
     const search = candidateFilters.search.trim().toLowerCase();
     return candidateRows.filter(row => {
       const matchesSearch = !search || [row.customer_code, row.customer_name, row.loan_code].some(value => String(value || '').toLowerCase().includes(search));
       return matchesSearch
-        && (!candidateFilters.collector || row.collector_name === candidateFilters.collector)
-        && (!candidateFilters.branch || row.branch_name === candidateFilters.branch);
+        && (!candidateFilters.collector || row.collector_name === candidateFilters.collector);
     });
   }, [candidateRows, candidateFilters]);
 
@@ -657,13 +651,6 @@ function CICGenerator() {
           </select>
         </div>
         <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label">Branch</label>
-          <select className="form-control" value={branchId} onChange={e => setBranchId(e.target.value)}>
-            <option value="">All Branches</option>
-            {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
-          </select>
-        </div>
-        <div className="form-group" style={{ marginBottom: 0 }}>
           <label className="form-label">File Reference Number</label>
           <input className="form-control" value={fileReferenceNumber} onChange={e => setFileReferenceNumber(e.target.value)} placeholder="Optional reference" />
         </div>
@@ -676,22 +663,21 @@ function CICGenerator() {
 
       {legacyCicServer ? (
         <div className="forty-five-info" style={{ marginBottom: 20 }}>
-          Client selection is unavailable on this server version. Preview and download will include the BIR Client Reports whose Release Date is in the selected month and branch.
+          Client selection is unavailable on this server version. Preview and download will include the BIR Client Reports whose Release Date is in the selected reporting month.
         </div>
       ) : <section className="table-wrapper" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
-          <div><h4 style={{ margin: 0 }}>BIR Client Reports for CIC</h4><div style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>Every BIR Client Report assigned to your account, with a Release Date in the selected month, is validated using only the blue required fields in the CIC template.</div></div>
+          <div><h4 style={{ margin: 0 }}>BIR Client Reports for CIC</h4><div style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>Every BIR Client Report with a Release Date in the selected reporting month is validated using only the blue required fields in the CIC template.</div></div>
           <strong style={{ color: '#0f766e' }}>{candidateRows.length} BIR report{candidateRows.length === 1 ? '' : 's'} to validate</strong>
         </div>
         <div className="gc-toolbar" style={{ marginBottom: 14 }}>
           <input className="form-control gc-filter" placeholder="Search client or loan" value={candidateFilters.search} onChange={e => setCandidateFilters(filters => ({ ...filters, search: e.target.value }))} />
           <select className="form-control gc-filter" value={candidateFilters.collector} onChange={e => setCandidateFilters(filters => ({ ...filters, collector: e.target.value }))}><option value="">All Collectors</option>{candidateCollectors.map(collector => <option key={collector} value={collector}>{collector}</option>)}</select>
-          <select className="form-control gc-filter" value={candidateFilters.branch} onChange={e => setCandidateFilters(filters => ({ ...filters, branch: e.target.value }))}><option value="">All Branches</option>{candidateBranches.map(branch => <option key={branch} value={branch}>{branch}</option>)}</select>
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table className="data-table">
             <thead><tr><th>Client Code</th><th>Client Name</th><th>Collector</th><th>Loan No.</th><th>Release Date</th><th>Due Date</th><th>Balance</th><th>CIC ID Validation</th></tr></thead>
-            <tbody>{candidatesLoading ? <tr><td colSpan={8} className="empty-state">Loading BIR Client Reports assigned to you...</td></tr>
+            <tbody>{candidatesLoading ? <tr><td colSpan={8} className="empty-state">Loading BIR Client Reports...</td></tr>
               : filteredCandidateRows.length === 0 ? <tr><td colSpan={8} className="empty-state">No BIR Client Reports have a Release Date in this reporting month.</td></tr>
                 : filteredCandidateRows.map(row => <tr key={row.loan_id}>
                   <td>{row.customer_code}</td><td>{row.customer_name}</td><td>{row.collector_name || '-'}</td><td>{row.loan_code}</td><td>{row.date_released || '-'}</td><td>{row.date_maturity || '-'}</td><td>{Number(row.balance || 0).toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })}</td><td>{row.cic_eligibility}</td>

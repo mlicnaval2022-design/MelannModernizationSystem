@@ -303,7 +303,7 @@ function buildFtRow(period, recordCount) {
   return padRow(row);
 }
 
-async function loadLoans(period, branchId, assignedUserId, selectedLoanIds = null) {
+async function loadLoans(period) {
   let query = `
     SELECT l.*, c.customer_code, c.first_name, c.last_name, c.middle_name, c.gender, c.birth_date, c.address,
            c.contact, c.id_type, c.id_number, c.id_issue_date, c.id_expiry_date, c.id_issued_by, c.civil_status,
@@ -319,7 +319,6 @@ async function loadLoans(period, branchId, assignedUserId, selectedLoanIds = nul
     -- still pass the CIC validations below before it can be exported.
     JOIN tblGovernmentComplianceClients gcc ON l.id = gcc.loan_id
       AND gcc.agency = 'BIR'
-      AND gcc.assigned_user_id = ?
     LEFT JOIN tblBranch b ON l.branch_id = b.id
     LEFT JOIN tblCollector co ON l.collector_id = co.id
     -- The selected CIC month is based strictly on the BIR report's Release Date.
@@ -327,25 +326,17 @@ async function loadLoans(period, branchId, assignedUserId, selectedLoanIds = nul
     WHERE DATE(gcc.release_date) BETWEEN ? AND ?
       AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
   `;
-  const params = [assignedUserId, period.startDate, period.endDate];
-  if (branchId) {
-    query += ` AND l.branch_id = ?`;
-    params.push(branchId);
-  }
-  if (selectedLoanIds) {
-    query += ` AND l.id IN (${selectedLoanIds.map(() => '?').join(', ')})`;
-    params.push(...selectedLoanIds);
-  }
+  const params = [period.startDate, period.endDate];
   query += ` ORDER BY c.customer_code, l.loan_code`;
   return dbAll(query, params);
 }
 
-async function buildSubmission({ year, month, branch_id, file_reference_number, selected_loan_ids }, userId) {
+async function buildSubmission({ year, month, file_reference_number }) {
   if (!year || !month) throw new Error('Year and Month are required');
   const period = getPeriod(year, month);
-  const availableLoans = await loadLoans(period, branch_id, userId);
+  const availableLoans = await loadLoans(period);
   // CIC always validates every BIR Client Report in the selected release month.
-  // Ignore any legacy selected_loan_ids sent by older browser versions.
+  // Ignore any legacy branch_id or selected_loan_ids sent by older browsers.
   const loans = availableLoans;
   const availableClientReports = new Set(availableLoans.map(loan => loan.customer_id)).size;
   const selectedClients = new Map();
@@ -436,10 +427,10 @@ async function buildSubmission({ year, month, branch_id, file_reference_number, 
 
 router.get('/candidates', authenticateToken, async (req, res) => {
   try {
-    const { year, month, branch_id } = req.query;
+    const { year, month } = req.query;
     if (!year || !month) return res.status(400).json({ error: 'Year and month are required' });
     const period = getPeriod(year, month);
-    const loans = await loadLoans(period, branch_id, req.user.id);
+    const loans = await loadLoans(period);
     res.json({
       period,
       availableClientReports: new Set(loans.map(loan => loan.customer_id)).size,
@@ -469,7 +460,7 @@ router.get('/candidates', authenticateToken, async (req, res) => {
 
 router.post('/preview', authenticateToken, async (req, res) => {
   try {
-    res.json(await buildSubmission(req.body, req.user.id));
+    res.json(await buildSubmission(req.body));
   } catch (error) {
     console.error('CIC Preview Error:', error);
     res.status(500).json({ error: error.message || 'Failed to preview CIC records' });
@@ -478,7 +469,7 @@ router.post('/preview', authenticateToken, async (req, res) => {
 
 router.post('/validate', authenticateToken, async (req, res) => {
   try {
-    const submission = await buildSubmission(req.body, req.user.id);
+    const submission = await buildSubmission(req.body);
     res.json({
       reporting: submission.period,
       summary: {
@@ -501,7 +492,7 @@ router.post('/validate', authenticateToken, async (req, res) => {
 
 router.post('/generate', authenticateToken, async (req, res) => {
   try {
-    const submission = await buildSubmission(req.body, req.user.id);
+    const submission = await buildSubmission(req.body);
     const finalCsvData = submission.csvData;
     const finalTotalRecords = submission.counts.totalRecordsForFt;
 
@@ -512,7 +503,7 @@ router.post('/generate', authenticateToken, async (req, res) => {
     const batchNumber = `${PROVIDER_CODE}-CIC-${submission.period.filePeriod}-${Date.now()}`;
     const batchRes = await dbRun(
       'INSERT INTO tblCICSubmissionBatch (batch_number, month, year, branch_id, total_records, generated_by) VALUES (?, ?, ?, ?, ?, ?)',
-      [batchNumber, submission.period.selectedMonth, submission.period.selectedYear, req.body.branch_id || null, finalTotalRecords, req.user.id]
+      [batchNumber, submission.period.selectedMonth, submission.period.selectedYear, null, finalTotalRecords, req.user.id]
     );
 
     await dbRun(

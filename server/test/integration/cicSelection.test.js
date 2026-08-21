@@ -49,9 +49,14 @@ test.before(async () => {
     INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_amount, loan_period, total_amortization, balance, date_released, date_maturity, status)
     VALUES ('CIC-ONLY', ?, ?, ?, 'New', 1000, 100, 45, 1100, 1100, '2026-06-12', '2026-07-26', 'active')
   `, [customer.lastID, collector.lastID, branch.id]);
+  const julyBirLoan = await dbRun(`
+    INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_amount, loan_period, total_amortization, balance, date_released, date_maturity, status)
+    VALUES ('CIC-JULY', ?, ?, ?, 'New', 1000, 100, 45, 1100, 1100, '2026-06-13', '2026-07-27', 'active')
+  `, [customer.lastID, collector.lastID, branch.id]);
   await dbRun(`INSERT INTO tblGovernmentComplianceClients (agency, loan_id, customer_id, customer_code, customer_name, release_date, assigned_user_id, sent_by_user_id) VALUES ('BIR', ?, ?, 'CIC-CLIENT', 'CIC Client', '2026-06-10', 101, 101)`, [ownLoan.lastID, customer.lastID]);
   await dbRun(`INSERT INTO tblGovernmentComplianceClients (agency, loan_id, customer_id, customer_code, customer_name, release_date, assigned_user_id, sent_by_user_id) VALUES ('BIR', ?, ?, 'CIC-CLIENT', 'CIC Client', '2026-06-11', 202, 202)`, [otherLoan.lastID, customer.lastID]);
   await dbRun(`INSERT INTO tblGovernmentComplianceClients (agency, loan_id, customer_id, customer_code, customer_name, assigned_user_id, sent_by_user_id) VALUES ('CIC', ?, ?, 'CIC-CLIENT', 'CIC Client', 101, 101)`, [cicOnlyLoan.lastID, customer.lastID]);
+  await dbRun(`INSERT INTO tblGovernmentComplianceClients (agency, loan_id, customer_id, customer_code, customer_name, release_date, assigned_user_id, sent_by_user_id) VALUES ('BIR', ?, ?, 'CIC-CLIENT', 'CIC Client', '2026-07-01', 101, 101)`, [julyBirLoan.lastID, customer.lastID]);
 
   const noMiddleNameCustomer = await dbRun(`
     INSERT INTO tblCustomer (customer_code, first_name, last_name, full_name, branch_id, collector_id, gender, birth_date, civil_status, id_type)
@@ -79,25 +84,30 @@ test.after(async () => {
   await closeDb();
 });
 
-test('CIC candidates and automatic preview use BIR reports with a release date in the selected month', async () => {
-  const candidatesResponse = await request('/candidates?year=2026&month=6');
+test('CIC uses every BIR report in the selected release month and ignores legacy branch and user filters', async () => {
+  const candidatesResponse = await request('/candidates?year=2026&month=6&branch_id=999999');
   assert.equal(candidatesResponse.status, 200);
   const candidates = await candidatesResponse.json();
-  assert.deepEqual(candidates.clients.map(client => client.loan_code), ['CIC-OWN', 'CIC-NO-MIDDLE', 'CIC-Z-MISSING']);
-  assert.equal(candidates.clients[1].cic_eligibility, 'Eligible');
-  assert.equal(candidates.clients[2].cic_eligibility, 'Incomplete: Gender, Civil Status');
+  assert.deepEqual(candidates.clients.map(client => client.loan_code), ['CIC-OTHER', 'CIC-OWN', 'CIC-NO-MIDDLE', 'CIC-Z-MISSING']);
+  assert.equal(candidates.clients[2].cic_eligibility, 'Eligible');
+  assert.equal(candidates.clients[3].cic_eligibility, 'Incomplete: Gender, Civil Status');
+
+  const julyResponse = await request('/candidates?year=2026&month=7&branch_id=999999');
+  assert.equal(julyResponse.status, 200);
+  const julyCandidates = await julyResponse.json();
+  assert.deepEqual(julyCandidates.clients.map(client => client.loan_code), ['CIC-JULY']);
 
   const previewResponse = await request('/preview', {
     method: 'POST',
-    body: JSON.stringify({ year: 2026, month: 6 }),
+    body: JSON.stringify({ year: 2026, month: 6, branch_id: 999999 }),
   });
   assert.equal(previewResponse.status, 200);
   const preview = await previewResponse.json();
   assert.equal(preview.counts.availableClientReports, 3);
   assert.equal(preview.counts.selectedClients, 3);
   assert.equal(preview.counts.totalIdRecords, 2);
-  assert.equal(preview.counts.totalCiRecords, 2);
-  assert.equal(preview.counts.totalRecordsForFt, 4);
+  assert.equal(preview.counts.totalCiRecords, 3);
+  assert.equal(preview.counts.totalRecordsForFt, 5);
   assert.deepEqual(preview.validationErrors.map(error => error.missingFields), [['Gender', 'Civil Status']]);
   assert.equal(preview.previewRecords.find(record => record.recordType === 'ID' && record.clientCode === 'CIC-CLIENT').values[18], '1');
   assert.equal(preview.previewRecords.find(record => record.recordType === 'ID' && record.clientCode === 'CIC-NO-MIDDLE').values[18], '3');
@@ -112,6 +122,6 @@ test('CIC candidates and automatic preview use BIR reports with a release date i
   assert.equal(textRecords[0], 'HD|PF022730|30062026|1.0|1|June 2026 Report');
   assert.equal(textRecords.find(record => record.startsWith('ID|')).split('|').length, 168);
   assert.equal(textRecords.find(record => record.startsWith('CI|')).split('|').length, 291);
-  assert.deepEqual(preview.previewRecords.map(record => record.recordType), ['HD', 'ID', 'ID', 'CI', 'CI', 'FT']);
+  assert.deepEqual(preview.previewRecords.map(record => record.recordType), ['HD', 'ID', 'ID', 'CI', 'CI', 'CI', 'FT']);
   assert.match(preview.fileName, /^PF022730_CSDF_20260630\d{6}\.txt$/);
 });
