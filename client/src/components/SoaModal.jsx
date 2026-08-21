@@ -1080,10 +1080,6 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                                     <div className="po-field-val-wrap"><FileText size={14} className="po-field-icon" /><strong>{soaData.nationality || 'Filipino'}</strong></div>
                                   </div>
                                   <div className="po-field">
-                                    <span className="po-field-label">PREFERRED PRONOUN</span>
-                                    <div className="po-field-val-wrap"><Info size={14} className="po-field-icon" /><strong>{soaData.preferred_pronoun || 'Prefer not to say'}</strong></div>
-                                  </div>
-                                  <div className="po-field">
                                     <span className="po-field-label">OCCUPATIONAL STATUS</span>
                                     <div className="po-field-val-wrap"><User size={14} className="po-field-icon" /><strong>{soaData.occupational_status || '-'}</strong></div>
                                   </div>
@@ -1113,8 +1109,8 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                                     <strong>{soaData.zip_code || '-'}</strong>
                                   </div>
                                   <div className="po-field">
-                                    <span className="po-field-label">NEARBY ESTABLISHMENT</span>
-                                    <strong>{soaData.home_status || soaData.nearby_establishment || '-'}</strong>
+                                    <span className="po-field-label">EDUCATIONAL BACKGROUND</span>
+                                    <strong>{soaData.educational_background || '-'}</strong>
                                   </div>
                                 </div>
                               </div>
