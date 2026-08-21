@@ -125,14 +125,17 @@ test('Deceased and Write-off settle balances but stay out of Collection Reports'
   });
   const specialAccounts = await specialAccountsResponse.json();
   assert.equal(specialAccountsResponse.status, 200, specialAccounts.error);
+  assert.ok(specialAccounts.collector_sheets.some(item => item.id === collector.lastID && item.collector_code === 'COL-SPECIAL'));
   assert.equal(specialAccounts.deceased.length, 1);
   assert.equal(specialAccounts.deceased[0].customer_code, 'C-SPECIAL-DECEASED');
   assert.equal(specialAccounts.deceased[0].classification, 'deceased');
+  assert.equal(specialAccounts.deceased[0].collector_id, collector.lastID);
   assert.equal(specialAccounts.deceased[0].principal, 1000);
   assert.equal(specialAccounts.deceased[0].total_amortization, 1000);
   assert.equal(specialAccounts.written_off.length, 1);
   assert.equal(specialAccounts.written_off[0].customer_code, 'C-SPECIAL-WRITEOFF');
   assert.equal(specialAccounts.written_off[0].classification, 'writeoff');
+  assert.equal(specialAccounts.written_off[0].collector_id, collector.lastID);
   assert.equal(specialAccounts.written_off[0].principal, 1000);
   assert.equal(specialAccounts.written_off[0].total_amortization, 1000);
   assert.deepEqual(specialAccounts.summary, {
