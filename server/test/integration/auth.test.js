@@ -59,6 +59,26 @@ test('login rejects bad credentials and accepts seeded admin', async () => {
   assert.match(response.headers.get('set-cookie') || '', /melann_token=.*HttpOnly/i);
 });
 
+test('login throttles repeated invalid credentials', async () => {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const response = await fetch(`${baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'rate-limit-test', password: 'wrong' }),
+    });
+    assert.equal(response.status, 401);
+  }
+
+  const blockedResponse = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'rate-limit-test', password: 'wrong' }),
+  });
+
+  assert.equal(blockedResponse.status, 429);
+  assert.ok(Number(blockedResponse.headers.get('retry-after')) > 0);
+});
+
 test('non-admin users cannot trigger a system backup', async () => {
   const login = await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',

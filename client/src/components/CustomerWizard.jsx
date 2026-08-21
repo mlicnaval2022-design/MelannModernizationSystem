@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import API from '../services/api';
-import { regions, provinces, cities, barangays } from 'select-philippines-address';
+import { regions, provinces, cities, barangays } from '../services/philippineAddress';
 import { getZipCodeForCity } from '../data/philippinePostalCodes';
 
 const STEPS = [

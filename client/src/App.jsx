@@ -1,31 +1,32 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 // Force Vite HMR invalidation
 import { useAuth } from './context/AuthContext'
 import { canAccessPath } from './access'
 import Layout from './components/Layout'
-import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import Customers from './pages/Customers'
-import Loans from './pages/Loans'
-import Payments from './pages/Payments'
-import Collectors from './pages/Collectors'
-import DemandLetter from './pages/DemandLetter'
-import CreditScoring from './pages/CreditScoring'
-import Deposits from './pages/Deposits'
-import Transactions from './pages/Transactions'
-import DailyCashReport from './pages/DailyCashReport'
-import CashPosition from './pages/CashPosition'
-import Reports from './pages/Reports'
-import Users from './pages/Users'
-import Branches from './pages/Branches'
-import AuditTrail from './pages/AuditTrail'
-import GovernmentCompliance from './pages/GovernmentCompliance'
-import NoPaymentMonitoring from './pages/NoPaymentMonitoring'
-import PromiseToPayMonitoring from './pages/PromiseToPayMonitoring'
-import PromissoryDisclosure from './pages/PromissoryDisclosure'
-import CollectorPerformance from './pages/CollectorPerformance'
-import JcashMigration from './pages/JcashMigration'
+
+const Login = lazy(() => import('./pages/Login'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Customers = lazy(() => import('./pages/Customers'))
+const Loans = lazy(() => import('./pages/Loans'))
+const Payments = lazy(() => import('./pages/Payments'))
+const Collectors = lazy(() => import('./pages/Collectors'))
+const DemandLetter = lazy(() => import('./pages/DemandLetter'))
+const CreditScoring = lazy(() => import('./pages/CreditScoring'))
+const Deposits = lazy(() => import('./pages/Deposits'))
+const Transactions = lazy(() => import('./pages/Transactions'))
+const DailyCashReport = lazy(() => import('./pages/DailyCashReport'))
+const CashPosition = lazy(() => import('./pages/CashPosition'))
+const Reports = lazy(() => import('./pages/Reports'))
+const Users = lazy(() => import('./pages/Users'))
+const Branches = lazy(() => import('./pages/Branches'))
+const AuditTrail = lazy(() => import('./pages/AuditTrail'))
+const GovernmentCompliance = lazy(() => import('./pages/GovernmentCompliance'))
+const NoPaymentMonitoring = lazy(() => import('./pages/NoPaymentMonitoring'))
+const PromiseToPayMonitoring = lazy(() => import('./pages/PromiseToPayMonitoring'))
+const PromissoryDisclosure = lazy(() => import('./pages/PromissoryDisclosure'))
+const CollectorPerformance = lazy(() => import('./pages/CollectorPerformance'))
+const JcashMigration = lazy(() => import('./pages/JcashMigration'))
 
 function PrivateRoute({ children }) {
   const { user } = useAuth()
@@ -33,6 +34,18 @@ function PrivateRoute({ children }) {
   if (!user) return <Navigate to="/login" replace />
   if (!canAccessPath(user, location.pathname)) return <Navigate to="/" replace />
   return children
+}
+
+function PageLoader() {
+  return <div className="page-loader">Loading...</div>
+}
+
+function renderPage(Page) {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <Page />
+    </Suspense>
+  )
 }
 
 export default function App() {
@@ -50,29 +63,29 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/login" element={user ? <Navigate to="/" replace /> : renderPage(Login)} />
       <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
-        <Route index element={<Dashboard />} />
-        <Route path="customers" element={<Customers />} />
-        <Route path="credit-scoring" element={<CreditScoring />} />
-        <Route path="loans" element={<Loans />} />
-        <Route path="promissory-disclosure" element={<PromissoryDisclosure />} />
-        <Route path="payments" element={<Payments />} />
-        <Route path="collectors" element={<Collectors />} />
-        <Route path="demand-letter" element={<DemandLetter />} />
-        <Route path="deposits" element={<Deposits />} />
-        <Route path="transactions" element={<Transactions />} />
-        <Route path="dcr" element={<DailyCashReport />} />
-        <Route path="cash" element={<CashPosition />} />
-        <Route path="reports" element={<Reports />} />
-        <Route path="collector-performance" element={<CollectorPerformance />} />
-        <Route path="jcash-migration" element={<JcashMigration />} />
-        <Route path="government-compliance" element={<GovernmentCompliance />} />
-        <Route path="branches" element={<Branches />} />
-        <Route path="users" element={<Users />} />
-        <Route path="audit" element={<AuditTrail />} />
-        <Route path="monitoring" element={<NoPaymentMonitoring />} />
-        <Route path="ptp-monitoring" element={<PromiseToPayMonitoring />} />
+        <Route index element={renderPage(Dashboard)} />
+        <Route path="customers" element={renderPage(Customers)} />
+        <Route path="credit-scoring" element={renderPage(CreditScoring)} />
+        <Route path="loans" element={renderPage(Loans)} />
+        <Route path="promissory-disclosure" element={renderPage(PromissoryDisclosure)} />
+        <Route path="payments" element={renderPage(Payments)} />
+        <Route path="collectors" element={renderPage(Collectors)} />
+        <Route path="demand-letter" element={renderPage(DemandLetter)} />
+        <Route path="deposits" element={renderPage(Deposits)} />
+        <Route path="transactions" element={renderPage(Transactions)} />
+        <Route path="dcr" element={renderPage(DailyCashReport)} />
+        <Route path="cash" element={renderPage(CashPosition)} />
+        <Route path="reports" element={renderPage(Reports)} />
+        <Route path="collector-performance" element={renderPage(CollectorPerformance)} />
+        <Route path="jcash-migration" element={renderPage(JcashMigration)} />
+        <Route path="government-compliance" element={renderPage(GovernmentCompliance)} />
+        <Route path="branches" element={renderPage(Branches)} />
+        <Route path="users" element={renderPage(Users)} />
+        <Route path="audit" element={renderPage(AuditTrail)} />
+        <Route path="monitoring" element={renderPage(NoPaymentMonitoring)} />
+        <Route path="ptp-monitoring" element={renderPage(PromiseToPayMonitoring)} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
