@@ -52,6 +52,22 @@ const displayDate = value => value ? new Date(`${value}T00:00:00`).toLocaleDateS
 const shortDate = value => value ? new Date(`${value}T00:00:00`).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '-'
 const fmtMoney = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const rawMoney = value => Number(value || 0).toFixed(2)
+const collectorDisplayName = collector => `${collector?.first_name || ''} ${collector?.last_name || ''}`.trim() || collector?.collector_code || `Collector ${collector?.id || ''}`.trim()
+const specialReportCollectors = (reportData, fallbackCollectors) => reportData?.collector_sheets?.length ? reportData.collector_sheets : fallbackCollectors
+const specialAccountsForTab = (reportData, tab) => {
+  if (tab === 'deceased') return reportData?.deceased || []
+  if (tab === 'written-off') return reportData?.written_off || []
+  return [...(reportData?.deceased || []), ...(reportData?.written_off || [])]
+}
+const specialAccountsForCollector = (accounts, collectorId, reportCollectors) => {
+  if (collectorId === 'all') return accounts
+  const collector = reportCollectors.find(item => String(item.id) === String(collectorId))
+  const collectorName = collectorDisplayName(collector).toLowerCase()
+  return accounts.filter(account =>
+    String(account.collector_id || '') === String(collectorId)
+    || String(account.collector_name || '').trim().toLowerCase() === collectorName
+  )
+}
 const toDisplayCase = value => String(value || '')
   .toLocaleLowerCase('en-PH')
   .replace(/(^|[^\p{L}\p{N}])(\p{L})/gu, (_, prefix, char) => prefix + char.toLocaleUpperCase('en-PH'))
@@ -797,7 +813,7 @@ export default function Reports() {
   const [advanceManualSuccess, setAdvanceManualSuccess] = useState(null)
   const [printMode, setPrintMode] = useState('detailed')
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
-  const [specialAccountsTab, setSpecialAccountsTab] = useState('deceased')
+  const [specialAccountsTab, setSpecialAccountsTab] = useState('summary')
   const [specialCollectorSheetId, setSpecialCollectorSheetId] = useState('all')
   const [expensesTab, setExpensesTab] = useState('summary')
   const [expenseSummaryTab, setExpenseSummaryTab] = useState('total-each-employee')
@@ -1979,19 +1995,17 @@ export default function Reports() {
     }
 
     if (active === 'special-accounts') {
-      const isDeceased = specialAccountsTab === 'deceased'
-      const allAccounts = isDeceased ? (data.deceased || []) : (data.written_off || [])
-      const accounts = specialCollectorSheetId === 'all'
-        ? allAccounts
-        : allAccounts.filter(account => String(account.collector_id) === String(specialCollectorSheetId))
-      const reportLabel = isDeceased ? 'Deceased Accounts' : 'Written-Off Accounts'
-      const specialCollectors = data.collector_sheets || []
+      const specialCollectors = specialReportCollectors(data, collectors)
+      const allAccounts = specialAccountsForTab(data, specialAccountsTab)
+      const accounts = specialAccountsForCollector(allAccounts, specialCollectorSheetId, specialCollectors)
+      const reportLabel = specialAccountsTab === 'summary' ? 'Deceased & Written-Off Accounts Summary' : specialAccountsTab === 'deceased' ? 'Deceased Accounts' : 'Written-Off Accounts'
       const selectedCollector = specialCollectors.find(collector => String(collector.id) === String(specialCollectorSheetId))
-      const collectorLabel = selectedCollector ? `${selectedCollector.first_name || ''} ${selectedCollector.last_name || ''}`.trim() : 'All Collectors'
+      const collectorLabel = selectedCollector ? collectorDisplayName(selectedCollector) : 'All Collectors'
       const totalAmount = accounts.reduce((sum, account) => sum + Number(account.amount_paid || 0), 0)
       const rows = [
-        ['Client Code', 'Client Name', 'Loan Number', 'Principal', 'Total Loans', 'Collector', 'Settlement Date', 'Amount', 'Balance Before', 'Payment Code', 'Remarks', 'Encoded By'],
+        ['Account Type', 'Client Code', 'Client Name', 'Loan Number', 'Principal', 'Total Loans', 'Collector', 'Settlement Date', 'Amount', 'Balance Before', 'Payment Code', 'Remarks', 'Encoded By'],
         ...accounts.map(account => [
+          account.classification === 'deceased' ? 'Deceased' : 'Written-Off',
           account.customer_code,
           account.customer_name,
           account.loan_code,
@@ -2006,7 +2020,16 @@ export default function Reports() {
           account.encoded_by_name,
         ]),
       ]
-      write(`special-accounts-${specialAccountsTab}-${collectorLabel}-${periodLabel}`, addMeta(rows, reportLabel, [['Collector Sheet', collectorLabel], ['Period', periodLabel], ['Total Accounts', accounts.length], ['Total Amount', rawMoney(totalAmount)]]))
+      const deceasedAccounts = specialAccountsForCollector(data.deceased || [], specialCollectorSheetId, specialCollectors)
+      const writtenOffAccounts = specialAccountsForCollector(data.written_off || [], specialCollectorSheetId, specialCollectors)
+      write(`special-accounts-${specialAccountsTab}-${collectorLabel}-${periodLabel}`, addMeta(rows, reportLabel, [
+        ['Collector Sheet', collectorLabel],
+        ['Period', periodLabel],
+        ['Deceased Accounts', deceasedAccounts.length],
+        ['Written-Off Accounts', writtenOffAccounts.length],
+        ['Total Accounts', accounts.length],
+        ['Total Amount', rawMoney(totalAmount)],
+      ]))
       return
     }
 
@@ -2082,8 +2105,9 @@ export default function Reports() {
     if (key === 'special-accounts') {
       const nextParams = { ...params, date_from: '', date_to: toDateInputValue(new Date()) }
       setParams(nextParams)
-      setSpecialAccountsTab('deceased')
+      setSpecialAccountsTab('summary')
       setSpecialCollectorSheetId('all')
+      loadCollectors()
       run(key, nextParams)
     }
     if (key === 'expenses-report') {
@@ -2183,20 +2207,31 @@ export default function Reports() {
       )
     }
     if (active === 'special-accounts') {
-      const specialCollectors = data?.collector_sheets || []
+      const specialCollectors = specialReportCollectors(data, collectors)
+      const activeTabAccounts = specialAccountsForTab(data, specialAccountsTab)
+      const badgeStyle = isActive => ({
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 20, height: 20,
+        padding: '0 6px', borderRadius: 999, fontSize: 11, fontWeight: 800,
+        background: isActive ? 'rgba(255,255,255,0.2)' : '#dbeafe', color: isActive ? '#fff' : '#2563eb',
+      })
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 12 }}>
           <div style={{ display: 'flex', gap: 8 }}>
+            <button className={`btn ${specialAccountsTab === 'summary' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSpecialAccountsTab('summary')}>Summary</button>
             <button className={`btn ${specialAccountsTab === 'deceased' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSpecialAccountsTab('deceased')}>Deceased</button>
             <button className={`btn ${specialAccountsTab === 'written-off' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSpecialAccountsTab('written-off')}>Written-Off</button>
           </div>
           <div>
             <div style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', marginBottom: 7 }}>Collector Sheets</div>
             <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-              <button className={`btn ${specialCollectorSheetId === 'all' ? 'btn-primary' : 'btn-secondary'} btn-sm`} onClick={() => setSpecialCollectorSheetId('all')}>All Collectors</button>
+              <button className={`btn ${specialCollectorSheetId === 'all' ? 'btn-primary' : 'btn-secondary'} btn-sm`} onClick={() => setSpecialCollectorSheetId('all')}>
+                All Collectors <span style={badgeStyle(specialCollectorSheetId === 'all')}>{activeTabAccounts.length}</span>
+              </button>
               {specialCollectors.map(collector => {
-                const label = `${collector.first_name || ''} ${collector.last_name || ''}`.trim() || collector.collector_code || `Collector ${collector.id}`
-                return <button key={collector.id} className={`btn ${String(specialCollectorSheetId) === String(collector.id) ? 'btn-primary' : 'btn-secondary'} btn-sm`} onClick={() => setSpecialCollectorSheetId(String(collector.id))}>{label}</button>
+                const label = collectorDisplayName(collector)
+                const isActive = String(specialCollectorSheetId) === String(collector.id)
+                const count = specialAccountsForCollector(activeTabAccounts, collector.id, specialCollectors).length
+                return <button key={collector.id} className={`btn ${isActive ? 'btn-primary' : 'btn-secondary'} btn-sm`} onClick={() => setSpecialCollectorSheetId(String(collector.id))}>{label} <span style={badgeStyle(isActive)}>{count}</span></button>
               })}
             </div>
           </div>
@@ -3680,19 +3715,86 @@ export default function Reports() {
           </div>
         )
       }
-      const isDeceased = specialAccountsTab === 'deceased'
-      const allAccounts = isDeceased ? (data.deceased || []) : (data.written_off || [])
-      const accounts = specialCollectorSheetId === 'all'
-        ? allAccounts
-        : allAccounts.filter(account => String(account.collector_id) === String(specialCollectorSheetId))
-      const reportLabel = isDeceased ? 'Deceased Accounts' : 'Written-Off Accounts'
-      const specialCollectors = data.collector_sheets || []
+      const specialCollectors = specialReportCollectors(data, collectors)
       const selectedCollector = specialCollectors.find(collector => String(collector.id) === String(specialCollectorSheetId))
-      const collectorLabel = selectedCollector ? `${selectedCollector.first_name || ''} ${selectedCollector.last_name || ''}`.trim() : 'All Collectors'
-      const totalAmount = accounts.reduce((sum, account) => sum + Number(account.amount_paid || 0), 0)
+      const collectorLabel = selectedCollector ? collectorDisplayName(selectedCollector) : 'All Collectors'
       const from = dateOnly(data.date_from || params.date_from)
       const to = dateOnly(data.date_to || params.date_to || toDateInputValue(new Date()))
       const accountPeriod = from ? `${displayDate(from)} to ${displayDate(to)}` : `Up to ${displayDate(to)}`
+      const deceasedAccounts = specialAccountsForCollector(data.deceased || [], specialCollectorSheetId, specialCollectors)
+      const writtenOffAccounts = specialAccountsForCollector(data.written_off || [], specialCollectorSheetId, specialCollectors)
+      const summarizeAccounts = rows => ({
+        count: rows.length,
+        principal: rows.reduce((sum, row) => sum + Number(row.principal || 0), 0),
+        totalLoans: rows.reduce((sum, row) => sum + Number(row.total_amortization || 0), 0),
+        settlement: rows.reduce((sum, row) => sum + Number(row.amount_paid || 0), 0),
+      })
+
+      if (specialAccountsTab === 'summary') {
+        const deceasedSummary = summarizeAccounts(deceasedAccounts)
+        const writtenOffSummary = summarizeAccounts(writtenOffAccounts)
+        const grandSummary = summarizeAccounts([...deceasedAccounts, ...writtenOffAccounts])
+        const summaryRows = [
+          { label: 'Deceased', ...deceasedSummary, color: '#b45309' },
+          { label: 'Written-Off', ...writtenOffSummary, color: '#b91c1c' },
+          { label: 'Grand Total', ...grandSummary, color: '#0D1B3D' },
+        ]
+        return (
+          <div id="printable-area" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <style>{`${REPORT_PRINT_CLARITY_CSS}
+              @media print {
+                @page { size: landscape; margin: 9mm; }
+                .special-account-actions { display: none !important; }
+              }
+            `}</style>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
+              <div>
+                <h3 style={{ margin: 0 }}>Deceased & Written-Off Accounts Summary</h3>
+                <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>Collector Sheet: <b>{collectorLabel}</b></div>
+                <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>Settlement Period: {accountPeriod}</div>
+              </div>
+              <div className="special-account-actions"><button className="btn btn-secondary" onClick={() => handlePrint('summary')}>Print</button></div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(200px, 1fr))', gap: 12 }}>
+              <div className="card-v2" style={{ padding: 16, borderTop: '4px solid #b45309' }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Deceased</div>
+                <div style={{ fontSize: 27, fontWeight: 800, color: '#b45309', marginTop: 6 }}>{deceasedSummary.count} Accounts</div>
+                <div style={{ marginTop: 5, color: '#475569' }}>PHP {fmtMoney(deceasedSummary.settlement)}</div>
+              </div>
+              <div className="card-v2" style={{ padding: 16, borderTop: '4px solid #b91c1c' }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Written-Off</div>
+                <div style={{ fontSize: 27, fontWeight: 800, color: '#b91c1c', marginTop: 6 }}>{writtenOffSummary.count} Accounts</div>
+                <div style={{ marginTop: 5, color: '#475569' }}>PHP {fmtMoney(writtenOffSummary.settlement)}</div>
+              </div>
+              <div className="card-v2" style={{ padding: 16, borderTop: '4px solid #0D1B3D' }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Combined Total</div>
+                <div style={{ fontSize: 27, fontWeight: 800, color: '#0D1B3D', marginTop: 6 }}>{grandSummary.count} Accounts</div>
+                <div style={{ marginTop: 5, color: '#475569' }}>PHP {fmtMoney(grandSummary.settlement)}</div>
+              </div>
+            </div>
+            <div className="table-responsive-print" style={{ overflowX: 'auto' }}>
+              <table className="data-table" style={{ minWidth: 760 }}>
+                <thead><tr><th>Account Type</th><th className="text-center">Total Accounts</th><th className="text-right">Total Principal</th><th className="text-right">Total Loans</th><th className="text-right">Total Settlement Amount</th></tr></thead>
+                <tbody>{summaryRows.map(row => (
+                  <tr key={row.label} style={row.label === 'Grand Total' ? { fontWeight: 800, background: '#f8fafc' } : undefined}>
+                    <td style={{ color: row.color, fontWeight: 800 }}>{row.label}</td>
+                    <td className="text-center">{row.count}</td>
+                    <td className="text-right">PHP {fmtMoney(row.principal)}</td>
+                    <td className="text-right">PHP {fmtMoney(row.totalLoans)}</td>
+                    <td className="text-right" style={{ fontWeight: 800 }}>PHP {fmtMoney(row.settlement)}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          </div>
+        )
+      }
+
+      const isDeceased = specialAccountsTab === 'deceased'
+      const allAccounts = isDeceased ? (data.deceased || []) : (data.written_off || [])
+      const accounts = specialAccountsForCollector(allAccounts, specialCollectorSheetId, specialCollectors)
+      const reportLabel = isDeceased ? 'Deceased Accounts' : 'Written-Off Accounts'
+      const totalAmount = accounts.reduce((sum, account) => sum + Number(account.amount_paid || 0), 0)
       return (
         <div id="printable-area" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <style>{`${REPORT_PRINT_CLARITY_CSS}
