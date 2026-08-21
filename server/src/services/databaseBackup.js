@@ -1,5 +1,6 @@
 const fs = require('fs/promises');
 const path = require('path');
+const { randomUUID } = require('crypto');
 const { DB_PATH, dbExec } = require('../db/database');
 
 const SERVER_ROOT = path.join(__dirname, '../..');
@@ -17,9 +18,10 @@ function formatTimestamp(date = new Date()) {
   const hour = pad(date.getHours());
   const minute = pad(date.getMinutes());
   const second = pad(date.getSeconds());
+  const millisecond = String(date.getMilliseconds()).padStart(3, '0');
   return {
     dateFolder: `${year}-${month}-${day}`,
-    fileStamp: `${year}-${month}-${day}_${hour}-${minute}-${second}`
+    fileStamp: `${year}-${month}-${day}_${hour}-${minute}-${second}-${millisecond}_${randomUUID().slice(0, 8)}`
   };
 }
 

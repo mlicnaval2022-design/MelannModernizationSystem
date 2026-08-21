@@ -1,10 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { mkdtempSync } = require('node:fs');
+const { existsSync, mkdtempSync } = require('node:fs');
 const { join } = require('node:path');
 const { tmpdir } = require('node:os');
 
-process.env.DB_PATH = join(mkdtempSync(join(tmpdir(), 'melann-integration-')), 'test.sqlite');
+const testRoot = mkdtempSync(join(tmpdir(), 'melann-integration-'));
+process.env.DB_PATH = join(testRoot, 'test.sqlite');
+process.env.BACKUP_PATH = join(testRoot, 'backups');
 process.env.JWT_SECRET = 'integration-test-secret';
 
 const { createApp } = require('../../src/app');
@@ -92,6 +94,45 @@ test('non-admin users cannot trigger a system backup', async () => {
     headers: { authorization: `Bearer ${token}` },
   });
   assert.equal(response.status, 403);
+});
+
+test('all authenticated users can create a backup before logout', async () => {
+  const login = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'user', password: 'user123' }),
+  });
+  const { token } = await login.json();
+
+  const response = await fetch(`${baseUrl}/api/system/backup-before-logout`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const body = await response.json();
+  const audit = await dbGet(`
+    SELECT username, action, module
+    FROM tblLogtime
+    WHERE action = 'BACKUP_BEFORE_LOGOUT'
+    ORDER BY id DESC
+    LIMIT 1
+  `);
+
+  assert.equal(response.status, 200, body.error);
+  assert.ok(existsSync(body.database_backup));
+  assert.ok(existsSync(body.manifest));
+  assert.deepEqual(audit, {
+    username: 'user',
+    action: 'BACKUP_BEFORE_LOGOUT',
+    module: 'SYSTEM',
+  });
+});
+
+test('unauthenticated requests cannot create a backup before logout', async () => {
+  const response = await fetch(`${baseUrl}/api/system/backup-before-logout`, {
+    method: 'POST',
+  });
+
+  assert.equal(response.status, 401);
 });
 
 test('non-admin users cannot approve or reject reloan applications', async () => {
