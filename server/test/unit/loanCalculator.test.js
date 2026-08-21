@@ -24,6 +24,7 @@ test('getWorkingDays excludes Sundays from calendar loan period', () => {
 
 test('computeMaturityDate adds calendar days', () => {
   assert.equal(computeMaturityDate('2026-07-01', 45), '2026-08-15');
+  assert.equal(computeMaturityDate('2026-07-17', 30), '2026-08-16');
 });
 
 test('generateAmortizationSchedule skips Sundays and keeps payment order', () => {

@@ -8,7 +8,7 @@ process.env.DB_PATH = join(mkdtempSync(join(tmpdir(), 'melann-customer-creation-
 process.env.JWT_SECRET = 'customer-creation-test-secret';
 
 const { createApp } = require('../../src/app');
-const { closeDb, dbGet, initializeDatabase } = require('../../src/db/database');
+const { closeDb, dbGet, dbRun, initializeDatabase } = require('../../src/db/database');
 
 let server;
 let baseUrl;
@@ -113,4 +113,60 @@ test('a customer classified as Reloan is eligible without a previous loan record
 
   assert.equal(loanResponse.status, 200, loanResult.error);
   assert.deepEqual(savedLoan, { loan_type: 'Reloan', principal: 5000, status: 'active' });
+});
+
+test('creating and releasing a 30-day loan keeps maturity at exactly 30 calendar days', async () => {
+  const loginResponse = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: 'admin123' }),
+  });
+  const { token } = await loginResponse.json();
+  const headers = {
+    'content-type': 'application/json',
+    authorization: `Bearer ${token}`,
+  };
+  const branch = await dbGet('SELECT id FROM tblBranch LIMIT 1');
+  const customer = await dbRun(`
+    INSERT INTO tblCustomer (customer_code, first_name, last_name, full_name, branch_id)
+    VALUES (?, ?, ?, ?, ?)
+  `, ['C-30-DAY', 'Thirty', 'Day', 'Thirty Day', branch.id]);
+
+  const createResponse = await fetch(`${baseUrl}/api/loans`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      customer_id: customer.lastID,
+      branch_id: branch.id,
+      principal: 5000,
+      interest_rate: 15,
+      loan_period: 30,
+      date_released: '2026-07-17',
+      loan_type: 'New',
+      status: 'approved',
+    }),
+  });
+  const created = await createResponse.json();
+
+  assert.equal(createResponse.status, 201, created.error);
+  assert.equal(created.date_maturity, '2026-08-16');
+
+  const releaseResponse = await fetch(`${baseUrl}/api/loans/${created.id}/release`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ date_released: '2026-07-17' }),
+  });
+  const released = await releaseResponse.json();
+  const savedLoan = await dbGet(
+    'SELECT loan_period, date_released, date_maturity, status FROM tblLoan WHERE id = ?',
+    [created.id]
+  );
+
+  assert.equal(releaseResponse.status, 200, released.error);
+  assert.deepEqual(savedLoan, {
+    loan_period: 30,
+    date_released: '2026-07-17',
+    date_maturity: '2026-08-16',
+    status: 'active',
+  });
 });

@@ -206,11 +206,12 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { customer_id, collector_id, branch_id, loan_type, principal, interest_rate, date_released, previous_balance, penalty, passbook, remarks, status } = req.body;
+    const { customer_id, collector_id, branch_id, loan_type, principal, interest_rate, loan_period, date_released, previous_balance, penalty, passbook, remarks, status } = req.body;
     if (!customer_id || !principal || !date_released) return res.status(400).json({ error: 'customer_id, principal, date_released required' });
     requireOperationDate(date_released, 'Release date');
-    const { interest_amount, total_amortization, amortization } = computeAmortization(principal, interest_rate || 0, 45);
-    const date_maturity = computeMaturityDate(date_released, 45);
+    const period = Number.parseInt(loan_period, 10) || 45;
+    const { interest_amount, total_amortization, amortization } = computeAmortization(principal, interest_rate || 0, period);
+    const date_maturity = computeMaturityDate(date_released, period);
     const balanceAmount = Number(previous_balance || 0);
     const penaltyAmount = Number(penalty || 0);
     const passbookAmount = passbook === undefined || passbook === null || passbook === ''
@@ -221,7 +222,7 @@ router.post('/', authenticateToken, async (req, res) => {
     const loan_code = await generateLoanReference(date_released);
     const loan_status = status || 'pending';
     const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, service_fee, insurance, notarial_fee, filing_fee, total_deductions, net_proceeds, balance, previous_balance, penalty, passbook, or_number, remarks, created_by, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [loan_code, customer_id, collector_id, branch_id || null, canonicalLoanType(loan_type), principal, interest_rate || 0, interest_amount, 45, date_released, date_maturity, amortization, total_amortization, 0, 0, 0, 0, 0, net_proceeds, total_amortization, balanceAmount, penaltyAmount, passbookAmount, '', remarks, req.user.id, loan_status]);
+      [loan_code, customer_id, collector_id, branch_id || null, canonicalLoanType(loan_type), principal, interest_rate || 0, interest_amount, period, date_released, date_maturity, amortization, total_amortization, 0, 0, 0, 0, 0, net_proceeds, total_amortization, balanceAmount, penaltyAmount, passbookAmount, '', remarks, req.user.id, loan_status]);
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'LOAN', result.lastID, `New loan created (${loan_status}): ${loan_code}`]);
     res.status(201).json({ id: result.lastID, loan_code, amortization, total_amortization, date_maturity, net_proceeds });
   } catch (err) { sendRouteError(res, err); }
@@ -470,11 +471,12 @@ router.post('/:id/release', authenticateToken, requireRole('admin', 'manager'), 
 
     const date_released = req.body.date_released || loan.date_released;
     requireOperationDate(date_released, 'Release date');
-    const date_maturity = computeMaturityDate(date_released, 45);
+    const period = Number.parseInt(loan.loan_period, 10) || 45;
+    const date_maturity = computeMaturityDate(date_released, period);
 
     // Mark active and generate schedule
     await dbRun(`UPDATE tblLoan SET status='active', date_released=?, date_maturity=?, passbook=?, updated_at=datetime('now') WHERE id=?`, [date_released, date_maturity, passbookForLoan(loan), req.params.id]);
-    const schedule = generateAmortizationSchedule(loan.id, date_released, loan.loan_period, loan.amortization);
+    const schedule = generateAmortizationSchedule(loan.id, date_released, period, loan.amortization);
     for (const s of schedule) {
       await dbRun(`INSERT INTO tblAmortizationSchedule (loan_id, period_number, due_date, amount_due, status) VALUES (?,?,?,?,?)`, [s.loan_id, s.period_number, s.due_date, s.amount_due, s.status]);
     }
