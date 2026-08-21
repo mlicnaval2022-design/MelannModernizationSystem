@@ -748,7 +748,7 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                 { title: 'Address Information', fields: [['Address', [soaData.address, soaData.sitio, soaData.purok, soaData.brgy, soaData.city].filter(Boolean).join(', ')], ['Province', soaData.province], ['Zip Code', soaData.zip_code], ['Home Status', soaData.home_status]] },
                 { title: 'Contact Information', fields: [['Main Contact', soaData.contact], ['Secondary Contact', soaData.secondary_contact], ['Email', soaData.email], ['Facebook', soaData.fb_account]] },
                 { title: 'Business Information', fields: [['Business Type', soaData.business_type], ['Occupation', soaData.occupation], ['Business Name', soaData.business_name], ['Monthly Income', soaData.income_per_month ? formatPhp(soaData.income_per_month) : ''], ['Monthly Expense', soaData.expenses_per_month ? formatPhp(soaData.expenses_per_month) : ''], ['Loan Purpose', soaData.loan_purpose], ['Collateral', soaData.collateral], ['Branch', soaData.branch_name], ['Collector', soaData.collector_name]] },
-                { title: 'ID Information', fields: [['ID Type', soaData.id_type], ['ID Number', soaData.id_number], ['Issue Date', soaData.id_issue_date], ['Expiry Date', soaData.id_expiry_date], ['Issued By', soaData.id_issued_by], ['Place of Issue', soaData.id_place_of_issue]] },
+                { title: 'ID Information', fields: [['ID Type', soaData.id_type], ['ID Number', soaData.id_number], ['Issue Date', soaData.id_issue_date], ['Expiry Date', soaData.id_expiry_date], ['Issued By', soaData.id_issued_by]] },
               ];
               const cCreditEval = soaData.creditEval;
               const cLoans = soaData.loans || [];
@@ -1144,10 +1144,6 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                                   <div className="po-field">
                                     <span className="po-field-label">ISSUED BY</span>
                                     <div className="po-field-val-wrap"><MapPin size={14} className="po-field-icon" /><strong>{soaData.id_issued_by || '-'}</strong></div>
-                                  </div>
-                                  <div className="po-field">
-                                    <span className="po-field-label">PLACE OF ISSUE</span>
-                                    <div className="po-field-val-wrap"><MapPin size={14} className="po-field-icon" /><strong>{soaData.id_place_of_issue || '-'}</strong></div>
                                   </div>
                                 </div>
                               </div>
