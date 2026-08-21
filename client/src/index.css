@@ -584,9 +584,10 @@ select.form-control option { background: var(--bg-secondary); }
 
 /* ===================== PRINT ===================== */
 @media print {
-  body:not(.npm-printing) * { visibility: hidden; }
+  body:not(.npm-printing):not(.ptp-printing-active):not(.demand-letter-printing) * { visibility: hidden; }
   body, html { height: auto !important; overflow: visible !important; }
   #printable-area, #printable-area * { visibility: visible; }
+  .ptp-print-root, .ptp-print-root * { visibility: visible !important; }
   #printable-area { 
     position: absolute; 
     left: 0; 

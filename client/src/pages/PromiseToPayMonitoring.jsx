@@ -690,9 +690,13 @@ export default function PromiseToPayMonitoring() {
       return;
     }
 
+    document.querySelectorAll('.ptp-print-root').forEach(el => el.remove());
+
     const printRoot = document.createElement('div');
     printRoot.className = 'ptp-print-root';
-    printRoot.appendChild(printableArea.cloneNode(true));
+    const cloned = printableArea.cloneNode(true);
+    cloned.id = 'printable-area';
+    printRoot.appendChild(cloned);
 
     const cleanupPrintMode = () => {
       document.body.classList.remove('ptp-printing-active');
@@ -706,7 +710,7 @@ export default function PromiseToPayMonitoring() {
     setTimeout(() => {
       window.print();
       setTimeout(cleanupPrintMode, 1000);
-    }, 150);
+    }, 200);
   };
 
   // Render Status Badge
