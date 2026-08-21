@@ -86,6 +86,12 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(initialData ? {
     ...initialData,
+    address: String(initialData.address || '').toUpperCase(),
+    sitio: String(initialData.sitio || '').toUpperCase(),
+    purok: String(initialData.purok || '').toUpperCase(),
+    brgy: String(initialData.brgy || '').toUpperCase(),
+    city: String(initialData.city || '').toUpperCase(),
+    province: String(initialData.province || '').toUpperCase(),
     id_type: normalizeIdType(initialData.id_type)
   } : {
     customer_classification: 'New Client', risk_category: 'Medium Risk', cic_verification: 'Verified',
@@ -129,19 +135,19 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
     setCityData([]); setBrgyData([]);
     if (code) cities(code).then(setCityData);
     const name = provinceData.find(p => p.province_code === code)?.province_name;
-    setForm(f => ({...f, province: name || '', city: '', brgy: '', zip_code: ''}));
+    setForm(f => ({...f, province: String(name || '').toUpperCase(), city: '', brgy: '', zip_code: ''}));
   };
   const handleCity = (e) => {
     const code = e.target.value;
     setCityCode(code); setBrgyData([]);
     if (code) barangays(code).then(setBrgyData);
     const name = cityData.find(p => p.city_code === code)?.city_name;
-    setForm(f => ({...f, city: name || '', brgy: '', zip_code: getZipCodeForCity(code)}));
+    setForm(f => ({...f, city: String(name || '').toUpperCase(), brgy: '', zip_code: getZipCodeForCity(code)}));
   };
   const handleBrgy = (e) => {
     const code = e.target.value;
     const name = brgyData.find(p => p.brgy_code === code)?.brgy_name;
-    setForm(f => ({...f, brgy: name || ''}));
+    setForm(f => ({...f, brgy: String(name || '').toUpperCase()}));
   };
 
 
@@ -353,15 +359,15 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
             <div className="form-group">
               <label>Region</label>
               <select className="form-control" value={regionCode} onChange={handleRegion}>
-                <option value="">Select Region</option>
-                {regionData.map(r => <option key={r.region_code} value={r.region_code}>{r.region_name}</option>)}
+                <option value="">SELECT REGION</option>
+                {regionData.map(r => <option key={r.region_code} value={r.region_code}>{String(r.region_name || '').toUpperCase()}</option>)}
               </select>
             </div>
             <div className="form-group">
               <label>Province * {form.province && !provinceCode && `(Currently: ${form.province})`}</label>
               <select className="form-control" value={provinceCode} onChange={handleProvince} disabled={!regionCode}>
-                <option value="">Select Province</option>
-                {provinceData.map(p => <option key={p.province_code} value={p.province_code}>{p.province_name}</option>)}
+                <option value="">SELECT PROVINCE</option>
+                {provinceData.map(p => <option key={p.province_code} value={p.province_code}>{String(p.province_name || '').toUpperCase()}</option>)}
               </select>
             </div>
           </div>
@@ -369,15 +375,15 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
             <div className="form-group">
               <label>Municipality / City * {form.city && !cityCode && `(Currently: ${form.city})`}</label>
               <select className="form-control" value={cityCode} onChange={handleCity} disabled={!provinceCode}>
-                <option value="">Select City</option>
-                {cityData.map(c => <option key={c.city_code} value={c.city_code}>{c.city_name}</option>)}
+                <option value="">SELECT CITY</option>
+                {cityData.map(c => <option key={c.city_code} value={c.city_code}>{String(c.city_name || '').toUpperCase()}</option>)}
               </select>
             </div>
             <div className="form-group">
-              <label>Barangay * {form.brgy && !brgyData.find(b=>b.brgy_name===form.brgy) && `(Currently: ${form.brgy})`}</label>
-              <select className="form-control" value={brgyData.find(b=>b.brgy_name===form.brgy)?.brgy_code || ''} onChange={handleBrgy} disabled={!cityCode}>
-                <option value="">Select Barangay</option>
-                {brgyData.map(b => <option key={b.brgy_code} value={b.brgy_code}>{b.brgy_name}</option>)}
+              <label>Barangay * {form.brgy && !brgyData.find(b => String(b.brgy_name || '').toUpperCase() === form.brgy) && `(Currently: ${form.brgy})`}</label>
+              <select className="form-control" value={brgyData.find(b => String(b.brgy_name || '').toUpperCase() === form.brgy)?.brgy_code || ''} onChange={handleBrgy} disabled={!cityCode}>
+                <option value="">SELECT BARANGAY</option>
+                {brgyData.map(b => <option key={b.brgy_code} value={b.brgy_code}>{String(b.brgy_name || '').toUpperCase()}</option>)}
               </select>
             </div>
           </div>

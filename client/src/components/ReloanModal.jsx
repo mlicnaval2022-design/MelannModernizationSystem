@@ -56,6 +56,19 @@ const findLatestLoan = loans => [...(loans || [])].sort((a, b) => {
 
 const activeStatuses = ['active', 'pastdue', 'pending', 'approved', 'for_approval', 'reloan_pending'];
 
+const createLoanForm = (type = '', useDefaults = true) => ({
+  loanType: normalizeLoanType(type),
+  loanDate: useDefaults ? toInputDate(new Date()) : '',
+  principal: '',
+  days: useDefaults ? '45' : '',
+  interestRate: useDefaults ? '15' : '',
+  balance: '',
+  penalty: useDefaults ? '0' : '',
+  passbook: useDefaults && normalizeLoanType(type) === 'NEW' ? '50' : useDefaults ? '0' : '',
+  paymentFrequency: useDefaults ? 'Daily' : '',
+  remarks: ''
+});
+
 export default function ReloanModal({ isOpen, onClose, customerId, customer, loanType = 'RELOAN', onReloanSubmitted, onViewSoa }) {
   const { user, hasRole } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -69,21 +82,11 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
   const [preview, setPreview] = useState(false);
   const [success, setSuccess] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({
-    loanType: normalizeLoanType(loanType) || 'RELOAN',
-    loanDate: toInputDate(new Date()),
-    principal: '',
-    days: '45',
-    interestRate: '15',
-    balance: '',
-    penalty: '0',
-    passbook: '0',
-    paymentFrequency: 'Daily',
-    remarks: ''
-  });
+  const [customDaysSelected, setCustomDaysSelected] = useState(false);
+  const [form, setForm] = useState(() => createLoanForm(loanType));
 
-  const activeCustomerId = customerId || selectedCustomerId;
-  const activeCustomer = customer || selectedCustomer;
+  const activeCustomerId = selectedCustomerId;
+  const activeCustomer = selectedCustomer;
 
   const loadAccount = useCallback(async () => {
     if (!activeCustomerId) return;
@@ -116,11 +119,11 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
     setSuccess(null);
     setSubmitting(false);
     setError('');
-    setForm(current => ({
-      ...current,
-      loanType: normalizeLoanType(loanType) || current.loanType || 'RELOAN',
-      loanDate: toInputDate(new Date())
-    }));
+    setSearchQuery(customer?.customer_code || '');
+    setSearchResults([]);
+    setAccount(null);
+    setCustomDaysSelected(false);
+    setForm(createLoanForm(loanType));
   }, [isOpen, customerId, customer, loanType]);
 
   useEffect(() => {
@@ -270,6 +273,23 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
     window.location.href = `/promissory-disclosure?${params.toString()}`;
   };
 
+  const inputAnotherLoan = () => {
+    onReloanSubmitted?.();
+    setSelectedCustomer(null);
+    setSelectedCustomerId(null);
+    setAccount(null);
+    setSearchQuery('');
+    setSearchResults([]);
+    setSearching(false);
+    setLoading(false);
+    setError('');
+    setPreview(false);
+    setSubmitting(false);
+    setCustomDaysSelected(false);
+    setForm(createLoanForm('', false));
+    setSuccess(null);
+  };
+
   if (success) {
     return (
       <div className="reloan-overlay">
@@ -280,7 +300,7 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
             <button type="button" className="reloan-secondary" onClick={() => openLoanDocument('promissory')}>Print Promissory Note</button>
             <button type="button" className="reloan-secondary" onClick={() => openLoanDocument('disclosure')}>View Disclosure Statement</button>
             <button type="button" className="reloan-secondary" onClick={() => { window.location.href = '/promissory-disclosure?tab=promissory'; }}>View SOA</button>
-            <button type="button" className="reloan-primary" onClick={() => { setSuccess(null); setSelectedCustomer(null); setSelectedCustomerId(null); setAccount(null); }}>Input Another Loan</button>
+            <button type="button" className="reloan-primary" onClick={inputAnotherLoan}>Input Another Loan</button>
             <button type="button" className="reloan-secondary" onClick={() => { onReloanSubmitted?.(); onClose(); }}>Close</button>
           </div>
         </div>
@@ -359,11 +379,15 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
                   <div className="reloan-section-title">Loan Details</div>
                   <label className="reloan-field"><span>Loan Type <b>*</b></span><select value={form.loanType} onChange={e => updateForm('loanType', e.target.value)}><option value="">Select Loan Type</option><option value="NEW">NEW</option><option value="RELOAN">RELOAN</option><option value="RECON">RECON</option></select></label>
                   <label className="reloan-field"><span>Loan Date <b>*</b></span><input type="date" value={form.loanDate} onChange={e => updateForm('loanDate', e.target.value)} /></label>
-                  <label className="reloan-field"><span>Number of Days <b>*</b></span><select value={isCustomDays ? 'OTHER' : form.days} onChange={e => updateForm('days', e.target.value === 'OTHER' ? '' : e.target.value)}><option value="30">30 Days</option><option value="45">45 Days</option><option value="60">60 Days</option><option value="OTHER">Others</option></select></label>
-                  {(isCustomDays || form.days === '') && <label className="reloan-field"><span>Custom Days <b>*</b></span><input type="number" min="1" step="1" placeholder="Enter number of days" value={form.days} onChange={e => updateForm('days', e.target.value)} /></label>}
+                  <label className="reloan-field"><span>Number of Days <b>*</b></span><select value={customDaysSelected || isCustomDays ? 'OTHER' : form.days} onChange={e => {
+                    const useCustomDays = e.target.value === 'OTHER';
+                    setCustomDaysSelected(useCustomDays);
+                    updateForm('days', useCustomDays ? '' : e.target.value);
+                  }}><option value="">Select Number of Days</option><option value="30">30 Days</option><option value="45">45 Days</option><option value="60">60 Days</option><option value="OTHER">Others</option></select></label>
+                  {(customDaysSelected || isCustomDays) && <label className="reloan-field"><span>Custom Days <b>*</b></span><input type="number" min="1" step="1" placeholder="Enter number of days" value={form.days} onChange={e => updateForm('days', e.target.value)} /></label>}
                   <label className="reloan-field"><span>Principal Amount <b>*</b></span><input type="number" min="1" step="0.01" value={form.principal} onChange={e => updateForm('principal', e.target.value)} /></label>
                   <label className="reloan-field"><span>Interest Rate</span><input type="number" min="0" step="0.01" value={form.interestRate} onChange={e => updateForm('interestRate', e.target.value)} readOnly={!canOverride && false} /></label>
-                  <label className="reloan-field"><span>Payment Frequency</span><select value={form.paymentFrequency} onChange={e => updateForm('paymentFrequency', e.target.value)}><option>Daily</option><option>Weekly</option><option>Monthly</option></select></label>
+                  <label className="reloan-field"><span>Payment Frequency</span><select value={form.paymentFrequency} onChange={e => updateForm('paymentFrequency', e.target.value)}><option value="">Select Payment Frequency</option><option>Daily</option><option>Weekly</option><option>Monthly</option></select></label>
                 </section>
                 <section className="reloan-card reloan-middle-card">
                   <div className="reloan-section-title">Computed Amounts</div>
