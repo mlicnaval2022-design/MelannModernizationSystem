@@ -169,10 +169,13 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const res = await API.post('/customers/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' }});
+      const res = await API.post('/customers/upload', formData);
+      if (!res.data?.stored || !res.data?.url) {
+        throw new Error('The server did not confirm that the picture was stored.');
+      }
       setForm(f => ({ ...f, [field]: res.data.url }));
-    } catch {
-      alert('File upload failed');
+    } catch (uploadError) {
+      alert(uploadError.response?.data?.error || uploadError.message || 'File upload failed');
     }
   };
 
@@ -467,6 +470,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
             <div className="form-group"><label>Months in Business</label><input type="number" className="form-control" value={form.business_months} onChange={e => setForm({...form, business_months: e.target.value})} /></div>
           </div>
           <div className="form-group"><label>Average Monthly Gross Income</label><input type="number" className="form-control" value={form.income_per_month} onChange={e => setForm({...form, income_per_month: e.target.value})} /></div>
+          <div className="form-group"><label>Loan Purpose</label><input className="form-control" value={form.loan_purpose} onChange={handleUpper('loan_purpose')} placeholder="e.g. ADDITIONAL CAPITAL" /></div>
           <div className="form-grid">
             <div className="form-group"><label>Business Ownership</label>
               <select className="form-control" value={form.business_ownership} onChange={e => setForm({...form, business_ownership: e.target.value})}>

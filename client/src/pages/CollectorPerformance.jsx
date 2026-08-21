@@ -145,6 +145,29 @@ const compactCollectorEdits = async edits => Object.fromEntries(await Promise.al
   })
 ))
 
+const getCollectorPhotoUrl = source => {
+  const value = String(source || '')
+  if (!value || value.startsWith('data:') || value.startsWith('blob:') || value.startsWith('http')) return value
+  const apiOrigin = String(API.defaults.baseURL || '').replace(/\/api\/?$/, '')
+  return `${apiOrigin}${value.startsWith('/') ? value : `/${value}`}`
+}
+
+const uploadCollectorEditPhotos = async edits => Object.fromEntries(await Promise.all(
+  Object.entries(edits).map(async ([collectorId, edit]) => {
+    const photo = String(edit?.photo || '')
+    if (!photo.startsWith('data:image/')) return [collectorId, edit]
+
+    const imageResponse = await fetch(photo)
+    const imageBlob = await imageResponse.blob()
+    const uploadBody = new FormData()
+    uploadBody.append('file', imageBlob, `collector-${collectorId}.jpg`)
+    const uploadResponse = await API.post('/collector-performance/profile-photo', uploadBody, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return [collectorId, { ...edit, photo: uploadResponse.data.url }]
+  })
+))
+
 const toDateKey = date => {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -157,7 +180,7 @@ const getDefaultRange = () => {
   if (to.getDay() === 0) to.setDate(to.getDate() - 1)
   const dateKey = toDateKey(to)
   let savedCutoff = ''
-  try { savedCutoff = localStorage.getItem(PASTDUE_CUTOFF_STORAGE_KEY) || '' } catch {}
+  try { savedCutoff = localStorage.getItem(PASTDUE_CUTOFF_STORAGE_KEY) || '' } catch { /* Browser storage can be unavailable. */ }
   return { date_to: dateKey, pastdue_cutoff: /^\d{4}-\d{2}-\d{2}$/.test(savedCutoff) ? savedCutoff : `${to.getFullYear()}-05-15` }
 }
 
@@ -767,7 +790,7 @@ function FortyFiveEvaluationTable({ entityLabel, rows = [], childRows = () => []
   </>
 }
 
-function FortyFiveCollectorEvaluationOverview({ rows = [], period, onRefresh, refreshing, locked, canRefresh }) {
+function FortyFiveCollectorEvaluationOverview({ rows = [], period, onRefresh, refreshing, canRefresh }) {
   const totals = rows.reduce((sum, row) => ({
     collection: sum.collection + Number(row.collection_total || 0),
     release: sum.release + Number(row.release_total || 0),
@@ -991,7 +1014,7 @@ export default function CollectorPerformance() {
 
   const updatePastdueCutoff = cutoff => {
     setFilters(current => ({ ...current, pastdue_cutoff: cutoff }))
-    try { localStorage.setItem(PASTDUE_CUTOFF_STORAGE_KEY, cutoff) } catch {}
+    try { localStorage.setItem(PASTDUE_CUTOFF_STORAGE_KEY, cutoff) } catch { /* Browser storage can be unavailable. */ }
   }
 
   const buildFallbackSummary = async () => {
@@ -1536,28 +1559,17 @@ export default function CollectorPerformance() {
   }
 
   const saveCollectorEdits = async () => {
-    const compactEdits = await compactCollectorEdits(collectorEdits)
-
     try {
-      localStorage.setItem(COLLECTOR_EDITS_STORAGE_KEY, JSON.stringify(compactEdits))
-      setCollectorEdits(compactEdits)
+      const compactEdits = await compactCollectorEdits(collectorEdits)
+      const serverReadyEdits = await uploadCollectorEditPhotos(compactEdits)
+      const response = await API.put('/collector-performance/profiles', { profiles: serverReadyEdits })
+      setCollectorEdits(response.data?.profiles || serverReadyEdits)
+      localStorage.removeItem(COLLECTOR_EDITS_STORAGE_KEY)
       setSaveError('')
       setShowSavedModal(true)
     } catch (error) {
-      if (error?.name !== 'QuotaExceededError') throw error
-
-      const editsWithoutPhotos = Object.fromEntries(Object.entries(compactEdits).map(([collectorId, edit]) => {
-        const editWithoutPhoto = { ...edit }
-        delete editWithoutPhoto.photo
-        return [collectorId, editWithoutPhoto]
-      }))
-
-      try {
-        localStorage.setItem(COLLECTOR_EDITS_STORAGE_KEY, JSON.stringify(editsWithoutPhotos))
-        setSaveError('Profile details were saved, but photos could not be saved because browser storage is full. Remove old site data or use smaller photos.')
-      } catch {
-        setSaveError('Unable to save profile details because browser storage is full. Remove old site data, then try again.')
-      }
+      setShowSavedModal(false)
+      setSaveError(error.response?.data?.error || error.message || 'Unable to save collector profile to the server.')
     }
   }
 
@@ -1614,12 +1626,39 @@ export default function CollectorPerformance() {
   }, [])
 
   useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(COLLECTOR_EDITS_STORAGE_KEY) || '{}')
-      setCollectorEdits(saved && typeof saved === 'object' ? saved : {})
-    } catch {
-      setCollectorEdits({})
+    let active = true
+
+    const loadCollectorProfiles = async () => {
+      let legacyProfiles = {}
+      try {
+        const saved = JSON.parse(localStorage.getItem(COLLECTOR_EDITS_STORAGE_KEY) || '{}')
+        legacyProfiles = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}
+      } catch { /* Ignore invalid legacy browser data and use the shared server profiles. */ }
+
+      try {
+        const response = await API.get('/collector-performance/profiles')
+        const serverProfiles = response.data?.profiles || {}
+        const profilesToMigrate = Object.fromEntries(Object.entries(legacyProfiles).filter(
+          ([collectorId]) => /^\d+$/.test(collectorId) && !serverProfiles[collectorId]
+        ))
+
+        let sharedProfiles = serverProfiles
+        if (Object.keys(profilesToMigrate).length) {
+          const compactProfiles = await compactCollectorEdits(profilesToMigrate)
+          const serverReadyProfiles = await uploadCollectorEditPhotos(compactProfiles)
+          const migrationResponse = await API.put('/collector-performance/profiles', { profiles: serverReadyProfiles })
+          sharedProfiles = migrationResponse.data?.profiles || { ...serverProfiles, ...serverReadyProfiles }
+        }
+
+        if (active) setCollectorEdits(sharedProfiles)
+        localStorage.removeItem(COLLECTOR_EDITS_STORAGE_KEY)
+      } catch {
+        if (active) setCollectorEdits(legacyProfiles)
+      }
     }
+
+    loadCollectorProfiles()
+    return () => { active = false }
   }, [])
 
   useEffect(() => {
@@ -2667,7 +2706,7 @@ export default function CollectorPerformance() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 24, padding: 24, background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 10, marginBottom: 28 }}>
                         <label style={{ width: 90, height: 90, borderRadius: '50%', background: 'linear-gradient(135deg, #e2e8f0, #fff)', display: 'grid', placeItems: 'center', boxShadow: '0 14px 28px rgba(15, 23, 42, 0.14)', fontSize: 24, fontWeight: 900, cursor: 'pointer', overflow: 'hidden' }}>
                           {selectedEdit.photo ? (
-                            <img src={selectedEdit.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <img src={getCollectorPhotoUrl(selectedEdit.photo)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : getCollectorInitials(selectedEdit.fullName || selectedCollection.name)}
                           <input type="file" accept="image/*" onChange={e => updateCollectorPhoto(selectedCollection.id, e.target.files?.[0])} style={{ display: 'none' }} />
                         </label>
@@ -2894,7 +2933,7 @@ export default function CollectorPerformance() {
                               flex: '0 0 auto'
                             }}>
                               {cardEdit.photo ? (
-                                <img src={cardEdit.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                                <img src={getCollectorPhotoUrl(cardEdit.photo)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                               ) : getCollectorInitials(cardEdit.fullName || collector.name)}
                             </div>
                             <div style={{ minWidth: 0, overflow: 'hidden' }}>

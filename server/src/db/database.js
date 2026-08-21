@@ -759,6 +759,15 @@ async function initializeDatabase() {
   `);
 
   await dbExec(`
+    CREATE TABLE IF NOT EXISTS tblCollectorPerformanceProfile (
+      collector_id INTEGER PRIMARY KEY,
+      profile_json TEXT NOT NULL DEFAULT '{}',
+      updated_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (collector_id) REFERENCES tblCollector(id) ON DELETE CASCADE,
+      FOREIGN KEY (updated_by) REFERENCES tblUser(id)
+    );
     CREATE TABLE IF NOT EXISTS tblCollectorPerformanceWeekLock (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       week_start TEXT NOT NULL UNIQUE,

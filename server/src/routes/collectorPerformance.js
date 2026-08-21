@@ -1,5 +1,8 @@
 const express = require('express');
 const dayjs = require('dayjs');
+const fs = require('fs');
+const multer = require('multer');
+const path = require('path');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { sqlNotSunday } = require('../services/operationDays');
@@ -9,8 +12,117 @@ const router = express.Router();
 
 const toAmount = value => Number(value || 0);
 const toDate = value => dayjs(value).format('YYYY-MM-DD');
+const uploadsRoot = process.env.UPLOADS_PATH || path.join(__dirname, '../../../uploads');
+const collectorPhotoDir = path.join(uploadsRoot, 'collectors');
+const collectorProfileFields = new Set([
+  'photo', 'fullName', 'teamName', 'area', 'supervisor', 'beginningActive',
+  'returnClients', 'reconClients', 'comment', 'recommendation'
+]);
+
+fs.mkdirSync(collectorPhotoDir, { recursive: true });
+
+const profilePhotoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, callback) => callback(null, collectorPhotoDir),
+    filename: (_req, file, callback) => {
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '_');
+      callback(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}`);
+    }
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) => {
+    if (!String(file.mimetype || '').startsWith('image/')) {
+      return callback(new Error('Only image files can be uploaded as collector photos.'));
+    }
+    callback(null, true);
+  }
+});
+
+function sanitizeCollectorProfile(profile) {
+  const sanitized = {};
+  for (const [field, value] of Object.entries(profile || {})) {
+    if (!collectorProfileFields.has(field)) continue;
+    if (field === 'photo') {
+      const photo = String(value || '');
+      const storedName = photo.match(/^\/uploads\/collectors\/([a-zA-Z0-9._-]+)$/)?.[1];
+      if (photo && (!storedName || !fs.existsSync(path.join(collectorPhotoDir, storedName)))) {
+        const error = new Error('Collector photo was not stored in the system. Please upload it again.');
+        error.statusCode = 400;
+        throw error;
+      }
+      sanitized.photo = photo;
+    } else if (['beginningActive', 'returnClients', 'reconClients'].includes(field)) {
+      sanitized[field] = value === '' || value == null ? '' : Number(value);
+    } else {
+      sanitized[field] = String(value ?? '').slice(0, 10000);
+    }
+  }
+  return sanitized;
+}
+
+async function readCollectorProfiles() {
+  const rows = await dbAll(`SELECT collector_id, profile_json FROM tblCollectorPerformanceProfile`);
+  return Object.fromEntries(rows.map(row => {
+    try {
+      return [String(row.collector_id), JSON.parse(row.profile_json || '{}')];
+    } catch {
+      return [String(row.collector_id), {}];
+    }
+  }));
+}
 
 const validWeekStart = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) && dayjs(value).isValid() && dayjs(value).day() === 1;
+
+router.get('/profiles', authenticateToken, async (_req, res) => {
+  try {
+    res.json({ profiles: await readCollectorProfiles() });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/profile-photo', authenticateToken, profilePhotoUpload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No collector photo uploaded.' });
+  if (!fs.existsSync(req.file.path)) {
+    return res.status(500).json({ error: 'Collector photo did not finish storing in the system.' });
+  }
+  res.status(201).json({ url: `/uploads/collectors/${req.file.filename}`, stored: true });
+});
+
+router.put('/profiles', authenticateToken, async (req, res) => {
+  try {
+    const profiles = req.body?.profiles;
+    if (!profiles || typeof profiles !== 'object' || Array.isArray(profiles)) {
+      return res.status(400).json({ error: 'Collector profiles are required.' });
+    }
+
+    const entries = Object.entries(profiles);
+    const collectorIds = entries.map(([collectorId]) => Number.parseInt(collectorId, 10));
+    if (collectorIds.some(collectorId => !Number.isInteger(collectorId) || collectorId <= 0)) {
+      return res.status(400).json({ error: 'A valid collector is required for every profile.' });
+    }
+
+    const existingCollectors = collectorIds.length
+      ? await dbAll(`SELECT id FROM tblCollector WHERE id IN (${collectorIds.map(() => '?').join(',')})`, collectorIds)
+      : [];
+    const existingIds = new Set(existingCollectors.map(collector => collector.id));
+    if (collectorIds.some(collectorId => !existingIds.has(collectorId))) {
+      return res.status(400).json({ error: 'One or more collector profiles refer to an unknown collector.' });
+    }
+
+    for (const [collectorId, profile] of entries) {
+      const sanitized = sanitizeCollectorProfile(profile);
+      await dbRun(`
+        INSERT INTO tblCollectorPerformanceProfile (collector_id, profile_json, updated_by)
+        VALUES (?, ?, ?)
+        ON CONFLICT(collector_id) DO UPDATE SET
+          profile_json = excluded.profile_json,
+          updated_by = excluded.updated_by,
+          updated_at = datetime('now')
+      `, [Number(collectorId), JSON.stringify(sanitized), req.user.id]);
+    }
+
+    res.json({ profiles: await readCollectorProfiles() });
+  } catch (err) { res.status(err.statusCode || 500).json({ error: err.message }); }
+});
 
 router.get('/week-lock', authenticateToken, async (req, res) => {
   try {

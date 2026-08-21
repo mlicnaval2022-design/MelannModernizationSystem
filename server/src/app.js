@@ -33,6 +33,7 @@ const { REPORT_TYPE_PERMISSIONS } = require('./config/accessModules');
 
 function createApp() {
   const app = express();
+  const uploadsRoot = process.env.UPLOADS_PATH || path.join(__dirname, '../../uploads');
   const allowedOrigins = [/^http:\/\/localhost:\d+$/, /^http:\/\/127\.0\.0\.1:\d+$/, /^http:\/\/192\.168\.\d+\.\d+:\d+$/];
 
   app.use(cors({
@@ -46,7 +47,7 @@ function createApp() {
   }));
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
-  app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
+  app.use('/uploads', express.static(uploadsRoot));
 
   app.use('/api/auth', authRoutes);
   app.use('/api/users', authenticateToken, authorizeModule('user-management'), userRoutes);

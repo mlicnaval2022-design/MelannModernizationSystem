@@ -12,7 +12,7 @@ const fs = require('fs');
 const router = express.Router();
 const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
 
-const uploadDir = path.join(__dirname, '../../../uploads');
+const uploadDir = process.env.UPLOADS_PATH || path.join(__dirname, '../../../uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const customerPhotoFields = ['photo_id_front', 'photo_id_back', 'photo_business_proof', 'photo_client'];
@@ -65,7 +65,16 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}`);
   }
 });
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, callback) => {
+    if (!String(file.mimetype || '').startsWith('image/')) {
+      return callback(new Error('Only image files can be uploaded as customer photos.'));
+    }
+    return callback(null, true);
+  }
+});
 
 async function ensureComplianceChecklistColumns() {
   const cols = await dbAll(`PRAGMA table_info(tblCustomer)`);
