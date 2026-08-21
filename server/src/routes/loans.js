@@ -487,7 +487,7 @@ router.post('/:id/release', authenticateToken, requireRole('admin', 'manager'), 
   } catch (err) { sendRouteError(res, err); }
 });
 
-router.post('/:id/approve-reloan', authenticateToken, async (req, res) => {
+router.post('/:id/approve-reloan', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   try {
     const loan_id = req.params.id;
     const loan = await dbGet('SELECT * FROM tblLoan WHERE id = ?', [loan_id]);
@@ -501,7 +501,7 @@ router.post('/:id/approve-reloan', authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.post('/:id/reject-reloan', authenticateToken, async (req, res) => {
+router.post('/:id/reject-reloan', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   try {
     const loan_id = req.params.id;
     const { remarks } = req.body;

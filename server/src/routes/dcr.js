@@ -42,6 +42,7 @@ const getCollectionBreakdown = (collections, passbooks, penalties, collectorsOve
 
   collections.forEach(payment => {
     const paymentType = String(payment.payment_type || '').toLowerCase();
+    const status = String(payment.status || '').toLowerCase();
     const remarks = String(payment.remarks || '').toLowerCase();
     const amount = Number(payment.amount_paid || 0);
 
@@ -58,6 +59,7 @@ const getCollectionBreakdown = (collections, passbooks, penalties, collectorsOve
 
 const isReleaseChargePayment = payment => {
   const paymentType = String(payment.payment_type || '').toLowerCase();
+  const status = String(payment.status || '').toLowerCase();
   const remarks = String(payment.remarks || '').toLowerCase();
   if (isExcludedCollectionPayment(payment)) return false;
   return status === 'penalty' || paymentType === 'penalty' || remarks.includes('old balance') || ['balance', 'old_balance'].includes(paymentType);

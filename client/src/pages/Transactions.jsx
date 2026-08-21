@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import API from '../services/api'
 import dayjs from 'dayjs'
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
@@ -14,9 +14,7 @@ const TABS = [
 export default function Transactions() {
   const [activeTab, setActiveTab] = useState('Expense')
   const [rows, setRows] = useState([])
-  const [branches, setBranches] = useState([])
   const [collectors, setCollectors] = useState([])
-  const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ id: null, branch_id: '', transaction_date: today(), amount: '', category: '', description: '', payee: '' })
   const [saving, setSaving] = useState(false)
@@ -32,9 +30,7 @@ export default function Transactions() {
   
   useEffect(() => { 
     load(); 
-    API.get('/branches').then(r => setBranches(r.data)) 
     API.get('/collectors').then(r => setCollectors(r.data))
-    API.get('/customers').then(r => setCustomers(r.data))
   }, [])
 
   const handleClear = () => {

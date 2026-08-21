@@ -56,6 +56,45 @@ test('login rejects bad credentials and accepts seeded admin', async () => {
   assert.equal(body.user.username, 'admin');
   assert.equal(body.user.role, 'admin');
   assert.match(body.token, /^[\w-]+\.[\w-]+\.[\w-]+$/);
+  assert.match(response.headers.get('set-cookie') || '', /melann_token=.*HttpOnly/i);
+});
+
+test('non-admin users cannot trigger a system backup', async () => {
+  const login = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'user', password: 'user123' }),
+  });
+  const { token } = await login.json();
+
+  const response = await fetch(`${baseUrl}/api/system/backup`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(response.status, 403);
+});
+
+test('non-admin users cannot approve or reject reloan applications', async () => {
+  const login = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'user', password: 'user123' }),
+  });
+  const { token } = await login.json();
+  const headers = { 'content-type': 'application/json', authorization: `Bearer ${token}` };
+
+  const approveResponse = await fetch(`${baseUrl}/api/loans/999999/approve-reloan`, {
+    method: 'POST',
+    headers,
+  });
+  const rejectResponse = await fetch(`${baseUrl}/api/loans/999999/reject-reloan`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ remarks: 'not authorized' }),
+  });
+
+  assert.equal(approveResponse.status, 403);
+  assert.equal(rejectResponse.status, 403);
 });
 
 test('penalty edit is blocked after the loan or payment is closed in DCR', async () => {

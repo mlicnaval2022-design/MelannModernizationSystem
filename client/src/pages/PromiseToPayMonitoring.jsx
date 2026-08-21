@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
 import dayjs from 'dayjs';
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -15,28 +14,22 @@ import {
   CalendarPlus,
   Check,
   CheckCircle2,
-  ChevronRight,
   Clock,
   Download,
   Eye,
   FileSpreadsheet,
   FileText,
-  Filter,
   Handshake,
   History,
   Layers,
   Loader2,
   Pencil,
-  Phone,
-  PlusCircle,
   Printer,
   RefreshCw,
   RotateCcw,
   Save,
   Search,
-  SlidersHorizontal,
   Sparkles,
-  TrendingUp,
   Trash2,
   User,
   UserCheck,
@@ -65,7 +58,6 @@ export default function PromiseToPayMonitoring() {
 
   // Common State
   const [collectors, setCollectors] = useState([]);
-  const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -79,7 +71,7 @@ export default function PromiseToPayMonitoring() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [selectedClient, setSelectedClient] = useState(null);
-  const [clientDetailsLoading, setClientDetailsLoading] = useState(false);
+  const [, setClientDetailsLoading] = useState(false);
   const [clientLoans, setClientLoans] = useState([]);
   const [clientPtpHistory, setClientPtpHistory] = useState([]);
 
@@ -255,9 +247,6 @@ export default function PromiseToPayMonitoring() {
     API.get('/collectors')
       .then(res => setCollectors(res.data || []))
       .catch(err => console.error('Failed to load collectors', err));
-    API.get('/branches')
-      .then(res => setBranches(res.data || []))
-      .catch(err => console.error('Failed to load branches', err));
   }, []);
 
   const showToast = (message, type = 'success') => {
@@ -316,6 +305,7 @@ export default function PromiseToPayMonitoring() {
     } else if (activeTab === 'update') {
       fetchDueUpdates();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeTab,
     selectedCollectorTab,
@@ -402,7 +392,7 @@ export default function PromiseToPayMonitoring() {
 
     setSavingPtp(true);
     try {
-      const res = await API.post('/ptp', {
+      await API.post('/ptp', {
         customer_id: selectedClient.id,
         loan_id: ptpForm.loan_id || null,
         collector_id: ptpForm.collector_id || null,
@@ -632,7 +622,7 @@ export default function PromiseToPayMonitoring() {
         loans: res.data.loans || [],
         history: res.data.history || []
       });
-    } catch (err) {
+    } catch {
       showToast('Could not load client details', 'error');
     }
   };

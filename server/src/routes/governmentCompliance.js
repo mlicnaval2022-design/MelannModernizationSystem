@@ -17,7 +17,17 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}-${safeName}`);
   }
 });
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) => {
+    const allowedTypes = new Set(['application/pdf', 'image/jpeg', 'image/png']);
+    if (!allowedTypes.has(String(file.mimetype || '').toLowerCase())) {
+      return callback(new Error('Only PDF, JPEG, and PNG compliance files are allowed.'));
+    }
+    return callback(null, true);
+  },
+});
 
 const AGENCIES = ['CIC', 'SEC', 'BIR'];
 

@@ -11,16 +11,12 @@ import logoImg from '../assets/logo.png';
 import {
   Users,
   CheckCircle,
-  XCircle,
   Calendar,
-  Search,
-  Filter,
   FileText,
   Phone,
   Mail,
   MapPin,
   User,
-  MoreVertical,
   BarChart2,
   Plus,
   Printer,
@@ -51,8 +47,8 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
   const [printModeLoan, setPrintModeLoan] = useState(null);
   const [loanDeleteTarget, setLoanDeleteTarget] = useState(null);
   const [loanDeleteProcessing, setLoanDeleteProcessing] = useState(false);
-  const [loanDeleteSuccess, setLoanDeleteSuccess] = useState(null);
-  const [loanDeleteError, setLoanDeleteError] = useState(null);
+  const [, setLoanDeleteSuccess] = useState(null);
+  const [, setLoanDeleteError] = useState(null);
   const [editLoanModal, setEditLoanModal] = useState(null);
   const [editLoanError, setEditLoanError] = useState(null);
   const [cancelConfirmModal, setCancelConfirmModal] = useState(null);
@@ -80,7 +76,7 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
         creditEval = null;
       }
       setSoaData({ ...r.data, cicStatus, creditEval });
-    } catch (err) {
+    } catch {
       alert('Failed to load SOA data');
       if (onClose) onClose();
     } finally {
@@ -92,6 +88,7 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
     if (customerId) {
       fetchSoaData(customerId);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId]);
 
   useEffect(() => {
@@ -731,18 +728,13 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                     .filter(p => (printModeLoan ? p.loan_code === printModeLoan.loan_code : true) && isGoodPayment(p))
                     .sort((a, b) => new Date(b.date_paid) - new Date(a.date_paid))
                 : [];
-              const printLedgerPayments = [...sortedPayments].sort((a, b) => new Date(a.date_paid) - new Date(b.date_paid));
               const totalLoanAmt = printModeLoan ? Number(currentLoan.total_amortization || currentLoan.principal || 0) : validLoans.reduce((sum, l) => sum + Number(l.total_amortization || l.principal || 0), 0);
               const outstandingBal = printModeLoan ? Number(currentLoan.balance || 0) : activeLoans.reduce((sum, l) => sum + Number(l.balance || 0), 0);
-              const totalRunningBalance = printLedgerPayments.length > 0 ? Number(printLedgerPayments[printLedgerPayments.length - 1].balance_after || 0) : outstandingBal;
               const totalPaid = sortedPayments.reduce((sum, p) => sum + Number(p.amount_paid || 0), 0);
               const lastPayment = sortedPayments.length > 0 ? new Date(sortedPayments[0].date_paid).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
               const nextDueDate = (printModeLoan ? [printModeLoan] : activeLoans).length > 0 && (printModeLoan || activeLoans[0]).date_maturity ? new Date((printModeLoan || activeLoans[0]).date_maturity).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
               const memberSince = soaData.created_at ? new Date(soaData.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
               const customerAddress = [soaData.address, soaData.sitio, soaData.purok, soaData.brgy, soaData.city, soaData.province, soaData.zip_code].filter(Boolean).join(', ') || '-';
-              const accountStatus = (currentLoan.id ? getLoanStatusLabel(currentLoan) : soaData.status) || '-';
-              const soaNumber = `SOA-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${soaData.customer_code || soaData.id}`;
-              const penaltyComputation = getPenaltyComputation(currentLoan);
               const profileSections = [
                 { title: 'Personal Information', fields: [['Customer Code', soaData.customer_code], ['Classification', soaData.customer_classification], ['Full Name', soaData.full_name], ['Gender', soaData.gender], ['Birth Date', soaData.birth_date], ['Civil Status', soaData.civil_status], ['Nationality', soaData.nationality], ['Educational Background', soaData.educational_background], ['Occupational Status', soaData.occupational_status], ['Status', soaData.status]] },
                 { title: 'Address Information', fields: [['Address', [soaData.address, soaData.sitio, soaData.purok, soaData.brgy, soaData.city].filter(Boolean).join(', ')], ['Province', soaData.province], ['Zip Code', soaData.zip_code], ['Home Status', soaData.home_status]] },
@@ -921,16 +913,14 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                           if (creditEval && typeof creditEval.credit_score === 'number') {
                             score = creditEval.credit_score;
                           } else if (activePaymentsCount === 0) {
-                            if (daysSinceRel <= 1) {
-                              score = 100;
-                            } else {
+                            if (daysSinceRel > 1) {
                               score = Math.max(0, 100 - (daysSinceRel * 15) - (pastDueCount * 20));
                             }
                           } else {
                             score = Math.max(0, Math.min(100, 100 - (pastDueCount * 20)));
                           }
 
-                          let meta = { label: 'EXCELLENT', color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', icon: '⭐' };
+                          let meta;
 
                           if (isUnrated) {
                             meta = { label: 'NEW CLIENT (UNRATED)', color: '#64748b', bg: '#f1f5f9', border: '#cbd5e1', icon: '🆕' };
@@ -1274,16 +1264,14 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                           if (creditEval && typeof creditEval.credit_score === 'number') {
                             score = creditEval.credit_score;
                           } else if (activePaymentsCount === 0) {
-                            if (daysSinceRel <= 1) {
-                              score = 100;
-                            } else {
+                            if (daysSinceRel > 1) {
                               score = Math.max(0, 100 - (daysSinceRel * 15) - (pastDueCount * 20));
                             }
                           } else {
                             score = Math.max(0, Math.min(100, 100 - (pastDueCount * 20)));
                           }
 
-                          let meta = { label: 'EXCELLENT', color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', icon: '⭐' };
+                          let meta;
 
                           if (isUnrated) {
                             meta = { label: 'NEW CLIENT (UNRATED)', color: '#64748b', bg: '#f1f5f9', border: '#cbd5e1', icon: '🆕' };

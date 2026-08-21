@@ -185,30 +185,6 @@ export default function FullyPaid({ search = '' }) {
 
   const evalTimestamp = new Date().toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
-  const renderNoteCell = (customer, actionType, note, date) => (
-    <div style={{ maxWidth: 180, fontSize: 12, lineHeight: 1.35 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 4 }}>
-        <div style={{ fontWeight: note ? 700 : 500, color: note ? '#0f172a' : '#94a3b8', flex: 1 }}>
-          {note || '-'}
-        </div>
-        {(hasRole('admin', 'manager') || hasPermission('reports', 'edit') || hasPermission('reports', 'crud') || hasPermission('report:full-paid', 'edit') || hasPermission('report:full-paid', 'crud') || hasPermission('customers', 'edit') || hasPermission('customers', 'crud')) && (
-          <button
-            type="button"
-            onClick={() => {
-              setReasonModal({ customer, action: actionType });
-              setReasonText(note || '');
-            }}
-            title={`Edit ${actionType} note`}
-            style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '0 2px', fontSize: 13, color: '#3b82f6', opacity: 0.85 }}
-          >
-            ✏️
-          </button>
-        )}
-      </div>
-      {date && <div style={{ marginTop: 4, color: '#64748b', fontWeight: 500 }}>{String(date).slice(0, 10)}</div>}
-    </div>
-  );
-
   const hasDateFilters = filterReleasedFrom || filterReleasedTo || filterPaidFrom || filterPaidTo;
 
   return (

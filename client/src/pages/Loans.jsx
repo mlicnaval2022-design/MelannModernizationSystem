@@ -133,7 +133,7 @@ export default function Loans() {
       setEditModal(null);
       load();
     } catch (err) {
-      setCancelConfirmModal(null);
+      setCancelConfirmModal({ loan: targetLoan, processing: false, error: err.response?.data?.error || 'Failed to cancel loan' });
       alert(err.response?.data?.error || 'Failed to cancel loan');
     }
   };
@@ -148,6 +148,7 @@ export default function Loans() {
        .catch(err => console.error(err))
        .finally(() => setLoading(false)) 
   }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [search, status])
 
   const openInputLoan = (type = 'RELOAN', selectedCustomer = null) => {
@@ -418,6 +419,7 @@ export default function Loans() {
                   <th>Maturity</th>
                   <th>Collector</th>
                   <th>Status</th>
+                  <th>Actions</th>
                 </tr>
                 {filteredRows.length > 0 && (
                   <tr style={{ background: '#f8fafc', fontWeight: 'bold', borderBottom: '2px solid #cbd5e1' }}>
@@ -428,13 +430,13 @@ export default function Loans() {
                     <td className="text-right" style={{ padding: '12px 14px', color: '#2563eb', fontSize: '13px' }}>₱ {fmt(totalInterest)}</td>
                     <td className="text-right" style={{ padding: '12px 14px', color: '#059669', fontSize: '13px' }}>₱ {fmt(totalLoan)}</td>
                     <td className="text-right" style={{ padding: '12px 14px', color: totalBalance > 0 ? '#dc2626' : '#059669', fontSize: '13px' }}>₱ {fmt(totalBalance)}</td>
-                    <td colSpan={5}></td>
+                    <td colSpan={6}></td>
                   </tr>
                 )}
               </thead>
             <tbody>
-              {loading ? <tr className="loading-row"><td colSpan={12}>⏳ Loading...</td></tr>
-                : filteredRows.length === 0 ? <tr><td colSpan={12} className="empty-state">No loans found</td></tr>
+              {loading ? <tr className="loading-row"><td colSpan={13}>⏳ Loading...</td></tr>
+                : filteredRows.length === 0 ? <tr><td colSpan={13} className="empty-state">No loans found</td></tr>
                 : filteredRows.map(r => {
                   const interestAmt = Number(r.interest_amount || (Number(r.total_amortization || 0) - Number(r.principal || 0)) || 0);
                   const totalLoanAmt = Number(r.total_amortization || (Number(r.principal || 0) + interestAmt) || 0);
@@ -523,6 +525,25 @@ export default function Loans() {
                             </>
                           )
                         })()}
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <button type="button" className="btn btn-sm btn-light" onClick={() => viewDetail(r.id)}>View</button>
+                          <button type="button" className="btn btn-sm btn-light" onClick={() => triggerAddLoan(r)}>Reloan</button>
+                          <button type="button" className="btn btn-sm btn-light" onClick={() => triggerRecon(r)}>Recon</button>
+                          {hasRole('admin', 'manager') && (
+                            <>
+                              <button type="button" className="btn btn-sm btn-light" onClick={() => setEditModal(r)}>Edit</button>
+                              <button type="button" className="btn btn-sm btn-light" onClick={() => handleReverse(r.id)}>Reverse</button>
+                              {r.status === 'reloan_pending' && (
+                                <>
+                                  <button type="button" className="btn btn-sm btn-light" onClick={() => handleApproveReloan(r.id)}>Approve</button>
+                                  <button type="button" className="btn btn-sm btn-light" onClick={() => handleRejectReloan(r.id)}>Reject</button>
+                                </>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )
@@ -877,7 +898,7 @@ export default function Loans() {
               </div>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                 {!['cancelled', 'canceled'].includes(String(editModal.status || '').toLowerCase()) && (
-                  <button type="button" onClick={handleCancelLoan} className="btn btn-danger" style={{ marginRight: 'auto' }}>
+                  <button type="button" onClick={initiateCancelLoan} className="btn btn-danger" style={{ marginRight: 'auto' }}>
                     Cancel Loan
                   </button>
                 )}
@@ -887,6 +908,22 @@ export default function Loans() {
             </form>
           </div>
         </div>
+      )}
+
+      {cancelConfirmModal && (
+        <ConfirmModal
+          isOpen={Boolean(cancelConfirmModal)}
+          title="Cancel Loan"
+          message="Are you sure you want to cancel this loan?"
+          badgeText={cancelConfirmModal.loan?.loan_code}
+          subMessage={cancelConfirmModal.error || 'This will mark the loan as cancelled.'}
+          type={cancelConfirmModal.error ? 'warning' : 'danger'}
+          confirmText="Cancel Loan"
+          cancelText="Back"
+          loading={cancelConfirmModal.processing}
+          onConfirm={confirmCancelLoan}
+          onCancel={() => setCancelConfirmModal(null)}
+        />
       )}
     </div>
   )

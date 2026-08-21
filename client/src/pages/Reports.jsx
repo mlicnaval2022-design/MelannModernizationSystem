@@ -1,7 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import API from '../services/api'
-import logoImg from '../assets/logo.png'
 import html2pdf from 'html2pdf.js'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -304,13 +303,6 @@ const calculateAge = birthDate => {
   const monthDiff = today.getMonth() - birth.getMonth()
   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age -= 1
   return age
-}
-const addDays = (value, days) => {
-  if (!value) return ''
-  const date = new Date(`${value}T00:00:00`)
-  if (Number.isNaN(date.getTime())) return ''
-  date.setDate(date.getDate() + Number(days || 0))
-  return toDateInputValue(date)
 }
 const addCollectionDaysSkippingSunday = (value, days) => {
   if (!value) return ''
@@ -828,7 +820,7 @@ export default function Reports() {
   const [selectedExpenseCategories, setSelectedExpenseCategories] = useState(null)
   const [selectedExpenseEmployee, setSelectedExpenseEmployee] = useState(null)
   const [expensesLoading, setExpensesLoading] = useState(false)
-  const [expenseForm, setExpenseForm] = useState({ id: '', personnel_id: '', expense_date: toDateInputValue(new Date()), category: '', description: '', amount: '', remarks: '' })
+  const [, setExpenseForm] = useState({ id: '', personnel_id: '', expense_date: toDateInputValue(new Date()), category: '', description: '', amount: '', remarks: '' })
   const [expenseActionModal, setExpenseActionModal] = useState(null)
   const [personnelForm, setPersonnelForm] = useState({ id: '', employee_name: '', position: '', status: 'active' })
   const [categoryForm, setCategoryForm] = useState({ id: '', category_name: '', status: 'active' })
@@ -1129,38 +1121,6 @@ export default function Reports() {
 
   const expenseEmployeeName = personnelId => expensePersonnel.find(personnel => String(personnel.id) === String(personnelId))?.employee_name || 'Unknown Employee'
 
-  const showExpenseActionError = message => {
-    setExpenseActionModal({ phase: 'error', title: 'Unable to Continue', message })
-  }
-
-  const saveExpenseEntry = (event) => {
-    event.preventDefault()
-    const payload = {
-      personnel_id: expenseForm.personnel_id,
-      expense_date: expenseForm.expense_date,
-      category: expenseForm.category.trim(),
-      description: expenseForm.description.trim(),
-      amount: Number(expenseForm.amount || 0),
-      remarks: expenseForm.remarks.trim(),
-    }
-    if (!payload.personnel_id) {
-      showExpenseActionError('Please select an employee before saving the expense entry.')
-      return
-    }
-    if (!(payload.amount > 0)) {
-      showExpenseActionError('The expense amount must be greater than zero.')
-      return
-    }
-    setExpenseActionModal({
-      phase: 'confirm',
-      action: expenseForm.id ? 'update' : 'create',
-      entryId: expenseForm.id,
-      payload,
-      entry: { employee_name: expenseEmployeeName(payload.personnel_id), ...payload },
-      busy: false,
-    })
-  }
-
   const saveCategory = async (event) => {
     event.preventDefault()
     const payload = {
@@ -1195,14 +1155,6 @@ export default function Reports() {
       amount: entry.amount || '',
       remarks: entry.remarks || '',
     })
-  }
-
-  const editExpenseEntry = entry => {
-    setExpenseActionModal({ phase: 'confirm', action: 'edit', entry, busy: false })
-  }
-
-  const deleteExpenseEntry = entry => {
-    setExpenseActionModal({ phase: 'confirm', action: 'delete', entry, busy: false })
   }
 
   const confirmExpenseAction = async () => {
@@ -1601,7 +1553,7 @@ export default function Reports() {
         5: { cellWidth: 0.55, halign: 'right' },
         6: { cellWidth: 0.9, halign: 'right' }
       },
-      didDrawPage: (hookData) => {
+      didDrawPage: () => {
         const pageCount = doc.internal.getNumberOfPages()
         const pageNum = doc.internal.getCurrentPageInfo().pageNumber
         drawPageHeader(doc, pageNum)
@@ -2171,6 +2123,7 @@ export default function Reports() {
     if (autoLoaded.current && active === initialReport.key) return
     autoLoaded.current = true
     handleSelect(initialReport.key)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowedReportKeys, requestedTab])
 
   const renderSubTabs = () => {
@@ -2430,7 +2383,6 @@ export default function Reports() {
       const allExpenseCategoriesSelected = isAllSelected
       const netIncomeByCollector = summary.net_income_by_collector || []
       const activePersonnel = expensePersonnel.filter(p => p.status === 'active')
-      const activeCategories = expenseCategories.filter(category => category.status === 'active')
       const totalAmount = Number(summary.total_amount || 0)
 
       if (data.error) return <div className="empty-state"><p>{data.error}</p></div>
@@ -5568,12 +5520,6 @@ export default function Reports() {
           <span style={{ flex: 1, borderBottom: '1.5px solid #000', height: 14, display: 'flex', alignItems: 'flex-end', paddingLeft: value ? 4 : 0 }}>
             {value && (typeof value === 'string' ? <span style={cashSummaryNoteStyle}>{value}</span> : value)}
           </span>
-        </div>
-      )
-      const blankCashLineSingle = label => (
-        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0 2px 0' }}>
-          <span style={{ color: '#555', flex: '0 0 60px', fontSize: '8.5pt' }}>{label}:</span>
-          <span style={{ flex: 1, borderBottom: '1.5px solid #000', height: 14 }}></span>
         </div>
       )
       const denominationLine = value => (

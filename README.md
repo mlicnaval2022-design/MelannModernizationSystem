@@ -34,15 +34,6 @@ Then open your browser at: **http://localhost:5173**
 
 ---
 
-## 🔑 Demo Login Credentials
-
-| Username    | Password       | Role        | Access                          |
-|-------------|----------------|-------------|----------------------------------|
-| admin       | admin123       | Admin       | Full access including user mgmt |
-| user        | user123        | User        | Limited access                  |
-
----
-
 ## JCash Good Status Import
 
 The Access source database is opened read-only. The importer filters loans to Good / Good Status, date released from `2016-01-01` to `2026-06-24`, positive existing loan balance, and excludes `Fully Paid`, `Paid`, `Reversed`, and `Reversing`. Payments are imported only when their payment status is Good / Good Status and they belong to one of the matched loans.
@@ -173,10 +164,15 @@ ModernizationMelannSystem/
 ## ⚙️ Environment Config (server/.env)
 
 ```env
+NODE_ENV=production
 PORT=5001
-JWT_SECRET=melann_lending_secret_key_2026
+JWT_SECRET=<unique-random-secret-at-least-32-characters>
+INITIAL_ADMIN_PASSWORD=<temporary-strong-password-at-least-12-characters>
 DB_PATH=./melann.db
+CORS_ORIGINS=https://melann.example.com
 ```
+
+`INITIAL_ADMIN_PASSWORD` is used only to create or rotate an administrator that still has the legacy default password. Remove it from the environment after the first successful production start and change the password through User Management. Production traffic must be terminated with HTTPS by the branch server or reverse proxy.
 
 ---
 

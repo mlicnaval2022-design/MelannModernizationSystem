@@ -173,7 +173,7 @@ export default function NoPaymentMonitoring() {
     try {
       const res = await API.get(`/monitoring/timeline/${alertItem.id}`);
       setTimelineModal({ show: true, alert: alertItem, history: res.data });
-    } catch (err) {
+    } catch {
       showToast('error', 'Load Failed', 'Could not load timeline.');
     }
   };
@@ -748,18 +748,16 @@ function ClientProfileModal({ data, loading, onClose }) {
 
   let creditScore = 100;
   if (activePaymentsCount === 0) {
-    if (daysSinceRel <= 1) {
-      creditScore = 100;
-    } else {
+    if (daysSinceRel > 1) {
       creditScore = Math.max(0, 100 - (daysSinceRel * 15) - (pastDueCount * 20));
     }
   } else {
     creditScore = Math.max(0, Math.min(100, 100 - (pastDueCount * 20)));
   }
 
-  let creditColor = '#059669';
-  let creditLabel = 'EXCELLENT';
-  let creditIcon = '⭐';
+  let creditColor;
+  let creditLabel;
+  let creditIcon;
 
   if (isUnrated) {
     creditColor = '#64748b';
