@@ -884,7 +884,6 @@ router.post('/', authenticateToken, async (req, res) => {
       loan_purpose, collateral, id_type, id_number, id_issue_date, id_expiry_date, id_issued_by, fb_account, nationality,
       educational_background, occupational_status,
       home_status, business_address, business_location, business_years, business_months, business_ownership, business_permit,
-      proposed_principal,
       customer_classification, risk_category, cic_verification, province, zip_code, length_of_stay, previous_address,
       messenger_account, preferred_contact_method, preferred_contact_time_from, preferred_contact_time_to, contact_notes,
       business_type, business_name, business_employees, permit_date_issued, permit_place_issued, permit_no,
@@ -902,36 +901,6 @@ router.post('/', authenticateToken, async (req, res) => {
 
     const placeholders = cols.map(() => '?').join(',');
     const result = await dbRun(`INSERT INTO tblCustomer (${cols.join(',')}) VALUES (${placeholders})`, vals);
-    
-    // Auto-create CI Application (pending loan) or Active (Reloan)
-    const maxLoan = await dbGet("SELECT MAX(CAST(REPLACE(loan_code, 'LN-', '') AS INTEGER)) as c FROM tblLoan");
-    const loan_code = `LN-${String((maxLoan?.c || 0) + 1).padStart(6, '0')}`;
-    const date_released = new Date().toISOString().split('T')[0];
-    requireOperationDate(date_released, 'Release date');
-    const principal = Number(proposed_principal) || 0;
-    
-    const requestedLoanType = normalizeLoanType(req.body.loan_type) || normalizeLoanType(customer_classification);
-    const parsedLoanType = requestedLoanType === 'RELOAN' ? 'Reloan' : 'New';
-    const loanStatus = parsedLoanType === 'Reloan' ? 'active' : 'pending';
-    
-    const interestRate = 15;
-    const loanPeriod = 45;
-    const interestAmount = principal * (interestRate / 100);
-    const totalAmortization = Math.ceil(principal + interestAmount);
-    const amortization = principal > 0 ? Math.ceil(totalAmortization / 39) : 0;
-    const dateMaturity = computeMaturityDate(date_released, loanPeriod);
-
-    const loanInsert = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, net_proceeds, balance, status, remarks, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [loan_code, result.lastID, collector_id, branch_id, parsedLoanType, principal, interestRate, interestAmount, loanPeriod, date_released, dateMaturity, amortization, totalAmortization, principal, totalAmortization, loanStatus, loan_purpose, req.user.id]
-    );
-
-    if (loanStatus === 'active') {
-      const schedule = generateAmortizationSchedule(loanInsert.lastID, date_released, loanPeriod, amortization);
-      for (const s of schedule) {
-        await dbRun(`INSERT INTO tblAmortizationSchedule (loan_id, period_number, due_date, amount_due, status) VALUES (?,?,?,?,?)`, [s.loan_id, s.period_number, s.due_date, s.amount_due, s.status]);
-      }
-      await dbRun(`UPDATE tblCustomer SET status='active', updated_at=datetime('now') WHERE id=?`, [result.lastID]);
-    }
 
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'CUSTOMER', result.lastID, `Created: ${full_name}`]);
     res.status(201).json({ id: result.lastID, customer_code, full_name });

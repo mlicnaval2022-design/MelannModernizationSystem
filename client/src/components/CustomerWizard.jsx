@@ -54,7 +54,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
     contact: '', secondary_contact: '', email: '', fb_account: '', messenger_account: '', contact_notes: '',
     business_type: 'SARI-SARI STORE', business_type_other: '', occupation: 'Retail', business_name: '', business_address: '', business_years: '', business_months: '', income_per_month: '', business_employees: '', business_ownership: 'Sole Proprietorship', business_permit: 'Yes', permit_date_issued: '', permit_place_issued: '', permit_no: '',
     id_type: 'Philippine Identification (PhilID)', id_number: '', id_issue_date: '', id_expiry_date: '', id_issued_by: 'PSA', id_place_of_issue: '', tin_number: '', sss_number: '', id_notes: '',
-    proposed_principal: '', loan_purpose: '', branch_id: '', collector_id: '', loan_type: 'New Loan',
+    loan_purpose: '', branch_id: '', collector_id: '',
     photo_id_front: null, photo_id_back: null, photo_business_proof: null, photo_client: null
   });
 
@@ -111,12 +111,6 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
 
   const handleUpper = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value.toUpperCase() }));
   const handleLower = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value.toLowerCase() }));
-  const loanTypeForClassification = (classification) => {
-    if (classification === 'Reloan') return 'Reloan';
-    if (classification === 'Returning Client') return 'Reloan';
-    return 'New';
-  };
-
   const getImageUrl = (path) => {
     if (!path) return '';
     if (path.startsWith('http')) return path;
@@ -262,7 +256,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
           <label className="section-label">Customer Classification *</label>
           <div className="radio-cards">
             {['New Client', 'Reloan', 'Returning Client'].map(type => (
-              <div key={type} className={`radio-card ${form.customer_classification === type ? 'active' : ''}`} onClick={() => setForm({...form, customer_classification: type, loan_type: loanTypeForClassification(type)})}>
+              <div key={type} className={`radio-card ${form.customer_classification === type ? 'active' : ''}`} onClick={() => setForm({...form, customer_classification: type})}>
                 <input type="radio" checked={form.customer_classification === type} readOnly />
                 <div className="radio-content">
                   <strong>{type}</strong>
@@ -606,7 +600,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
             <div className="icon-wrapper">👤+</div>
             <div>
               <h2>{initialData ? 'Edit Customer Registration' : 'New Customer Registration'}</h2>
-              <p>Create a new customer profile and proceed to credit investigation.</p>
+              <p>Create the customer profile first. Loan applications are entered separately.</p>
             </div>
           </div>
           <button className="modal-close" onClick={onClose}>✕</button>
@@ -680,7 +674,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
           <div style={{ background: '#fff', padding: '30px', borderRadius: '12px', textAlign: 'center', maxWidth: '300px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
             <div style={{ fontSize: '48px', marginBottom: '15px' }}>✅</div>
             <h3 style={{ margin: '0 0 10px 0', color: '#16a34a' }}>Saved Successfully!</h3>
-            <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '20px' }}>The customer information has been saved.</p>
+            <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '20px' }}>The customer information has been saved. Add a loan separately when the customer is ready to apply.</p>
             <button 
               onClick={() => { setShowSuccess(false); onSaved(); }}
               style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', width: '100%' }}
