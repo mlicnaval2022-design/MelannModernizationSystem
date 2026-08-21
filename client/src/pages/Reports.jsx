@@ -1983,11 +1983,13 @@ export default function Reports() {
       const reportLabel = isDeceased ? 'Deceased Accounts' : 'Written-Off Accounts'
       const totalAmount = accounts.reduce((sum, account) => sum + Number(account.amount_paid || 0), 0)
       const rows = [
-        ['Client Code', 'Client Name', 'Loan Number', 'Collector', 'Settlement Date', 'Amount', 'Balance Before', 'Payment Code', 'Remarks', 'Encoded By'],
+        ['Client Code', 'Client Name', 'Loan Number', 'Principal', 'Total Loans', 'Collector', 'Settlement Date', 'Amount', 'Balance Before', 'Payment Code', 'Remarks', 'Encoded By'],
         ...accounts.map(account => [
           account.customer_code,
           account.customer_name,
           account.loan_code,
+          rawMoney(account.principal),
+          rawMoney(account.total_amortization),
           account.collector_name,
           dateOnly(account.settlement_date),
           rawMoney(account.amount_paid),
@@ -3694,16 +3696,18 @@ export default function Reports() {
             </div>
           </div>
           <div className="table-responsive-print" style={{ overflowX: 'auto' }}>
-            <table className="data-table" style={{ minWidth: 1180 }}>
-              <thead><tr><th>Client Code</th><th>Client Name</th><th>Loan Number</th><th>Collector</th><th>Settlement Date</th><th className="text-right">Amount</th><th className="text-right">Balance Before</th><th>Payment Code</th><th>Remarks</th><th>Encoded By</th></tr></thead>
+            <table className="data-table" style={{ minWidth: 1420 }}>
+              <thead><tr><th>Client Code</th><th>Client Name</th><th>Loan Number</th><th className="text-right">Principal</th><th className="text-right">Total Loans</th><th>Collector</th><th>Settlement Date</th><th className="text-right">Amount</th><th className="text-right">Balance Before</th><th>Payment Code</th><th>Remarks</th><th>Encoded By</th></tr></thead>
               <tbody>
                 {accounts.length === 0 ? (
-                  <tr><td colSpan={10} className="empty-state">No {reportLabel.toLowerCase()} found for this period.</td></tr>
+                  <tr><td colSpan={12} className="empty-state">No {reportLabel.toLowerCase()} found for this period.</td></tr>
                 ) : accounts.map(account => (
                   <tr key={account.payment_id}>
                     <td className="mono">{account.customer_code || '-'}</td>
                     <td className="fw-600">{account.customer_name || '-'}</td>
                     <td className="mono">{account.loan_code || '-'}</td>
+                    <td className="text-right">PHP {fmtMoney(account.principal)}</td>
+                    <td className="text-right fw-bold">PHP {fmtMoney(account.total_amortization)}</td>
                     <td>{account.collector_name || 'Unassigned'}</td>
                     <td>{displayDate(dateOnly(account.settlement_date))}</td>
                     <td className="text-right fw-bold">PHP {fmtMoney(account.amount_paid)}</td>
