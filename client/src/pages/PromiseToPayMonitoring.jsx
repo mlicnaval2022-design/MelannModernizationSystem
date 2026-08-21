@@ -60,7 +60,7 @@ function fmtDate(d) {
 }
 
 export default function PromiseToPayMonitoring() {
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [activeTab, setActiveTab] = useState('monitoring');
 
   // Common State

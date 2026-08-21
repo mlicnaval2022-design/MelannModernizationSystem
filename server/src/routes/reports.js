@@ -1136,7 +1136,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
           'Draft', 'Closed', 'Superseded',
           'Settled(Recon)', 'Settled(Reloan)', 'Settled(Fully Paid)'
         )
-    `, [today, today]);
+    `, [today]);
 
     const activeDemandRows = demandRows.filter(row => !String(row.status || '').toLowerCase().startsWith('settled('));
     const demandDueFollowups = activeDemandRows.filter(row => {
