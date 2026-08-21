@@ -1941,6 +1941,7 @@ router.get('/special-accounts', authenticateToken, async (req, res) => {
         c.full_name AS customer_name,
         c.contact,
         c.address,
+        COALESCE(c.collector_id, l.collector_id, p.collector_id) AS collector_id,
         COALESCE(
           NULLIF(TRIM(cco.first_name || ' ' || cco.last_name), ''),
           NULLIF(TRIM(lco.first_name || ' ' || lco.last_name), ''),
@@ -1969,12 +1970,19 @@ router.get('/special-accounts', authenticateToken, async (req, res) => {
 
     const deceased = accounts.filter(account => account.classification === 'deceased');
     const writtenOff = accounts.filter(account => account.classification === 'writeoff');
+    const collectorSheets = await dbAll(`
+      SELECT id, collector_code, first_name, last_name
+      FROM tblCollector
+      WHERE is_active = 1
+      ORDER BY collector_code
+    `);
     const sumAmount = rows => rows.reduce((sum, row) => sum + Number(row.amount_paid || 0), 0);
     res.json({
       date_from: dateFrom,
       date_to: dateTo,
       deceased,
       written_off: writtenOff,
+      collector_sheets: collectorSheets,
       summary: {
         deceased_count: deceased.length,
         deceased_amount: sumAmount(deceased),
