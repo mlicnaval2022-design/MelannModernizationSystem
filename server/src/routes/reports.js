@@ -5,6 +5,7 @@ const { authorizeReportType } = require('../middleware/reportPermissions');
 const { runPastDueUpdate } = require('../services/pastDueUpdater');
 const { requireOperationDate, sqlNotSunday, isSundayDate } = require('../services/operationDays');
 const { synchronizePromiseToPayStatuses } = require('../services/promiseToPayStatus');
+const { buildCollectionPaymentExclusionSql } = require('../services/paymentClassification');
 const router = express.Router();
 router.use(authorizeReportType);
 const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
@@ -83,9 +84,7 @@ const getCollectionTrend = async ({ mode = 'daily', endDate = toLocalDateString(
       FROM tblPayment
       WHERE date_paid = ?
         AND status IN ('active', 'penalty')
-        AND status != 'recon'
-        AND LOWER(COALESCE(payment_type, '')) != 'recon'
-        AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%'
+        AND ${buildCollectionPaymentExclusionSql()}
         AND ${sqlNotSunday('date_paid')}
     `, [today]);
 
@@ -103,9 +102,7 @@ const getCollectionTrend = async ({ mode = 'daily', endDate = toLocalDateString(
     FROM tblPayment
     WHERE date_paid BETWEEN ? AND ?
       AND status IN ('active', 'penalty')
-      AND status != 'recon'
-      AND LOWER(COALESCE(payment_type, '')) != 'recon'
-      AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%'
+      AND ${buildCollectionPaymentExclusionSql()}
       AND ${sqlNotSunday('date_paid')}
     GROUP BY date_paid
     ORDER BY date_paid
@@ -241,9 +238,7 @@ const getCollectionReleaseCharges = async (from, to) => {
       SELECT customer_id, date_paid, COUNT(*) as payment_count
       FROM tblPayment
       WHERE status = 'active'
-        AND status != 'recon'
-        AND LOWER(COALESCE(payment_type, '')) != 'recon'
-        AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%'
+        AND ${buildCollectionPaymentExclusionSql()}
         AND (
           LOWER(COALESCE(remarks, '')) LIKE '%old balance%'
           OR LOWER(COALESCE(payment_type, '')) IN ('balance', 'old_balance')
@@ -746,9 +741,7 @@ router.get('/expenses/collector-matrix', authenticateToken, async (req, res) => 
         LEFT JOIN tblCustomer c ON c.id = p.customer_id
         WHERE date(p.date_paid) BETWEEN date(?) AND date(?)
           AND p.status IN ('active', 'penalty')
-          AND p.status != 'recon'
-          AND LOWER(COALESCE(p.payment_type, '')) != 'recon'
-          AND LOWER(COALESCE(p.remarks, '')) NOT LIKE '%recon%'
+          AND ${buildCollectionPaymentExclusionSql('p')}
           AND ${sqlNotSunday('p.date_paid')}
         GROUP BY COALESCE(c.collector_id, l.collector_id, p.collector_id), date(p.date_paid)
       `, [rangeStart, rangeEnd]),
@@ -1009,6 +1002,7 @@ router.get('/expenses/summary', authenticateToken, async (req, res) => {
         LEFT JOIN tblCustomer c ON c.id = p.customer_id
         WHERE p.date_paid BETWEEN ? AND ?
           AND p.status IN ('active', 'penalty')
+          AND ${buildCollectionPaymentExclusionSql('p')}
           AND ${sqlNotSunday('p.date_paid')}
         GROUP BY COALESCE(c.collector_id, l.collector_id, p.collector_id)
       `, [rangeStart, rangeEnd]),
@@ -1095,7 +1089,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
     const now = new Date();
     
     // Find the most recent date before today that has active collections
-    const latestPaymentDateRes = await dbGet(`SELECT MAX(date_paid) as max_date FROM tblPayment WHERE status IN ('active', 'penalty') AND status != 'recon' AND LOWER(COALESCE(payment_type, '')) != 'recon' AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%' AND date_paid < ? AND ${sqlNotSunday('date_paid')}`, [today]);
+    const latestPaymentDateRes = await dbGet(`SELECT MAX(date_paid) as max_date FROM tblPayment WHERE status IN ('active', 'penalty') AND ${buildCollectionPaymentExclusionSql()} AND date_paid < ? AND ${sqlNotSunday('date_paid')}`, [today]);
     const latestPaymentDate = req.query.date || latestPaymentDateRes?.max_date || getPreviousOperationDate(today);
 
     const epoch = new Date('2026-01-01T00:00:00Z');
@@ -1157,15 +1151,15 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       total_customers: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='active'`)).c,
       new_customers_this_month: (await dbGet(`SELECT COUNT(*) as c FROM tblCustomer WHERE status='active' AND strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')`)).c,
       expected_collections_today: (await dbGet(`SELECT COALESCE(SUM(amortization), 0) as total FROM tblLoan WHERE status='active'`)).total,
-      collections_this_month: (await dbGet(`SELECT COALESCE(SUM(amount_paid), 0) as total FROM tblPayment WHERE status IN ('active', 'penalty') AND status != 'recon' AND LOWER(COALESCE(payment_type, '')) != 'recon' AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%' AND strftime('%Y-%m', date_paid) = strftime('%Y-%m', 'now') AND ${sqlNotSunday('date_paid')}`)).total,
-      collections_last_month: (await dbGet(`SELECT COALESCE(SUM(amount_paid), 0) as total FROM tblPayment WHERE status IN ('active', 'penalty') AND status != 'recon' AND LOWER(COALESCE(payment_type, '')) != 'recon' AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%' AND strftime('%Y-%m', date_paid) = strftime('%Y-%m', 'now', '-1 month') AND ${sqlNotSunday('date_paid')}`)).total,
+      collections_this_month: (await dbGet(`SELECT COALESCE(SUM(amount_paid), 0) as total FROM tblPayment WHERE status IN ('active', 'penalty') AND ${buildCollectionPaymentExclusionSql()} AND strftime('%Y-%m', date_paid) = strftime('%Y-%m', 'now') AND ${sqlNotSunday('date_paid')}`)).total,
+      collections_last_month: (await dbGet(`SELECT COALESCE(SUM(amount_paid), 0) as total FROM tblPayment WHERE status IN ('active', 'penalty') AND ${buildCollectionPaymentExclusionSql()} AND strftime('%Y-%m', date_paid) = strftime('%Y-%m', 'now', '-1 month') AND ${sqlNotSunday('date_paid')}`)).total,
       demand_letters_sent: 0,
       total_active_loans: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='active'`)).c,
       total_pastdue: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE date_maturity < ? AND LOWER(COALESCE(status, '')) NOT IN ('fullpaid', 'fully_paid', 'reversed', 'rejected', 'cancelled', 'canceled')`, [today])).c,
       total_pastdue_amount: (await dbGet(`SELECT COALESCE(SUM(balance), 0) as total FROM tblLoan WHERE date_maturity < ? AND LOWER(COALESCE(status, '')) NOT IN ('fullpaid', 'fully_paid', 'reversed', 'rejected', 'cancelled', 'canceled')`, [today])).total,
       total_fullpaid: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE status='fullpaid'`)).c,
-      collections_today: (await dbGet(`SELECT COALESCE(SUM(amount_paid),0) as total FROM tblPayment WHERE date_paid=? AND status IN ('active', 'penalty') AND status != 'recon' AND LOWER(COALESCE(payment_type, '')) != 'recon' AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%' AND ${sqlNotSunday('date_paid')}`, [today])).total,
-      collections_yesterday: (await dbGet(`SELECT COALESCE(SUM(amount_paid),0) as total FROM tblPayment WHERE date_paid=? AND status IN ('active', 'penalty') AND status != 'recon' AND LOWER(COALESCE(payment_type, '')) != 'recon' AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%' AND ${sqlNotSunday('date_paid')}`, [latestPaymentDate])).total,
+      collections_today: (await dbGet(`SELECT COALESCE(SUM(amount_paid),0) as total FROM tblPayment WHERE date_paid=? AND status IN ('active', 'penalty') AND ${buildCollectionPaymentExclusionSql()} AND ${sqlNotSunday('date_paid')}`, [today])).total,
+      collections_yesterday: (await dbGet(`SELECT COALESCE(SUM(amount_paid),0) as total FROM tblPayment WHERE date_paid=? AND status IN ('active', 'penalty') AND ${buildCollectionPaymentExclusionSql()} AND ${sqlNotSunday('date_paid')}`, [latestPaymentDate])).total,
       yesterday_str: latestPaymentDate,
       releases_today: (await dbGet(`SELECT COALESCE(SUM(principal),0) as total FROM tblLoan WHERE date_released = ? AND LOWER(COALESCE(status, '')) IN ('active', 'fully_paid', 'fullpaid') AND ${sqlNotSunday('date_released')}`, [today])).total,
       loans_released_today: (await dbGet(`SELECT COUNT(*) as c FROM tblLoan WHERE date_released = ? AND LOWER(COALESCE(status, '')) IN ('active', 'fully_paid', 'fullpaid') AND ${sqlNotSunday('date_released')}`, [today])).c,
@@ -1212,9 +1206,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
             WHERE collector_id = co.id
               AND date_paid = ?
               AND status IN ('active', 'penalty')
-              AND status != 'recon'
-              AND LOWER(COALESCE(payment_type, '')) != 'recon'
-              AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%'
+              AND ${buildCollectionPaymentExclusionSql()}
               AND ${sqlNotSunday('date_paid')}
           ), 0) as collected
         FROM tblCollector co
@@ -1316,9 +1308,7 @@ router.get('/daily-collection', authenticateToken, async (req, res) => {
       LEFT JOIN tblCollector cco ON c.collector_id = cco.id
       WHERE p.date_paid BETWEEN ? AND ?
         AND p.status IN ('active', 'penalty')
-        AND p.status != 'recon'
-        AND LOWER(COALESCE(p.payment_type, '')) != 'recon'
-        AND LOWER(COALESCE(p.remarks, '')) NOT LIKE '%recon%'
+        AND ${buildCollectionPaymentExclusionSql('p')}
         AND ${sqlNotSunday('p.date_paid')}
       ORDER BY p.date_paid, collector_name, c.full_name
     `, [from, to]);
@@ -1581,7 +1571,7 @@ router.get('/payments-encoded', authenticateToken, async (req, res) => {
   try {
     const from = req.query.date_from || new Date().toISOString().split('T')[0];
     const to = req.query.date_to || from;
-    const data = await dbAll(`SELECT p.*, l.loan_code, c.full_name as customer_name, u.full_name as encoded_by_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id LEFT JOIN tblUser u ON p.encoded_by = u.id WHERE p.date_paid BETWEEN ? AND ? AND p.status IN ('active', 'penalty') AND ${sqlNotSunday('p.date_paid')} ORDER BY p.created_at`, [from, to]);
+    const data = await dbAll(`SELECT p.*, l.loan_code, c.full_name as customer_name, u.full_name as encoded_by_name FROM tblPayment p LEFT JOIN tblLoan l ON p.loan_id = l.id LEFT JOIN tblCustomer c ON p.customer_id = c.id LEFT JOIN tblUser u ON p.encoded_by = u.id WHERE p.date_paid BETWEEN ? AND ? AND p.status IN ('active', 'penalty') AND ${buildCollectionPaymentExclusionSql('p')} AND ${sqlNotSunday('p.date_paid')} ORDER BY p.created_at`, [from, to]);
     res.json({ data, total: data.reduce((s, p) => s + p.amount_paid, 0) });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
@@ -1681,8 +1671,8 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
         c.last_name,
         c.middle_name,
         c.customer_code,
-        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date(date_paid) = date(?) AND status IN ('active', 'penalty') AND ${sqlNotSunday('date_paid')}) as collected_today,
-        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date(date_paid) = date(?) AND status = 'active' AND LOWER(COALESCE(remarks, '')) LIKE '%old balance%' AND ${sqlNotSunday('date_paid')}) as balance_collected_today,
+        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date(date_paid) = date(?) AND status IN ('active', 'penalty') AND ${buildCollectionPaymentExclusionSql()} AND ${sqlNotSunday('date_paid')}) as collected_today,
+        (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date(date_paid) = date(?) AND status = 'active' AND ${buildCollectionPaymentExclusionSql()} AND LOWER(COALESCE(remarks, '')) LIKE '%old balance%' AND ${sqlNotSunday('date_paid')}) as balance_collected_today,
         (SELECT COALESCE(SUM(amount_paid), 0) FROM tblPayment WHERE loan_id = l.id AND date(date_paid) = date(?) AND status = 'penalty' AND ${sqlNotSunday('date_paid')}) as penalty_collected_today
       FROM tblLoan l
       LEFT JOIN tblCustomer c ON l.customer_id = c.id
@@ -1694,6 +1684,7 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
             WHERE p.loan_id = l.id
               AND date(p.date_paid) = date(?)
               AND p.status IN ('active', 'penalty')
+              AND ${buildCollectionPaymentExclusionSql('p')}
               AND ${sqlNotSunday('p.date_paid')}
           )
         )
@@ -1895,6 +1886,103 @@ router.get('/disclosure-statement', authenticateToken, async (req, res) => {
         total_amortization: item.total_amortization,
         status: item.status,
       })),
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+});
+
+router.get('/special-accounts', authenticateToken, async (req, res) => {
+  try {
+    const dateFrom = req.query.date_from ? toDateKey(req.query.date_from) : '';
+    const dateTo = req.query.date_to ? toDateKey(req.query.date_to) : toLocalDateString();
+    if (dateFrom && !/^\d{4}-\d{2}-\d{2}$/.test(dateFrom)) {
+      return res.status(400).json({ error: 'Invalid Date From. Use YYYY-MM-DD format.' });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
+      return res.status(400).json({ error: 'Invalid Date To. Use YYYY-MM-DD format.' });
+    }
+    if (dateFrom && dateFrom > dateTo) {
+      return res.status(400).json({ error: 'Date From cannot be later than Date To.' });
+    }
+
+    const normalize = column => `LOWER(REPLACE(REPLACE(REPLACE(COALESCE(${column}, ''), '-', ''), '_', ''), ' ', ''))`;
+    const normalizedStatus = normalize('p.status');
+    const normalizedType = normalize('p.payment_type');
+    const normalizedRemarks = normalize('p.remarks');
+    const dateFromFilter = dateFrom ? 'AND date(p.date_paid) >= date(?)' : '';
+    const queryParams = dateFrom ? [dateFrom, dateTo] : [dateTo];
+    const accounts = await dbAll(`
+      SELECT
+        p.id AS payment_id,
+        CASE
+          WHEN ${normalizedStatus} = 'deceased'
+            OR ${normalizedType} = 'deceased'
+            OR ${normalizedRemarks} LIKE '%deceased%'
+          THEN 'deceased'
+          ELSE 'writeoff'
+        END AS classification,
+        p.payment_code,
+        p.or_number,
+        p.date_paid AS settlement_date,
+        p.amount_paid,
+        p.balance_before,
+        p.balance_after,
+        p.remarks,
+        p.created_at,
+        l.id AS loan_id,
+        l.loan_code,
+        l.loan_type,
+        l.principal,
+        l.interest_amount,
+        l.total_amortization,
+        l.date_released,
+        l.date_maturity,
+        c.id AS customer_id,
+        c.customer_code,
+        c.full_name AS customer_name,
+        c.contact,
+        c.address,
+        COALESCE(
+          NULLIF(TRIM(cco.first_name || ' ' || cco.last_name), ''),
+          NULLIF(TRIM(lco.first_name || ' ' || lco.last_name), ''),
+          NULLIF(TRIM(pco.first_name || ' ' || pco.last_name), ''),
+          'Unassigned'
+        ) AS collector_name,
+        u.full_name AS encoded_by_name
+      FROM tblPayment p
+      LEFT JOIN tblLoan l ON p.loan_id = l.id
+      LEFT JOIN tblCustomer c ON p.customer_id = c.id
+      LEFT JOIN tblCollector pco ON p.collector_id = pco.id
+      LEFT JOIN tblCollector lco ON l.collector_id = lco.id
+      LEFT JOIN tblCollector cco ON c.collector_id = cco.id
+      LEFT JOIN tblUser u ON p.encoded_by = u.id
+      WHERE LOWER(COALESCE(p.status, '')) <> 'reversed'
+        ${dateFromFilter}
+        AND date(p.date_paid) <= date(?)
+        AND (
+          ${normalizedStatus} IN ('deceased', 'writeoff')
+          OR ${normalizedType} IN ('deceased', 'writeoff')
+          OR ${normalizedRemarks} LIKE '%deceased%'
+          OR ${normalizedRemarks} LIKE '%writeoff%'
+        )
+      ORDER BY date(p.date_paid) DESC, p.id DESC
+    `, queryParams);
+
+    const deceased = accounts.filter(account => account.classification === 'deceased');
+    const writtenOff = accounts.filter(account => account.classification === 'writeoff');
+    const sumAmount = rows => rows.reduce((sum, row) => sum + Number(row.amount_paid || 0), 0);
+    res.json({
+      date_from: dateFrom,
+      date_to: dateTo,
+      deceased,
+      written_off: writtenOff,
+      summary: {
+        deceased_count: deceased.length,
+        deceased_amount: sumAmount(deceased),
+        written_off_count: writtenOff.length,
+        written_off_amount: sumAmount(writtenOff),
+        total_accounts: accounts.length,
+        total_amount: sumAmount(accounts),
+      },
     });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });

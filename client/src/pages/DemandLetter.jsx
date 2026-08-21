@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import API from '../services/api'
 import letterHeadImg from '../assets/new-letter-head-logo.jpg'
 import './DemandLetter.css'
-import { ChevronDown, FileText, Printer, RefreshCw, Search, Bell, Calendar, Trash2, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, Filter, Send, ArrowRightCircle } from 'lucide-react'
+import { ChevronDown, FileText, Printer, RefreshCw, Search, Calendar, Trash2, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, Filter, Send, ArrowRightCircle } from 'lucide-react'
 
 const DEMAND_TYPES = {
   first: {
@@ -582,7 +582,7 @@ export default function DemandLetter() {
     return result
   }, [monitoringRows, courierFilter, collectorFilter, statusFilter, monitoringSearch, sortField, sortOrder])
 
-  const monitoringColumnCount = monitoringType === 'third' ? 12 : monitoringType === 'second' ? 11 : 10
+  const monitoringColumnCount = monitoringType === 'third' ? 13 : monitoringType === 'second' ? 12 : 11
 
   useEffect(() => {
     const query = search.trim()
@@ -605,7 +605,20 @@ export default function DemandLetter() {
     return () => clearTimeout(timer)
   }, [search])
 
-  const computation = useMemo(() => getPenaltyComputation(selectedLoan, payments, asOfDate), [selectedLoan, payments, asOfDate])
+  const calculatedComputation = useMemo(
+    () => getPenaltyComputation(selectedLoan, payments, asOfDate),
+    [selectedLoan, payments, asOfDate]
+  )
+  const computation = useMemo(() => {
+    if (type === 'first' || !previousDemand) return calculatedComputation
+
+    const lockedPenalty = Number(previousDemand.penalty_charges || 0)
+    return {
+      ...calculatedComputation,
+      totalPenalty: lockedPenalty,
+      updatedAmountDue: calculatedComputation.runningBalance + lockedPenalty,
+    }
+  }, [type, previousDemand, calculatedComputation])
 
   useEffect(() => {
     const previousType = type === 'second' ? 'first' : type === 'third' ? 'second' : ''
@@ -1349,6 +1362,7 @@ export default function DemandLetter() {
                     </div>
                   </th>
                   <th>Loan Code</th>
+                  <th>Penalty Charges</th>
                   <th className="sortable-th" onClick={() => handleSort('date_generated')} title="Click to sort by Date Generated">
                     <div className="th-sort-content">
                       Date Generated
@@ -1409,6 +1423,7 @@ export default function DemandLetter() {
                     <td>{row.collector_name || '-'}</td>
                     <td className="fw-600">{row.client_name}</td>
                     <td><span className="demand-loan-code">{row.loan_code || '-'}</span></td>
+                    <td><span className="demand-penalty-amount">{formatPhp(row.penalty_charges)}</span></td>
                     <td>{formatDateLong(row.date_generated)}</td>
                     {monitoringType === 'second' && (
                       <td>{row.first_demand_received_date ? formatDateLong(row.first_demand_received_date) : '-'}</td>

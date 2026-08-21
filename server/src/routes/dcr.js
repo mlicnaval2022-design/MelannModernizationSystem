@@ -3,6 +3,7 @@ const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const dayjs = require('dayjs');
 const { requireOperationDate, sqlNotSunday } = require('../services/operationDays');
+const { buildCollectionPaymentExclusionSql, isExcludedCollectionPayment } = require('../services/paymentClassification');
 const router = express.Router();
 const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ error: err.message });
 
@@ -40,14 +41,11 @@ const getCollectionBreakdown = (collections, passbooks, penalties, collectorsOve
   };
 
   collections.forEach(payment => {
-    const status = String(payment.status || '').toLowerCase();
     const paymentType = String(payment.payment_type || '').toLowerCase();
     const remarks = String(payment.remarks || '').toLowerCase();
     const amount = Number(payment.amount_paid || 0);
 
-    if (status === 'recon' || paymentType === 'recon' || remarks.includes('recon')) {
-      return;
-    }
+    if (isExcludedCollectionPayment(payment)) return;
 
     if (status === 'penalty' || paymentType === 'penalty') breakdown.penalty += amount;
     else if (remarks.includes('old balance') || ['balance', 'old_balance'].includes(paymentType)) breakdown.balance += amount;
@@ -59,10 +57,9 @@ const getCollectionBreakdown = (collections, passbooks, penalties, collectorsOve
 };
 
 const isReleaseChargePayment = payment => {
-  const status = String(payment.status || '').toLowerCase();
   const paymentType = String(payment.payment_type || '').toLowerCase();
   const remarks = String(payment.remarks || '').toLowerCase();
-  if (status === 'recon' || paymentType === 'recon' || remarks.includes('recon')) return false;
+  if (isExcludedCollectionPayment(payment)) return false;
   return status === 'penalty' || paymentType === 'penalty' || remarks.includes('old balance') || ['balance', 'old_balance'].includes(paymentType);
 };
 
@@ -85,7 +82,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
     if (!date) return res.status(400).json({ error: 'Date is required' });
     requireOperationDate(date, 'DCR date');
 
-    let pCond = `p.date_paid = ? AND p.status IN ('active', 'penalty') AND p.status != 'recon' AND LOWER(COALESCE(p.payment_type, '')) != 'recon' AND LOWER(COALESCE(p.remarks, '')) NOT LIKE '%recon%' AND ${sqlNotSunday('p.date_paid')}`;
+    let pCond = `p.date_paid = ? AND p.status IN ('active', 'penalty') AND ${buildCollectionPaymentExclusionSql('p')} AND ${sqlNotSunday('p.date_paid')}`;
     let lCond = getDcrLoanCondition();
     let eCond = `e.transaction_date = ? AND e.status = 'active'`;
     let cbCond = `entry_date = ?`;
@@ -137,8 +134,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
                WHERE pp.customer_id = l.customer_id
                  AND pp.date_paid = l.date_released
                  AND pp.status = 'active'
-                 AND LOWER(COALESCE(pp.payment_type, '')) != 'recon'
-                 AND LOWER(COALESCE(pp.remarks, '')) NOT LIKE '%recon%'
+                 AND ${buildCollectionPaymentExclusionSql('pp')}
                  AND (
                    LOWER(COALESCE(pp.remarks, '')) LIKE '%old balance%'
                    OR LOWER(COALESCE(pp.payment_type, '')) IN ('balance', 'old_balance')
@@ -450,7 +446,7 @@ router.post('/close', authenticateToken, requireRole('admin', 'manager'), async 
     const dcr_number = `DCR-${date.replace(/-/g, '')}-${nextNum}`;
 
     // Recalculate totals server-side
-    let pCond = `p.date_paid = ? AND p.status IN ('active', 'penalty') AND p.status != 'recon' AND LOWER(COALESCE(p.payment_type, '')) != 'recon' AND LOWER(COALESCE(p.remarks, '')) NOT LIKE '%recon%' AND ${sqlNotSunday('p.date_paid')}`;
+    let pCond = `p.date_paid = ? AND p.status IN ('active', 'penalty') AND ${buildCollectionPaymentExclusionSql('p')} AND ${sqlNotSunday('p.date_paid')}`;
     let lCond = getDcrLoanCondition();
     let eCond = `e.transaction_date = ? AND e.status = 'active'`;
     let cbCond = `entry_date = ?`;

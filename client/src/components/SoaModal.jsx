@@ -145,10 +145,13 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
     if (lstatus === 'reversed') return 'Reversed';
     if (lstatus === 'fullpaid' || lstatus === 'fully paid' || lstatus === 'fully_paid') {
       const type = (loan.loan_type || '').toLowerCase();
-      const hasReconPayment = (loan.payments || soaData?.payments || []).some(
-        p => (p.loan_id === loan.id || p.loan_code === loan.loan_code) &&
-             (p.status === 'recon' || String(p.payment_type || '').toLowerCase() === 'recon' || String(p.remarks || '').toLowerCase().includes('recon'))
-      );
+      const loanPayments = (loan.payments || soaData?.payments || []).filter(p => p.loan_id === loan.id || p.loan_code === loan.loan_code);
+      const normalizeSpecialType = value => String(value || '').toLowerCase().replace(/[-_\s]/g, '');
+      const hasDeceasedPayment = loanPayments.some(p => p.status === 'deceased' || String(p.payment_type || '').toLowerCase() === 'deceased' || String(p.remarks || '').toLowerCase().includes('deceased'));
+      const hasWriteOffPayment = loanPayments.some(p => normalizeSpecialType(p.status) === 'writeoff' || normalizeSpecialType(p.payment_type) === 'writeoff' || normalizeSpecialType(p.remarks).includes('writeoff'));
+      const hasReconPayment = loanPayments.some(p => p.status === 'recon' || String(p.payment_type || '').toLowerCase() === 'recon' || String(p.remarks || '').toLowerCase().includes('recon'));
+      if (hasDeceasedPayment) return 'Fully Paid(Deceased)';
+      if (hasWriteOffPayment) return 'Fully Paid(Write-off)';
       if (type.includes('recon') || hasReconPayment) return 'Fully Paid(Recon)';
       return 'Fully Paid';
     }
@@ -293,10 +296,15 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
   const getPaymentStatusText = (payment) => {
     const isReversed = payment.status === 'reversed';
     const isRecon = payment.status === 'recon' || String(payment.payment_type || '').toLowerCase() === 'recon' || String(payment.remarks || '').toLowerCase().includes('recon');
-    const isFullyPaid = (payment.status === 'active' || isRecon) && Number(payment.balance_after) <= 0;
+    const isDeceased = payment.status === 'deceased' || String(payment.payment_type || '').toLowerCase() === 'deceased' || String(payment.remarks || '').toLowerCase().includes('deceased');
+    const normalizedWriteOff = value => String(value || '').toLowerCase().replace(/[-_\s]/g, '');
+    const isWriteOff = normalizedWriteOff(payment.status) === 'writeoff' || normalizedWriteOff(payment.payment_type) === 'writeoff' || normalizedWriteOff(payment.remarks).includes('writeoff');
+    const isFullyPaid = (payment.status === 'active' || isRecon || isDeceased || isWriteOff) && Number(payment.balance_after) <= 0;
     const isPartial = payment.status === 'active' && Number(payment.balance_after) > 0;
 
     if (isReversed) return 'Reversed';
+    if (isDeceased) return isFullyPaid ? 'Fully Paid(Deceased)' : 'Deceased';
+    if (isWriteOff) return isFullyPaid ? 'Fully Paid(Write-off)' : 'Write-off';
     if (isRecon) return isFullyPaid ? 'Fully Paid(Recon)' : 'Recon';
     if (payment.status === 'penalty') return 'Penalty';
     if (isFullyPaid) return 'Fully Paid';
@@ -1725,8 +1733,8 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                                       borderRadius: '9999px',
                                       fontSize: '12px',
                                       fontWeight: '600',
-                                      backgroundColor: isReversed ? '#ffe4e6' : statusText === 'Penalty' ? '#fff7ed' : (statusText === 'Recon' || statusText === 'Fully Paid(Recon)') ? '#ede9fe' : statusText === 'Fully Paid' ? '#dcfce7' : '#e0f2fe',
-                                      color: isReversed ? '#e11d48' : statusText === 'Penalty' ? '#ea580c' : (statusText === 'Recon' || statusText === 'Fully Paid(Recon)') ? '#7c3aed' : statusText === 'Fully Paid' ? '#16a34a' : '#0284c7'
+                                      backgroundColor: isReversed ? '#ffe4e6' : statusText.includes('Deceased') ? '#fef3c7' : statusText.includes('Write-off') ? '#fee2e2' : statusText === 'Penalty' ? '#fff7ed' : (statusText === 'Recon' || statusText === 'Fully Paid(Recon)') ? '#ede9fe' : statusText === 'Fully Paid' ? '#dcfce7' : '#e0f2fe',
+                                      color: isReversed ? '#e11d48' : statusText.includes('Deceased') ? '#b45309' : statusText.includes('Write-off') ? '#b91c1c' : statusText === 'Penalty' ? '#ea580c' : (statusText === 'Recon' || statusText === 'Fully Paid(Recon)') ? '#7c3aed' : statusText === 'Fully Paid' ? '#16a34a' : '#0284c7'
                                     }}>
                                       {statusText}
                                     </span>

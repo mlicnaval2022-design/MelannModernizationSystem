@@ -426,10 +426,15 @@ export default function Customers() {
   const getPaymentStatusText = (payment) => {
     const isReversed = payment.status === 'reversed';
     const isRecon = payment.status === 'recon' || String(payment.payment_type || '').toLowerCase() === 'recon' || String(payment.remarks || '').toLowerCase().includes('recon');
-    const isFullyPaid = (payment.status === 'active' || isRecon) && Number(payment.balance_after) <= 0;
+    const isDeceased = payment.status === 'deceased' || String(payment.payment_type || '').toLowerCase() === 'deceased' || String(payment.remarks || '').toLowerCase().includes('deceased');
+    const normalizedWriteOff = value => String(value || '').toLowerCase().replace(/[-_\s]/g, '');
+    const isWriteOff = normalizedWriteOff(payment.status) === 'writeoff' || normalizedWriteOff(payment.payment_type) === 'writeoff' || normalizedWriteOff(payment.remarks).includes('writeoff');
+    const isFullyPaid = (payment.status === 'active' || isRecon || isDeceased || isWriteOff) && Number(payment.balance_after) <= 0;
     const isPartial = payment.status === 'active' && Number(payment.balance_after) > 0;
 
     if (isReversed) return 'Reversed';
+    if (isDeceased) return isFullyPaid ? 'Fully Paid(Deceased)' : 'Deceased';
+    if (isWriteOff) return isFullyPaid ? 'Fully Paid(Write-off)' : 'Write-off';
     if (isRecon) return isFullyPaid ? 'Fully Paid(Recon)' : 'Recon';
     if (payment.status === 'penalty') return 'Penalty';
     if (isFullyPaid) return 'Fully Paid';
@@ -2540,7 +2545,10 @@ export default function Customers() {
                               const isReversed = p.status === 'reversed';
                               const isPenalty = p.status === 'penalty';
                               const isRecon = p.status === 'recon' || String(p.payment_type || '').toLowerCase() === 'recon' || String(p.remarks || '').toLowerCase().includes('recon');
-                              const isFullyPaid = (p.status === 'active' || isRecon) && Number(p.balance_after) <= 0; 
+                              const normalizedSpecialType = value => String(value || '').toLowerCase().replace(/[-_\s]/g, '');
+                              const isDeceased = p.status === 'deceased' || String(p.payment_type || '').toLowerCase() === 'deceased' || String(p.remarks || '').toLowerCase().includes('deceased');
+                              const isWriteOff = normalizedSpecialType(p.status) === 'writeoff' || normalizedSpecialType(p.payment_type) === 'writeoff' || normalizedSpecialType(p.remarks).includes('writeoff');
+                              const isFullyPaid = (p.status === 'active' || isRecon || isDeceased || isWriteOff) && Number(p.balance_after) <= 0;
                               const isPartial = p.status === 'active' && Number(p.balance_after) > 0;
                               
                               // Pill styles
@@ -2549,6 +2557,8 @@ export default function Customers() {
                               
                               if (isReversed) { pillBg = '#fee2e2'; pillColor = '#ef4444'; pillIcon = 'bi-x-circle'; }
                               else if (isPenalty) { pillBg = '#fef3c7'; pillColor = '#b45309'; pillIcon = 'bi-exclamation-circle'; }
+                              else if (isDeceased) { pillBg = '#fef3c7'; pillColor = '#b45309'; pillIcon = 'bi-check-circle'; }
+                              else if (isWriteOff) { pillBg = '#fee2e2'; pillColor = '#b91c1c'; pillIcon = 'bi-check-circle'; }
                               else if (isRecon) { pillBg = '#ede9fe'; pillColor = '#7c3aed'; pillIcon = isFullyPaid ? 'bi-check-circle' : 'bi-arrow-repeat'; }
                               else if (isFullyPaid) { pillBg = '#f3e8ff'; pillColor = '#9333ea'; pillIcon = 'bi-check-circle'; }
                               else if (isPartial) { pillBg = '#dcfce7'; pillColor = '#16a34a'; pillIcon = 'bi-check-circle'; }

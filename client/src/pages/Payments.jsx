@@ -30,6 +30,27 @@ const byCollectorCode = (a, b) =>
 const collectorLabel = collector =>
   [collector.collector_code, `${collector.first_name} ${collector.last_name}`.trim()].filter(Boolean).join(' - ')
 
+const SPECIAL_PAYMENT_OPTIONS = [
+  { key: 'is_recon', type: 'recon', label: 'Recon (Reconstruct)', statusLabel: 'Recon', badge: 'RECON ONLY', color: '#7c3aed', soft: '#ede9fe', border: '#ddd6fe' },
+  { key: 'is_deceased', type: 'deceased', label: 'Deceased', badge: 'DECEASED', color: '#b45309', soft: '#fef3c7', border: '#fde68a' },
+  { key: 'is_write_off', type: 'writeoff', label: 'Write-off', badge: 'WRITE-OFF', color: '#dc2626', soft: '#fee2e2', border: '#fecaca' },
+]
+const REVERSIBLE_PAYMENT_STATUSES = new Set(['active', 'recon', 'deceased', 'writeoff'])
+const initialPaymentForm = (amount = '') => ({
+  amount_paid: amount,
+  date_paid: today(),
+  remarks: '',
+  is_recon: false,
+  is_deceased: false,
+  is_write_off: false,
+})
+const getSpecialPaymentType = payment => {
+  const status = String(payment?.status || '').toLowerCase().replace(/[-_\s]/g, '')
+  const paymentType = String(payment?.payment_type || '').toLowerCase().replace(/[-_\s]/g, '')
+  const remarks = String(payment?.remarks || '').toLowerCase().replace(/[-_\s]/g, '')
+  return SPECIAL_PAYMENT_OPTIONS.find(option => [status, paymentType].includes(option.type) || remarks.includes(option.type)) || null
+}
+
 export default function Payments() {
   const { hasRole, hasPermission } = useAuth()
   // Reversals are a destructive payment action, so expose them to legacy
@@ -52,7 +73,7 @@ export default function Payments() {
   
   const [activeLoan, setActiveLoan] = useState(null)
   
-  const [form, setForm] = useState({ amount_paid: '', date_paid: today(), remarks: '', is_recon: false })
+  const [form, setForm] = useState(initialPaymentForm())
   const [saving, setSaving] = useState(false)
   const [notification, setNotification] = useState(null)
   const [confirmModal, setConfirmModal] = useState(null)
@@ -89,7 +110,7 @@ export default function Payments() {
     if (!targetCode) return
     setNotification(null)
     setActiveLoan(null)
-    setForm({ amount_paid: '', date_paid: today(), remarks: '', is_recon: false })
+    setForm(initialPaymentForm())
     
     if (!selectedCollector) {
       setNotification({ type: 'warning', message: 'Please select a collector first.' })
@@ -104,7 +125,7 @@ export default function Payments() {
         setNotification({ type: 'warning', message: 'Client does not belong to the selected collector.' })
       } else {
         setActiveLoan(loan)
-        setForm({ amount_paid: 0, date_paid: today(), remarks: '', is_recon: false })
+        setForm(initialPaymentForm(0))
         setNotification({ type: 'success', message: 'Customer Loaded Successfully' })
         setTimeout(() => {
           if (amountInputRef.current) {
@@ -141,18 +162,26 @@ export default function Payments() {
         collector_id: selectedCollector,
         remarks: form.remarks,
         is_recon: Boolean(form.is_recon),
+        is_deceased: Boolean(form.is_deceased),
+        is_write_off: Boolean(form.is_write_off),
         force_duplicate
       }
       const r = await API.post('/payments', payload)
       
       setActiveLoan(null)
       setScannerInput('')
-      setForm({ amount_paid: '', date_paid: today(), remarks: '', is_recon: false })
+      setForm(initialPaymentForm())
       loadRecentPayments()
       
-      const isReconPayment = Boolean(r.data.is_recon || form.is_recon || r.data.status === 'recon');
-      const successMessage = isReconPayment
-        ? `Reconstruction Payment Posted. Customer is now Fully Paid. Payment Code: ${r.data.payment_code}`
+      const specialType = r.data.special_payment_type
+        || (form.is_recon ? 'recon' : form.is_deceased ? 'deceased' : form.is_write_off ? 'writeoff' : null)
+      const specialSuccessMessages = {
+        recon: 'Reconstruction Payment Posted.',
+        deceased: 'Deceased settlement posted.',
+        writeoff: 'Write-off settlement posted.',
+      }
+      const successMessage = specialType
+        ? `${specialSuccessMessages[specialType]} Customer is now Fully Paid. Payment Code: ${r.data.payment_code}`
         : r.data.loan_status === 'fullpaid'
         ? `Customer is now Fully Paid. Payment Code: ${r.data.payment_code}`
         : `Payment Successfully Posted. Payment Code: ${r.data.payment_code}`
@@ -206,7 +235,7 @@ export default function Payments() {
   const cancelEncoding = () => {
     setActiveLoan(null)
     setScannerInput('')
-    setForm({ amount_paid: '', date_paid: today(), remarks: '', is_recon: false })
+    setForm(initialPaymentForm())
     setNotification(null)
     if (scannerRef.current) scannerRef.current.focus()
   }
@@ -257,7 +286,7 @@ export default function Payments() {
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      const activeIds = reversePayments.filter(p => p.status === 'active').map(p => p.id)
+      const activeIds = reversePayments.filter(p => REVERSIBLE_PAYMENT_STATUSES.has(p.status)).map(p => p.id)
       setSelectedPaymentIds(activeIds)
     } else {
       setSelectedPaymentIds([])
@@ -471,7 +500,7 @@ export default function Payments() {
                         setScannerInput(val);
                         if (activeLoan && activeLoan.customer_code !== val) {
                           setActiveLoan(null);
-                          setForm({ amount_paid: '', date_paid: today(), remarks: '' });
+                          setForm(initialPaymentForm());
                         }
                       }}
                       placeholder="00234"
@@ -582,32 +611,39 @@ export default function Payments() {
                         disabled={!activeLoan}
                       />
                     </div>
-                    <div className="info-row" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: activeLoan ? 'pointer' : 'default', userSelect: 'none', margin: 0 }}>
-                        <input 
-                          type="checkbox" 
-                          id="recon-checkbox"
-                          checked={Boolean(form.is_recon)} 
-                          disabled={!activeLoan}
-                          onChange={e => {
-                            const checked = e.target.checked;
-                            setForm(prev => ({
-                              ...prev,
-                              is_recon: checked,
-                              amount_paid: checked && activeLoan ? String(activeLoan.balance) : prev.amount_paid
-                            }));
-                          }} 
-                          style={{ width: '17px', height: '17px', accentColor: '#7c3aed', cursor: activeLoan ? 'pointer' : 'default' }}
-                        />
-                        <span style={{ fontSize: '13px', fontWeight: '700', color: form.is_recon ? '#6d28d9' : '#334155' }}>
-                          Recon (Reconstruct)
-                        </span>
-                      </label>
-                      {form.is_recon && (
-                        <span style={{ fontSize: '11px', fontWeight: '800', backgroundColor: '#ede9fe', color: '#7c3aed', padding: '2px 8px', borderRadius: '12px', border: '1px solid #ddd6fe' }}>
-                          RECON ONLY
-                        </span>
-                      )}
+                    <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px dashed #bbf7d0' }}>
+                      {SPECIAL_PAYMENT_OPTIONS.map(option => {
+                        const checked = Boolean(form[option.key])
+                        return (
+                          <div key={option.key} className="info-row" style={{ minHeight: '30px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: activeLoan ? 'pointer' : 'default', userSelect: 'none', margin: 0 }}>
+                              <input
+                                type="checkbox"
+                                id={`${option.type}-checkbox`}
+                                checked={checked}
+                                disabled={!activeLoan}
+                                onChange={e => {
+                                  const isChecked = e.target.checked
+                                  setForm(prev => ({
+                                    ...prev,
+                                    ...Object.fromEntries(SPECIAL_PAYMENT_OPTIONS.map(item => [item.key, item.key === option.key ? isChecked : false])),
+                                    amount_paid: isChecked && activeLoan ? String(activeLoan.balance) : prev.amount_paid,
+                                  }))
+                                }}
+                                style={{ width: '17px', height: '17px', accentColor: option.color, cursor: activeLoan ? 'pointer' : 'default' }}
+                              />
+                              <span style={{ fontSize: '13px', fontWeight: '700', color: checked ? option.color : '#334155' }}>
+                                {option.label}
+                              </span>
+                            </label>
+                            {checked && (
+                              <span style={{ fontSize: '10px', fontWeight: '800', backgroundColor: option.soft, color: option.color, padding: '2px 7px', borderRadius: '12px', border: `1px solid ${option.border}`, whiteSpace: 'nowrap' }}>
+                                {option.badge}
+                              </span>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                     <div className="info-total">
                       <span>Total Balance</span>
@@ -723,8 +759,9 @@ export default function Payments() {
               </tr>
             </thead>
             <tbody>
-              {(searchTable ? recentPayments : recentPayments.slice(0, 3)).map((p, i) => (
-                <tr key={p.id}>
+              {(searchTable ? recentPayments : recentPayments.slice(0, 3)).map((p, i) => {
+                const specialPayment = getSpecialPaymentType(p)
+                return <tr key={p.id}>
                   <td>{i + 1}</td>
                   <td>{p.customer_code}</td>
                   <td className="fw-bold">{p.customer_name}</td>
@@ -748,9 +785,9 @@ export default function Payments() {
                     )}
                   </td>
                   <td>
-                    {p.status === 'recon' || p.payment_type === 'recon' || String(p.remarks || '').toLowerCase().includes('recon') ? (
-                      <span style={{ color: '#7c3aed', fontWeight: '700', background: '#ede9fe', padding: '4px 8px', borderRadius: '4px' }}>
-                        {Number(p.balance_after) <= 0 ? 'Fully Paid(Recon)' : 'Recon'}
+                    {specialPayment ? (
+                      <span style={{ color: specialPayment.color, fontWeight: '700', background: specialPayment.soft, padding: '4px 8px', borderRadius: '4px' }}>
+                        {Number(p.balance_after) <= 0 ? `Fully Paid(${specialPayment.statusLabel || specialPayment.label})` : (specialPayment.statusLabel || specialPayment.label)}
                       </span>
                     ) : p.loan_status === 'fullpaid' || p.balance_after <= 0 ? (
                       <span className="badge-no">Yes</span>
@@ -759,7 +796,7 @@ export default function Payments() {
                     )}
                   </td>
                 </tr>
-              ))}
+              })}
               {recentPayments.length === 0 && (
                 <tr>
                   <td colSpan="14" style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>No recent payments found.</td>
@@ -878,8 +915,8 @@ export default function Payments() {
                           <input 
                             type="checkbox" 
                             onChange={handleSelectAll}
-                            checked={reversePayments.length > 0 && selectedPaymentIds.length === reversePayments.filter(p => p.status === 'active' || p.status === 'recon').length && reversePayments.filter(p => p.status === 'active' || p.status === 'recon').length > 0}
-                            disabled={reversePayments.filter(p => p.status === 'active' || p.status === 'recon').length === 0}
+                            checked={reversePayments.length > 0 && selectedPaymentIds.length === reversePayments.filter(p => REVERSIBLE_PAYMENT_STATUSES.has(p.status)).length && reversePayments.filter(p => REVERSIBLE_PAYMENT_STATUSES.has(p.status)).length > 0}
+                            disabled={reversePayments.filter(p => REVERSIBLE_PAYMENT_STATUSES.has(p.status)).length === 0}
                           />
                         </th>
                         <th style={{ padding: '12px', color: '#475569', fontWeight: 700 }}>Code</th>
@@ -900,7 +937,7 @@ export default function Payments() {
                       ) : reversePayments.map(p => {
                         const isReversed = p.status === 'reversed';
                         const isPenalty = p.status === 'penalty';
-                        const isRecon = p.status === 'recon' || p.payment_type === 'recon';
+                        const specialPayment = getSpecialPaymentType(p);
                         const isSelected = selectedPaymentIds.includes(p.id);
                         return (
                           <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9', background: isSelected ? '#eff6ff' : 'transparent', opacity: isReversed ? 0.6 : 1 }}>
@@ -914,7 +951,7 @@ export default function Payments() {
                             </td>
                             <td style={{ padding: '12px', fontWeight: 700, fontFamily: 'monospace', color: '#3b82f6' }}>{p.payment_code}</td>
                             <td style={{ padding: '12px', color: '#334155' }}>{p.date_paid}</td>
-                            <td style={{ padding: '12px', fontWeight: 800, color: isReversed ? '#64748b' : isRecon ? '#7c3aed' : '#16a34a' }}>{formatCurrency(p.amount_paid)}</td>
+                            <td style={{ padding: '12px', fontWeight: 800, color: isReversed ? '#64748b' : specialPayment ? specialPayment.color : '#16a34a' }}>{formatCurrency(p.amount_paid)}</td>
                             <td style={{ padding: '12px', color: '#334155' }}>{p.collector_name || 'N/A'}</td>
                             <td style={{ padding: '12px', color: '#3b82f6', fontWeight: 600 }}>{p.loan_code}</td>
                             <td style={{ padding: '12px', color: '#475569' }}>{formatCurrency(p.balance_before)}</td>
@@ -933,10 +970,10 @@ export default function Payments() {
                             <td style={{ padding: '12px' }}>
                               <span style={{ 
                                 padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 700,
-                                background: isReversed ? '#fee2e2' : isPenalty ? '#fef3c7' : isRecon ? '#ede9fe' : '#dcfce7',
-                                color: isReversed ? '#ef4444' : isPenalty ? '#b45309' : isRecon ? '#7c3aed' : '#16a34a'
+                                background: isReversed ? '#fee2e2' : isPenalty ? '#fef3c7' : specialPayment ? specialPayment.soft : '#dcfce7',
+                                color: isReversed ? '#ef4444' : isPenalty ? '#b45309' : specialPayment ? specialPayment.color : '#16a34a'
                               }}>
-                                {isReversed ? 'REVERSED' : isPenalty ? 'PENALTY' : isRecon ? 'RECON' : 'POSTED'}
+                                {isReversed ? 'REVERSED' : isPenalty ? 'PENALTY' : specialPayment ? specialPayment.badge : 'POSTED'}
                               </span>
                             </td>
                           </tr>

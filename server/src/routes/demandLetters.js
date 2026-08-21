@@ -1,6 +1,7 @@
 const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken } = require('../middleware/auth');
+const { applyDemandPenaltyPolicy } = require('../services/demandPenaltyPolicy');
 
 const router = express.Router();
 
@@ -80,6 +81,46 @@ const buildIdentityMatch = record => {
     params.push(String(record.client_name || '').trim());
   }
   return { checks, params };
+};
+
+const getFirstDemand = async record => {
+  if (!record) return null;
+
+  let current = record;
+  const visitedIds = new Set();
+  while (current) {
+    if (normalizeDemandType(current.demand_type) === 'first') return current;
+    if (!current.previous_demand_id || visitedIds.has(current.previous_demand_id)) break;
+    visitedIds.add(current.previous_demand_id);
+    current = await dbGet(`SELECT * FROM tblDemandLetter WHERE id = ?`, [current.previous_demand_id]);
+  }
+
+  const lookupFields = [
+    ['loan_id', record.loan_id],
+    ['loan_code', String(record.loan_code || '').trim()],
+    ['customer_id', record.customer_id],
+    ['client_name', String(record.client_name || '').trim()],
+  ];
+
+  for (const [field, value] of lookupFields) {
+    if (!value) continue;
+    const comparison = field === 'client_name' ? 'LOWER(client_name) = LOWER(?)' : `${field} = ?`;
+    const firstDemand = await dbGet(`
+      SELECT *
+      FROM tblDemandLetter
+      WHERE demand_type = 'first' AND ${comparison}
+      ORDER BY date_generated DESC, id DESC
+      LIMIT 1
+    `, [value]);
+    if (firstDemand) return firstDemand;
+  }
+
+  return null;
+};
+
+const getFirstDemandPenalty = async record => {
+  const firstDemand = await getFirstDemand(record);
+  return firstDemand ? Number(firstDemand.penalty_charges || 0) : null;
 };
 
 const parseLocalDate = value => {
@@ -264,13 +305,31 @@ const enrichDemandRows = async rows => Promise.all(rows.map(async row => {
   }
 
   row = { ...row, loan_code: row.loan_code || loan?.loan_code || '' };
+  let firstDemandPenalty = null;
+  if (normalizeDemandType(row.demand_type) !== 'first') {
+    firstDemandPenalty = await getFirstDemandPenalty(row);
+  }
 
   const hasStoredAmounts = ['total_loan', 'running_balance', 'beginning_overdue', 'penalty_charges', 'total_amount_due']
     .some(key => Number(row[key] || 0) !== 0);
-  if (hasStoredAmounts) return row;
+  if (hasStoredAmounts) {
+    if (firstDemandPenalty === null) return row;
+    return {
+      ...row,
+      penalty_charges: firstDemandPenalty,
+      total_amount_due: Number(row.running_balance || 0) + firstDemandPenalty,
+    };
+  }
 
   const payments = loan ? await dbAll(`SELECT * FROM tblPayment WHERE loan_id = ?`, [loan.id]) : [];
-  return { ...row, ...computeDemandAmounts(loan, payments) };
+  const computedAmounts = computeDemandAmounts(loan, payments);
+  if (firstDemandPenalty === null) return { ...row, ...computedAmounts };
+  return {
+    ...row,
+    ...computedAmounts,
+    penalty_charges: firstDemandPenalty,
+    total_amount_due: Number(computedAmounts.running_balance || 0) + firstDemandPenalty,
+  };
 }));
 
 router.get('/', authenticateToken, async (req, res) => {
@@ -404,7 +463,8 @@ router.get('/previous-received', authenticateToken, async (req, res) => {
     if (!checks.length) return res.json(null);
 
     const row = await dbGet(`
-      SELECT id, demand_type, client_name, loan_code, date_generated, date_received, status
+      SELECT id, demand_type, customer_id, loan_id, client_name, loan_code,
+             date_generated, date_received, status, previous_demand_id, penalty_charges
       FROM tblDemandLetter
       WHERE demand_type = ?
         AND (${checks.join(' OR ')})
@@ -415,7 +475,12 @@ router.get('/previous-received', authenticateToken, async (req, res) => {
       LIMIT 1
     `, params);
 
-    res.json(row || null);
+    if (!row) return res.json(null);
+    const firstDemandPenalty = await getFirstDemandPenalty(row);
+    res.json({
+      ...row,
+      penalty_charges: firstDemandPenalty === null ? Number(row.penalty_charges || 0) : firstDemandPenalty,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -478,6 +543,25 @@ router.post('/', authenticateToken, async (req, res) => {
       `, [priorType, ...duplicateParams]);
     }
 
+    const requestedRunningBalance = Number(req.body.running_balance || 0);
+    const firstDemandPenalty = demandType === 'first'
+      ? null
+      : await getFirstDemandPenalty({
+        demand_type: demandType,
+        customer_id: customerId,
+        loan_id: loanId,
+        loan_code: loanCode,
+        client_name: clientName,
+        previous_demand_id: priorDemand?.id || req.body.previous_demand_id || null,
+      });
+    const lockedAmounts = applyDemandPenaltyPolicy({
+      demandType,
+      runningBalance: requestedRunningBalance,
+      penaltyCharges: req.body.penalty_charges,
+      totalAmountDue: req.body.total_amount_due,
+      firstDemandPenalty,
+    });
+
     const result = await dbRun(`
       INSERT INTO tblDemandLetter (
         demand_type, customer_id, loan_id, loan_code, courier, collector_name,
@@ -497,10 +581,10 @@ router.post('/', authenticateToken, async (req, res) => {
       sentDate,
       req.body.delivery_status || (sentDate ? 'Awaiting Receipt' : ''),
       Number(req.body.total_loan || 0),
-      Number(req.body.running_balance || 0),
+      requestedRunningBalance,
       Number(req.body.beginning_overdue || 0),
-      Number(req.body.penalty_charges || 0),
-      Number(req.body.total_amount_due || 0),
+      lockedAmounts.penalty_charges,
+      lockedAmounts.total_amount_due,
       req.body.date_received || '',
       req.body.follow_up_date || '',
       req.body.remarks || '',
@@ -541,6 +625,14 @@ router.post('/:id/advance', authenticateToken, async (req, res) => {
 
     const { checks, params } = buildIdentityMatch(existing);
     const sentDate = req.body.date_sent || todayDateOnly();
+    const firstDemandPenalty = await getFirstDemandPenalty(existing);
+    const lockedAmounts = applyDemandPenaltyPolicy({
+      demandType: targetType,
+      runningBalance: existing.running_balance,
+      penaltyCharges: existing.penalty_charges,
+      totalAmountDue: existing.total_amount_due,
+      firstDemandPenalty,
+    });
     let nextDemand = await dbGet(`
       SELECT *
       FROM tblDemandLetter
@@ -557,12 +649,14 @@ router.post('/:id/advance', authenticateToken, async (req, res) => {
         UPDATE tblDemandLetter
         SET date_sent = ?, courier = ?, delivery_status = 'Awaiting Receipt',
             status = 'Awaiting Receipt', previous_demand_id = ?,
-            remarks = ?, updated_at = datetime('now')
+            penalty_charges = ?, total_amount_due = ?, remarks = ?, updated_at = datetime('now')
         WHERE id = ?
       `, [
         sentDate,
         req.body.courier || nextDemand.courier || existing.courier || '',
         existing.id,
+        lockedAmounts.penalty_charges,
+        Number(nextDemand.running_balance || 0) + lockedAmounts.penalty_charges,
         String(req.body.remarks || '').trim() ? req.body.remarks : nextDemand.remarks,
         nextDemand.id,
       ]);
@@ -579,7 +673,7 @@ router.post('/:id/advance', authenticateToken, async (req, res) => {
         req.body.courier || existing.courier || '', existing.collector_name,
         existing.client_name, req.body.date_generated || sentDate, sentDate,
         'Awaiting Receipt', existing.total_loan, existing.running_balance,
-        existing.beginning_overdue, existing.penalty_charges, existing.total_amount_due,
+        existing.beginning_overdue, lockedAmounts.penalty_charges, lockedAmounts.total_amount_due,
         req.body.remarks || '', 'Awaiting Receipt', existing.id, req.user.id,
       ]);
       nextDemand = await dbGet(`SELECT * FROM tblDemandLetter WHERE id = ?`, [result.lastID]);

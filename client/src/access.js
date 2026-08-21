@@ -38,6 +38,7 @@ export const REPORT_TYPE_PERMISSIONS = [
   { key: 'report:collection-sheet', reportKey: 'collection-sheet', label: 'Collection Sheet' },
   { key: 'report:disclosure-statement', reportKey: 'disclosure-statement', label: 'Disclosure Statement' },
   { key: 'report:aging-report', reportKey: 'aging-report', label: 'Aging Report' },
+  { key: 'report:special-accounts', reportKey: 'special-accounts', label: 'Deceased & Written-Off Accounts' },
   { key: 'report:expenses-report', reportKey: 'expenses-report', label: 'Expenses Reports' },
 ]
 

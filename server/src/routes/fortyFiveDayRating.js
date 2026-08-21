@@ -3,6 +3,7 @@ const dayjs = require('dayjs');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { sqlNotSunday } = require('../services/operationDays');
+const { buildCollectionPaymentExclusionSql } = require('../services/paymentClassification');
 
 const router = express.Router();
 const ratedCollectorLastNames = ['torreta', 'domingono', 'caballes', 'jugar', 'rosal', 'laude'];
@@ -209,9 +210,7 @@ async function getCollectionTotalsByCollector(startDate, endDate) {
     LEFT JOIN tblCollector cco ON cco.id = c.collector_id
     WHERE date(p.date_paid) BETWEEN date(?) AND date(?)
       AND p.status IN ('active', 'penalty')
-      AND p.status != 'recon'
-      AND LOWER(COALESCE(p.payment_type, '')) != 'recon'
-      AND LOWER(COALESCE(p.remarks, '')) NOT LIKE '%recon%'
+      AND ${buildCollectionPaymentExclusionSql('p')}
       AND ${sqlNotSunday('p.date_paid')}
   `, [startDate, endDate]);
   const releaseRows = await dbAll(`
@@ -220,9 +219,8 @@ async function getCollectionTotalsByCollector(startDate, endDate) {
     ), balance_payments AS (
       SELECT customer_id, date_paid, COUNT(*) AS payment_count
       FROM tblPayment
-      WHERE status = 'active' AND status != 'recon'
-        AND LOWER(COALESCE(payment_type, '')) != 'recon'
-        AND LOWER(COALESCE(remarks, '')) NOT LIKE '%recon%'
+      WHERE status = 'active'
+        AND ${buildCollectionPaymentExclusionSql()}
         AND (LOWER(COALESCE(remarks, '')) LIKE '%old balance%' OR LOWER(COALESCE(payment_type, '')) IN ('balance', 'old_balance'))
       GROUP BY customer_id, date_paid
     )
