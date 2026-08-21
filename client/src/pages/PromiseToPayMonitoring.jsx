@@ -202,9 +202,17 @@ export default function PromiseToPayMonitoring() {
 
     if (printModal.collectorId !== 'all') {
       if (printModal.collectorId === 'unassigned') {
-        filtered = filtered.filter(r => !r.collector_id);
+        filtered = filtered.filter(r => !r.collector_id || String(r.collector_id) === 'unassigned');
       } else {
-        filtered = filtered.filter(r => String(r.collector_id) === String(printModal.collectorId));
+        const targetId = String(printModal.collectorId);
+        const targetCol = collectors.find(c => String(c.id) === targetId);
+        const targetName = targetCol ? `${targetCol.first_name || ''} ${targetCol.last_name || ''}`.trim().toLowerCase() : '';
+
+        filtered = filtered.filter(r => {
+          if (String(r.collector_id) === targetId) return true;
+          if (targetName && r.collector_name && r.collector_name.trim().toLowerCase() === targetName) return true;
+          return false;
+        });
       }
     }
 
@@ -212,8 +220,9 @@ export default function PromiseToPayMonitoring() {
 
     filtered.forEach(r => {
       const cId = r.collector_id ? String(r.collector_id) : 'unassigned';
-      const cName = r.collector_name || (cId === 'unassigned' ? 'Unassigned Collector' : 'Collector');
-      const bName = r.branch_name || 'Main Branch';
+      const colObj = collectors.find(c => String(c.id) === String(cId));
+      const cName = colObj ? `${colObj.first_name} ${colObj.last_name}` : (r.collector_name || (cId === 'unassigned' ? 'Unassigned Accounts' : 'Collector'));
+      const bName = r.branch_name || colObj?.branch_name || 'Main Branch';
 
       if (!groupsMap.has(cId)) {
         groupsMap.set(cId, {
@@ -675,16 +684,28 @@ export default function PromiseToPayMonitoring() {
 
   // Trigger Native Print (8.5 x 13 in)
   const handleTriggerPrint = () => {
-    document.body.classList.add('ptp-printing-active');
-    const cleanup = () => {
+    const printableArea = document.getElementById('ptp-printable-sheet');
+    if (!printableArea) {
+      showToast('Printable sheet is not ready yet.', 'error');
+      return;
+    }
+
+    const printRoot = document.createElement('div');
+    printRoot.className = 'ptp-print-root';
+    printRoot.appendChild(printableArea.cloneNode(true));
+
+    const cleanupPrintMode = () => {
       document.body.classList.remove('ptp-printing-active');
-      window.removeEventListener('afterprint', cleanup);
+      printRoot.remove();
     };
-    window.addEventListener('afterprint', cleanup);
+
+    document.body.appendChild(printRoot);
+    document.body.classList.add('ptp-printing-active');
+    window.addEventListener('afterprint', cleanupPrintMode, { once: true });
 
     setTimeout(() => {
       window.print();
-      setTimeout(cleanup, 1200);
+      setTimeout(cleanupPrintMode, 1000);
     }, 150);
   };
 

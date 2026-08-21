@@ -1735,6 +1735,10 @@
   display: none;
 }
 
+.ptp-print-root {
+  display: none;
+}
+
 @media print {
   @page {
     size: 8.5in 13in portrait;
@@ -1753,18 +1757,26 @@
     print-color-adjust: exact !important;
   }
 
-  body.ptp-printing-active > :not(.ptp-printable-sheet) {
+  body.ptp-printing-active > :not(.ptp-print-root) {
     display: none !important;
   }
 
-  .ptp-printable-sheet {
+  .ptp-print-root {
     display: block !important;
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
-    width: 100% !important;
+    width: 8.5in !important;
     background: #ffffff !important;
     color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .ptp-print-root .ptp-printable-sheet {
+    display: block !important;
+    width: 100% !important;
+    background: #ffffff !important;
   }
 
   .ptp-print-page {
