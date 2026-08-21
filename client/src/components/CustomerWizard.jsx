@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import API from '../services/api';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
+import { getZipCodeForCity } from '../data/philippinePostalCodes';
 
 const STEPS = [
   { id: 1, title: 'Personal Information', sub: 'Basic personal details', icon: '👤' },
@@ -120,6 +121,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
     setRegionCode(code); setProvinceCode(''); setCityCode('');
     setProvinceData([]); setCityData([]); setBrgyData([]);
     if (code) provinces(code).then(setProvinceData);
+    setForm(f => ({...f, province: '', city: '', brgy: '', zip_code: ''}));
   };
   const handleProvince = (e) => {
     const code = e.target.value;
@@ -127,14 +129,14 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
     setCityData([]); setBrgyData([]);
     if (code) cities(code).then(setCityData);
     const name = provinceData.find(p => p.province_code === code)?.province_name;
-    setForm(f => ({...f, province: name || '', city: '', brgy: ''}));
+    setForm(f => ({...f, province: name || '', city: '', brgy: '', zip_code: ''}));
   };
   const handleCity = (e) => {
     const code = e.target.value;
     setCityCode(code); setBrgyData([]);
     if (code) barangays(code).then(setBrgyData);
     const name = cityData.find(p => p.city_code === code)?.city_name;
-    setForm(f => ({...f, city: name || '', brgy: ''}));
+    setForm(f => ({...f, city: name || '', brgy: '', zip_code: getZipCodeForCity(code)}));
   };
   const handleBrgy = (e) => {
     const code = e.target.value;
@@ -377,7 +379,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
             </div>
           </div>
           <div className="form-grid">
-            <div className="form-group"><label>Zip Code</label><input className="form-control" value={form.zip_code} onChange={handleUpper('zip_code')} /></div>
+            <div className="form-group"><label>Zip Code (Auto-filled)</label><input className="form-control" inputMode="numeric" maxLength={4} value={form.zip_code} onChange={handleUpper('zip_code')} /></div>
             <div></div>
           </div>
 
