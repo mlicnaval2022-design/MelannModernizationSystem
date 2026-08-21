@@ -82,7 +82,12 @@ test('customer photo remains available after the original source file is deleted
   assert.equal(detailsResponse.status, 200, details.error);
   assert.equal(details.photo_client, upload.url);
 
-  const storedPhotoResponse = await fetch(`${baseUrl}${upload.url}`);
+  const publicPhotoResponse = await fetch(`${baseUrl}${upload.url}`);
+  assert.equal(publicPhotoResponse.status, 401);
+
+  const storedPhotoResponse = await fetch(`${baseUrl}${upload.url}`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
   assert.equal(storedPhotoResponse.status, 200);
   assert.deepEqual(Buffer.from(await storedPhotoResponse.arrayBuffer()), photoBytes);
 });

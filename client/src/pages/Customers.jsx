@@ -12,7 +12,7 @@ import CustomerWizard from '../components/CustomerWizard'
 import ReloanModal from '../components/ReloanModal'
 import ConfirmModal from '../components/ConfirmModal'
 import logoImg from '../assets/logo.png'
-import { Users, CheckCircle, XCircle, Calendar, Search, Filter, FileText, Phone, Mail, MapPin, User, MoreVertical, BarChart2, Plus, Printer, X, PieChart, List, Wallet, Scale, CalendarDays, CalendarClock, Info, ArrowDown, ArrowUp, ArrowDownUp } from 'lucide-react'
+import { Users, CheckCircle, XCircle, Calendar, Search, Filter, FileText, Phone, Mail, MapPin, User, BarChart2, Plus, Printer, X, PieChart, List, Wallet, Scale, CalendarDays, CalendarClock, Info, ArrowDown, ArrowUp, ArrowDownUp } from 'lucide-react'
 
 export default function Customers() {
   const { user } = useAuth()
@@ -25,6 +25,7 @@ export default function Customers() {
   useEffect(() => {
     const q = searchParams.get('search')
     if (q !== null && q !== search) setSearch(q)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
   useEffect(() => {
@@ -203,6 +204,7 @@ export default function Customers() {
     }).finally(() => setLoading(false))
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [search, status, branchFilter, collectorFilter])
   useEffect(() => {
     API.get('/branches').then(r => setBranches(r.data))
@@ -319,13 +321,6 @@ export default function Customers() {
   const itemsPerPage = 10;
   const totalPages = Math.ceil(rows.length / itemsPerPage);
   const currentRows = rows.slice((page - 1) * itemsPerPage, page * itemsPerPage);
-
-  const getInitials = (name) => {
-    if (!name) return '?';
-    const parts = name.split(' ');
-    if (parts.length > 1) return (parts[0][0] + parts[1][0]).toUpperCase();
-    return name.substring(0, 2).toUpperCase();
-  };
 
   const getPaginationPages = () => {
     if (totalPages <= 7) return [...Array(totalPages)].map((_, i) => i + 1);
@@ -1334,16 +1329,14 @@ export default function Customers() {
                           if (creditEval && typeof creditEval.credit_score === 'number') {
                             score = creditEval.credit_score;
                           } else if (activePaymentsCount === 0) {
-                            if (daysSinceRel <= 1) {
-                              score = 100;
-                            } else {
+                            if (daysSinceRel > 1) {
                               score = Math.max(0, 100 - (daysSinceRel * 15) - (pastDueCount * 20));
                             }
                           } else {
                             score = Math.max(0, Math.min(100, 100 - (pastDueCount * 20)));
                           }
 
-                          let meta = { label: 'EXCELLENT', color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', icon: '⭐' };
+                          let meta;
 
                           if (isUnrated) {
                             meta = { label: 'NEW CLIENT (UNRATED)', color: '#64748b', bg: '#f1f5f9', border: '#cbd5e1', icon: '🆕' };
@@ -1698,16 +1691,14 @@ export default function Customers() {
                           if (creditEval && typeof creditEval.credit_score === 'number') {
                             score = creditEval.credit_score;
                           } else if (activePaymentsCount === 0) {
-                            if (daysSinceRel <= 1) {
-                              score = 100;
-                            } else {
+                            if (daysSinceRel > 1) {
                               score = Math.max(0, 100 - (daysSinceRel * 15) - (pastDueCount * 20));
                             }
                           } else {
                             score = Math.max(0, Math.min(100, 100 - (pastDueCount * 20)));
                           }
 
-                          let meta = { label: 'EXCELLENT', color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', icon: '⭐' };
+                          let meta;
 
                           if (isUnrated) {
                             meta = { label: 'NEW CLIENT (UNRATED)', color: '#64748b', bg: '#f1f5f9', border: '#cbd5e1', icon: '🆕' };

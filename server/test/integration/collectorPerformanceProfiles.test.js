@@ -89,7 +89,12 @@ test('collector photos and profile edits are stored on the server and shared by 
     area: 'Shared Area',
   });
 
-  const photoResponse = await fetch(`${baseUrl}${upload.url}`);
+  const publicPhotoResponse = await fetch(`${baseUrl}${upload.url}`);
+  assert.equal(publicPhotoResponse.status, 401);
+
+  const photoResponse = await fetch(`${baseUrl}${upload.url}`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
   assert.equal(photoResponse.status, 200);
   assert.equal(await photoResponse.text(), 'shared-photo-bytes');
 });

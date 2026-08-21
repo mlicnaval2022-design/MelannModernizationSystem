@@ -689,6 +689,7 @@ export default function DemandLetter() {
 
   useEffect(() => {
     if (activeTab === 'monitoring') loadMonitoring(monitoringType)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, monitoringType])
 
   useEffect(() => {

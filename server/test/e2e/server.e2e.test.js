@@ -8,7 +8,10 @@ const { tmpdir } = require('node:os');
 function onceReady(child) {
   return new Promise((resolve, reject) => {
     let output = '';
-    const timer = setTimeout(() => reject(new Error(`server did not start. Output:\n${output}`)), 10000);
+    // Full-suite runs initialize several isolated SQLite databases in parallel.
+    // Allow enough time for a contended CI or branch server without masking a
+    // real startup failure (the child exit handler still fails immediately).
+    const timer = setTimeout(() => reject(new Error(`server did not start. Output:\n${output}`)), 30000);
 
     child.stdout.on('data', (chunk) => {
       output += chunk.toString();

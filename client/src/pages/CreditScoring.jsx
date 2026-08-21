@@ -65,6 +65,7 @@ export default function CreditScoring() {
     API.get('/loans', { params: { search, status } }).then(r => setRows(r.data)).finally(() => setLoading(false)) 
     fetchCounts();
   }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [search, status])
   useEffect(() => {
     API.get('/customers', { params: { status: 'active' } }).then(r => setCustomers(r.data))

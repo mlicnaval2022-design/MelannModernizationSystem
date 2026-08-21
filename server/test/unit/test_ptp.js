@@ -1,3 +1,6 @@
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = 'test-jwt-secret-key-for-unit-testing';
+}
 const http = require('http');
 const { initializeDatabase, dbGet, dbAll, dbRun, closeDb } = require('../../src/db/database');
 const { createApp } = require('../../src/app');

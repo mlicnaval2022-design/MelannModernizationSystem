@@ -169,6 +169,7 @@ export default function GovernmentCompliance() {
     if (viewMode === 'summary' || viewMode === 'covered-loans') loadBirClientSummary(viewMode === 'covered-loans');
     else if (viewMode === 'company') loadRows();
     else loadClientRows();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, filters.page, filters.sort, filters.dir, filters.startDate, filters.endDate, clientFilters.startDate, clientFilters.endDate, viewMode]);
 
   const pageCount = Math.max(Math.ceil(total / filters.limit), 1);
@@ -589,6 +590,7 @@ function CICGenerator() {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadCandidates(); }, [year, month]);
 
   const candidateCollectors = useMemo(() => [...new Set(candidateRows.map(row => row.collector_name).filter(Boolean))].sort(), [candidateRows]);

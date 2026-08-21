@@ -1,11 +1,11 @@
 const express = require('express');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requireRole } = require('../middleware/auth');
 const { dbRun } = require('../db/database');
 const { createDatabaseBackup } = require('../services/databaseBackup');
 
 const router = express.Router();
 
-router.post('/backup', authenticateToken, async (req, res) => {
+router.post('/backup', authenticateToken, requireRole('admin'), async (req, res) => {
   try {
     const result = await createDatabaseBackup({ requestedBy: req.user?.username });
 

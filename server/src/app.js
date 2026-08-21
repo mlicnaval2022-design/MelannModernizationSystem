@@ -34,11 +34,17 @@ const { REPORT_TYPE_PERMISSIONS } = require('./config/accessModules');
 function createApp() {
   const app = express();
   const uploadsRoot = process.env.UPLOADS_PATH || path.join(__dirname, '../../uploads');
-  const allowedOrigins = [/^http:\/\/localhost:\d+$/, /^http:\/\/127\.0\.0\.1:\d+$/, /^http:\/\/192\.168\.\d+\.\d+:\d+$/];
+  const configuredOrigins = String(process.env.CORS_ORIGINS || '').split(',').map(item => item.trim()).filter(Boolean);
+  if (process.env.NODE_ENV === 'production' && configuredOrigins.length === 0) {
+    throw new Error('CORS_ORIGINS is required in production. Provide the exact client origin(s).');
+  }
+  const developmentOrigins = [/^http:\/\/localhost:\d+$/, /^http:\/\/127\.0\.0\.1:\d+$/, /^http:\/\/192\.168\.\d+\.\d+:\d+$/];
 
   app.use(cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.some((allowed) => allowed.test(origin))) {
+      const allowed = configuredOrigins.includes(origin)
+        || (process.env.NODE_ENV !== 'production' && developmentOrigins.some(pattern => pattern.test(origin)));
+      if (!origin || allowed) {
         return callback(null, true);
       }
       return callback(new Error(`CORS blocked origin: ${origin}`));
@@ -47,7 +53,12 @@ function createApp() {
   }));
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
-  app.use('/uploads', express.static(uploadsRoot));
+  app.use('/uploads', authenticateToken, express.static(uploadsRoot, {
+    dotfiles: 'deny',
+    fallthrough: false,
+    index: false,
+    setHeaders: res => res.setHeader('X-Content-Type-Options', 'nosniff'),
+  }));
 
   app.use('/api/auth', authRoutes);
   app.use('/api/users', authenticateToken, authorizeModule('user-management'), userRoutes);

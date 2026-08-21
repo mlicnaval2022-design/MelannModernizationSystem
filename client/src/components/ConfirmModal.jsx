@@ -1,5 +1,3 @@
-import React from 'react';
-
 /**
  * Modern ConfirmModal Component
  * Replaces native window.confirm/alert dialogs with a beautiful, modern modal UI.

@@ -927,6 +927,7 @@ export default function CollectorPerformance() {
       current.setUTCDate(current.getUTCDate() + 1)
     }
     return rows
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manualExpenses, selectedRatingPeriod?.period?.start_date, selectedRatingPeriod?.period?.end_date])
 
   const expenseTabulationRows = useMemo(() => manualExpenseGroups.map(group => {
@@ -1623,6 +1624,7 @@ export default function CollectorPerformance() {
 
   useEffect(() => {
     loadData()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -1666,6 +1668,7 @@ export default function CollectorPerformance() {
     if (activeTab === 'forty-five-days' && ratingDateRange.start_date && ratingDateRange.end_date) {
       loadFortyFiveDayEvaluation(ratingDateRange.start_date, ratingDateRange.end_date)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
 
   const collectors = (data?.collectors || [])

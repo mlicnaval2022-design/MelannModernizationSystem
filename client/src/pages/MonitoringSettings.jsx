@@ -18,7 +18,7 @@ export default function MonitoringSettings() {
       res.data.settings.forEach(s => setObj[s.setting_key] = s.setting_value);
       setSettings(setObj);
       setHolidays(res.data.holidays);
-    } catch (err) {
+    } catch {
       alert('Error fetching settings');
     } finally {
       setLoading(false);

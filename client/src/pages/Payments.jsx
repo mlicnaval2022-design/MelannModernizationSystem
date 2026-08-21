@@ -410,13 +410,6 @@ export default function Payments() {
   }
 
   const formatCurrency = value => `₱${fmt(value)}`
-  const formatPaymentDate = value => {
-    if (!value) return ''
-    const d = new Date(value)
-    if (isNaN(d.getTime())) return value
-    return d.toLocaleString('en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-  }
-  
   const getSelectedPayments = () => reversePayments.filter(p => selectedPaymentIds.includes(p.id))
   const totalSelectedAmount = getSelectedPayments().reduce((sum, p) => sum + p.amount_paid, 0)
 
@@ -992,6 +985,8 @@ export default function Payments() {
             </div>
           </div>
 
+          {/* This duplicate sticky summary is intentionally disabled; the active summary is rendered above. */}
+          {/* eslint-disable-next-line no-constant-binary-expression */}
           {false && reverseCustomer && (
             <div style={{ position: 'sticky', bottom: 0, background: '#fff', padding: '16px 30px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 -10px 15px -3px rgba(0,0,0,0.05)', borderRadius: '0 0 16px 16px', zIndex: 10 }}>
               <div style={{ display: 'flex', gap: '40px', alignItems: 'center' }}>

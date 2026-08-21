@@ -970,11 +970,30 @@ async function initializeDatabase() {
   // Seed default admin
   const userCount = await dbGet('SELECT COUNT(*) as count FROM tblUser');
   if (userCount.count === 0) {
-    const adminPw = bcrypt.hashSync('admin123', 10);
-    const userPw = bcrypt.hashSync('user123', 10);
+    const productionAdminPassword = String(process.env.INITIAL_ADMIN_PASSWORD || '');
+    if (process.env.NODE_ENV === 'production' && productionAdminPassword.length < 12) {
+      throw new Error('INITIAL_ADMIN_PASSWORD (12+ characters) is required when creating the first production administrator.');
+    }
+    const adminPw = bcrypt.hashSync(productionAdminPassword || 'admin123', 10);
     await dbRun(`INSERT INTO tblUser (username, password, full_name, role) VALUES (?,?,?,?)`, ['admin', adminPw, 'System Administrator', 'admin']);
-    await dbRun(`INSERT INTO tblUser (username, password, full_name, role) VALUES (?,?,?,?)`, ['user', userPw, 'Demo User', 'user']);
-    console.log('✅ Default users seeded');
+    if (process.env.NODE_ENV !== 'production') {
+      const userPw = bcrypt.hashSync('user123', 10);
+      await dbRun(`INSERT INTO tblUser (username, password, full_name, role) VALUES (?,?,?,?)`, ['user', userPw, 'Demo User', 'user']);
+    }
+    console.log('✅ Initial users seeded');
+  } else if (process.env.NODE_ENV === 'production') {
+    const admin = await dbGet(`SELECT id, password FROM tblUser WHERE username = 'admin' LIMIT 1`);
+    if (admin && bcrypt.compareSync('admin123', admin.password)) {
+      const replacement = String(process.env.INITIAL_ADMIN_PASSWORD || '');
+      if (replacement.length < 12) {
+        throw new Error('The admin account still uses the default password. Set INITIAL_ADMIN_PASSWORD (12+ characters) to rotate it at startup.');
+      }
+      await dbRun(`UPDATE tblUser SET password = ?, updated_at = datetime('now') WHERE id = ?`, [bcrypt.hashSync(replacement, 10), admin.id]);
+    }
+    const demoUser = await dbGet(`SELECT id, password FROM tblUser WHERE username = 'user' LIMIT 1`);
+    if (demoUser && bcrypt.compareSync('user123', demoUser.password)) {
+      await dbRun(`UPDATE tblUser SET is_active = 0, updated_at = datetime('now') WHERE id = ?`, [demoUser.id]);
+    }
   }
 
   const { ACCESS_MODULES, REPORT_TYPE_PERMISSIONS } = require('../config/accessModules');

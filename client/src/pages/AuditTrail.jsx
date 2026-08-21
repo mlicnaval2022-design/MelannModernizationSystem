@@ -29,6 +29,7 @@ export default function AuditTrail() {
     API.get('/audit/modules').then(r => setModules(r.data.map(m => m.module)))
     API.get('/users').then(r => setUsers(r.data)).catch(() => {})
     load()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleFilter = (e) => {

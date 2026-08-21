@@ -61,10 +61,6 @@ export default function Login() {
             {loading ? '⏳ Signing in...' : '→ Sign In'}
           </button>
         </form>
-        <div className="login-creds">
-          <strong>Demo Credentials</strong>
-          admin / admin123 &nbsp;|&nbsp; user / user123
-        </div>
       </div>
     </div>
   )

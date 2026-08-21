@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const API_HOST = window.location.hostname || 'localhost';
-const API = axios.create({ baseURL: `http://${API_HOST}:5001/api` });
+const API = axios.create({ baseURL: `http://${API_HOST}:5001/api`, withCredentials: true });
 
 API.interceptors.request.use((config) => {
   const token = localStorage.getItem('melann_token');
