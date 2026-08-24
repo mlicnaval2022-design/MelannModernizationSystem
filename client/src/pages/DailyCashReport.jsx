@@ -47,39 +47,29 @@ export default function DailyCashReport() {
   const [remarks, setRemarks] = useState('');
   const [remarksSaving, setRemarksSaving] = useState(false);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (targetDate = date, targetBranchId = branchId) => {
     const requestId = ++loadRequestId.current;
-    if (!isCompleteDcrDate(date)) {
-      setLoading(false);
-      setError('');
-      return;
-    }
-<<<<<<< HEAD
-    if (dayjs(date).day() === 0) {
-      setLoading(false);
-=======
-    return err?.message || 'Failed to load Daily Cash Report.';
-  };
 
-  const loadData = async (targetDate = date, targetBranchId = branchId) => {
-    if (!targetDate || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
->>>>>>> 0ed7b5612dc76d1a23e48f036e3577966e878ffe
-      setData(null);
-      setError('DCR date cannot be Sunday. Operations are Monday to Saturday only.');
+    if (!isCompleteDcrDate(targetDate)) {
+      if (requestId === loadRequestId.current) {
+        setLoading(false);
+        setError('');
+      }
       return;
     }
-    const [yearStr] = targetDate.split('-');
-    const year = parseInt(yearStr, 10);
-    if (isNaN(year) || year < 1970 || year > 2100) {
+
+    const year = Number.parseInt(targetDate.slice(0, 4), 10);
+    if (year < 1970 || year > 2100) {
+      if (requestId === loadRequestId.current) setLoading(false);
       return;
     }
-    const d = dayjs(targetDate);
-    if (!d.isValid()) {
-      return;
-    }
-    if (d.day() === 0) {
-      setData(null);
-      setError('DCR date cannot be Sunday. Operations are Monday to Saturday only.');
+
+    if (dayjs(targetDate).day() === 0) {
+      if (requestId === loadRequestId.current) {
+        setLoading(false);
+        setData(null);
+        setError('DCR date cannot be Sunday. Operations are Monday to Saturday only.');
+      }
       return;
     }
 
@@ -90,11 +80,16 @@ export default function DailyCashReport() {
         params: { date: targetDate, ...(targetBranchId ? { branch_id: targetBranchId } : {}) }
       });
       if (requestId !== loadRequestId.current) return;
+
       setData(res.data);
       API.get('/branches')
-        .then(bRes => setBranches(Array.isArray(bRes.data) ? bRes.data : []))
+        .then(bRes => {
+          if (requestId === loadRequestId.current) {
+            setBranches(Array.isArray(bRes.data) ? bRes.data : []);
+          }
+        })
         .catch(err => console.warn('Unable to load DCR branch list', err));
-      
+
       setYtdReleases(res.data.ytd_beg_releases_default ?? 0);
       setYtdCollections(res.data.ytd_beg_collections_default ?? 0);
       setYtdExpenses(res.data.ytd_beg_expenses_default ?? 0);
@@ -115,54 +110,31 @@ export default function DailyCashReport() {
       console.error(err);
       setData(null);
       setError(getLoadErrorMessage(err));
-    } 
-    finally {
+    } finally {
       if (requestId === loadRequestId.current) setLoading(false);
     }
   }, [date, branchId]);
 
   useEffect(() => {
-<<<<<<< HEAD
     loadRequestId.current += 1;
+
     if (!isCompleteDcrDate(date)) {
       setLoading(false);
       setError('');
       return undefined;
     }
+
     setLoading(true);
-    const timeoutId = window.setTimeout(loadData, DCR_LOAD_DEBOUNCE_MS);
+    const timeoutId = window.setTimeout(
+      () => loadData(date, branchId),
+      DCR_LOAD_DEBOUNCE_MS
+    );
+
     return () => {
       window.clearTimeout(timeoutId);
       loadRequestId.current += 1;
     };
   }, [date, branchId, loadData]);
-=======
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return;
-    }
-    const [yearStr] = date.split('-');
-    const year = parseInt(yearStr, 10);
-    if (isNaN(year) || year < 1970 || year > 2100) {
-      return;
-    }
-    const d = dayjs(date);
-    if (!d.isValid()) {
-      return;
-    }
-    if (d.day() === 0) {
-      setData(null);
-      setError('DCR date cannot be Sunday. Operations are Monday to Saturday only.');
-      return;
-    }
-
-    setError('');
-    const timer = setTimeout(() => {
-      loadData(date, branchId);
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [date, branchId]);
->>>>>>> 0ed7b5612dc76d1a23e48f036e3577966e878ffe
 
   const fmt = (num) => Number(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const releaseBalance = (release) => {
