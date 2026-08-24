@@ -237,12 +237,14 @@ export const buildCollectionCards = collectionRows => collectionRows.flatMap(col
     isReconVariant: false
   }
 
-  if (!String(collector.name || '').toLowerCase().includes('laude')) return [regularCard]
+  const collectorName = String(collector.name || '').toLowerCase()
+  const isReynaldoLaude = collectorName.includes('reynaldo') && collectorName.includes('laude')
+  if (!isReynaldoLaude) return [regularCard]
 
   const withReconCard = {
     ...collector,
     cardKey: `${collector.id}-with-recon`,
-    displayName: `${collector.name} With Recon`,
+    displayName: 'Reynaldo Laude Jr. With Recon',
     isReconVariant: true,
     rows: collector.rows.map(row => {
       const dailyTarget = Number(row.withReconTarget ?? (Number(row.dailyTarget || 0) + Number(row.reconTarget || 0)))
@@ -2988,7 +2990,7 @@ export default function CollectorPerformance() {
                             </div>
                             <div style={{ minWidth: 0, overflow: 'hidden' }}>
                               <div style={{ fontSize: 20, lineHeight: 1.15, fontWeight: 900, textTransform: 'uppercase', color: '#0f172a', overflowWrap: 'anywhere' }}>
-                                {collector.isReconVariant ? `${cardEdit.fullName || collector.name} With Recon` : cardEdit.fullName || collector.displayName}
+                                {collector.isReconVariant ? collector.displayName : cardEdit.fullName || collector.displayName}
                               </div>
                               <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 4, color: '#475569', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', overflowWrap: 'anywhere' }}>
                                 <MapPin size={14} /> {cardEdit.area || getCollectorArea(collector.name)}
