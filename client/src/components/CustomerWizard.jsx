@@ -92,6 +92,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
     brgy: String(initialData.brgy || '').toUpperCase(),
     city: String(initialData.city || '').toUpperCase(),
     province: String(initialData.province || '').toUpperCase(),
+    collateral: String(initialData.collateral || '').toUpperCase(),
     id_type: normalizeIdType(initialData.id_type)
   } : {
     customer_classification: 'New Client', risk_category: 'Medium Risk', cic_verification: 'Verified',
@@ -101,7 +102,7 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
     contact: '', secondary_contact: '', email: '', fb_account: '', messenger_account: '', contact_notes: '',
     business_type: 'SARI-SARI STORE', business_type_other: '', occupation: 'Retail', business_name: '', business_address: '', business_years: '', business_months: '', income_per_month: '', business_employees: '', business_ownership: 'Sole Proprietorship', business_permit: 'Yes', permit_date_issued: '', permit_place_issued: '', permit_no: '',
     id_type: '', id_number: '', id_issue_date: '', id_expiry_date: '', id_issued_by: 'PSA', id_place_of_issue: '', tin_number: '', sss_number: '', id_notes: '',
-    loan_purpose: '', branch_id: '', collector_id: '',
+    loan_purpose: '', collateral: '', branch_id: '', collector_id: '',
     photo_id_front: null, photo_id_back: null, photo_business_proof: null, photo_client: null
   });
 
@@ -477,6 +478,10 @@ export default function CustomerWizard({ initialData, onClose, onSaved, collecto
           </div>
           <div className="form-group"><label>Average Monthly Gross Income</label><input type="number" className="form-control" value={form.income_per_month} onChange={e => setForm({...form, income_per_month: e.target.value})} /></div>
           <div className="form-group"><label>Loan Purpose</label><input className="form-control" value={form.loan_purpose} onChange={handleUpper('loan_purpose')} placeholder="e.g. ADDITIONAL CAPITAL" /></div>
+          <div className="form-group">
+            <label htmlFor="customer-collateral">Collateral</label>
+            <input id="customer-collateral" className="form-control" value={form.collateral} onChange={handleUpper('collateral')} placeholder="e.g. APPLIANCE, MOTORCYCLE, PROPERTY" />
+          </div>
           <div className="form-grid">
             <div className="form-group"><label>Business Ownership</label>
               <select className="form-control" value={form.business_ownership} onChange={e => setForm({...form, business_ownership: e.target.value})}>

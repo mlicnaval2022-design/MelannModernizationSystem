@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import CustomerWizard from './CustomerWizard';
 
@@ -21,5 +21,19 @@ describe('CustomerWizard', () => {
 
     expect(screen.getByRole('heading', { name: /new customer registration/i })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /ana santos/i })).toBeInTheDocument();
+  });
+
+  it('shows the collateral field in Business Information', () => {
+    render(
+      <CustomerWizard
+        collectors={[]}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getAllByText('Business Information')[0]);
+
+    expect(screen.getByRole('textbox', { name: 'Collateral' })).toBeInTheDocument();
   });
 });
