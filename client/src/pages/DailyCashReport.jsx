@@ -38,16 +38,31 @@ export default function DailyCashReport() {
     return err?.message || 'Failed to load Daily Cash Report.';
   };
 
-  const loadData = async () => {
-    if (!date) {
+  const loadData = async (targetDate = date, targetBranchId = branchId) => {
+    if (!targetDate || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
       setData(null);
       return;
     }
+    const [yearStr] = targetDate.split('-');
+    const year = parseInt(yearStr, 10);
+    if (isNaN(year) || year < 1970 || year > 2100) {
+      return;
+    }
+    const d = dayjs(targetDate);
+    if (!d.isValid()) {
+      return;
+    }
+    if (d.day() === 0) {
+      setData(null);
+      setError('DCR date cannot be Sunday. Operations are Monday to Saturday only.');
+      return;
+    }
+
     setLoading(true);
     setError('');
     try {
       const res = await API.get('/dcr/summary', {
-        params: { date, ...(branchId ? { branch_id: branchId } : {}) }
+        params: { date: targetDate, ...(targetBranchId ? { branch_id: targetBranchId } : {}) }
       });
       setData(res.data);
       API.get('/branches')
@@ -77,8 +92,32 @@ export default function DailyCashReport() {
     finally { setLoading(false); }
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadData(); }, [date, branchId]);
+  useEffect(() => {
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return;
+    }
+    const [yearStr] = date.split('-');
+    const year = parseInt(yearStr, 10);
+    if (isNaN(year) || year < 1970 || year > 2100) {
+      return;
+    }
+    const d = dayjs(date);
+    if (!d.isValid()) {
+      return;
+    }
+    if (d.day() === 0) {
+      setData(null);
+      setError('DCR date cannot be Sunday. Operations are Monday to Saturday only.');
+      return;
+    }
+
+    setError('');
+    const timer = setTimeout(() => {
+      loadData(date, branchId);
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [date, branchId]);
 
   const fmt = (num) => Number(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const releaseBalance = (release) => {
@@ -86,25 +125,14 @@ export default function DailyCashReport() {
     return previousBalance > 0 ? previousBalance : Number(release.old_balance_paid_today || 0);
   };
 
-  if (!data && loading) return <div style={{padding: 20}}>Loading Daily Cash Report...</div>;
-  if (!data) return (
-    <div style={{ maxWidth: 900, margin: '24px auto', padding: 20, background: '#fff', border: '1px solid #fecaca', borderRadius: 10, color: '#7f1d1d' }}>
-      <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 6 }}>Daily Cash Report failed to load</div>
-      <div style={{ fontSize: 13 }}>{error || 'Please try reloading the report.'}</div>
-      <button onClick={loadData} disabled={loading} style={{ marginTop: 14, padding: '8px 14px', borderRadius: 6, border: '1px solid #fca5a5', background: '#fff', color: '#b91c1c', fontWeight: 700, cursor: 'pointer' }}>
-        {loading ? 'Loading...' : 'Retry'}
-      </button>
-    </div>
-  );
-
   // Group collections by collector for "4. COLLECTIONS"
-  const collByCollector = (data.collections || []).reduce((acc, c) => {
+  const collByCollector = (data?.collections || []).reduce((acc, c) => {
     const name = c.collector_name || 'Unassigned';
     acc[name] = (acc[name] || 0) + c.amount_paid;
     return acc;
   }, {});
 
-  (data.releases || []).forEach(r => {
+  (data?.releases || []).forEach(r => {
     const name = r.collector_name || 'Unassigned';
     const releasePenalty = Number(r.penalty_payment_count || 0) > 0 ? 0 : Number(r.penalty || 0);
     const releasePassbook = Number(r.today_passbook ?? (r.passbook || 0));
@@ -115,36 +143,37 @@ export default function DailyCashReport() {
     }
   });
 
-  (data.passbooks || []).forEach(p => {
+  (data?.passbooks || []).forEach(p => {
     const name = p.description || 'Unassigned';
     collByCollector[name] = (collByCollector[name] || 0) + p.amount;
   });
 
-  (data.penalties || []).forEach(p => {
+  (data?.penalties || []).forEach(p => {
     const name = p.description || 'Unassigned';
     collByCollector[name] = (collByCollector[name] || 0) + p.amount;
   });
 
-  (data.collectorsOver || []).forEach(c => {
+  (data?.collectorsOver || []).forEach(c => {
     const name = c.description || 'Unassigned';
     collByCollector[name] = (collByCollector[name] || 0) + c.amount;
   });
 
-  (data.otherTransactions || []).forEach(c => {
+  (data?.otherTransactions || []).forEach(c => {
     const name = 'Office';
     collByCollector[name] = (collByCollector[name] || 0) + c.amount;
   });
 
-  const bankCharges = data.bankCharges || [];
-  const interest = data.interest || [];
-  const withdrawal = data.withdrawals || [];
-  const deposit = data.deposits || [];
-  const adjustments = data.adjustments || [];
-  const collectorsOverList = data.collectorsOver || [];
-  const otherTransactionsList = data.otherTransactions || [];
-  const collectionBreakdown = data.collection_breakdown || {};
+  const bankCharges = data?.bankCharges || [];
+  const interest = data?.interest || [];
+  const withdrawal = data?.withdrawals || [];
+  const deposit = data?.deposits || [];
+  const adjustments = data?.adjustments || [];
+  const collectorsOverList = data?.collectorsOver || [];
+  const otherTransactionsList = data?.otherTransactions || [];
+  const collectionBreakdown = data?.collection_breakdown || {};
 
   const handleExportExcel = () => {
+    if (!data) return;
     // Basic CSV Export
     let csv = `DAILY CASH REPORT\nDate: ${date}\nDCR No: ${data.dcr ? data.dcr.dcr_number : `DCR-${dayjs(date).format('YYYYMMDD')}-0001`}\n\n`;
     
@@ -359,11 +388,11 @@ export default function DailyCashReport() {
         </div>
         <div>
           <h2 className="title">DAILY CASH REPORT</h2>
-          <div className="date-subtitle">📅 {dayjs(date).format('dddd, MMMM D, YYYY')}</div>
+          <div className="date-subtitle">📅 {dayjs(date).isValid() ? dayjs(date).format('dddd, MMMM D, YYYY') : 'Select Date'}</div>
         </div>
         <div className="dcr-no">
           <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a' }}>
-            {data.dcr ? data.dcr.dcr_number : `DCR-${dayjs(date).format('YYYYMMDD')}-0001`}
+            {data?.dcr ? data.dcr.dcr_number : (dayjs(date).isValid() ? `DCR-${dayjs(date).format('YYYYMMDD')}-0001` : 'DCR-00000000-0001')}
           </div>
           <div style={{ fontSize: 11, color: '#64748b', marginTop: 5 }}>Daily Cash Report No.</div>
         </div>
@@ -373,21 +402,46 @@ export default function DailyCashReport() {
       <div className="dcr-controls">
         <div>
           <input type="date" value={date} onChange={e => setDate(e.target.value)} />
-          <select value={branchId} onChange={e => setBranchId(e.target.value)}>
+          <select value={branchId} onChange={e => setBranchId(e.target.value)} disabled={loading}>
             <option value="">All Branches</option>
             {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
           </select>
         </div>
         <div className="dcr-actions">
-          <button type="button" onClick={() => loadData()}>🔄 Refresh</button>
-          <button type="button" className="btn-export" onClick={() => window.print()}>📄 Export PDF</button>
-          <button type="button" className="btn-excel" onClick={handleExportExcel}>📊 Export Excel</button>
-          <button type="button" className="btn-checklist" onClick={openChecklist}>BIR Checklist</button>
-          <button type="button" onClick={() => window.print()}>🖨️ Print</button>
+          <button type="button" onClick={() => loadData(date, branchId)} disabled={loading}>🔄 Refresh</button>
+          <button type="button" className="btn-export" onClick={() => window.print()} disabled={!data || loading}>📄 Export PDF</button>
+          <button type="button" className="btn-excel" onClick={handleExportExcel} disabled={!data || loading}>📊 Export Excel</button>
+          <button type="button" className="btn-checklist" onClick={openChecklist} disabled={!data || loading}>BIR Checklist</button>
+          <button type="button" onClick={() => window.print()} disabled={!data || loading}>🖨️ Print</button>
         </div>
       </div>
 
-      {/* SUMMARY CARDS */}
+      {error && (
+        <div style={{ maxWidth: 900, margin: '20px auto', padding: '16px 20px', background: '#fff', border: '1px solid #fecaca', borderRadius: 10, color: '#7f1d1d' }}>
+          <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Daily Cash Report failed to load</div>
+          <div style={{ fontSize: 13 }}>{error}</div>
+          <button onClick={() => loadData(date, branchId)} disabled={loading} style={{ marginTop: 12, padding: '8px 14px', borderRadius: 6, border: '1px solid #fca5a5', background: '#fff', color: '#b91c1c', fontWeight: 700, cursor: 'pointer' }}>
+            {loading ? 'Loading...' : 'Retry'}
+          </button>
+        </div>
+      )}
+
+      {loading && (
+        <div style={{ padding: '40px 20px', textAlign: 'center', color: '#64748b', fontSize: 14 }}>
+          <div style={{ fontSize: 24, marginBottom: 8 }}>⏳</div>
+          Loading Daily Cash Report...
+        </div>
+      )}
+
+      {!loading && !data && !error && (
+        <div style={{ padding: '40px 20px', textAlign: 'center', color: '#64748b' }}>
+          Please select a valid date (Monday to Saturday) to view the Daily Cash Report.
+        </div>
+      )}
+
+      {!loading && data && (
+        <>
+          {/* SUMMARY CARDS */}
       <div className="dcr-summary-cards">
         <div className="dcr-card" style={{ borderColor: '#bfdbfe' }}>
           <div className="icon" style={{ background: '#eff6ff', color: '#2563eb' }}>💼</div>
@@ -808,6 +862,8 @@ export default function DailyCashReport() {
           <div className="dcr-sign-date">{dayjs(date).format('MMMM D, YYYY')} {dayjs().format('h:mm A')}</div>
         </div>
       </div>
+      </>
+      )}
 
       {checklistOpen && (
         <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setChecklistOpen(false)}>
