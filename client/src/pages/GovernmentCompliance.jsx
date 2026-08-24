@@ -59,6 +59,9 @@ const CIC_PREVIEW_VALUE_INDEXES = {
 
 function cicPreviewValue(record, recordType, displayIndex) {
   const sourceIndex = CIC_PREVIEW_VALUE_INDEXES[recordType]?.[displayIndex] ?? displayIndex;
+  if (recordType === 'ID' && displayIndex === 34) {
+    return record.values[sourceIndex] || '3';
+  }
   return record.values[sourceIndex] || '-';
 }
 
