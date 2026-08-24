@@ -50,6 +50,7 @@ const CIC_HEADERS = {
   FT: ["Record Type","Provider Code","File Reference Date\n(End Day of the Reporting Month)\nddmmyyy","No. of records"]
 };
 
+<<<<<<< HEAD
 const CIC_PREVIEW_VALUE_INDEXES = {
   ID: {
     34: 77,
@@ -65,6 +66,8 @@ function cicPreviewValue(record, recordType, displayIndex) {
   return record.values[sourceIndex] || '-';
 }
 
+=======
+>>>>>>> c251990439ceaef4c8d04f9908e41a0f7f4ecd1f
 const months = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: new Date(2026, i, 1).toLocaleString('en-US', { month: 'long' }) }));
 const currentYear = new Date().getFullYear();
 const emptyFilters = { search: '', startDate: '', endDate: '', month: '', year: currentYear, status: '', filing_type: '', tax_type: '', page: 1, limit: 10, sort: 'due_date', dir: 'ASC' };
@@ -752,7 +755,7 @@ function CICGenerator() {
                       <tbody>
                         {submission.previewRecords.filter(r => r.recordType === previewFilter).slice(0, 100).map((record, idx) => (
                           <tr key={`${record.recordType}-${idx}`}>
-                            {Array(CIC_HEADERS[previewFilter].length).fill('').map((_, valueIndex) => <td key={valueIndex} style={{ whiteSpace: 'nowrap' }}>{cicPreviewValue(record, previewFilter, valueIndex)}</td>)}
+                            {Array(CIC_HEADERS[previewFilter].length).fill('').map((_, valueIndex) => <td key={valueIndex} style={{ whiteSpace: 'nowrap' }}>{record.values[valueIndex] || '-'}</td>)}
                           </tr>
                         ))}
                       </tbody>

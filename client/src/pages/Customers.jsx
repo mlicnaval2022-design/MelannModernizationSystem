@@ -420,18 +420,31 @@ export default function Customers() {
   };
   const getPaymentStatusText = (payment) => {
     const isReversed = payment.status === 'reversed';
-    const isRecon = payment.status === 'recon' || String(payment.payment_type || '').toLowerCase() === 'recon' || String(payment.remarks || '').toLowerCase().includes('recon');
-    const isDeceased = payment.status === 'deceased' || String(payment.payment_type || '').toLowerCase() === 'deceased' || String(payment.remarks || '').toLowerCase().includes('deceased');
-    const normalizedWriteOff = value => String(value || '').toLowerCase().replace(/[-_\s]/g, '');
-    const isWriteOff = normalizedWriteOff(payment.status) === 'writeoff' || normalizedWriteOff(payment.payment_type) === 'writeoff' || normalizedWriteOff(payment.remarks).includes('writeoff');
-    const isFullyPaid = (payment.status === 'active' || isRecon || isDeceased || isWriteOff) && Number(payment.balance_after) <= 0;
-    const isPartial = payment.status === 'active' && Number(payment.balance_after) > 0;
+    const remarks = String(payment.remarks || '').toLowerCase();
+    const paymentType = String(payment.payment_type || '').toLowerCase();
+    const status = String(payment.status || '').toLowerCase();
+    const isOldBalance = remarks.includes('old balance') || ['balance', 'old_balance'].includes(paymentType);
 
     if (isReversed) return 'Reversed';
+
+    if (isOldBalance) {
+      if (remarks.includes('recon')) return 'Balance(Recon)';
+      if (remarks.includes('reloan') || remarks.includes('re-loan')) return 'Balance(Reloan)';
+      if (Number(payment.balance_after || 0) <= 0) return 'Balance(Fully Paid)';
+      return 'Balance';
+    }
+
+    const isRecon = status === 'recon' || paymentType === 'recon' || remarks.includes('recon');
+    const isDeceased = status === 'deceased' || paymentType === 'deceased' || remarks.includes('deceased');
+    const normalizedWriteOff = value => String(value || '').toLowerCase().replace(/[-_\s]/g, '');
+    const isWriteOff = normalizedWriteOff(status) === 'writeoff' || normalizedWriteOff(paymentType) === 'writeoff' || normalizedWriteOff(remarks).includes('writeoff');
+    const isFullyPaid = (status === 'active' || isRecon || isDeceased || isWriteOff) && Number(payment.balance_after || 0) <= 0;
+    const isPartial = status === 'active' && Number(payment.balance_after || 0) > 0;
+
     if (isDeceased) return isFullyPaid ? 'Fully Paid(Deceased)' : 'Deceased';
     if (isWriteOff) return isFullyPaid ? 'Fully Paid(Write-off)' : 'Write-off';
     if (isRecon) return isFullyPaid ? 'Fully Paid(Recon)' : 'Recon';
-    if (payment.status === 'penalty') return 'Penalty';
+    if (status === 'penalty') return 'Penalty';
     if (isFullyPaid) return 'Fully Paid';
     if (isPartial) return 'Active';
     return payment.status || 'Active';
@@ -2526,18 +2539,25 @@ export default function Customers() {
                             {loanPayments.map((p, idx) => { 
                               const isReversed = p.status === 'reversed';
                               const isPenalty = p.status === 'penalty';
-                              const isRecon = p.status === 'recon' || String(p.payment_type || '').toLowerCase() === 'recon' || String(p.remarks || '').toLowerCase().includes('recon');
+                              const remarks = String(p.remarks || '').toLowerCase();
+                              const paymentType = String(p.payment_type || '').toLowerCase();
+                              const status = String(p.status || '').toLowerCase();
+                              const isOldBalance = remarks.includes('old balance') || ['balance', 'old_balance'].includes(paymentType);
                               const normalizedSpecialType = value => String(value || '').toLowerCase().replace(/[-_\s]/g, '');
-                              const isDeceased = p.status === 'deceased' || String(p.payment_type || '').toLowerCase() === 'deceased' || String(p.remarks || '').toLowerCase().includes('deceased');
-                              const isWriteOff = normalizedSpecialType(p.status) === 'writeoff' || normalizedSpecialType(p.payment_type) === 'writeoff' || normalizedSpecialType(p.remarks).includes('writeoff');
-                              const isFullyPaid = (p.status === 'active' || isRecon || isDeceased || isWriteOff) && Number(p.balance_after) <= 0;
-                              const isPartial = p.status === 'active' && Number(p.balance_after) > 0;
+                              const isRecon = !isOldBalance && (status === 'recon' || paymentType === 'recon' || remarks.includes('recon'));
+                              const isDeceased = !isOldBalance && (status === 'deceased' || paymentType === 'deceased' || remarks.includes('deceased'));
+                              const isWriteOff = !isOldBalance && (normalizedSpecialType(status) === 'writeoff' || normalizedSpecialType(paymentType) === 'writeoff' || normalizedSpecialType(remarks).includes('writeoff'));
+                              const isFullyPaid = (status === 'active' || isRecon || isDeceased || isWriteOff) && Number(p.balance_after) <= 0;
+                              const isPartial = status === 'active' && Number(p.balance_after) > 0;
                               
                               // Pill styles
                               let pillBg = '#f1f5f9', pillColor = '#64748b', pillIcon = 'bi-circle';
                               let statusText = getPaymentStatusText(p);
                               
                               if (isReversed) { pillBg = '#fee2e2'; pillColor = '#ef4444'; pillIcon = 'bi-x-circle'; }
+                              else if (statusText === 'Balance(Recon)') { pillBg = '#ede9fe'; pillColor = '#7c3aed'; pillIcon = 'bi-check-circle'; }
+                              else if (statusText === 'Balance(Reloan)') { pillBg = '#e0e7ff'; pillColor = '#4338ca'; pillIcon = 'bi-check-circle'; }
+                              else if (statusText === 'Balance(Fully Paid)' || statusText === 'Balance') { pillBg = '#dcfce7'; pillColor = '#15803d'; pillIcon = 'bi-check-circle'; }
                               else if (isPenalty) { pillBg = '#fef3c7'; pillColor = '#b45309'; pillIcon = 'bi-exclamation-circle'; }
                               else if (isDeceased) { pillBg = '#fef3c7'; pillColor = '#b45309'; pillIcon = 'bi-check-circle'; }
                               else if (isWriteOff) { pillBg = '#fee2e2'; pillColor = '#b91c1c'; pillIcon = 'bi-check-circle'; }

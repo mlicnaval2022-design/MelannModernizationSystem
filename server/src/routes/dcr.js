@@ -66,10 +66,6 @@ const isReleaseChargePayment = payment => {
 };
 
 const getReleaseChargeBreakdown = releases => releases.reduce((acc, release) => {
-  const loanType = String(release.loan_type || '').toLowerCase();
-  if (['recon', 'reconstruct', 'reconstructed'].includes(loanType)) {
-    return acc;
-  }
   acc.balance += Number(release.previous_balance || 0);
   acc.penalty += Number(release.penalty_payment_count || 0) > 0 ? 0 : Number(release.penalty || 0);
   acc.passbook += Number(release.today_passbook ?? (release.passbook || 0));

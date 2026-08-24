@@ -21,6 +21,30 @@ const addDays = (value, days) => {
   date.setDate(date.getDate() + Number(days || 0))
   return toDateInputValue(date)
 }
+const getWorkingDays = period => {
+  const p = parseInt(period) || 45
+  if (p === 26 || p === 30) return 26
+  if (p === 39 || p === 45) return 39
+  if (p === 52 || p === 60) return 52
+  if (p === 78 || p === 90) return 78
+  if (p === 104 || p === 120) return 104
+  if (p === 156 || p === 180) return 156
+  if (p % 6 === 0) return p
+  const fullWeeks = Math.floor(p / 7)
+  const remainder = p % 7
+  return (fullWeeks * 6) + Math.min(remainder, 6)
+}
+const addWorkingDays = (startDate, workingDays) => {
+  if (!startDate || !workingDays || workingDays <= 0) return ''
+  const date = new Date(`${String(startDate).slice(0, 10)}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return ''
+  let added = 0
+  while (added < workingDays) {
+    date.setDate(date.getDate() + 1)
+    if (date.getDay() !== 0) added++
+  }
+  return toDateInputValue(date)
+}
 const calculateAge = birthDate => {
   if (!birthDate) return '-'
   const birth = new Date(`${birthDate}T00:00:00`)
@@ -54,8 +78,10 @@ const amountInWords = value => {
 const disclosurePeriod = value => {
   const days = Number(value || 0)
   if (!days) return 0
-  if (days <= 30) return 30
-  if (days <= 45) return 45
+  if (days === 26 || days <= 30) return 30
+  if (days === 39 || days <= 45) return 45
+  if (days === 52 || days <= 60) return 60
+  if (days === 78 || days <= 90) return 90
   return days
 }
 const toDisplayCase = value => String(value || '')
@@ -332,8 +358,10 @@ function DisclosurePreview({ data }) {
   const totalLoan = Number(loan.total_amortization || loan.principal || 0)
   const interestRate = Number(loan.interest_rate || 0)
   const loanPeriod = Number(loan.loan_period || 0)
-  const amortization = Number(loan.amortization || 0)
-  const maturityDate = loan.date_maturity || addDays(loan.date_released, loanPeriod)
+  const workingDays = getWorkingDays(loanPeriod)
+  const amortization = Number(loan.amortization || (workingDays > 0 ? Math.ceil(totalLoan / workingDays) : 0))
+  const computedMaturity = addWorkingDays(loan.date_released, workingDays)
+  const maturityDate = loan.date_maturity || computedMaturity
   const fullName = formatBorrowerName(loan)
   const phone = [loan.contact, loan.secondary_contact].filter(Boolean).join('/')
   const businessNature = loan.business_type || loan.business_name || loan.occupation || '-'
@@ -342,7 +370,26 @@ function DisclosurePreview({ data }) {
   const clientAddress = formatClientAddress(loan)
   const netProceed = Number(loan.net_proceeds || principal)
   const charges = Number(loan.service_fee || 0) + Number(loan.insurance || 0) + Number(loan.notarial_fee || 0) + Number(loan.filing_fee || 0) + Number(loan.total_deductions || 0) + Number(loan.penalty || 0) + Number(loan.passbook || 0) + Number(loan.previous_balance || 0)
-  const schedule = (data.schedule || []).slice(0, 45)
+  
+  let schedule = (data.schedule || []).slice(0, 45)
+  if (schedule.length < workingDays && loan.date_released && workingDays > 0) {
+    let cur = new Date(`${String(loan.date_released).slice(0, 10)}T00:00:00`)
+    let count = 0
+    const gen = []
+    while (count < workingDays) {
+      cur.setDate(cur.getDate() + 1)
+      if (cur.getDay() !== 0) {
+        count++
+        gen.push({
+          period_number: count,
+          due_date: toDateInputValue(cur),
+          amount_due: amortization || (totalLoan > 0 ? Math.ceil(totalLoan / workingDays) : 0),
+          status: 'unpaid'
+        })
+      }
+    }
+    schedule = gen.slice(0, 45)
+  }
   const scheduleRowsPerColumn = Math.ceil(schedule.length / 3)
   const scheduleColumns = [
     schedule.slice(0, scheduleRowsPerColumn),
@@ -605,8 +652,10 @@ function DocumentPreview({ data }) {
   const principal = Number(loan.principal || 0)
   const interestRate = Number(loan.interest_rate || 0)
   const loanPeriod = Number(loan.loan_period || 0)
+  const workingDays = getWorkingDays(loanPeriod)
   const displayLoanPeriod = disclosurePeriod(loanPeriod)
-  const maturityDate = loan.date_maturity || addDays(loan.date_released, loanPeriod)
+  const computedMaturity = addWorkingDays(loan.date_released, workingDays)
+  const maturityDate = loan.date_maturity || computedMaturity
   const fullName = formatBorrowerName(loan)
   const borrowerAddress = formatClientAddress(loan)
   const collateral = loan.collateral || '-'

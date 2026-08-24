@@ -4,8 +4,8 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { canAccessPath } from './access'
 import Layout from './components/Layout'
+import Login from './pages/Login'
 
-const Login = lazy(() => import('./pages/Login'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Customers = lazy(() => import('./pages/Customers'))
 const Loans = lazy(() => import('./pages/Loans'))

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Loan Calculator Service
  * Core business logic for amortization, maturity, and balance computations
  */
@@ -22,26 +22,40 @@ function computeAmortization(principal, interestRate, loanPeriod) {
 }
 
 /**
- * Compute maturity date from release date using the actual loan period (calendar days)
+ * Count working days (excluding Sundays) for a given loan period
  */
-function computeMaturityDate(dateReleased, loanPeriod) {
-  const days = parseInt(loanPeriod) || 45;
-  const date = new Date(dateReleased);
-  date.setDate(date.getDate() + days);
-  return date.toISOString().split('T')[0];
+function getWorkingDays(period) {
+  const p = parseInt(period) || 45;
+  if (p === 26 || p === 30) return 26;
+  if (p === 39 || p === 45) return 39;
+  if (p === 52 || p === 60) return 52;
+  if (p === 78 || p === 90) return 78;
+  if (p === 104 || p === 120) return 104;
+  if (p === 156 || p === 180) return 156;
+  if (p % 6 === 0) return p;
+  const fullWeeks = Math.floor(p / 7);
+  const remainder = p % 7;
+  return (fullWeeks * 6) + Math.min(remainder, 6);
 }
 
 /**
- * Count working days (excluding Sundays) within a given number of calendar days
+ * Compute maturity date from release date using working days (excluding Sundays)
  */
-function getWorkingDays(calendarDays) {
-  const days = parseInt(calendarDays) || 45;
-  if (days === 30) return 26;
-  if (days === 45) return 39;
-  if (days === 60) return 52;
-  const fullWeeks = Math.floor(days / 7);
-  const remainder = days % 7;
-  return (fullWeeks * 6) + Math.min(remainder, 6);
+function computeMaturityDate(dateReleased, loanPeriod) {
+  if (!dateReleased) return '';
+  const workingDays = getWorkingDays(loanPeriod);
+  const date = new Date(`${String(dateReleased).slice(0, 10)}T00:00:00`);
+  let added = 0;
+  while (added < workingDays) {
+    date.setDate(date.getDate() + 1);
+    if (date.getDay() !== 0) { // skip Sunday
+      added++;
+    }
+  }
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 /**
@@ -50,9 +64,8 @@ function getWorkingDays(calendarDays) {
  */
 function generateAmortizationSchedule(loanId, dateReleased, loanPeriod, amortizationAmount) {
   const schedule = [];
-  let currentDate = new Date(dateReleased);
-  const calendarDays = parseInt(loanPeriod) || 45;
-  const totalPayments = getWorkingDays(calendarDays);
+  let currentDate = new Date(`${String(dateReleased).slice(0, 10)}T00:00:00`);
+  const totalPayments = getWorkingDays(loanPeriod);
   let paymentsGenerated = 0;
   
   while (paymentsGenerated < totalPayments) {
@@ -60,11 +73,14 @@ function generateAmortizationSchedule(loanId, dateReleased, loanPeriod, amortiza
     // 0 is Sunday
     if (currentDate.getDay() !== 0) {
       paymentsGenerated++;
+      const y = currentDate.getFullYear();
+      const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const d = String(currentDate.getDate()).padStart(2, '0');
       schedule.push({
         loan_id: loanId,
         period_number: paymentsGenerated,
-        due_date: currentDate.toISOString().split('T')[0],
-        amount_due: parseFloat(amortizationAmount.toFixed(2)),
+        due_date: `${y}-${m}-${d}`,
+        amount_due: parseFloat(Number(amortizationAmount).toFixed(2)),
         amount_paid: 0,
         status: 'unpaid',
       });

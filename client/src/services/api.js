@@ -6,6 +6,10 @@ export function resolveApiBaseURL({
   return String(configuredBaseURL || '/api').replace(/\/$/, '');
 }
 
+export function shouldRedirectToLogin({ status, currentPath } = {}) {
+  return status === 401 && currentPath !== '/login';
+}
+
 const API_BASE_URL = resolveApiBaseURL();
 const API = axios.create({
   baseURL: API_BASE_URL,
@@ -18,7 +22,9 @@ API.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('melann_user');
-      window.location.href = '/login';
+      if (shouldRedirectToLogin({ status: err.response.status, currentPath: window.location.pathname })) {
+        window.location.replace('/login');
+      }
     }
     return Promise.reject(err);
   }
