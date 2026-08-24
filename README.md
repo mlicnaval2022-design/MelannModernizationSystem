@@ -7,7 +7,7 @@ A full-stack web application modernizing the legacy VB6 **Melann Lending System 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js v18+ installed
+- Node.js 22.12 or newer installed (Node.js 24 recommended)
 - No other software required
 
 ### First-Time Setup
@@ -170,9 +170,40 @@ JWT_SECRET=<unique-random-secret-at-least-32-characters>
 INITIAL_ADMIN_PASSWORD=<temporary-strong-password-at-least-12-characters>
 DB_PATH=./melann.db
 CORS_ORIGINS=https://melann.example.com
+TRUST_PROXY=1
+ENFORCE_HTTPS=true
+HOST=127.0.0.1
 ```
 
-`INITIAL_ADMIN_PASSWORD` is used only to create or rotate an administrator that still has the legacy default password. Remove it from the environment after the first successful production start and change the password through User Management. Production traffic must be terminated with HTTPS by the branch server or reverse proxy.
+`INITIAL_ADMIN_PASSWORD` is used only to create or rotate an administrator that still has the legacy default password. Remove it from the environment after the first successful production start and change the password through User Management.
+
+Production traffic must be terminated with HTTPS by the branch server or reverse proxy. The Node server binds to loopback by default, trusts one proxy hop, and rejects plain HTTP requests unless `ENFORCE_HTTPS=false` is explicitly set for a controlled local check. The client uses same-origin `/api`; the Vite development server proxies it to port 5001. Set `VITE_API_BASE_URL=https://your-domain.example.com/api` only when the API is served from a different HTTPS origin.
+
+### Release Verification
+
+Before moving a build to a branch/server, run:
+
+```bash
+npm run verify:release
+```
+
+This runs production dependency audits, the server test suite, client lint, client unit/component tests, and the production frontend build.
+
+Run destructive CRUD verification only against an isolated staging database or a copied backup:
+
+```bash
+DB_PATH=./staging-release-check.sqlite npm run verify:release
+```
+
+Do not run destructive create/update/delete checks directly against the live company database. Create a backup first, rehearse against the copy, then deploy the verified build to the live server.
+
+On the branch server, validate the configured database without modifying records:
+
+```bash
+npm run verify:database
+```
+
+This performs SQLite integrity, foreign-key, and required-schema checks in read-only mode.
 
 ---
 

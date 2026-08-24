@@ -170,7 +170,7 @@ export default function Layout() {
     setBackupError('')
     setBackupSuccess('')
     try {
-      const { data } = await API.post('/system/backup')
+      const { data } = await API.post('/system/backup-before-logout')
       setBackupSuccess(`Backup complete. Saved to: ${data.backup_dir}`)
       setTimeout(() => logout(), 700)
     } catch (err) {

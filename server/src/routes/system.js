@@ -5,7 +5,7 @@ const { createDatabaseBackup } = require('../services/databaseBackup');
 
 const router = express.Router();
 
-router.post('/backup', authenticateToken, requireRole('admin'), async (req, res) => {
+async function handleBackup(req, res, action = 'BACKUP') {
   try {
     const result = await createDatabaseBackup({ requestedBy: req.user?.username });
 
@@ -14,7 +14,7 @@ router.post('/backup', authenticateToken, requireRole('admin'), async (req, res)
       [
         req.user?.id || null,
         req.user?.username || null,
-        'BACKUP',
+        action,
         'SYSTEM',
         `Database backup created: ${result.dbBackupPath}`
       ]
@@ -31,6 +31,14 @@ router.post('/backup', authenticateToken, requireRole('admin'), async (req, res)
   } catch (err) {
     res.status(500).json({ error: err.message || 'Backup failed' });
   }
+}
+
+router.post('/backup', authenticateToken, requireRole('admin'), (req, res) => {
+  return handleBackup(req, res);
+});
+
+router.post('/backup-before-logout', authenticateToken, (req, res) => {
+  return handleBackup(req, res, 'BACKUP_BEFORE_LOGOUT');
 });
 
 module.exports = router;

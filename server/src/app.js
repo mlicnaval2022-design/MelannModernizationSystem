@@ -34,6 +34,24 @@ const { REPORT_TYPE_PERMISSIONS } = require('./config/accessModules');
 function createApp() {
   const app = express();
   const uploadsRoot = process.env.UPLOADS_PATH || path.join(__dirname, '../../uploads');
+  if (process.env.NODE_ENV === 'production') {
+    const trustProxy = process.env.TRUST_PROXY || '1';
+    app.set('trust proxy', Number.isNaN(Number(trustProxy)) ? trustProxy : Number(trustProxy));
+
+    if (process.env.ENFORCE_HTTPS !== 'false') {
+      app.use((req, res, next) => {
+        if (req.secure) {
+          return next();
+        }
+
+        if (req.path === '/api/health' && process.env.ALLOW_INSECURE_HEALTHCHECK === 'true') {
+          return next();
+        }
+
+        return res.status(426).json({ error: 'HTTPS is required' });
+      });
+    }
+  }
   const configuredOrigins = String(process.env.CORS_ORIGINS || '').split(',').map(item => item.trim()).filter(Boolean);
   if (process.env.NODE_ENV === 'production' && configuredOrigins.length === 0) {
     throw new Error('CORS_ORIGINS is required in production. Provide the exact client origin(s).');
@@ -51,8 +69,19 @@ function createApp() {
     },
     credentials: true
   }));
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+    if (process.env.NODE_ENV === 'production' && req.secure) {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+  });
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '1mb' }));
   app.use('/uploads', authenticateToken, express.static(uploadsRoot, {
     dotfiles: 'deny',
     fallthrough: false,

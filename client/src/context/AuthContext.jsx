@@ -10,7 +10,6 @@ export function AuthProvider({ children }) {
   });
 
   const refreshUser = useCallback(async () => {
-    if (!localStorage.getItem('melann_token')) return null;
     const { data } = await API.get('/auth/me');
     localStorage.setItem('melann_user', JSON.stringify(data));
     setUser(data);
@@ -23,14 +22,13 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (username, password) => {
     const { data } = await API.post('/auth/login', { username, password });
-    localStorage.setItem('melann_token', data.token);
     localStorage.setItem('melann_user', JSON.stringify(data.user));
     setUser(data.user);
     return data.user;
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('melann_token');
+  const logout = useCallback(async () => {
+    await API.post('/auth/logout').catch(() => {});
     localStorage.removeItem('melann_user');
     setUser(null);
   }, []);

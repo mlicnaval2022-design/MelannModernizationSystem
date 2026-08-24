@@ -15,7 +15,7 @@ function onceReady(child) {
 
     child.stdout.on('data', (chunk) => {
       output += chunk.toString();
-      if (output.includes('Running on http://localhost:')) {
+      if (output.includes('Running on http://127.0.0.1:')) {
         clearTimeout(timer);
         resolve();
       }
@@ -35,7 +35,14 @@ test('server boots, initializes an isolated database, and serves login flow', as
   const dbPath = join(mkdtempSync(join(tmpdir(), 'melann-e2e-')), 'test.sqlite');
   const child = spawn(process.execPath, ['src/index.js'], {
     cwd: join(__dirname, '../..'),
-    env: { ...process.env, PORT: String(port), DB_PATH: dbPath, JWT_SECRET: 'e2e-test-secret' },
+    env: {
+      ...process.env,
+      NODE_ENV: 'test',
+      HOST: '127.0.0.1',
+      PORT: String(port),
+      DB_PATH: dbPath,
+      JWT_SECRET: 'e2e-test-secret',
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 

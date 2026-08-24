@@ -1,19 +1,22 @@
 import axios from 'axios';
 
-const API_HOST = window.location.hostname || 'localhost';
-const API = axios.create({ baseURL: `http://${API_HOST}:5001/api`, withCredentials: true });
+export function resolveApiBaseURL({
+  configuredBaseURL = import.meta.env.VITE_API_BASE_URL,
+} = {}) {
+  return String(configuredBaseURL || '/api').replace(/\/$/, '');
+}
 
-API.interceptors.request.use((config) => {
-  const token = localStorage.getItem('melann_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
+const API_BASE_URL = resolveApiBaseURL();
+const API = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+  timeout: 30000,
 });
 
 API.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('melann_token');
       localStorage.removeItem('melann_user');
       window.location.href = '/login';
     }
