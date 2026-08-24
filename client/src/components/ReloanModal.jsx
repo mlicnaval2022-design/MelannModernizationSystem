@@ -24,17 +24,26 @@ const normalizeLoanType = type => {
   return '';
 };
 
-const addCalendarDays = (dateValue, days) => {
-  const date = new Date(`${dateValue}T00:00:00`);
-  date.setDate(date.getDate() + Number(days || 0));
+const addWorkingDays = (startDate, payableDays) => {
+  if (!startDate || !payableDays || payableDays <= 0) return '';
+  const date = new Date(`${startDate}T00:00:00`);
+  let added = 0;
+  while (added < payableDays) {
+    date.setDate(date.getDate() + 1);
+    if (date.getDay() !== 0) added++;
+  }
   return toInputDate(date);
 };
 
 const getPayableDays = (startDate, totalDays) => {
   const days = Number(totalDays || 0);
-  if (days === 30) return 26;
-  if (days === 45) return 39;
-  if (days === 60) return 52;
+  if (days === 26 || days === 30) return 26;
+  if (days === 39 || days === 45) return 39;
+  if (days === 52 || days === 60) return 52;
+  if (days === 78 || days === 90) return 78;
+  if (days === 104 || days === 120) return 104;
+  if (days === 156 || days === 180) return 156;
+  if (days % 6 === 0) return days;
 
   if (!startDate || days <= 0) return days;
   let payableDays = 0;
@@ -166,7 +175,7 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
       releaseCharges,
       netRelease: principal,
       dailyPayment,
-      dueDate: form.loanDate ? addCalendarDays(form.loanDate, form.days) : ''
+      dueDate: form.loanDate ? addWorkingDays(form.loanDate, payableDays) : ''
     };
   }, [form]);
 

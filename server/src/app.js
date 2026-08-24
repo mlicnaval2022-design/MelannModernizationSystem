@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
 const path = require('path');
 
 const authRoutes = require('./routes/auth');
@@ -34,6 +35,7 @@ const { REPORT_TYPE_PERMISSIONS } = require('./config/accessModules');
 function createApp() {
   const app = express();
   const uploadsRoot = process.env.UPLOADS_PATH || path.join(__dirname, '../../uploads');
+  const clientDistRoot = path.join(__dirname, '../../client/dist');
   if (process.env.NODE_ENV === 'production') {
     const trustProxy = process.env.TRUST_PROXY || '1';
     app.set('trust proxy', Number.isNaN(Number(trustProxy)) ? trustProxy : Number(trustProxy));
@@ -60,7 +62,8 @@ function createApp() {
 
   app.use(cors({
     origin(origin, callback) {
-      const allowed = configuredOrigins.includes(origin)
+      const normalizedOrigin = String(origin || '').toLowerCase();
+      const allowed = configuredOrigins.some(item => item.toLowerCase() === normalizedOrigin)
         || (process.env.NODE_ENV !== 'production' && developmentOrigins.some(pattern => pattern.test(origin)));
       if (!origin || allowed) {
         return callback(null, true);
@@ -118,6 +121,22 @@ function createApp() {
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', system: 'Melann Lending System V2', timestamp: new Date().toISOString() });
   });
+
+  // Serve the compiled web client from the API process for LAN deployments.
+  if (fs.existsSync(path.join(clientDistRoot, 'index.html'))) {
+    app.use(express.static(clientDistRoot, {
+      dotfiles: 'deny',
+      index: false,
+      maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0,
+    }));
+    app.get('/{*splat}', (req, res, next) => {
+      if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) {
+        return next();
+      }
+      res.setHeader('Cache-Control', 'no-store');
+      return res.sendFile(path.join(clientDistRoot, 'index.html'));
+    });
+  }
 
   app.use(errorHandler);
   return app;

@@ -292,14 +292,27 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
 
   const getPaymentStatusText = (payment) => {
     const isReversed = payment.status === 'reversed';
-    const isRecon = payment.status === 'recon' || String(payment.payment_type || '').toLowerCase() === 'recon' || String(payment.remarks || '').toLowerCase().includes('recon');
-    const isDeceased = payment.status === 'deceased' || String(payment.payment_type || '').toLowerCase() === 'deceased' || String(payment.remarks || '').toLowerCase().includes('deceased');
-    const normalizedWriteOff = value => String(value || '').toLowerCase().replace(/[-_\s]/g, '');
-    const isWriteOff = normalizedWriteOff(payment.status) === 'writeoff' || normalizedWriteOff(payment.payment_type) === 'writeoff' || normalizedWriteOff(payment.remarks).includes('writeoff');
-    const isFullyPaid = (payment.status === 'active' || isRecon || isDeceased || isWriteOff) && Number(payment.balance_after) <= 0;
-    const isPartial = payment.status === 'active' && Number(payment.balance_after) > 0;
+    const remarks = String(payment.remarks || '').toLowerCase();
+    const paymentType = String(payment.payment_type || '').toLowerCase();
+    const status = String(payment.status || '').toLowerCase();
+    const isOldBalance = remarks.includes('old balance') || ['balance', 'old_balance'].includes(paymentType);
 
     if (isReversed) return 'Reversed';
+
+    if (isOldBalance) {
+      if (remarks.includes('recon')) return 'Balance(Recon)';
+      if (remarks.includes('reloan') || remarks.includes('re-loan')) return 'Balance(Reloan)';
+      if (Number(payment.balance_after || 0) <= 0) return 'Balance(Fully Paid)';
+      return 'Balance';
+    }
+
+    const isRecon = status === 'recon' || paymentType === 'recon' || remarks.includes('recon');
+    const isDeceased = status === 'deceased' || paymentType === 'deceased' || remarks.includes('deceased');
+    const normalizedWriteOff = value => String(value || '').toLowerCase().replace(/[-_\s]/g, '');
+    const isWriteOff = normalizedWriteOff(status) === 'writeoff' || normalizedWriteOff(paymentType) === 'writeoff' || normalizedWriteOff(remarks).includes('writeoff');
+    const isFullyPaid = (status === 'active' || isRecon || isDeceased || isWriteOff) && Number(payment.balance_after) <= 0;
+    const isPartial = status === 'active' && Number(payment.balance_after) > 0;
+
     if (isDeceased) return isFullyPaid ? 'Fully Paid(Deceased)' : 'Deceased';
     if (isWriteOff) return isFullyPaid ? 'Fully Paid(Write-off)' : 'Write-off';
     if (isRecon) return isFullyPaid ? 'Fully Paid(Recon)' : 'Recon';
@@ -1713,8 +1726,8 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                                       borderRadius: '9999px',
                                       fontSize: '12px',
                                       fontWeight: '600',
-                                      backgroundColor: isReversed ? '#ffe4e6' : statusText.includes('Deceased') ? '#fef3c7' : statusText.includes('Write-off') ? '#fee2e2' : statusText === 'Penalty' ? '#fff7ed' : (statusText === 'Recon' || statusText === 'Fully Paid(Recon)') ? '#ede9fe' : statusText === 'Fully Paid' ? '#dcfce7' : '#e0f2fe',
-                                      color: isReversed ? '#e11d48' : statusText.includes('Deceased') ? '#b45309' : statusText.includes('Write-off') ? '#b91c1c' : statusText === 'Penalty' ? '#ea580c' : (statusText === 'Recon' || statusText === 'Fully Paid(Recon)') ? '#7c3aed' : statusText === 'Fully Paid' ? '#16a34a' : '#0284c7'
+                                      backgroundColor: isReversed ? '#ffe4e6' : statusText === 'Balance(Recon)' ? '#ede9fe' : statusText === 'Balance(Reloan)' ? '#e0e7ff' : (statusText === 'Balance(Fully Paid)' || statusText === 'Balance') ? '#dcfce7' : statusText.includes('Deceased') ? '#fef3c7' : statusText.includes('Write-off') ? '#fee2e2' : statusText === 'Penalty' ? '#fff7ed' : (statusText === 'Recon' || statusText === 'Fully Paid(Recon)') ? '#ede9fe' : statusText === 'Fully Paid' ? '#dcfce7' : '#e0f2fe',
+                                      color: isReversed ? '#e11d48' : statusText === 'Balance(Recon)' ? '#7c3aed' : statusText === 'Balance(Reloan)' ? '#4338ca' : (statusText === 'Balance(Fully Paid)' || statusText === 'Balance') ? '#15803d' : statusText.includes('Deceased') ? '#b45309' : statusText.includes('Write-off') ? '#b91c1c' : statusText === 'Penalty' ? '#ea580c' : (statusText === 'Recon' || statusText === 'Fully Paid(Recon)') ? '#7c3aed' : statusText === 'Fully Paid' ? '#16a34a' : '#0284c7'
                                     }}>
                                       {statusText}
                                     </span>

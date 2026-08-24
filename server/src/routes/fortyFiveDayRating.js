@@ -240,7 +240,6 @@ async function getCollectionTotalsByCollector(startDate, endDate) {
     LEFT JOIN balance_payments bp ON bp.customer_id = l.customer_id AND bp.date_paid = l.date_released
     WHERE l.date_released BETWEEN ? AND ?
       AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
-      AND LOWER(COALESCE(l.loan_type, '')) NOT IN ('recon', 'reconstruct', 'reconstructed')
       AND ${sqlNotSunday('l.date_released')}
   `, [startDate, endDate]);
   const totals = new Map();

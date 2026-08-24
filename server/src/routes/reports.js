@@ -274,7 +274,6 @@ const getCollectionReleaseCharges = async (from, to) => {
      AND bp.date_paid = l.date_released
     WHERE l.date_released BETWEEN ? AND ?
       AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
-      AND LOWER(COALESCE(l.loan_type, '')) NOT IN ('recon', 'reconstruct', 'reconstructed')
       AND ${sqlNotSunday('l.date_released')}
     ORDER BY l.date_released, collector_name, c.full_name
   `, [from, to]);

@@ -17,7 +17,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    refreshUser().catch(() => {});
+    // A logged-out visitor does not need /auth/me. Calling it from /login
+    // returns 401 by design and previously caused a continuous page reload.
+    if (localStorage.getItem('melann_user')) {
+      refreshUser().catch(() => {});
+    }
   }, [refreshUser]);
 
   const login = useCallback(async (username, password) => {

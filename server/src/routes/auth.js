@@ -9,6 +9,10 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const MAX_FAILED_LOGINS = 5;
 const failedLogins = new Map();
 
+function useSecureAuthCookie() {
+  return process.env.NODE_ENV === 'production' && process.env.ENFORCE_HTTPS !== 'false';
+}
+
 function loginAttemptKey(req, username) {
   return `${req.ip}|${String(username || '').trim().toLowerCase()}`;
 }
@@ -77,7 +81,7 @@ router.post('/login', async (req, res) => {
     res.cookie('melann_token', token, {
       httpOnly: true,
       sameSite: 'strict',
-      secure: process.env.NODE_ENV === 'production',
+      secure: useSecureAuthCookie(),
       maxAge: 12 * 60 * 60 * 1000,
     });
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, details) VALUES (?,?,?,?,?)`, [user.id, user.username, 'LOGIN', 'AUTH', 'User logged in']);
@@ -94,7 +98,7 @@ router.get('/me', authenticateToken, async (req, res) => {
 });
 
 router.post('/logout', (req, res) => {
-  res.clearCookie('melann_token', { httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
+  res.clearCookie('melann_token', { httpOnly: true, sameSite: 'strict', secure: useSecureAuthCookie() });
   res.json({ message: 'Logged out' });
 });
 

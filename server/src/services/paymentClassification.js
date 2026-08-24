@@ -50,6 +50,9 @@ const isExcludedCollectionPayment = payment => {
   const status = normalize(payment.status);
   const paymentType = normalize(payment.payment_type);
   const remarks = normalize(payment.remarks);
+  if (remarks.includes('oldbalance') || ['balance', 'oldbalance'].includes(paymentType)) {
+    return false;
+  }
   return SPECIAL_PAYMENT_TYPES.some(type => {
     const normalizedType = normalize(type);
     return status === normalizedType || paymentType === normalizedType || remarks.includes(normalizedType);
@@ -71,7 +74,9 @@ const buildCollectionPaymentExclusionSql = (alias = '', options = {}) => {
     `${paymentType} NOT IN (${excluded})`,
   ];
   if (options.includeRemarks !== false) {
-    conditions.push(...SPECIAL_PAYMENT_TYPES.map(type => `${remarks} NOT LIKE '%${type}%'`));
+    conditions.push(
+      `(${remarks} LIKE '%oldbalance%' OR (${SPECIAL_PAYMENT_TYPES.map(type => `${remarks} NOT LIKE '%${type}%'`).join(' AND ')}))`
+    );
   }
   return conditions.join(' AND ');
 };
