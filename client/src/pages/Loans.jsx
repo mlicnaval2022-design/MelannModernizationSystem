@@ -10,29 +10,11 @@ import './Loans.css'
 
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 
-const getWorkingDays = termDays => {
-  const p = Number(termDays || 0);
-  if (p === 26 || p === 30) return 26;
-  if (p === 39 || p === 45) return 39;
-  if (p === 52 || p === 60) return 52;
-  if (p === 78 || p === 90) return 78;
-  if (p === 104 || p === 120) return 104;
-  if (p === 156 || p === 180) return 156;
-  if (p % 6 === 0) return p;
-  const fullWeeks = Math.floor(p / 7);
-  const remainder = p % 7;
-  return (fullWeeks * 6) + Math.min(remainder, 6);
-};
-
 const calculateMaturityDate = (releaseDate, termDays) => {
   if (!releaseDate || !Number.isInteger(Number(termDays)) || Number(termDays) <= 0) return '';
-  const workingDays = getWorkingDays(termDays);
   const date = new Date(`${releaseDate}T00:00:00`);
-  let added = 0;
-  while (added < workingDays) {
-    date.setDate(date.getDate() + 1);
-    if (date.getDay() !== 0) added++;
-  }
+  if (Number.isNaN(date.getTime())) return '';
+  date.setDate(date.getDate() + Number(termDays));
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 

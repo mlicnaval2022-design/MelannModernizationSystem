@@ -34,17 +34,6 @@ const getWorkingDays = period => {
   const remainder = p % 7
   return (fullWeeks * 6) + Math.min(remainder, 6)
 }
-const addWorkingDays = (startDate, workingDays) => {
-  if (!startDate || !workingDays || workingDays <= 0) return ''
-  const date = new Date(`${String(startDate).slice(0, 10)}T00:00:00`)
-  if (Number.isNaN(date.getTime())) return ''
-  let added = 0
-  while (added < workingDays) {
-    date.setDate(date.getDate() + 1)
-    if (date.getDay() !== 0) added++
-  }
-  return toDateInputValue(date)
-}
 const calculateAge = birthDate => {
   if (!birthDate) return '-'
   const birth = new Date(`${birthDate}T00:00:00`)
@@ -360,7 +349,7 @@ function DisclosurePreview({ data }) {
   const loanPeriod = Number(loan.loan_period || 0)
   const workingDays = getWorkingDays(loanPeriod)
   const amortization = Number(loan.amortization || (workingDays > 0 ? Math.ceil(totalLoan / workingDays) : 0))
-  const computedMaturity = addWorkingDays(loan.date_released, workingDays)
+  const computedMaturity = addDays(loan.date_released, loanPeriod)
   const maturityDate = loan.date_maturity || computedMaturity
   const fullName = formatBorrowerName(loan)
   const phone = [loan.contact, loan.secondary_contact].filter(Boolean).join('/')
@@ -652,9 +641,8 @@ function DocumentPreview({ data }) {
   const principal = Number(loan.principal || 0)
   const interestRate = Number(loan.interest_rate || 0)
   const loanPeriod = Number(loan.loan_period || 0)
-  const workingDays = getWorkingDays(loanPeriod)
   const displayLoanPeriod = disclosurePeriod(loanPeriod)
-  const computedMaturity = addWorkingDays(loan.date_released, workingDays)
+  const computedMaturity = addDays(loan.date_released, loanPeriod)
   const maturityDate = loan.date_maturity || computedMaturity
   const fullName = formatBorrowerName(loan)
   const borrowerAddress = formatClientAddress(loan)

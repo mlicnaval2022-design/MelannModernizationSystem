@@ -39,19 +39,16 @@ function getWorkingDays(period) {
 }
 
 /**
- * Compute maturity date from release date using working days (excluding Sundays)
+ * Compute maturity date from the release date using the calendar-day loan term.
+ * Payment schedules still exclude Sundays; maturity does not.
  */
 function computeMaturityDate(dateReleased, loanPeriod) {
   if (!dateReleased) return '';
-  const workingDays = getWorkingDays(loanPeriod);
+  const period = parseInt(loanPeriod);
+  if (!Number.isInteger(period) || period <= 0) return '';
   const date = new Date(`${String(dateReleased).slice(0, 10)}T00:00:00`);
-  let added = 0;
-  while (added < workingDays) {
-    date.setDate(date.getDate() + 1);
-    if (date.getDay() !== 0) { // skip Sunday
-      added++;
-    }
-  }
+  if (Number.isNaN(date.getTime())) return '';
+  date.setDate(date.getDate() + period);
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
