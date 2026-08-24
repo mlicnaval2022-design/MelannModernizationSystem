@@ -1,0 +1,28 @@
+MELANN LENDING SYSTEM - NEW BRANCH DEPLOYMENT
+
+This package contains application code and setup files only.
+It does not contain the source branch database, customer records, uploads,
+backups, environment secrets, generated reports, or installed dependencies.
+
+SERVER PC - FIRST-TIME SETUP
+1. Extract the complete ZIP to a permanent folder on the new branch server PC.
+2. Keep the server PC connected to the internet during first-time setup.
+3. Run SETUP_SERVER.bat and wait for every check to pass.
+4. Open INITIAL_ADMIN_CREDENTIALS.txt and keep the temporary login secure.
+5. Run ALLOW_CLIENT_ACCESS.bat once as Administrator.
+6. Run START_SERVER.bat and keep its window open.
+7. Sign in as admin, change the temporary password immediately, and securely
+   delete INITIAL_ADMIN_CREDENTIALS.txt.
+8. Update the default branch details and create the required staff accounts.
+
+CLIENT PCS
+Use MLS_Client.bat or SETUP_CLIENT_SHORTCUT.bat after updating the server name
+or IP address in MLS_Client.bat when the new branch network is different.
+
+IMPORTANT
+- SETUP_SERVER.bat creates a brand-new SQLite database on the new server PC.
+- Never copy server/.env or server/melann.db from another branch.
+- CONFIGURE_STATIC_IP.bat and the STATIC launchers contain the existing
+  192.168.254.192 network setting. Use them only if that address is correct for
+  the new branch; otherwise use START_SERVER.bat and update MLS_Client.bat.
+- Keep regular, tested backups after implementation.

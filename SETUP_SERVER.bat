@@ -38,12 +38,25 @@ echo Building the web client...
 call "%NODE_DIR%\npm.cmd" run build --prefix client
 if errorlevel 1 goto :failed
 
-echo Checking the company database...
+if not exist "%~dp0server\.env" (
+  echo Creating branch-specific security configuration...
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$rng=[Security.Cryptography.RandomNumberGenerator]::Create(); $jwtBytes=New-Object byte[] 48; $passwordBytes=New-Object byte[] 12; $rng.GetBytes($jwtBytes); $rng.GetBytes($passwordBytes); $rng.Dispose(); $jwt=[Convert]::ToBase64String($jwtBytes); $password=([Convert]::ToBase64String($passwordBytes).TrimEnd('=')) + 'Aa1!'; $envLines=@('NODE_ENV=production','PORT=5001','HOST=0.0.0.0','DB_PATH=./melann.db','UPLOADS_PATH=../uploads',('JWT_SECRET=' + $jwt),('INITIAL_ADMIN_PASSWORD=' + $password),'CORS_ORIGINS=http://localhost:5001,http://127.0.0.1:5001','ENFORCE_HTTPS=false','TRUST_PROXY=0'); [IO.File]::WriteAllLines('%~dp0server\.env',$envLines,[Text.UTF8Encoding]::new($false)); $credentialLines=@('Melann Lending System - Initial Branch Administrator','','Username: admin',('Temporary password: ' + $password),'','Sign in, change this password immediately, then securely delete this file.'); [IO.File]::WriteAllLines('%~dp0INITIAL_ADMIN_CREDENTIALS.txt',$credentialLines,[Text.UTF8Encoding]::new($false))"
+  if errorlevel 1 goto :failed
+)
+
+if not exist "%~dp0server\melann.db" (
+  echo Creating a new empty branch database...
+  call "%NODE_DIR%\npm.cmd" run initialize:fresh --prefix server
+  if errorlevel 1 goto :failed
+)
+
+echo Checking the branch database...
 call "%NODE_DIR%\npm.cmd" run verify:database --prefix server
 if errorlevel 1 goto :failed
 
 echo.
 echo Setup completed successfully.
+if exist "%~dp0INITIAL_ADMIN_CREDENTIALS.txt" echo Initial administrator login: INITIAL_ADMIN_CREDENTIALS.txt
 echo Next: run ALLOW_CLIENT_ACCESS.bat once, then START_SERVER.bat.
 echo.
 pause
