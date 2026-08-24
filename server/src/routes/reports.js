@@ -1256,8 +1256,45 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       demand_letters_due_today: demandDueTodayCount,
       demand_letters_overdue: demandOverdueCount,
       demand_letters_due_count: demandDueFollowups.length,
-      demand_letters_awaiting_count: demandAwaitingReceipt.length,
-      account_status_distribution: await dbAll(`SELECT status, COUNT(*) as count FROM tblLoan GROUP BY status`),
+      account_status_distribution: [
+        {
+          status: 'active',
+          count: Number((await dbGet(`
+            SELECT COUNT(*) as c
+            FROM tblLoan
+            WHERE LOWER(COALESCE(status, '')) IN ('active', 'pastdue')
+              AND (date_maturity >= ? OR date_maturity IS NULL)
+              AND COALESCE(balance, 0) > 0
+          `, [today]))?.c || 0)
+        },
+        {
+          status: 'pastdue',
+          count: Number((await dbGet(`
+            SELECT COUNT(*) as c
+            FROM tblLoan
+            WHERE date_maturity < ?
+              AND LOWER(COALESCE(status, '')) NOT IN ('fullpaid', 'fully_paid', 'reversed', 'rejected', 'cancelled', 'canceled')
+              AND COALESCE(balance, 0) > 0
+          `, [today]))?.c || 0)
+        },
+        {
+          status: 'fullpaid',
+          count: Number((await dbGet(`
+            SELECT COUNT(*) as c
+            FROM tblLoan
+            WHERE LOWER(COALESCE(status, '')) IN ('fullpaid', 'fully_paid')
+               OR (LOWER(COALESCE(status, '')) IN ('active', 'pastdue') AND COALESCE(balance, 0) <= 0)
+          `))?.c || 0)
+        },
+        {
+          status: 'pending',
+          count: Number((await dbGet(`
+            SELECT COUNT(*) as c
+            FROM tblLoan
+            WHERE LOWER(COALESCE(status, '')) IN ('pending', 'for_approval', 'reloan_pending', 'approved')
+          `))?.c || 0)
+        }
+      ],
       aging_report: await dbGet(`
         SELECT 
           SUM(CASE WHEN days_overdue BETWEEN 1 AND 30 THEN 1 ELSE 0 END) as tier1,
