@@ -229,6 +229,37 @@ const getCollectionRemark = rate => {
   return 'NEEDS IMPROVEMENT'
 }
 
+export const buildCollectionCards = collectionRows => collectionRows.flatMap(collector => {
+  const regularCard = {
+    ...collector,
+    cardKey: `${collector.id}-regular`,
+    displayName: collector.name,
+    isReconVariant: false
+  }
+
+  if (!String(collector.name || '').toLowerCase().includes('laude')) return [regularCard]
+
+  const withReconCard = {
+    ...collector,
+    cardKey: `${collector.id}-with-recon`,
+    displayName: `${collector.name} With Recon`,
+    isReconVariant: true,
+    rows: collector.rows.map(row => {
+      const dailyTarget = Number(row.withReconTarget ?? (Number(row.dailyTarget || 0) + Number(row.reconTarget || 0)))
+      const rate = dailyTarget > 0 ? (Number(row.actual || 0) / dailyTarget) * 100 : 0
+      return {
+        ...row,
+        dailyTarget,
+        weeklyTarget: dailyTarget * 6,
+        rate,
+        remark: getCollectionRemark(rate)
+      }
+    })
+  }
+
+  return [regularCard, withReconCard]
+})
+
 const shiftOperationWeek = (dateKey, weeks) => {
   const week = getOperationWeek(dateKey)
   const shifted = new Date(`${week[5]}T00:00:00`)
@@ -894,6 +925,7 @@ export default function CollectorPerformance() {
   const [collectionRows, setCollectionRows] = useState([])
   const [newCollectionDate, setNewCollectionDate] = useState(defaultRange.date_to)
   const [selectedCollectionId, setSelectedCollectionId] = useState(null)
+  const [selectedCollectionMode, setSelectedCollectionMode] = useState('regular')
   const [collectorEdits, setCollectorEdits] = useState({})
   const [lockedCollections, setLockedCollections] = useState(null)
   const [showSavedModal, setShowSavedModal] = useState(false)
@@ -1162,6 +1194,8 @@ export default function CollectorPerformance() {
       dailyCollectors.forEach(collector => {
         const key = collector.id || collector.name
         const dailyTarget = Number(collector.regular_target ?? collector.target ?? 0)
+        const reconTarget = Number(collector.recon_target || 0)
+        const withReconTarget = Number(collector.with_recon_target ?? (dailyTarget + reconTarget))
         const actual = Number(collector.actual_collection ?? collector.collected ?? 0)
         const rate = dailyTarget > 0 ? (actual / dailyTarget) * 100 : 0
 
@@ -1179,6 +1213,8 @@ export default function CollectorPerformance() {
           date,
           dailyTarget,
           weeklyTarget: dailyTarget * 6,
+          reconTarget,
+          withReconTarget,
           actual,
           paymentCount: Number(collector.payment_count || 0),
           activeClients: Number(collector.active_clients || 0),
@@ -1716,7 +1752,10 @@ export default function CollectorPerformance() {
     totals.remark = getCollectionRemark(totals.rate)
     return totals
   }
-  const selectedCollection = collectionRows.find(collector => collector.id === selectedCollectionId)
+  const collectionCards = buildCollectionCards(collectionRows)
+  const selectedCollection = collectionCards.find(collector => (
+    collector.id === selectedCollectionId && collector.isReconVariant === (selectedCollectionMode === 'with-recon')
+  )) || collectionRows.find(collector => collector.id === selectedCollectionId)
   const selectedSummary = selectedCollection ? getCollectorCollectionTotals(selectedCollection.rows) : null
   const selectedLatestRow = selectedCollection?.rows.find(row => row.date === filters.date_to) || selectedCollection?.rows[selectedCollection?.rows.length - 1]
   const selectedEdit = selectedCollection ? collectorEdits[selectedCollection.id] || {} : {}
@@ -2691,9 +2730,14 @@ export default function CollectorPerformance() {
 
                 {selectedCollection && selectedSummary && selectedLatestRow ? (
                   <div style={{ padding: 24 }}>
-                    <button className="btn btn-secondary" type="button" onClick={() => setSelectedCollectionId(null)} style={{ marginBottom: 18 }}>
+                    <button className="btn btn-secondary" type="button" onClick={() => { setSelectedCollectionId(null); setSelectedCollectionMode('regular') }} style={{ marginBottom: 18 }}>
                       <ArrowLeft size={16} /> Back to Collectors
                     </button>
+                    {selectedCollection.isReconVariant && (
+                      <div style={{ marginBottom: 18, padding: '10px 14px', borderRadius: 8, background: '#dbeafe', color: '#1d4ed8', fontSize: 12, fontWeight: 900, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                        Viewing Laude With Recon Target
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginBottom: 18 }}>
                       <button className="btn btn-primary" type="button" onClick={saveCollectorEdits}>
                         Save
@@ -2889,7 +2933,7 @@ export default function CollectorPerformance() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: 24, padding: 24 }}>
                   {collectionsLoading ? (
                     <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>Loading collections...</div>
-                  ) : collectionRows.length ? collectionRows.map(collector => {
+                  ) : collectionCards.length ? collectionCards.map(collector => {
                     const summary = getCollectorCollectionTotals(collector.rows)
                     const latestRow = collector.rows.find(row => row.date === filters.date_to) || collector.rows[collector.rows.length - 1] || {}
                     const weeklyTarget = Number(latestRow.weeklyTarget || summary.dailyTarget || 0)
@@ -2898,12 +2942,15 @@ export default function CollectorPerformance() {
 
                     return (
                       <div
-                        key={`collector-collection-${collector.id}`}
+                        key={`collector-collection-${collector.cardKey}`}
                         role="button"
                         tabIndex={0}
-                        onClick={() => setSelectedCollectionId(collector.id)}
+                        onClick={() => { setSelectedCollectionId(collector.id); setSelectedCollectionMode(collector.isReconVariant ? 'with-recon' : 'regular') }}
                         onKeyDown={e => {
-                          if (e.key === 'Enter' || e.key === ' ') setSelectedCollectionId(collector.id)
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            setSelectedCollectionId(collector.id)
+                            setSelectedCollectionMode(collector.isReconVariant ? 'with-recon' : 'regular')
+                          }
                         }}
                         style={{
                         border: '1px solid var(--border)',
@@ -2940,10 +2987,17 @@ export default function CollectorPerformance() {
                               ) : getCollectorInitials(cardEdit.fullName || collector.name)}
                             </div>
                             <div style={{ minWidth: 0, overflow: 'hidden' }}>
-                              <div style={{ fontSize: 20, lineHeight: 1.15, fontWeight: 900, textTransform: 'uppercase', color: '#0f172a', overflowWrap: 'anywhere' }}>{cardEdit.fullName || collector.name}</div>
+                              <div style={{ fontSize: 20, lineHeight: 1.15, fontWeight: 900, textTransform: 'uppercase', color: '#0f172a', overflowWrap: 'anywhere' }}>
+                                {collector.isReconVariant ? `${cardEdit.fullName || collector.name} With Recon` : cardEdit.fullName || collector.displayName}
+                              </div>
                               <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 4, color: '#475569', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', overflowWrap: 'anywhere' }}>
                                 <MapPin size={14} /> {cardEdit.area || getCollectorArea(collector.name)}
                               </div>
+                              {collector.isReconVariant && (
+                                <div style={{ marginTop: 7, display: 'inline-flex', padding: '4px 8px', borderRadius: 999, background: '#dbeafe', color: '#1d4ed8', fontSize: 10, fontWeight: 900, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                                  Regular + Recon Target
+                                </div>
+                              )}
                             </div>
                           </div>
                           <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 124, minHeight: 46, padding: '8px 10px', border: `1px solid ${remarkStyle.borderColor}`, borderRadius: 6, fontSize: 11, lineHeight: 1.35, fontWeight: 900, letterSpacing: 1.1, textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'normal', ...remarkStyle }}>
@@ -3000,8 +3054,8 @@ export default function CollectorPerformance() {
                           </div>
                         </div>
 
-                        <button className="btn btn-primary" type="button" onClick={e => { e.stopPropagation(); setSelectedCollectionId(collector.id) }} disabled={collectionsLoading} style={{ width: '100%', marginTop: 24, justifyContent: 'center' }}>
-                          <Edit3 size={16} /> Input Daily Data
+                        <button className="btn btn-primary" type="button" onClick={e => { e.stopPropagation(); setSelectedCollectionId(collector.id); setSelectedCollectionMode(collector.isReconVariant ? 'with-recon' : 'regular') }} disabled={collectionsLoading} style={{ width: '100%', marginTop: 24, justifyContent: 'center' }}>
+                          <Edit3 size={16} /> {collector.isReconVariant ? 'View With Recon Details' : 'Input Daily Data'}
                         </button>
                       </div>
                     )
