@@ -1,6 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import API from '../services/api';
 import dayjs from 'dayjs';
+
+const DCR_LOAD_DEBOUNCE_MS = 300;
+
+function isCompleteDcrDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = dayjs(value);
+  return parsed.isValid() && parsed.format('YYYY-MM-DD') === value;
+}
+
+function getLoadErrorMessage(err) {
+  if (err?.response) {
+    const detail = err.response.data?.error || err.response.statusText || 'Request failed';
+    return `${detail} (HTTP ${err.response.status})`;
+  }
+  return err?.message || 'Failed to load Daily Cash Report.';
+}
 
 export default function DailyCashReport() {
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
@@ -16,6 +32,7 @@ export default function DailyCashReport() {
   const [ytdSaving, setYtdSaving] = useState(false);
   const [error, setError] = useState('');
   const [alertModal, setAlertModal] = useState(null);
+  const loadRequestId = useRef(0);
   
   // Denominations - kept for closing the day, though hidden from print view
   const [, setDenom] = useState({
@@ -30,17 +47,17 @@ export default function DailyCashReport() {
   const [remarks, setRemarks] = useState('');
   const [remarksSaving, setRemarksSaving] = useState(false);
 
-  const getLoadErrorMessage = (err) => {
-    if (err?.response) {
-      const detail = err.response.data?.error || err.response.statusText || 'Request failed';
-      return `${detail} (HTTP ${err.response.status})`;
+  const loadData = useCallback(async () => {
+    const requestId = ++loadRequestId.current;
+    if (!isCompleteDcrDate(date)) {
+      setLoading(false);
+      setError('');
+      return;
     }
-    return err?.message || 'Failed to load Daily Cash Report.';
-  };
-
-  const loadData = async () => {
-    if (!date) {
+    if (dayjs(date).day() === 0) {
+      setLoading(false);
       setData(null);
+      setError('DCR date cannot be Sunday. Operations are Monday to Saturday only.');
       return;
     }
     setLoading(true);
@@ -49,6 +66,7 @@ export default function DailyCashReport() {
       const res = await API.get('/dcr/summary', {
         params: { date, ...(branchId ? { branch_id: branchId } : {}) }
       });
+      if (requestId !== loadRequestId.current) return;
       setData(res.data);
       API.get('/branches')
         .then(bRes => setBranches(Array.isArray(bRes.data) ? bRes.data : []))
@@ -70,15 +88,30 @@ export default function DailyCashReport() {
         setDenom({ count_1000: 0, count_500: 0, count_200: 0, count_100: 0, count_50: 0, count_20: 0, count_coins: 0 });
       }
     } catch (err) {
+      if (requestId !== loadRequestId.current) return;
       console.error(err);
       setData(null);
       setError(getLoadErrorMessage(err));
     } 
-    finally { setLoading(false); }
-  };
+    finally {
+      if (requestId === loadRequestId.current) setLoading(false);
+    }
+  }, [date, branchId]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadData(); }, [date, branchId]);
+  useEffect(() => {
+    loadRequestId.current += 1;
+    if (!isCompleteDcrDate(date)) {
+      setLoading(false);
+      setError('');
+      return undefined;
+    }
+    setLoading(true);
+    const timeoutId = window.setTimeout(loadData, DCR_LOAD_DEBOUNCE_MS);
+    return () => {
+      window.clearTimeout(timeoutId);
+      loadRequestId.current += 1;
+    };
+  }, [date, branchId, loadData]);
 
   const fmt = (num) => Number(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const releaseBalance = (release) => {
