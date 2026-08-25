@@ -105,10 +105,9 @@ function accessBalanceExpression(prefix = '') {
 }
 
 function accessLoanWhere({ prefix = '', from, to, loanId }) {
-  const selector = loanId
-    ? `${prefix}LoanID=${validateLoanId(loanId)}`
-    : `${prefix}DateRelease >= #${accessDateLiteral(from)}# AND ${prefix}DateRelease <= #${accessDateLiteral(to)}#`;
-  return `${prefix}LoanStatus='Good' AND ${selector} AND (IsNull(${prefix}Status) OR ${prefix}Status NOT IN ('Reverse','Reversed','Reversing')) AND ${accessBalanceExpression(prefix)} > 0`;
+  if (loanId) return `${prefix}LoanID=${validateLoanId(loanId)}`;
+  const dateSelector = `${prefix}DateRelease >= #${accessDateLiteral(from)}# AND ${prefix}DateRelease <= #${accessDateLiteral(to)}#`;
+  return `${prefix}LoanStatus='Good' AND ${dateSelector} AND (IsNull(${prefix}Status) OR ${prefix}Status NOT IN ('Reverse','Reversed','Reversing')) AND ${accessBalanceExpression(prefix)} > 0`;
 }
 
 function readAccessRows({ from, to, loanId, source = process.env.JCASH_MDB_PATH || DEFAULT_SOURCE, password }) {
@@ -327,18 +326,20 @@ async function scanJcash({ from, to, loanId, password }) {
   const normalizedLoanId = loanId ? validateLoanId(loanId) : null;
   const snapshot = readAccessRows({ from, to, loanId: normalizedLoanId, password });
   const customersByCode = new Map(asArray(snapshot.customers).map(mapCustomer).filter(c => c.customer_code).map(c => [c.customer_code, c]));
-  const loans = asArray(snapshot.loans)
+  const mappedLoans = asArray(snapshot.loans)
     .map(mapLoan)
     .filter(loan => loan.loan_code && loan.customer_code)
-    .filter(isMigratableLoan)
     .filter(loan => normalizedLoanId ? loan.loan_code === normalizedLoanId : loan.date_released >= from && loan.date_released <= to);
-  const loanCodes = new Set(loans.map(loan => loan.loan_code));
-  const payments = asArray(snapshot.payments)
+  const candidateLoanCodes = new Set(mappedLoans.map(loan => loan.loan_code));
+  const mappedPayments = asArray(snapshot.payments)
     .map(mapPayment)
-    .filter(payment => payment.loan_code && loanCodes.has(payment.loan_code))
+    .filter(payment => payment.loan_code && candidateLoanCodes.has(payment.loan_code))
     .filter(payment => isGoodStatus(payment.source_status) && !isReversedStatus(payment.source_status))
     .filter(payment => payment.date_paid && getActualPaymentAmount(payment) > 0);
-  applyLedgerTotals(loans, payments);
+  applyLedgerTotals(mappedLoans, mappedPayments);
+  const loans = mappedLoans.filter(isMigratableLoan);
+  const loanCodes = new Set(loans.map(loan => loan.loan_code));
+  const payments = mappedPayments.filter(payment => loanCodes.has(payment.loan_code));
 
   const existingLoanRows = await dbAll(
     `SELECT loan_code FROM tblLoan WHERE loan_code IN (${loans.map(() => '?').join(',') || "''"})`,
@@ -532,5 +533,5 @@ module.exports = {
   scanJcash,
   migrateSelectedJcash,
   validateDateRange,
-  _test: { accessLoanWhere, asArray, isMigratableLoan, validateLoanId },
+  _test: { accessLoanWhere, applyLedgerTotals, asArray, isMigratableLoan, mapLoan, mapPayment, validateLoanId },
 };

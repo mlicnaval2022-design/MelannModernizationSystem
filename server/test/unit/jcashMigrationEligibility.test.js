@@ -37,18 +37,37 @@ test('Access scan query no longer requires the separate Status field to be Good'
   assert.match(where, /#12\/31\/2024#/);
 });
 
-test('Access single-loan scan uses a validated Loan ID without requiring dates', () => {
+test('Access single-loan scan reads the exact loan before applying eligibility rules', () => {
   const where = _test.accessLoanWhere({ prefix: 'l.', loanId: '30997' });
 
-  assert.match(where, /l\.LoanID=30997/);
-  assert.doesNotMatch(where, /DateRelease/);
-  assert.match(where, /l\.LoanStatus='Good'/);
-  assert.match(where, /IsNull\(l\.Status\) OR l\.Status NOT IN/);
-  assert.doesNotMatch(where, /Fully Paid|FullyPaid|'Paid'/);
+  assert.equal(where, 'l.LoanID=30997');
 });
 
 test('single-loan scan rejects unsafe or non-numeric Loan IDs', () => {
   assert.equal(_test.validateLoanId(' 30997 '), '30997');
   assert.throws(() => _test.validateLoanId('30997 OR 1=1'), /numbers only/);
   assert.throws(() => _test.validateLoanId(''), /numbers only/);
+});
+
+test('single-loan eligibility can use the latest payment-ledger balance when loan summary is stale', () => {
+  const loan = _test.mapLoan({
+    LoanID: 30997,
+    Code: 3148,
+    LoanStatus: 'Good',
+    Status: 'Paid',
+    Principal: 6000,
+    LoanTotal: 6810,
+    TotalPayment: 6810,
+    Balance: 0,
+    DateRelease: '2024-01-10',
+  });
+  const payments = [
+    _test.mapPayment({ LoanID: 30997, Status: 'Good', DatePaid: '2024-04-23', TotalBalance: 6410, NewBalance: 6360, ID: 655047 }),
+    _test.mapPayment({ LoanID: 30997, Status: 'Good', DatePaid: '2025-01-10', TotalBalance: 370, NewBalance: 220, ID: 700001 }),
+  ];
+
+  assert.equal(loan.balance, 0);
+  _test.applyLedgerTotals([loan], payments);
+  assert.equal(loan.balance, 220);
+  assert.equal(_test.isMigratableLoan(loan), true);
 });
