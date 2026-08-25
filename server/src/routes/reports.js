@@ -281,19 +281,29 @@ const getCollectionReleaseCharges = async (from, to) => {
   return buildCollectionReleaseChargeRows(releases);
 };
 
-const ensureCollectionFieldReleaseTable = () => dbRun(`
-  CREATE TABLE IF NOT EXISTS tblCollectionFieldRelease (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    collector_id INTEGER NOT NULL,
-    report_date TEXT NOT NULL,
-    amount REAL DEFAULT 0,
-    created_by INTEGER,
-    updated_by INTEGER,
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now')),
-    UNIQUE(collector_id, report_date)
-  )
-`);
+const ensureCollectionFieldReleaseTables = async () => {
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS tblCollectionFieldRelease (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      collector_id INTEGER NOT NULL,
+      report_date TEXT NOT NULL,
+      amount REAL DEFAULT 0,
+      created_by INTEGER,
+      updated_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(collector_id, report_date)
+    )
+  `);
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS tblCollectionFieldReleaseCollector (
+      collector_id INTEGER PRIMARY KEY,
+      created_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (collector_id) REFERENCES tblCollector(id)
+    )
+  `);
+};
 
 const ensureCollectionAdvanceManualTable = () => dbRun(`
   CREATE TABLE IF NOT EXISTS tblCollectionAdvanceManual (
@@ -400,7 +410,7 @@ router.get('/collection-sheet/field-releases', authenticateToken, async (req, re
   try {
     const targetDate = req.query.date || new Date().toISOString().split('T')[0];
     requireOperationDate(targetDate, 'Field release date');
-    await ensureCollectionFieldReleaseTable();
+    await ensureCollectionFieldReleaseTables();
 
     const rows = await dbAll(`
       SELECT co.id as collector_id,
@@ -412,27 +422,70 @@ router.get('/collection-sheet/field-releases', authenticateToken, async (req, re
       LEFT JOIN tblCollectionFieldRelease fr
         ON fr.collector_id = co.id
        AND fr.report_date = ?
+      INNER JOIN tblCollectionFieldReleaseCollector frc
+        ON frc.collector_id = co.id
       WHERE co.is_active = 1
-        AND (
-          (LOWER(co.last_name) = 'torreta' AND LOWER(co.first_name) = 'angelito')
-          OR (LOWER(co.last_name) IN ('domingono', 'dominggono') AND LOWER(co.first_name) = 'renato')
-          OR (LOWER(co.last_name) = 'jugar' AND LOWER(co.first_name) = 'noel')
-          OR (LOWER(co.last_name) = 'caballes' AND LOWER(co.first_name) = 'eddie')
-          OR (LOWER(co.last_name) = 'rosal' AND LOWER(co.first_name) = 'aldie')
-          OR (LOWER(co.last_name) = 'laude' AND LOWER(co.first_name) = 'reynaldo')
-        )
-      ORDER BY CASE
-        WHEN LOWER(co.last_name) = 'torreta' AND LOWER(co.first_name) = 'angelito' THEN 1
-        WHEN LOWER(co.last_name) IN ('domingono', 'dominggono') AND LOWER(co.first_name) = 'renato' THEN 2
-        WHEN LOWER(co.last_name) = 'jugar' AND LOWER(co.first_name) = 'noel' THEN 3
-        WHEN LOWER(co.last_name) = 'caballes' AND LOWER(co.first_name) = 'eddie' THEN 4
-        WHEN LOWER(co.last_name) = 'rosal' AND LOWER(co.first_name) = 'aldie' THEN 5
-        WHEN LOWER(co.last_name) = 'laude' AND LOWER(co.first_name) = 'reynaldo' THEN 6
-        ELSE 99
-      END
+      ORDER BY co.last_name COLLATE NOCASE, co.first_name COLLATE NOCASE, co.collector_code COLLATE NOCASE
     `, [targetDate]);
 
     res.json({ date: targetDate, releases: rows });
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.get('/collection-sheet/field-releases/collectors', authenticateToken, async (req, res) => {
+  try {
+    await ensureCollectionFieldReleaseTables();
+    const collectors = await dbAll(`
+      SELECT co.id as collector_id,
+             co.collector_code,
+             co.first_name,
+             co.last_name,
+             CASE WHEN frc.collector_id IS NULL THEN 0 ELSE 1 END as selected
+      FROM tblCollector co
+      LEFT JOIN tblCollectionFieldReleaseCollector frc ON frc.collector_id = co.id
+      WHERE co.is_active = 1
+      ORDER BY co.last_name COLLATE NOCASE, co.first_name COLLATE NOCASE, co.collector_code COLLATE NOCASE
+    `);
+    res.json({ collectors });
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.put('/collection-sheet/field-releases/collectors', authenticateToken, async (req, res) => {
+  try {
+    await ensureCollectionFieldReleaseTables();
+    const rawCollectorIds = Array.isArray(req.body.collector_ids) ? req.body.collector_ids : [];
+    if (rawCollectorIds.some(id => !Number.isInteger(Number(id)) || Number(id) <= 0)) {
+      return res.status(400).json({ error: 'Collector selection contains an invalid collector.' });
+    }
+    const collectorIds = [...new Set(rawCollectorIds.map(Number))];
+
+    if (collectorIds.length) {
+      const placeholders = collectorIds.map(() => '?').join(', ');
+      const activeCollectors = await dbAll(`
+        SELECT id FROM tblCollector
+        WHERE is_active = 1 AND id IN (${placeholders})
+      `, collectorIds);
+      if (activeCollectors.length !== collectorIds.length) {
+        return res.status(400).json({ error: 'Only active collectors can be selected for Field Release.' });
+      }
+    }
+
+    await dbRun('BEGIN IMMEDIATE TRANSACTION');
+    try {
+      await dbRun('DELETE FROM tblCollectionFieldReleaseCollector');
+      for (const collectorId of collectorIds) {
+        await dbRun(`
+          INSERT INTO tblCollectionFieldReleaseCollector (collector_id, created_by)
+          VALUES (?, ?)
+        `, [collectorId, req.user.id]);
+      }
+      await dbRun('COMMIT');
+    } catch (err) {
+      await dbRun('ROLLBACK').catch(() => {});
+      throw err;
+    }
+
+    res.json({ message: 'Field Release collector selection saved', collector_ids: collectorIds });
   } catch (err) { sendRouteError(res, err); }
 });
 
@@ -441,7 +494,14 @@ router.post('/collection-sheet/field-releases', authenticateToken, async (req, r
     const targetDate = req.body.date || new Date().toISOString().split('T')[0];
     const releases = Array.isArray(req.body.releases) ? req.body.releases : [];
     requireOperationDate(targetDate, 'Field release date');
-    await ensureCollectionFieldReleaseTable();
+    await ensureCollectionFieldReleaseTables();
+
+    const selectedCollectorRows = await dbAll(`SELECT collector_id FROM tblCollectionFieldReleaseCollector`);
+    const selectedCollectorIds = new Set(selectedCollectorRows.map(row => Number(row.collector_id)));
+    const invalidRelease = releases.find(release => !selectedCollectorIds.has(Number(release.collector_id)));
+    if (invalidRelease) {
+      return res.status(400).json({ error: 'Field Release amounts can only be saved for selected collectors.' });
+    }
 
     await dbRun('BEGIN IMMEDIATE TRANSACTION');
     try {
@@ -1691,7 +1751,7 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
     if (!collectorId) return res.status(400).json({ error: 'Invalid collector' });
     const targetDate = date || new Date().toISOString().split('T')[0];
     requireOperationDate(targetDate, 'Collection sheet date');
-    await ensureCollectionFieldReleaseTable();
+    await ensureCollectionFieldReleaseTables();
     await ensureCollectionAdvanceManualTable();
 
     // Get collector info

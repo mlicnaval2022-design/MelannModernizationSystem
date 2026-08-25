@@ -795,6 +795,9 @@ export default function Reports() {
   const [fieldReleaseRows, setFieldReleaseRows] = useState([])
   const [fieldReleaseLoading, setFieldReleaseLoading] = useState(false)
   const [fieldReleaseSaving, setFieldReleaseSaving] = useState(false)
+  const [fieldReleaseTab, setFieldReleaseTab] = useState('amounts')
+  const [fieldReleaseCollectors, setFieldReleaseCollectors] = useState([])
+  const [fieldReleaseCollectorsSaving, setFieldReleaseCollectorsSaving] = useState(false)
   const [advanceManualOpen, setAdvanceManualOpen] = useState(false)
   const [advanceManualForm, setAdvanceManualForm] = useState({ client_code: '', client: null, amount: '', searching: false, saving: false, error: '' })
   const [advanceManualEntries, setAdvanceManualEntries] = useState([])
@@ -837,14 +840,44 @@ export default function Reports() {
   const openFieldReleaseModal = async () => {
     const reportDate = params.date || toDateInputValue(new Date())
     setFieldReleaseOpen(true)
+    setFieldReleaseTab('amounts')
     setFieldReleaseLoading(true)
     try {
-      const res = await API.get('/reports/collection-sheet/field-releases', { params: { date: reportDate } })
-      setFieldReleaseRows(Array.isArray(res.data?.releases) ? res.data.releases : [])
+      const [releaseRes, collectorRes] = await Promise.all([
+        API.get('/reports/collection-sheet/field-releases', { params: { date: reportDate } }),
+        API.get('/reports/collection-sheet/field-releases/collectors'),
+      ])
+      setFieldReleaseRows(Array.isArray(releaseRes.data?.releases) ? releaseRes.data.releases : [])
+      setFieldReleaseCollectors(Array.isArray(collectorRes.data?.collectors) ? collectorRes.data.collectors : [])
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to load field release data')
     } finally {
       setFieldReleaseLoading(false)
+    }
+  }
+
+  const toggleFieldReleaseCollector = collectorId => {
+    setFieldReleaseCollectors(prev => prev.map(collector => (
+      Number(collector.collector_id) === Number(collectorId)
+        ? { ...collector, selected: collector.selected ? 0 : 1 }
+        : collector
+    )))
+  }
+
+  const saveFieldReleaseCollectors = async () => {
+    const reportDate = params.date || toDateInputValue(new Date())
+    setFieldReleaseCollectorsSaving(true)
+    try {
+      await API.put('/reports/collection-sheet/field-releases/collectors', {
+        collector_ids: fieldReleaseCollectors.filter(collector => collector.selected).map(collector => collector.collector_id),
+      })
+      const res = await API.get('/reports/collection-sheet/field-releases', { params: { date: reportDate } })
+      setFieldReleaseRows(Array.isArray(res.data?.releases) ? res.data.releases : [])
+      setFieldReleaseTab('amounts')
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to save Field Release collector selection')
+    } finally {
+      setFieldReleaseCollectorsSaving(false)
     }
   }
 
@@ -5843,57 +5876,98 @@ export default function Reports() {
         </div>
       </div>
       {fieldReleaseOpen && (
-        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && !fieldReleaseSaving && setFieldReleaseOpen(false)}>
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && !fieldReleaseSaving && !fieldReleaseCollectorsSaving && setFieldReleaseOpen(false)}>
           <div className="modal" style={{ maxWidth: 720 }}>
             <div className="modal-header">
               <span className="modal-title">Field Release - {displayDate(params.date || toDateInputValue(new Date()))}</span>
-              <button className="modal-close" onClick={() => setFieldReleaseOpen(false)} disabled={fieldReleaseSaving}>x</button>
+              <button className="modal-close" onClick={() => setFieldReleaseOpen(false)} disabled={fieldReleaseSaving || fieldReleaseCollectorsSaving}>x</button>
             </div>
             <div className="modal-body">
               {fieldReleaseLoading ? (
                 <div className="empty-state">Loading field release amounts...</div>
               ) : (
                 <>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, marginBottom: 12, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'rgba(37, 99, 235, 0.06)' }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>Total Field Release</span>
-                    <span style={{ fontSize: 18, fontWeight: 800, color: '#0D1B3D' }}>PHP {fmt(fieldReleaseRows.reduce((sum, row) => sum + Number(row.amount || 0), 0))}</span>
-                  </div>
-                  <div style={{ maxHeight: '55vh', overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
-                    <table className="data-table" style={{ minWidth: 0, width: '100%' }}>
-                      <thead>
-                        <tr>
-                          <th>Collector</th>
-                          <th className="text-right">Field Release Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {fieldReleaseRows.length === 0 ? (
-                          <tr><td colSpan={2} className="empty-state">No active collectors found</td></tr>
-                        ) : fieldReleaseRows.map(row => (
-                          <tr key={row.collector_id}>
-                            <td className="fw-600">{row.last_name}, {row.first_name}</td>
-                            <td className="text-right">
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                className="form-control"
-                                value={row.amount}
-                                onChange={e => updateFieldReleaseAmount(row.collector_id, e.target.value)}
-                                style={{ width: 180, marginLeft: 'auto', textAlign: 'right' }}
-                              />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-                    <button className="btn btn-secondary" onClick={() => setFieldReleaseOpen(false)} disabled={fieldReleaseSaving}>Cancel</button>
-                    <button className="btn btn-primary" onClick={saveFieldReleases} disabled={fieldReleaseSaving || fieldReleaseLoading}>
-                      {fieldReleaseSaving ? 'Saving...' : 'Save'}
+                  <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+                    <button className={`btn ${fieldReleaseTab === 'amounts' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFieldReleaseTab('amounts')}>
+                      <WalletCards size={15} /> Field Release Amounts
+                    </button>
+                    <button className={`btn ${fieldReleaseTab === 'collectors' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFieldReleaseTab('collectors')}>
+                      <Settings size={15} /> Configure Collectors
                     </button>
                   </div>
+                  {fieldReleaseTab === 'amounts' ? (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, marginBottom: 12, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'rgba(37, 99, 235, 0.06)' }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>Total Field Release</span>
+                        <span style={{ fontSize: 18, fontWeight: 800, color: '#0D1B3D' }}>PHP {fmt(fieldReleaseRows.reduce((sum, row) => sum + Number(row.amount || 0), 0))}</span>
+                      </div>
+                      <div style={{ maxHeight: '55vh', overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+                        <table className="data-table" style={{ minWidth: 0, width: '100%' }}>
+                          <thead><tr><th>Collector</th><th className="text-right">Field Release Amount</th></tr></thead>
+                          <tbody>
+                            {fieldReleaseRows.length === 0 ? (
+                              <tr>
+                                <td colSpan={2} className="empty-state">
+                                  <div>No collectors selected for Field Release.</div>
+                                  <button className="btn btn-secondary btn-sm" style={{ marginTop: 10 }} onClick={() => setFieldReleaseTab('collectors')}>Configure Collectors</button>
+                                </td>
+                              </tr>
+                            ) : fieldReleaseRows.map(row => (
+                              <tr key={row.collector_id}>
+                                <td className="fw-600">{row.last_name}, {row.first_name}</td>
+                                <td className="text-right">
+                                  <input type="number" min="0" step="0.01" className="form-control" value={row.amount} onChange={e => updateFieldReleaseAmount(row.collector_id, e.target.value)} style={{ width: 180, marginLeft: 'auto', textAlign: 'right' }} />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+                        <button className="btn btn-secondary" onClick={() => setFieldReleaseOpen(false)} disabled={fieldReleaseSaving}>Cancel</button>
+                        <button className="btn btn-primary" onClick={saveFieldReleases} disabled={fieldReleaseSaving || fieldReleaseLoading || fieldReleaseRows.length === 0}>
+                          {fieldReleaseSaving ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+                        <div>
+                          <div style={{ fontWeight: 800, color: '#0D1B3D' }}>Choose collectors for Field Release</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 3 }}>{fieldReleaseCollectors.filter(collector => collector.selected).length} of {fieldReleaseCollectors.length} selected</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button className="btn btn-secondary btn-sm" onClick={() => setFieldReleaseCollectors(prev => prev.map(collector => ({ ...collector, selected: 1 })))}>Select All</button>
+                          <button className="btn btn-secondary btn-sm" onClick={() => setFieldReleaseCollectors(prev => prev.map(collector => ({ ...collector, selected: 0 })))}>Clear All</button>
+                        </div>
+                      </div>
+                      <div style={{ maxHeight: '55vh', overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+                        <table className="data-table" style={{ minWidth: 0, width: '100%' }}>
+                          <thead><tr><th style={{ width: 72, textAlign: 'center' }}>Include</th><th>Collector Name</th><th>Collector Code</th></tr></thead>
+                          <tbody>
+                            {fieldReleaseCollectors.length === 0 ? (
+                              <tr><td colSpan={3} className="empty-state">No active collectors found in the Collectors Module.</td></tr>
+                            ) : fieldReleaseCollectors.map(collector => (
+                              <tr key={collector.collector_id} onClick={() => toggleFieldReleaseCollector(collector.collector_id)} style={{ cursor: 'pointer' }}>
+                                <td style={{ textAlign: 'center' }}>
+                                  <input type="checkbox" checked={Boolean(collector.selected)} onChange={() => toggleFieldReleaseCollector(collector.collector_id)} onClick={event => event.stopPropagation()} aria-label={`Include ${collectorDisplayName(collector)} in Field Release`} />
+                                </td>
+                                <td className="fw-600">{collectorDisplayName(collector)}</td>
+                                <td>{collector.collector_code || '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+                        <button className="btn btn-secondary" onClick={() => setFieldReleaseTab('amounts')} disabled={fieldReleaseCollectorsSaving}>Cancel</button>
+                        <button className="btn btn-primary" onClick={saveFieldReleaseCollectors} disabled={fieldReleaseCollectorsSaving || fieldReleaseLoading}>
+                          <Save size={15} /> {fieldReleaseCollectorsSaving ? 'Saving...' : 'Save Selection'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </div>
