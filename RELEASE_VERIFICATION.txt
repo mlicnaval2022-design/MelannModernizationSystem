@@ -1,0 +1,37 @@
+MELANN LENDING SYSTEM - RELEASE VERIFICATION
+Date: 2026-08-24
+Runtime used: Node.js 24.19.0 / npm 11.17.0
+
+PASSED
+- Server automated tests: 67/67
+- Client automated tests: 9/9 across 5 test files
+- Client lint: passed with 0 errors
+- Production client build: passed (2,640 modules transformed)
+- Server production dependency audit: 0 known vulnerabilities
+- Client production dependency audit: 0 known vulnerabilities
+- Current source database read-only integrity/schema check: passed, 52 tables
+- Isolated new-branch database initialization and verification: passed, 52 tables
+- Full clean SETUP_SERVER.bat rehearsal: passed (dependency install, production
+  build, random credential generation, empty database creation, verification)
+- Release package data/secret scan: see final verification performed with ZIP
+
+FIXES INCLUDED IN THIS RELEASE
+- Corrected loan maturity to use the exact calendar-day term while keeping
+  Sunday-excluded payment schedules.
+- Aligned the Loans calculator and promissory/disclosure fallback maturity.
+- Added safe first-time setup for a new empty branch database and randomly
+  generated branch-specific security credentials.
+
+INTENTIONALLY EXCLUDED
+- Existing SQLite databases and WAL/SHM files
+- Database backups
+- server/.env and all existing secrets
+- Customer uploads and photos
+- CSV, XLS/XLSX, generated reports, and output artifacts
+- node_modules, bundled runtime, and compiled client output
+- Git history, scratch files, and customer-specific repair/diagnostic scripts
+- Existing branch static-IP launchers and machine-specific network defaults
+
+Automated verification substantially reduces release risk, but no finite test
+suite can prove that software contains no undiscovered defect. Perform a short
+branch acceptance check after installation, before entering live transactions.

@@ -1,0 +1,38 @@
+node_modules/
+.runtime/
+client/node_modules/
+server/node_modules/
+
+# Build and Dist
+build/
+dist/
+client/build/
+client/dist/
+
+# Environment Variables
+.env
+.env.*
+*.local
+
+# Database Files and Backups
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.bak
+server/melann.db*
+melann.db*
+server/src/db/*.sqlite*
+server/backups/
+uploads/
+scratch/client-build-check/
+
+# System and Agent Logs
+.omx/
+.gemini/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm-cache/

@@ -1,0 +1,13 @@
+MELANN LENDING SYSTEM - CLIENT WITH ICON
+
+1. Copy MLS_Client_With_Icon.zip to the client PC.
+2. Right-click the ZIP and choose Extract All.
+3. Open the extracted folder.
+4. Double-click INSTALL_MLS_CLIENT_WITH_ICON.bat.
+5. Use the new "MLS - Melann Lending System" shortcut on the Desktop.
+
+Important:
+- Do not run the installer while it is still inside the ZIP preview.
+- The installer keeps the icon in the local AppData folder, so the Desktop icon
+  continues to work even after the extracted package is deleted.
+- The client PC must be connected to the same network as the server PC.

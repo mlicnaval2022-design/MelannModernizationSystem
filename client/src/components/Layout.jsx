@@ -1,0 +1,405 @@
+import { useEffect, useState } from 'react'
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import API from '../services/api'
+import logoImg from '../assets/logo.png'
+import { canAccessNavItem } from '../access'
+import {
+  BarChart3,
+  Bell,
+  Building2,
+  CalendarDays,
+  ClipboardCheck,
+  ClipboardList,
+  CreditCard,
+  Database,
+  FileBarChart,
+  FileText,
+  Handshake,
+  KeyRound,
+  Landmark,
+  LogOut,
+  PiggyBank,
+  ReceiptText,
+  Search,
+  ShieldCheck,
+  UserCog,
+  Users,
+  Wallet,
+  X,
+} from 'lucide-react'
+
+const NAV = [
+  { path: '/', label: 'Dashboard', Icon: BarChart3, section: 'Main', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.16)' },
+  { path: '/customers', label: 'Customers', Icon: Users, section: 'Operations', color: '#10b981', bg: 'rgba(16, 185, 129, 0.16)' },
+  { path: '/credit-scoring', label: 'Credit Scoring', Icon: ClipboardCheck, section: 'Operations', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.18)' },
+  { path: '/loans', label: 'Loans', Icon: Wallet, section: 'Operations', color: '#6366f1', bg: 'rgba(99, 102, 241, 0.18)' },
+  { path: '/promissory-disclosure', label: 'For Print', Icon: FileText, section: 'Operations', color: '#06b6d4', bg: 'rgba(6, 182, 212, 0.16)' },
+  { path: '/payments', label: 'Encode Payments', Icon: CreditCard, section: 'Operations', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.18)' },
+  { path: '/collectors', label: 'Collectors', Icon: Users, section: 'Operations', color: '#14b8a6', bg: 'rgba(20, 184, 166, 0.16)' },
+  { path: '/monitoring', label: '3-Day Monitoring', Icon: Bell, section: 'Monitoring', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.16)' },
+  { path: '/ptp-monitoring', label: 'Promise to Pay', Icon: Handshake, section: 'Monitoring', color: '#0284c7', bg: 'rgba(2, 132, 199, 0.16)' },
+  { path: '/demand-letter', label: 'Demand Letter', Icon: FileText, section: 'Monitoring', color: '#f97316', bg: 'rgba(249, 115, 22, 0.18)' },
+  { path: '/deposits', label: 'Deposits', Icon: Landmark, section: 'Finance', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.16)' },
+  { path: '/transactions', label: 'Transactions', Icon: ReceiptText, section: 'Finance', color: '#0ea5e9', bg: 'rgba(14, 165, 233, 0.16)' },
+  { path: '/dcr', label: 'Daily Cash Report', Icon: ClipboardList, section: 'Finance', color: '#eab308', bg: 'rgba(234, 179, 8, 0.18)' },
+  { path: '/cash', label: 'Cash Position', Icon: PiggyBank, section: 'Finance', color: '#84cc16', bg: 'rgba(132, 204, 22, 0.16)' },
+  { path: '/reports', label: 'Reports', Icon: FileBarChart, section: 'Reports', color: '#2563eb', bg: 'rgba(37, 99, 235, 0.18)' },
+  { path: '/collector-performance', label: 'Collector Performance', Icon: BarChart3, section: 'Reports', color: '#f97316', bg: 'rgba(249, 115, 22, 0.18)' },
+  { path: '/jcash-migration', label: 'JCash Migration', Icon: Database, section: 'Admin', color: '#0f766e', bg: 'rgba(15, 118, 110, 0.16)', roles: ['admin', 'manager'] },
+  { path: '/government-compliance', label: 'Government Compliance', Icon: ShieldCheck, section: 'Reports', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.16)', roles: ['admin', 'compliance', 'compliance_officer', 'accounting', 'corporate_secretary', 'management', 'manager', 'it'] },
+  { path: '/branches', label: 'Branches', Icon: Building2, section: 'Admin', color: '#64748b', bg: 'rgba(148, 163, 184, 0.18)', roles: ['admin', 'manager'] },
+  { path: '/users', label: 'User Management', Icon: UserCog, section: 'Admin', color: '#a855f7', bg: 'rgba(168, 85, 247, 0.18)', roles: ['admin'] },
+  { path: '/audit', label: 'Audit Trail', Icon: Search, section: 'Admin', color: '#0891b2', bg: 'rgba(8, 145, 178, 0.16)', roles: ['admin', 'manager'] },
+]
+
+export default function Layout() {
+  const { user, logout } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [changePwModal, setChangePwModal] = useState(false)
+  const [pwForm, setPwForm] = useState({ current_password: '', new_password: '', confirm_password: '' })
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwError, setPwError] = useState('')
+  const [pwSuccess, setPwSuccess] = useState('')
+  const [backupModal, setBackupModal] = useState(false)
+  const [backupSaving, setBackupSaving] = useState(false)
+  const [backupError, setBackupError] = useState('')
+  const [backupSuccess, setBackupSuccess] = useState('')
+  const [logoFailed, setLogoFailed] = useState(false)
+  const [showNotif, setShowNotif] = useState(false)
+  const [demandLetterBadgeCount, setDemandLetterBadgeCount] = useState(0)
+  const [ptpBadgeCount, setPtpBadgeCount] = useState(0)
+  const [notifications, setNotifications] = useState([
+    { id: 1, title: 'System Update', message: 'Your weekly collection report is ready to download.', time: '10 mins ago', color: '#3b82f6' },
+    { id: 2, title: 'Past Due Alert', message: '3 accounts have moved to past due status today.', time: '1 hour ago', color: '#ef4444' },
+    { id: 3, title: 'New Approval', message: 'Loan LN-000008 has been approved by the manager.', time: '2 hours ago', color: '#10b981' }
+  ])
+
+  useEffect(() => {
+    API.get('/government-compliance/summary')
+      .then(r => {
+        const complianceNotes = (r.data.notifications || []).map((n, idx) => ({
+          id: `gc-${idx}-${n.id}`,
+          title: n.title,
+          message: n.message,
+          time: 'Compliance',
+          color: n.severity === 'danger' ? '#ef4444' : n.severity === 'warning' ? '#f59e0b' : '#3b82f6'
+        }))
+        if (complianceNotes.length) setNotifications(prev => {
+          const ids = new Set(prev.map(p => p.id))
+          return [...complianceNotes.filter(n => !ids.has(n.id)), ...prev]
+        })
+      })
+      .catch(() => {})
+
+    API.get('/monitoring/notifications')
+      .then(r => {
+        const monNotes = (r.data || []).map(n => ({
+          id: `mon-${n.id}`,
+          title: n.title,
+          message: n.message,
+          time: 'Monitoring',
+          color: '#ef4444' // red for alerts
+        }))
+        if (monNotes.length) setNotifications(prev => {
+          const ids = new Set(prev.map(p => p.id))
+          return [...monNotes.filter(n => !ids.has(n.id)), ...prev]
+        })
+      })
+      .catch(() => {})
+
+    API.get('/demand-letters/notifications')
+      .then(r => {
+        setDemandLetterBadgeCount(Number(r.data.today_count || r.data.count || 0))
+      })
+      .catch(() => {})
+
+    API.get('/ptp/notifications')
+      .then(r => {
+        const dueCount = Number(r.data.count || 0)
+        setPtpBadgeCount(dueCount)
+        if (dueCount > 0) {
+          setNotifications(prev => {
+            const id = 'ptp-due-alert'
+            if (prev.some(p => p.id === id)) return prev
+            return [
+              {
+                id,
+                title: 'Promise-to-Pay Due',
+                message: `${dueCount} client promise-to-pay commitment(s) are due today or overdue.`,
+                time: 'PTP Due',
+                color: '#0284c7'
+              },
+              ...prev
+            ]
+          })
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const today = new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  const visibleNav = NAV.filter(n => canAccessNavItem(user, n))
+  const sections = [...new Set(visibleNav.map(n => n.section))]
+  const pageTitle = visibleNav.find(n => location.pathname === n.path || (n.path !== '/' && location.pathname.startsWith(n.path)))?.label || 'Dashboard'
+
+  const handleChangePw = async (e) => {
+    e.preventDefault()
+    setPwError(''); setPwSuccess('')
+    if (pwForm.new_password !== pwForm.confirm_password) { setPwError('New passwords do not match.'); return }
+    if (pwForm.new_password.length < 6) { setPwError('Password must be at least 6 characters.'); return }
+    setPwSaving(true)
+    try {
+      await API.put('/users/me/password', { current_password: pwForm.current_password, new_password: pwForm.new_password })
+      setPwSuccess('Password changed successfully!')
+      setPwForm({ current_password: '', new_password: '', confirm_password: '' })
+      setTimeout(() => { setChangePwModal(false); setPwSuccess('') }, 1500)
+    } catch (err) { setPwError(err.response?.data?.error || 'Error changing password') }
+    finally { setPwSaving(false) }
+  }
+
+  const openBackupBeforeLogout = () => {
+    setBackupError('')
+    setBackupSuccess('')
+    setBackupModal(true)
+  }
+
+  const handleBackupAndLogout = async () => {
+    setBackupSaving(true)
+    setBackupError('')
+    setBackupSuccess('')
+    try {
+      const { data } = await API.post('/system/backup-before-logout')
+      setBackupSuccess(`Backup complete. Saved to: ${data.backup_dir}`)
+      setTimeout(() => logout(), 700)
+    } catch (err) {
+      setBackupError(err.response?.data?.error || 'Backup failed. Please try again before signing out.')
+    } finally {
+      setBackupSaving(false)
+    }
+  }
+
+  return (
+    <div className="app-layout">
+      <aside className="sidebar">
+        <div className="sidebar-brand" style={{ display: 'flex', justifyContent: 'center', padding: '15px 20px', borderBottom: '1px solid #1e293b' }}>
+          {logoFailed ? (
+            <div style={{ color: '#fff', fontWeight: 800, textAlign: 'center', lineHeight: 1.2 }}>
+              Melann Lending
+            </div>
+          ) : (
+            <img src={logoImg} alt="Melann Lending" onError={() => setLogoFailed(true)} style={{ maxWidth: '80%', height: 'auto' }} />
+          )}
+        </div>
+        <nav className="sidebar-nav">
+          {sections.map(section => (
+            <div key={section}>
+              <div className="nav-section-label">{section}</div>
+              {visibleNav.filter(n => n.section === section).map(nav => {
+                const Icon = nav.Icon
+                return (
+                <NavLink
+                  key={nav.path}
+                  to={nav.path}
+                  end={nav.path === '/'}
+                  className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                  style={({ isActive }) => ({
+                    '--nav-color': nav.color,
+                    '--nav-bg': nav.bg,
+                    ...(isActive ? { background: nav.color } : {}),
+                  })}
+                >
+                  <span className="nav-icon nav-icon-badge"><Icon size={16} strokeWidth={2.25} /></span>
+                  <span className="nav-label">{nav.label}</span>
+                  {nav.path === '/demand-letter' && demandLetterBadgeCount > 0 && (
+                    <span className="nav-count-badge">{demandLetterBadgeCount}</span>
+                  )}
+                  {nav.path === '/ptp-monitoring' && ptpBadgeCount > 0 && (
+                    <span className="nav-count-badge">{ptpBadgeCount}</span>
+                  )}
+                </NavLink>
+              )})}
+            </div>
+          ))}
+        </nav>
+        <div className="sidebar-footer">
+          <div className="sidebar-user">
+            <div className="sidebar-user-avatar">
+              {user?.full_name?.charAt(0) || 'U'}
+            </div>
+            <div className="sidebar-user-info">
+              <div className="sidebar-user-name">{user?.full_name}</div>
+              <div className="sidebar-user-role">{user?.role_name || user?.role}</div>
+            </div>
+          </div>
+          <button
+            id="btn-change-password"
+            className="btn-logout"
+            style={{ marginBottom: 4 }}
+            onClick={() => { setChangePwModal(true); setPwError(''); setPwSuccess('') }}
+          >
+            <KeyRound size={15} /> Change Password
+          </button>
+          <button id="btn-sign-out" className="btn-logout" onClick={openBackupBeforeLogout}><LogOut size={15} /> Sign Out</button>
+        </div>
+      </aside>
+
+      <div className="main-content">
+        {location.pathname !== '/' ? (
+          <div className="topbar">
+            <div className="topbar-title">{pageTitle}</div>
+            <div className="topbar-date">{today}</div>
+          </div>
+        ) : (
+          <div className="topbar-v2" style={{ padding: '0 24px', height: '70px', background: '#fff', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+            <div className="topbar-left">
+              <div className="topbar-title-wrapper"><BarChart3 size={18} /> Dashboard Overview</div>
+              <select className="topbar-branch-select" defaultValue="">
+                <option value="">All Branches</option>
+                <option value="1">Main Branch</option>
+                <option value="2">North Branch</option>
+              </select>
+              <div className="topbar-search">
+                <span className="icon"><Search size={15} /></span>
+                <input 
+                  type="text" 
+                  placeholder="Quick Search Client..." 
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && e.target.value.trim()) {
+                      navigate(`/customers?search=${encodeURIComponent(e.target.value.trim())}`);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+              </div>
+            </div>
+            <div className="topbar-right">
+              <div className="topbar-date" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <CalendarDays size={24} color="#3b82f6" />
+                <div style={{ textAlign: 'left' }}>
+                  <strong>{today}</strong>
+                  <span style={{ fontSize: 10 }}>Current Collection Date</span>
+                </div>
+              </div>
+              <div className="topbar-notif" onClick={() => setShowNotif(!showNotif)} style={{ position: 'relative', cursor: 'pointer' }}>
+                <Bell size={20} />
+                {notifications.length > 0 && <span className="topbar-notif-badge">{notifications.length}</span>}
+                {showNotif && (
+                  <div className="notif-dropdown" style={{
+                    position: 'absolute', top: '100%', right: -10, marginTop: 15,
+                    width: 320, background: '#fff', borderRadius: 8,
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.1)', border: '1px solid #e2e8f0', zIndex: 100,
+                    color: '#1e293b', textAlign: 'left', cursor: 'default'
+                  }} onClick={e => e.stopPropagation()}>
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Notifications</span>
+                      {notifications.length > 0 && (
+                        <span style={{ fontSize: 11, color: '#3b82f6', cursor: 'pointer', fontWeight: 'normal' }} onClick={() => setNotifications([])}>Mark all as read</span>
+                      )}
+                    </div>
+                    <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                      {notifications.length === 0 ? (
+                        <div style={{ padding: '24px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                          No new notifications
+                        </div>
+                      ) : (
+                        notifications.map((n) => (
+                          <div key={n.id} style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background='#f8fafc'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                            <div style={{ fontWeight: 600, color: n.color, marginBottom: 4, fontSize: 13 }}>{n.title}</div>
+                            <div style={{ fontSize: 13 }}>{n.message}</div>
+                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>{n.time}</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div style={{ padding: '10px', textAlign: 'center', borderTop: '1px solid #e2e8f0', fontSize: 12, color: '#3b82f6', cursor: 'pointer', background: '#f8fafc', borderBottomLeftRadius: 8, borderBottomRightRadius: 8 }}>
+                      View All Notifications
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="sidebar-user" style={{ padding: 0, margin: 0 }}>
+                <div className="sidebar-user-avatar" style={{ background: '#cbd5e1', color: '#1e293b' }}>
+                  {user?.full_name?.charAt(0) || 'U'}
+                </div>
+                <div className="sidebar-user-info">
+                  <div className="sidebar-user-name" style={{ color: '#1e293b' }}>{user?.full_name}</div>
+                  <div className="sidebar-user-role" style={{ color: '#64748b' }}>{user?.role_name || user?.role}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="page-content">
+          <Outlet />
+        </div>
+      </div>
+
+      {/* Backup Before Logout Modal */}
+      {backupModal && (
+        <div className="logout-modal-overlay" onMouseDown={e => e.target === e.currentTarget && !backupSaving && setBackupModal(false)}>
+          <section className="logout-modal" role="dialog" aria-modal="true" aria-labelledby="logout-modal-title">
+            <button type="button" className="logout-modal-close" aria-label="Close" disabled={backupSaving} onClick={() => setBackupModal(false)}><X size={18} /></button>
+            <div className="logout-modal-icon"><LogOut size={28} /></div>
+            <h2 id="logout-modal-title">Ready to sign out?</h2>
+            <p className="logout-modal-copy">We’ll first create a fresh database backup so your latest work is safely stored.</p>
+            <div className="logout-modal-backup-note"><Database size={18} /><span>Automatic backup before logout</span></div>
+            {backupError && <div className="logout-modal-message is-error">{backupError}</div>}
+            {backupSuccess && <div className="logout-modal-message is-success">{backupSuccess}</div>}
+            <div className="logout-modal-actions">
+              <button type="button" className="logout-modal-cancel" onClick={() => setBackupModal(false)} disabled={backupSaving}>Stay signed in</button>
+              <button type="button" className="logout-modal-confirm" onClick={handleBackupAndLogout} disabled={backupSaving || !!backupSuccess}>
+                <LogOut size={16} className={backupSaving ? 'logout-modal-spin' : ''} />
+                {backupSaving ? 'Creating backup...' : 'Back up & sign out'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* Change Password Modal */}
+      {changePwModal && (
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setChangePwModal(false)}>
+          <div className="modal" style={{ maxWidth: 420 }}>
+            <div className="modal-header">
+              <span className="modal-title"><KeyRound size={18} /> Change Password</span>
+              <button className="modal-close" onClick={() => setChangePwModal(false)}><X size={18} /></button>
+            </div>
+            <div className="modal-body">
+              {pwError && <div className="login-error" style={{ marginBottom: 14 }}>{pwError}</div>}
+              {pwSuccess && (
+                <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 6, padding: '10px 12px', marginBottom: 14, fontSize: 13, color: 'var(--accent-success)' }}>
+                  {pwSuccess}
+                </div>
+              )}
+              <form onSubmit={handleChangePw}>
+                <div className="form-grid" style={{ gridTemplateColumns: '1fr' }}>
+                  <div className="form-group">
+                    <label className="form-label">Current Password *</label>
+                    <input type="password" className="form-control" value={pwForm.current_password}
+                      onChange={e => setPwForm(f => ({ ...f, current_password: e.target.value }))} required autoFocus />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">New Password *</label>
+                    <input type="password" className="form-control" placeholder="At least 6 characters" value={pwForm.new_password}
+                      onChange={e => setPwForm(f => ({ ...f, new_password: e.target.value }))} required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Confirm New Password *</label>
+                    <input type="password" className="form-control" value={pwForm.confirm_password}
+                      onChange={e => setPwForm(f => ({ ...f, confirm_password: e.target.value }))} required />
+                  </div>
+                </div>
+                <div className="form-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => setChangePwModal(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary" disabled={pwSaving}>{pwSaving ? 'Saving...' : <><KeyRound size={15} /> Change Password</>}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
