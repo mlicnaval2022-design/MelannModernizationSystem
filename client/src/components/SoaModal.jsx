@@ -1,6 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import API from '../services/api';
-import { useAuth } from '../context/AuthContext';
 import '../soa.css';
 import '../soa-v2.css';
 import '../soa-profile.css';
@@ -34,8 +33,6 @@ import {
 } from 'lucide-react';
 
 export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefresh }) {
-  const { hasPermission } = useAuth();
-  const canEditPayments = hasPermission('payments', 'edit');
   const [soaLoading, setSoaLoading] = useState(true);
   const [soaData, setSoaData] = useState(null);
   const [soaTab, setSoaTab] = useState('summary');
@@ -55,15 +52,6 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
   const [reloanModalOpen, setReloanModalOpen] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
   const suppressNextPrintRef = useRef(false);
-  const paymentHistoryBodyRef = useRef(null);
-
-  useLayoutEffect(() => {
-    if (!selectedLoanForPayments) return;
-    if (paymentHistoryBodyRef.current) {
-      paymentHistoryBodyRef.current.scrollTop = 0;
-      paymentHistoryBodyRef.current.scrollLeft = 0;
-    }
-  }, [selectedLoanForPayments]);
 
   const fetchSoaData = async (id) => {
     if (!id) return;
@@ -264,6 +252,13 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
   const formatPhp = (value) => `PHP ${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const formatPhpExact = (value) => `PHP ${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const formatPhpDeduction = (value) => Number(value || 0) > 0 ? `-${formatPhpExact(value)}` : formatPhpExact(0);
+  const formatPaymentCode = (payment) => {
+    const rawCode = payment?.payment_code && payment.payment_code !== 'N/A'
+      ? payment.payment_code
+      : payment?.or_number;
+    if (!rawCode || rawCode === 'N/A') return 'N/A';
+    return String(rawCode).replace(/^JCASH-?/i, '');
+  };
 
   const addDays = (date, days) => {
     const result = new Date(date);
@@ -1465,12 +1460,16 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                   type="button"
                   onClick={() => exportPaymentHistory(selectedLoanForPayments)}
                   style={{ background: '#f0fdf4', color: '#16a34a', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#dcfce7'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#f0fdf4'}
                 >
                   <i className="bi bi-file-earmark-pdf"></i> Export PDF
                 </button>
                 <button
                   onClick={() => setPrintModeLoan(selectedLoanForPayments)}
                   style={{ background: '#eff6ff', color: '#2563eb', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#dbeafe'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#eff6ff'}
                 >
                   <i className="bi bi-printer"></i> Print Statement
                 </button>
@@ -1478,7 +1477,7 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
               </div>
             </div>
 
-            <div ref={paymentHistoryBodyRef} className="payment-history-refresh-body" style={{ padding: '32px', overflowY: 'auto', backgroundColor: '#fdfdfd' }}>
+            <div className="payment-history-refresh-body" style={{ padding: '32px', overflowY: 'auto', backgroundColor: '#fdfdfd' }}>
               {(() => {
                 const principal = Number(selectedLoanForPayments.principal) || 0;
                 const interestRate = Number(selectedLoanForPayments.interest_rate) || 0;
@@ -1633,6 +1632,8 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                   type="button"
                   onClick={() => setPenaltyLoan(selectedLoanForPayments)}
                   style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa', padding: '8px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#ffedd5'; e.currentTarget.style.borderColor = '#fdba74'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#fff7ed'; e.currentTarget.style.borderColor = '#fed7aa'; }}
                 >
                   <i className="bi bi-calculator"></i> View Penalty
                 </button>
@@ -1640,6 +1641,12 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
 
               {(() => {
                 const loanPayments = getPaymentHistoryRows(selectedLoanForPayments);
+                const validPayments = loanPayments.filter(p => isGoodPayment(p));
+                const totalPaid = validPayments.reduce((sum, p) => sum + Number(p.amount_paid || 0), 0);
+                const totalPayable = Number(selectedLoanForPayments.total_amortization || selectedLoanForPayments.principal);
+                const paymentRate = totalPayable > 0 ? Math.min(100, (totalPaid / totalPayable) * 100).toFixed(2) : 0;
+                const lastPaymentDate = validPayments.length > 0 ? validPayments[0].date_paid : '-';
+
                 return (
                   <>
                     {loanPayments.length > 0 ? (
@@ -1651,6 +1658,8 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                                 <button
                                   type="button"
                                   onClick={() => setPaymentHistoryDateSort(sort => sort === 'desc' ? 'asc' : 'desc')}
+                                  title="Sort payment history by date"
+                                  aria-label={`Sort payment history by date. Current: ${paymentHistoryDateSort === 'desc' ? 'newest first' : 'oldest first'}`}
                                   style={{
                                     display: 'inline-flex',
                                     alignItems: 'center',
@@ -1665,12 +1674,13 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                                     fontWeight: 800,
                                     textTransform: 'uppercase',
                                     letterSpacing: '0.5px',
-                                    cursor: 'pointer'
+                                    cursor: 'pointer',
+                                    boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)'
                                   }}
                                 >
                                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                                     Date
-                                    <ArrowDownUp size={16} strokeWidth={2.8} />
+                                    <ArrowDownUp size={16} strokeWidth={2.8} aria-hidden="true" />
                                   </span>
                                   <span
                                     style={{
@@ -1682,10 +1692,14 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                                       background: '#ffffff',
                                       color: '#0d6efd',
                                       fontSize: '11px',
-                                      fontWeight: 900
+                                      fontWeight: 900,
+                                      letterSpacing: 0,
+                                      textTransform: 'none'
                                     }}
                                   >
-                                    {paymentHistoryDateSort === 'desc' ? <ArrowDown size={14} strokeWidth={3} /> : <ArrowUp size={14} strokeWidth={3} />}
+                                    {paymentHistoryDateSort === 'desc'
+                                      ? <ArrowDown size={14} strokeWidth={3} aria-hidden="true" />
+                                      : <ArrowUp size={14} strokeWidth={3} aria-hidden="true" />}
                                     {paymentHistoryDateSort === 'desc' ? 'Newest' : 'Oldest'}
                                   </span>
                                 </button>
@@ -1694,31 +1708,56 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENTS</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>RUNNING BALANCE</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>USER</th>
-                              <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>OFFICIAL RECEIPT NO.</th>
-                              <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PAYMENT TYPE</th>
                               <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>NOTES / REMARKS</th>
-                              <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>STATUS</th>
-                              {canEditPayments && <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>ACTION</th>}
+                              <th style={{ padding: '16px 24px', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>STATUS</th>
                             </tr>
                           </thead>
                           <tbody>
                             {loanPayments.map((p, index) => {
                               const isReversed = p.status === 'reversed';
+                              const isPenalty = p.status === 'penalty';
+                              const remarks = String(p.remarks || '').toLowerCase();
+                              const paymentType = String(p.payment_type || '').toLowerCase();
+                              const status = String(p.status || '').toLowerCase();
+                              const isOldBalance = remarks.includes('old balance') || ['balance', 'old_balance'].includes(paymentType);
+                              const normalizedSpecialType = value => String(value || '').toLowerCase().replace(/[-_\s]/g, '');
+                              const isRecon = !isOldBalance && (status === 'recon' || paymentType === 'recon' || remarks.includes('recon'));
+                              const isDeceased = !isOldBalance && (status === 'deceased' || paymentType === 'deceased' || remarks.includes('deceased'));
+                              const isWriteOff = !isOldBalance && (normalizedSpecialType(status) === 'writeoff' || normalizedSpecialType(paymentType) === 'writeoff' || normalizedSpecialType(remarks).includes('writeoff'));
+                              const isFullyPaid = (status === 'active' || isRecon || isDeceased || isWriteOff) && Number(p.balance_after) <= 0;
+                              const isPartial = status === 'active' && Number(p.balance_after) > 0;
+                              let pillBg = '#f1f5f9', pillColor = '#64748b', pillIcon = 'bi-circle';
                               const statusText = getPaymentStatusText(p);
+
+                              if (isReversed) { pillBg = '#fee2e2'; pillColor = '#ef4444'; pillIcon = 'bi-x-circle'; }
+                              else if (statusText === 'Balance(Recon)') { pillBg = '#ede9fe'; pillColor = '#7c3aed'; pillIcon = 'bi-check-circle'; }
+                              else if (statusText === 'Balance(Reloan)') { pillBg = '#e0e7ff'; pillColor = '#4338ca'; pillIcon = 'bi-check-circle'; }
+                              else if (statusText === 'Balance(Fully Paid)' || statusText === 'Balance') { pillBg = '#dcfce7'; pillColor = '#15803d'; pillIcon = 'bi-check-circle'; }
+                              else if (isPenalty) { pillBg = '#fef3c7'; pillColor = '#b45309'; pillIcon = 'bi-exclamation-circle'; }
+                              else if (isDeceased) { pillBg = '#fef3c7'; pillColor = '#b45309'; pillIcon = 'bi-check-circle'; }
+                              else if (isWriteOff) { pillBg = '#fee2e2'; pillColor = '#b91c1c'; pillIcon = 'bi-check-circle'; }
+                              else if (isRecon) { pillBg = '#ede9fe'; pillColor = '#7c3aed'; pillIcon = isFullyPaid ? 'bi-check-circle' : 'bi-arrow-repeat'; }
+                              else if (isFullyPaid) { pillBg = '#f3e8ff'; pillColor = '#9333ea'; pillIcon = 'bi-check-circle'; }
+                              else if (isPartial) { pillBg = '#dcfce7'; pillColor = '#16a34a'; pillIcon = 'bi-check-circle'; }
+
                               return (
-                                <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: isReversed ? '#fff1f2' : index % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-                                  <td style={{ padding: '16px 24px', fontSize: '14px', color: isReversed ? '#94a3b8' : '#0f172a', fontWeight: '500', textDecoration: isReversed ? 'line-through' : 'none' }}>
-                                    {formatDateLong(p.date_paid)}
+                                <tr key={p.id} style={{ borderBottom: index === loanPayments.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
+                                  <td style={{ padding: '16px 24px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                      <i className="bi bi-calendar" style={{ color: '#94a3b8', fontSize: '18px' }}></i>
+                                      <div>
+                                        <div style={{ fontSize: '14px', fontWeight: '600', color: '#0f172a' }}>{p.date_paid || '-'}</div>
+                                        <div style={{ fontSize: '12px', color: '#64748b' }}>12:00 PM</div>
+                                      </div>
+                                    </div>
                                   </td>
-                                  <td style={{ padding: '16px 24px', fontSize: '14px', color: isReversed ? '#94a3b8' : '#2563eb', fontWeight: '600', textDecoration: isReversed ? 'line-through' : 'none' }}>
-                                    {p.payment_code || p.id}
+                                  <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '500', color: '#2563eb' }}>
+                                    {formatPaymentCode(p)}
                                   </td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: isReversed ? '#94a3b8' : '#0f172a', textDecoration: isReversed ? 'line-through' : 'none' }}>{formatPhp(p.amount_paid)}</td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '700', color: isReversed ? '#94a3b8' : '#0f172a', textDecoration: isReversed ? 'line-through' : 'none' }}>{formatPhp(p.balance_after)}</td>
                                   <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '600', color: isReversed ? '#94a3b8' : '#475569', textDecoration: isReversed ? 'line-through' : 'none', whiteSpace: 'nowrap' }}>{getPaymentUserName(p)}</td>
-                                  <td style={{ padding: '16px 24px', fontSize: '14px', color: isReversed ? '#94a3b8' : '#64748b', textDecoration: isReversed ? 'line-through' : 'none' }}>{p.or_number || '-'}</td>
-                                  <td style={{ padding: '16px 24px', fontSize: '14px', color: isReversed ? '#94a3b8' : '#64748b', textDecoration: isReversed ? 'line-through' : 'none' }}>{p.payment_type || p.or_type || '-'}</td>
-                                  <td style={{ padding: '16px 24px', fontSize: '13px', color: isReversed ? '#94a3b8' : '#475569', textDecoration: isReversed ? 'line-through' : 'none', maxWidth: '220px', wordBreak: 'break-word' }}>
+                                  <td style={{ padding: '16px 24px', fontSize: '13px', color: isReversed ? '#94a3b8' : '#475569', textDecoration: isReversed ? 'line-through' : 'none', maxWidth: '240px', wordBreak: 'break-word' }}>
                                     {p.remarks ? (
                                       <span style={{ display: 'inline-flex', alignItems: 'flex-start', gap: '6px' }}>
                                         <i className="bi bi-chat-left-text" style={{ color: '#2563eb', fontSize: '12px', marginTop: '3px', flexShrink: 0 }}></i>
@@ -1728,30 +1767,23 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                                       <span style={{ color: '#94a3b8' }}>—</span>
                                     )}
                                   </td>
-                                  <td style={{ padding: '16px 24px' }}>
-                                    <span style={{
-                                      display: 'inline-block',
-                                      padding: '4px 12px',
-                                      borderRadius: '9999px',
-                                      fontSize: '12px',
-                                      fontWeight: '600',
-                                      backgroundColor: isReversed ? '#ffe4e6' : statusText === 'Balance(Recon)' ? '#ede9fe' : statusText === 'Balance(Reloan)' ? '#e0e7ff' : (statusText === 'Balance(Fully Paid)' || statusText === 'Balance') ? '#dcfce7' : statusText.includes('Deceased') ? '#fef3c7' : statusText.includes('Write-off') ? '#fee2e2' : statusText === 'Penalty' ? '#fff7ed' : (statusText === 'Recon' || statusText === 'Fully Paid(Recon)') ? '#ede9fe' : statusText === 'Fully Paid' ? '#dcfce7' : '#e0f2fe',
-                                      color: isReversed ? '#e11d48' : statusText === 'Balance(Recon)' ? '#7c3aed' : statusText === 'Balance(Reloan)' ? '#4338ca' : (statusText === 'Balance(Fully Paid)' || statusText === 'Balance') ? '#15803d' : statusText.includes('Deceased') ? '#b45309' : statusText.includes('Write-off') ? '#b91c1c' : statusText === 'Penalty' ? '#ea580c' : (statusText === 'Recon' || statusText === 'Fully Paid(Recon)') ? '#7c3aed' : statusText === 'Fully Paid' ? '#16a34a' : '#0284c7'
-                                    }}>
-                                      {statusText}
-                                    </span>
-                                  </td>
-                                  {canEditPayments && (
-                                    <td style={{ padding: '16px 24px' }}>
-                                      {p.status === 'penalty' && (
+                                  <td style={{ padding: '16px 24px', textAlign: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '9999px', backgroundColor: pillBg, color: pillColor, fontSize: '12px', fontWeight: '600' }}>
+                                        <i className={`bi ${pillIcon}`}></i> {statusText}
+                                      </span>
+                                      {isPenalty && (
                                         <button
+                                          type="button"
+                                          title="View/Edit Penalty"
                                           onClick={() => setEditingPenaltyPayment(p)}
-                                          style={{ padding: '6px 12px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>
-                                          Edit Penalty
+                                          style={{ background: 'transparent', border: 'none', color: '#b45309', cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px', fontSize: '12px', fontWeight: '600' }}
+                                        >
+                                          <i className="bi bi-pencil-square"></i>
                                         </button>
                                       )}
-                                    </td>
-                                  )}
+                                    </div>
+                                  </td>
                                 </tr>
                               );
                             })}
@@ -1759,14 +1791,45 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                         </table>
                       </div>
                     ) : (
-                      <div style={{ textAlign: 'center', padding: '48px', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#64748b' }}>
-                        <i className="bi bi-inbox" style={{ fontSize: '32px', color: '#cbd5e1', display: 'block', marginBottom: '8px' }}></i>
-                        No payment records found for this loan.
+                      <div style={{ padding: '60px 0', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1', textAlign: 'center', marginBottom: '24px' }}>
+                        <i className="bi bi-receipt" style={{ fontSize: '32px', color: '#94a3b8', marginBottom: '16px', display: 'block' }}></i>
+                        <div style={{ fontSize: '15px', color: '#475569', fontWeight: '500' }}>No payment history found for this loan.</div>
                       </div>
                     )}
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+                      <div style={{ padding: '16px', backgroundColor: '#f8fafc', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontSize: '24px', flexShrink: 0 }}><i className="bi bi-coin"></i></div>
+                        <div><div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '2px', letterSpacing: '0.5px' }}>TOTAL PAYMENTS</div><div style={{ fontSize: '18px', fontWeight: '700', color: '#2563eb' }}>{validPayments.length}</div><div style={{ fontSize: '12px', color: '#64748b' }}>Transactions</div></div>
+                      </div>
+                      <div style={{ padding: '16px', backgroundColor: '#f0fdf4', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a', fontSize: '24px', flexShrink: 0 }}><i className="bi bi-wallet2"></i></div>
+                        <div><div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '2px', letterSpacing: '0.5px' }}>TOTAL PAID</div><div style={{ fontSize: '18px', fontWeight: '700', color: '#16a34a' }}>{formatPhp(totalPaid)}</div><div style={{ fontSize: '12px', color: '#64748b' }}>Amount Paid</div></div>
+                      </div>
+                      <div style={{ padding: '16px', backgroundColor: '#fff7ed', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#ffedd5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ea580c', fontSize: '24px', flexShrink: 0 }}><i className="bi bi-percent"></i></div>
+                        <div><div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '2px', letterSpacing: '0.5px' }}>PAYMENT RATE</div><div style={{ fontSize: '18px', fontWeight: '700', color: '#ea580c' }}>{paymentRate}%</div><div style={{ fontSize: '12px', color: '#64748b' }}>of Total Payable</div></div>
+                      </div>
+                      <div style={{ padding: '16px', backgroundColor: '#faf5ff', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#f3e8ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9333ea', fontSize: '24px', flexShrink: 0 }}><i className="bi bi-calendar-event"></i></div>
+                        <div><div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '2px', letterSpacing: '0.5px' }}>LAST PAYMENT</div><div style={{ fontSize: '18px', fontWeight: '700', color: '#9333ea' }}>{lastPaymentDate}</div><div style={{ fontSize: '12px', color: '#64748b' }}>12:00 PM</div></div>
+                      </div>
+                    </div>
                   </>
                 );
               })()}
+            </div>
+
+            <div style={{ padding: '16px 32px', backgroundColor: '#ffffff', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => { setSelectedLoanForPayments(null); setPenaltyLoan(null); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 24px', backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', color: '#334155', transition: 'all 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#ffffff'}
+              >
+                <i className="bi bi-arrow-left"></i> Back
+              </button>
             </div>
           </div>
         </div>
