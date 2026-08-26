@@ -554,6 +554,14 @@ router.post('/', authenticateToken, async (req, res) => {
         client_name: clientName,
         previous_demand_id: priorDemand?.id || req.body.previous_demand_id || null,
       });
+
+    if (demandType === 'second' && firstDemandPenalty === null) {
+      return res.status(409).json({
+        error: 'No 1st Demand was found for this client and loan. Generate and save the 1st Demand first so its penalty charges can be used for the 2nd Demand.',
+        missing_first_demand: true,
+      });
+    }
+
     const lockedAmounts = applyDemandPenaltyPolicy({
       demandType,
       runningBalance: requestedRunningBalance,

@@ -757,7 +757,13 @@ export default function DemandLetter() {
       })
     } catch (err) {
       const message = err.response?.data?.error || 'Failed to save demand letter transaction'
-      if (err.response?.status === 409 || err.response?.data?.is_ongoing_demand) {
+      if (err.response?.data?.missing_first_demand) {
+        setErrorModal({
+          title: '1st Demand Required',
+          message,
+          variant: 'warning',
+        })
+      } else if (err.response?.status === 409 || err.response?.data?.is_ongoing_demand) {
         setErrorModal({
           title: 'Cannot Save Demand Letter',
           message,
@@ -1521,13 +1527,16 @@ export default function DemandLetter() {
 
       {errorModal && (
         <div className="modal-overlay demand-modal-overlay" onMouseDown={e => e.target === e.currentTarget && setErrorModal(null)}>
-          <div className="modal demand-feedback-modal demand-error-modal">
+          <div className={`modal demand-feedback-modal demand-error-modal${errorModal.variant === 'warning' ? ' demand-warning-modal' : ''}`}>
             <div className="modal-header">
-              <span className="modal-title">{errorModal.title}</span>
+              <span className="modal-title">
+                {errorModal.variant === 'warning' && <AlertTriangle size={20} />}
+                {errorModal.title}
+              </span>
               <button className="modal-close" onClick={() => setErrorModal(null)}>x</button>
             </div>
             <div className="modal-body">
-              <div className="demand-error-message">{errorModal.message}</div>
+              <div className={errorModal.variant === 'warning' ? 'demand-warning-message' : 'demand-error-message'}>{errorModal.message}</div>
               <button className="btn btn-primary demand-modal-primary" onClick={() => setErrorModal(null)}>
                 OK
               </button>

@@ -477,6 +477,44 @@ test('demand letter creation and deletion endpoint', async () => {
   assert.equal(checkDb, undefined);
 });
 
+test('second demand is rejected when the client loan has no first demand', async () => {
+  const login = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: 'admin123' }),
+  });
+  const { token } = await login.json();
+  const identity = {
+    customer_id: 998901,
+    loan_id: 998902,
+    loan_code: 'MISSING-FIRST-DEMAND-TEST',
+    client_name: 'TEST CLIENT WITHOUT FIRST DEMAND',
+  };
+
+  const createSecondRes = await fetch(`${baseUrl}/api/demand-letters`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      ...identity,
+      demand_type: 'second',
+      date_sent: '2026-08-26',
+      penalty_charges: 500,
+      status: 'Awaiting Receipt',
+    }),
+  });
+  const response = await createSecondRes.json();
+
+  assert.equal(createSecondRes.status, 409);
+  assert.equal(response.missing_first_demand, true);
+  assert.match(response.error, /1st Demand/);
+
+  const savedSecondDemand = await dbGet(
+    `SELECT id FROM tblDemandLetter WHERE demand_type = 'second' AND loan_code = ?`,
+    [identity.loan_code]
+  );
+  assert.equal(savedSecondDemand, undefined);
+});
+
 test('advancing a demand supersedes the previous stage and registers the next stage for monitoring', async () => {
   const login = await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',
