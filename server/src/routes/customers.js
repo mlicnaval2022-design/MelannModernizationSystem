@@ -360,7 +360,14 @@ router.get('/list/fully-paid', authenticateToken, async (req, res) => {
         co.first_name || ' ' || co.last_name as collector_name,
         (SELECT l.principal FROM tblLoan l WHERE l.customer_id = c.id AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled') ORDER BY l.date_released DESC, l.id DESC LIMIT 1) as last_loan_amount,
         (SELECT l.date_released FROM tblLoan l WHERE l.customer_id = c.id AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled') ORDER BY l.date_released DESC, l.id DESC LIMIT 1) as date_released,
-        (SELECT MAX(p.date_paid) FROM tblPayment p JOIN tblLoan l ON p.loan_id = l.id WHERE l.customer_id = c.id AND p.status != 'reversed') as date_fully_paid,
+        (SELECT MAX(p.date_paid)
+         FROM tblPayment p
+         JOIN tblLoan l ON p.loan_id = l.id
+         WHERE l.customer_id = c.id
+           AND p.status != 'reversed'
+           AND COALESCE(p.balance_after, 0) <= 0
+           AND (LOWER(COALESCE(l.status, '')) IN ('fullpaid', 'fully_paid') OR COALESCE(l.balance, 0) <= 0)
+        ) as date_fully_paid,
         (SELECT COUNT(*) FROM tblLoan l WHERE l.customer_id = c.id AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')) as loan_cycles,
         (SELECT h.remarks FROM tblCustomerStatusHistory h WHERE h.customer_id = c.id AND UPPER(h.new_status) = 'RELAX' ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as relax_note,
         (SELECT h.created_at FROM tblCustomerStatusHistory h WHERE h.customer_id = c.id AND UPPER(h.new_status) = 'RELAX' ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as relax_note_date,
@@ -368,17 +375,16 @@ router.get('/list/fully-paid', authenticateToken, async (req, res) => {
         (SELECT h.created_at FROM tblCustomerStatusHistory h WHERE h.customer_id = c.id AND UPPER(h.new_status) = 'HOLD' ORDER BY h.created_at DESC, h.id DESC LIMIT 1) as hold_note_date
       FROM tblCustomer c
       LEFT JOIN tblCollector co ON c.collector_id = co.id
-      WHERE (
-        UPPER(c.status) = 'FULLY PAID'
-        OR (
-          EXISTS (SELECT 1 FROM tblLoan l WHERE l.customer_id = c.id AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled'))
-          AND NOT EXISTS (
-            SELECT 1 FROM tblLoan l 
-            WHERE l.customer_id = c.id 
-              AND COALESCE(l.balance, 0) > 0 
-              AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
-          )
-        )
+      WHERE EXISTS (
+        SELECT 1 FROM tblLoan l
+        WHERE l.customer_id = c.id
+          AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM tblLoan l
+        WHERE l.customer_id = c.id
+          AND COALESCE(l.balance, 0) > 0
+          AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
       )
       AND UPPER(COALESCE(c.status, '')) NOT IN ('RELAX', 'HOLD', 'RECON', 'HOLD/PASTDUE')
     `);
@@ -1191,6 +1197,22 @@ router.post('/:id/status', authenticateToken, requireRole('admin', 'manager'), a
     const { status, remarks } = req.body;
     const customer = await dbGet('SELECT * FROM tblCustomer WHERE id = ?', [req.params.id]);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
+
+    const targetStatus = String(status || '').trim().toUpperCase();
+    if (['RELAX', 'FULLY PAID'].includes(targetStatus)) {
+      const outstanding = await dbGet(`
+        SELECT COALESCE(SUM(balance), 0) AS balance
+        FROM tblLoan
+        WHERE customer_id = ?
+          AND COALESCE(balance, 0) > 0
+          AND LOWER(COALESCE(status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
+      `, [req.params.id]);
+      if (Number(outstanding?.balance || 0) > 0) {
+        return res.status(400).json({
+          error: `Cannot set this client to ${targetStatus} because there is an outstanding balance of ₱${Number(outstanding.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`
+        });
+      }
+    }
     
     await dbRun(`UPDATE tblCustomer SET status=?, updated_at=datetime('now') WHERE id=?`, [status, req.params.id]);
     await dbRun(`INSERT INTO tblCustomerStatusHistory (customer_id, previous_status, new_status, changed_by, remarks) VALUES (?, ?, ?, ?, ?)`, 

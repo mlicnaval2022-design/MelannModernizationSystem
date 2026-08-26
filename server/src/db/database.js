@@ -874,6 +874,38 @@ async function initializeDatabase() {
       AND customer_classification <> 'Reloan'
   `);
 
+  // One-time, idempotent repair for Jessica Returbar (customer code 3700).
+  // A RELAX client with an open balance must remain active for collection.
+  const returbarJessica = await dbGet(`
+    SELECT c.id, c.status
+    FROM tblCustomer c
+    WHERE TRIM(COALESCE(c.customer_code, '')) = '3700'
+      AND UPPER(TRIM(COALESCE(c.status, ''))) = 'RELAX'
+      AND EXISTS (
+        SELECT 1
+        FROM tblLoan l
+        WHERE l.customer_id = c.id
+          AND COALESCE(l.balance, 0) > 0
+          AND LOWER(COALESCE(l.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
+      )
+    LIMIT 1
+  `);
+  if (returbarJessica) {
+    const repaired = await dbRun(`
+      UPDATE tblCustomer
+      SET status = 'active', updated_at = datetime('now')
+      WHERE id = ? AND UPPER(TRIM(COALESCE(status, ''))) = 'RELAX'
+    `, [returbarJessica.id]);
+    if (repaired.changes > 0) {
+      await dbRun(`
+        INSERT INTO tblCustomerStatusHistory
+          (customer_id, previous_status, new_status, changed_by, remarks)
+        VALUES (?, ?, 'active', NULL, 'Auto-repair: Outstanding loan balance requires Active status')
+      `, [returbarJessica.id, returbarJessica.status]);
+      console.log('✅ Repaired customer 3700 status from RELAX to active');
+    }
+  }
+
   const ciCols = await dbAll(`PRAGMA table_info(tblCreditInvestigation)`);
   const ciColNames = new Set(ciCols.map(c => c.name));
   const ciTextCols = ['loan_history', 'business_years', 'no_hardship', 'cb_rating'];
