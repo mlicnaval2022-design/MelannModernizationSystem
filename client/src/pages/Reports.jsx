@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext'
 import { reportPermissionKey } from '../access'
 import {
   AlertTriangle,
+  ArrowUp,
   BarChart3,
   Bell,
   CalendarDays,
@@ -744,6 +745,43 @@ export default function Reports() {
   const [modalSortConfig, setModalSortConfig] = useState({ key: null, direction: 'asc' })
   const [modalTypeFilter, setModalTypeFilter] = useState([])
   const [typeFilterMenuOpen, setTypeFilterMenuOpen] = useState(false)
+  const [showMaturityBackToTop, setShowMaturityBackToTop] = useState(false)
+  const maturityTopRef = useRef(null)
+
+  useEffect(() => {
+    if (active !== 'past-due' || !data) {
+      setShowMaturityBackToTop(false)
+      return undefined
+    }
+
+    const scrollContainer = maturityTopRef.current?.closest('.page-content')
+    if (!scrollContainer) return undefined
+
+    const updateBackToTopVisibility = () => {
+      setShowMaturityBackToTop(scrollContainer.scrollTop > 300)
+    }
+
+    updateBackToTopVisibility()
+    scrollContainer.addEventListener('scroll', updateBackToTopVisibility, { passive: true })
+    return () => scrollContainer.removeEventListener('scroll', updateBackToTopVisibility)
+  }, [active, data])
+
+  const scrollToMaturityCollector = collectorIndex => {
+    const section = document.getElementById(`maturity-collector-${collectorIndex}`)
+    if (!section) return
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    section.focus({ preventScroll: true })
+  }
+
+  const scrollMaturityReportToTop = () => {
+    const scrollContainer = maturityTopRef.current?.closest('.page-content')
+    if (scrollContainer) {
+      scrollContainer.scrollTo({ top: 0, behavior: 'smooth' })
+    } else {
+      maturityTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+    maturityTopRef.current?.focus({ preventScroll: true })
+  }
 
   useEffect(() => {
     if (selectedCollector) {
@@ -883,6 +921,10 @@ export default function Reports() {
 
   const updateFieldReleaseAmount = (collectorId, val) => {
     setFieldReleaseRows(prev => prev.map(r => r.collector_id === collectorId ? { ...r, amount: val } : r))
+  }
+
+  const clearAllFieldReleaseAmounts = () => {
+    setFieldReleaseRows(prev => prev.map(row => ({ ...row, amount: '' })))
   }
 
   const saveFieldReleases = async () => {
@@ -4718,9 +4760,30 @@ export default function Reports() {
               text-align: left !important;
               padding-left: 12px;
             }
+            .maturity-summary-row {
+              cursor: pointer;
+              transition: background-color 0.15s ease, box-shadow 0.15s ease;
+            }
+            .maturity-summary-row:hover td {
+              background: #eef6ff !important;
+            }
+            .maturity-summary-row:focus {
+              outline: 3px solid rgba(37, 99, 235, 0.35);
+              outline-offset: -3px;
+            }
+            .maturity-summary-row:focus td {
+              background: #eef6ff !important;
+            }
             .maturity-collector-stack {
               display: grid;
               gap: 14px;
+            }
+            .maturity-collector-section {
+              scroll-margin-top: 18px;
+            }
+            .maturity-collector-section:focus {
+              outline: 3px solid rgba(37, 99, 235, 0.38);
+              outline-offset: 2px;
             }
             .maturity-collector-header {
               display: grid;
@@ -4845,6 +4908,33 @@ export default function Reports() {
               font-weight: 850;
               white-space: nowrap;
             }
+            .maturity-back-to-top {
+              position: fixed;
+              right: 28px;
+              bottom: 28px;
+              z-index: 40;
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              width: 46px;
+              height: 46px;
+              border: 1px solid #1d4ed8;
+              border-radius: 50%;
+              background: #2563eb;
+              color: #ffffff;
+              cursor: pointer;
+              box-shadow: 0 12px 28px rgba(37, 99, 235, 0.35);
+              transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+            }
+            .maturity-back-to-top:hover {
+              transform: translateY(-2px);
+              background: #1d4ed8;
+              box-shadow: 0 16px 32px rgba(37, 99, 235, 0.42);
+            }
+            .maturity-back-to-top:focus-visible {
+              outline: 3px solid rgba(37, 99, 235, 0.35);
+              outline-offset: 3px;
+            }
             @media (max-width: 1320px) {
               .maturity-hero {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4857,6 +4947,7 @@ export default function Reports() {
               }
             }
             @media print {
+              .maturity-back-to-top { display: none !important; }
               ${printMode === 'detailed' ? `
               .reports-screen-only { display: none !important; }
               .reports-print-only { display: block !important; }
@@ -4867,7 +4958,7 @@ export default function Reports() {
             }
           `}</style>
           <div id={(!selectedCollector && printMode === 'summary') ? "printable-area" : undefined} className="reports-screen-only maturity-report-modern">
-            <section className="maturity-hero">
+            <section className="maturity-hero" ref={maturityTopRef} tabIndex={-1}>
               <div className="maturity-hero-title">
                 <strong>Loans Maturity Checker</strong>
                 <span>Maturity Date: {displayDate(reportFrom)} to {displayDate(reportTo)}</span>
@@ -4898,8 +4989,22 @@ export default function Reports() {
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 ? <tr><td colSpan={6} className="empty-state">No loans found for the selected maturity date range</td></tr> : rows.map(row => (
-                  <tr key={row.collector}>
+                {rows.length === 0 ? <tr><td colSpan={6} className="empty-state">No loans found for the selected maturity date range</td></tr> : rows.map((row, collectorIndex) => (
+                  <tr
+                    key={row.collector}
+                    className="maturity-summary-row"
+                    role="button"
+                    tabIndex={0}
+                    title={`Go to ${row.collector} details`}
+                    aria-label={`Go to details for collector ${row.collector}`}
+                    onClick={() => scrollToMaturityCollector(collectorIndex)}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        scrollToMaturityCollector(collectorIndex)
+                      }
+                    }}
+                  >
                     <td className="fw-600 collector-cell">{row.collector}</td>
                     <td className="text-right fw-bold">{row.client_count}</td>
                     <td className="text-right money-cell">PHP {fmt(row.total_principal)}</td>
@@ -4926,8 +5031,14 @@ export default function Reports() {
             <div className="maturity-collector-stack">
               {rows.length === 0 ? (
                 <div className="empty-state">No loans found for the selected maturity date range</div>
-              ) : rows.map(row => (
-                <section className="maturity-collector-section" key={row.collector}>
+              ) : rows.map((row, collectorIndex) => (
+                <section
+                  id={`maturity-collector-${collectorIndex}`}
+                  className="maturity-collector-section"
+                  key={row.collector}
+                  tabIndex={-1}
+                  aria-label={`${row.collector} maturity details`}
+                >
                   <div className="maturity-collector-header">
                     <div className="maturity-collector-name">{row.collector}</div>
                     <div className="maturity-collector-meta"><span>Clients</span><strong>{row.client_count}</strong></div>
@@ -4983,6 +5094,17 @@ export default function Reports() {
               ))}
             </div>
           </div>
+          {showMaturityBackToTop && (
+            <button
+              type="button"
+              className="reports-screen-only maturity-back-to-top"
+              onClick={scrollMaturityReportToTop}
+              title="Back to top"
+              aria-label="Back to top of Loans Maturity Checker"
+            >
+              <ArrowUp size={22} strokeWidth={2.5} />
+            </button>
+          )}
           <div id={(!selectedCollector && printMode === 'detailed') ? "printable-area" : undefined} className="reports-print-only" style={{ display: 'none', padding: 20, background: '#fff' }}>
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
               <h2 style={{ margin: 0, color: 'var(--blue-dark)' }}>Loans Maturity Checker</h2>
@@ -5923,11 +6045,16 @@ export default function Reports() {
                           </tbody>
                         </table>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-                        <button className="btn btn-secondary" onClick={() => setFieldReleaseOpen(false)} disabled={fieldReleaseSaving}>Cancel</button>
-                        <button className="btn btn-primary" onClick={saveFieldReleases} disabled={fieldReleaseSaving || fieldReleaseLoading || fieldReleaseRows.length === 0}>
-                          {fieldReleaseSaving ? 'Saving...' : 'Save'}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+                        <button type="button" className="btn btn-secondary" onClick={clearAllFieldReleaseAmounts} disabled={fieldReleaseSaving || fieldReleaseRows.length === 0}>
+                          <Trash2 size={15} /> Clear All
                         </button>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button type="button" className="btn btn-secondary" onClick={() => setFieldReleaseOpen(false)} disabled={fieldReleaseSaving}>Cancel</button>
+                          <button type="button" className="btn btn-primary" onClick={saveFieldReleases} disabled={fieldReleaseSaving || fieldReleaseLoading || fieldReleaseRows.length === 0}>
+                            {fieldReleaseSaving ? 'Saving...' : 'Save'}
+                          </button>
+                        </div>
                       </div>
                     </>
                   ) : (

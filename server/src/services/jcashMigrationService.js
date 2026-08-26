@@ -2,6 +2,7 @@ const { spawnSync } = require('child_process');
 const { existsSync } = require('fs');
 const path = require('path');
 const { dbAll, dbGet, dbRun } = require('../db/database');
+const { recalculateLoanBalances, roundMoney } = require('./loanBalanceRecalculator');
 
 const DEFAULT_SOURCE = 'C:\\Users\\User\\OneDrive\\Documents\\lendingV3\\db\\jcashdb.mdb';
 const IMPORT_REMARK_PREFIX = 'Imported read-only from jcashdb.mdb';
@@ -298,11 +299,14 @@ function mapPayment(row) {
 }
 
 function getActualPaymentAmount(payment) {
+  const recordedAmount = Number(payment.amount_paid);
+  if (Number.isFinite(recordedAmount) && recordedAmount > 0) return recordedAmount;
+
   const balanceBefore = Number(payment.balance_before || 0);
   const balanceAfter = Number(payment.balance_after || 0);
   const balanceDelta = Number((balanceBefore - balanceAfter).toFixed(2));
   if (balanceBefore > 0 && balanceAfter >= 0 && balanceDelta >= 0) return balanceDelta;
-  return Number(payment.amount_paid || Math.max(0, balanceDelta) || 0);
+  return Number(Math.max(0, balanceDelta) || 0);
 }
 
 function applyLedgerTotals(loans, payments) {
@@ -315,10 +319,21 @@ function applyLedgerTotals(loans, payments) {
     const loanPayments = paymentsByLoan.get(loan.loan_code) || [];
     if (!loanPayments.length) continue;
     loanPayments.sort((a, b) => String(a.date_paid || '').localeCompare(String(b.date_paid || '')) || Number(a.source_id || 0) - Number(b.source_id || 0));
-    const openingBalance = Math.max(Number(loan.total_amortization || 0), ...loanPayments.map(p => Number(p.balance_before || 0)));
-    const latest = loanPayments[loanPayments.length - 1];
+    const registeredOpeningBalance = Number(loan.total_amortization || 0);
+    const openingBalance = registeredOpeningBalance > 0
+      ? registeredOpeningBalance
+      : Math.max(0, ...loanPayments.map(p => Number(p.balance_before || 0)));
     if (openingBalance > 0) loan.total_amortization = openingBalance;
-    if (Number(latest.balance_after || 0) >= 0) loan.balance = Number(latest.balance_after || 0);
+
+    let runningBalance = roundMoney(openingBalance);
+    for (const payment of loanPayments) {
+      const amount = roundMoney(getActualPaymentAmount(payment));
+      payment.amount_paid = amount;
+      payment.balance_before = runningBalance;
+      payment.balance_after = roundMoney(Math.max(0, runningBalance - amount));
+      runningBalance = payment.balance_after;
+    }
+    loan.balance = runningBalance;
   }
 }
 
@@ -349,7 +364,9 @@ async function scanJcash({ from, to, loanId, password }) {
 
   const previewRows = loans.map(loan => {
     const customer = customersByCode.get(loan.customer_code) || mapCustomer({ Code: loan.customer_code });
-    const loanPayments = payments.filter(payment => payment.loan_code === loan.loan_code);
+    const loanPayments = payments
+      .filter(payment => payment.loan_code === loan.loan_code)
+      .sort((a, b) => String(a.date_paid || '').localeCompare(String(b.date_paid || '')) || Number(a.source_id || 0) - Number(b.source_id || 0));
     return {
       id: loan.loan_code,
       exists: existingLoanCodes.has(loan.loan_code),
@@ -491,7 +508,7 @@ async function migrateSelectedJcash({ from, to, loanId, loanCodes = [], user, pa
   const scan = await scanJcash({ from, to, loanId: normalizedLoanId, password });
   const selected = new Set(loanCodes.map(String));
   const rows = scan.rows.filter(row => selected.has(String(row.loan.loan_code)));
-  const stats = { customers: 0, loans_inserted: 0, loans_updated: 0, payments_inserted: 0, skipped: loanCodes.length - rows.length };
+  const stats = { customers: 0, loans_inserted: 0, loans_updated: 0, payments_inserted: 0, payment_balances_corrected: 0, skipped: loanCodes.length - rows.length };
   const linkedLoans = [];
 
   await dbRun('BEGIN IMMEDIATE TRANSACTION');
@@ -515,6 +532,14 @@ async function migrateSelectedJcash({ from, to, loanId, loanCodes = [], user, pa
       }
     }
 
+    for (const linked of linkedLoans) {
+      const recalculation = await recalculateLoanBalances(linked.loanId, {
+        userId: user?.id,
+        recomputeSchedule: false,
+      });
+      stats.payment_balances_corrected += recalculation.payment_changes.length;
+    }
+
     await dbRun(
       `INSERT INTO tblLogtime (user_id, username, action, module, details) VALUES (?,?,?,?,?)`,
       [user?.id || null, user?.username || 'system', 'MIGRATE', 'JCASH MIGRATION', normalizedLoanId
@@ -533,5 +558,5 @@ module.exports = {
   scanJcash,
   migrateSelectedJcash,
   validateDateRange,
-  _test: { accessLoanWhere, applyLedgerTotals, asArray, isMigratableLoan, mapLoan, mapPayment, validateLoanId },
+  _test: { accessLoanWhere, applyLedgerTotals, asArray, getActualPaymentAmount, isMigratableLoan, mapLoan, mapPayment, validateLoanId },
 };

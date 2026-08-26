@@ -251,6 +251,7 @@ async function initializeDatabase() {
       status TEXT DEFAULT 'active',
       reversed_at TEXT,
       reversed_by INTEGER,
+      reversal_reason TEXT,
       remarks TEXT,
       encoded_by INTEGER,
       dcr_id INTEGER,
@@ -896,6 +897,7 @@ async function initializeDatabase() {
   const paymentCols = await dbAll(`PRAGMA table_info(tblPayment)`);
   const paymentColNames = new Set(paymentCols.map(c => c.name));
   if (!paymentColNames.has('payment_code')) await dbRun(`ALTER TABLE tblPayment ADD COLUMN payment_code TEXT`);
+  if (!paymentColNames.has('reversal_reason')) await dbRun(`ALTER TABLE tblPayment ADD COLUMN reversal_reason TEXT`);
 
   const complianceClientCols = await dbAll(`PRAGMA table_info(tblGovernmentComplianceClients)`);
   const complianceClientColNames = new Set(complianceClientCols.map(c => c.name));

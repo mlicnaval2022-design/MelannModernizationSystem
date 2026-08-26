@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import '../soa.css';
@@ -55,6 +55,15 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
   const [reloanModalOpen, setReloanModalOpen] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
   const suppressNextPrintRef = useRef(false);
+  const paymentHistoryBodyRef = useRef(null);
+
+  useLayoutEffect(() => {
+    if (!selectedLoanForPayments) return;
+    if (paymentHistoryBodyRef.current) {
+      paymentHistoryBodyRef.current.scrollTop = 0;
+      paymentHistoryBodyRef.current.scrollLeft = 0;
+    }
+  }, [selectedLoanForPayments]);
 
   const fetchSoaData = async (id) => {
     if (!id) return;
@@ -1469,7 +1478,7 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
               </div>
             </div>
 
-            <div className="payment-history-refresh-body" style={{ padding: '32px', overflowY: 'auto', backgroundColor: '#fdfdfd' }}>
+            <div ref={paymentHistoryBodyRef} className="payment-history-refresh-body" style={{ padding: '32px', overflowY: 'auto', backgroundColor: '#fdfdfd' }}>
               {(() => {
                 const principal = Number(selectedLoanForPayments.principal) || 0;
                 const interestRate = Number(selectedLoanForPayments.interest_rate) || 0;

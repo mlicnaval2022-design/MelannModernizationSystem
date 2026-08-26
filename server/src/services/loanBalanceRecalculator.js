@@ -11,6 +11,27 @@ const getOpeningBalance = loan => {
   return roundMoney(Number(loan?.principal || 0) + Number(loan?.interest_amount || 0));
 };
 
+const calculateLoanLedger = (loan, payments) => {
+  let runningBalance = getOpeningBalance(loan);
+  let totalPaid = 0;
+
+  const entries = payments.map(payment => {
+    const balanceBefore = roundMoney(runningBalance);
+    const amountPaid = roundMoney(payment.amount_paid);
+    const balanceAfter = roundMoney(Math.max(0, balanceBefore - amountPaid));
+    totalPaid = roundMoney(totalPaid + amountPaid);
+    runningBalance = balanceAfter;
+
+    return { payment, balanceBefore, balanceAfter };
+  });
+
+  return {
+    entries,
+    finalBalance: roundMoney(runningBalance),
+    totalPaid,
+  };
+};
+
 async function recomputeAmortizationSchedule(loanId, payments) {
   await dbRun(
     `UPDATE tblAmortizationSchedule
@@ -95,16 +116,10 @@ async function recalculateLoanBalances(loanId, options = {}) {
     [loanId, ...balancePaymentStatuses]
   );
 
-  let runningBalance = getOpeningBalance(loan);
-  let totalPaid = 0;
   const changes = [];
+  const ledger = calculateLoanLedger(loan, payments);
 
-  for (const payment of payments) {
-    const balanceBefore = roundMoney(runningBalance);
-    const amountPaid = roundMoney(payment.amount_paid);
-    const balanceAfter = roundMoney(Math.max(0, balanceBefore - amountPaid));
-    totalPaid = roundMoney(totalPaid + amountPaid);
-
+  for (const { payment, balanceBefore, balanceAfter } of ledger.entries) {
     if (
       Math.abs(Number(payment.balance_before || 0) - balanceBefore) > 0.009 ||
       Math.abs(Number(payment.balance_after || 0) - balanceAfter) > 0.009
@@ -125,11 +140,9 @@ async function recalculateLoanBalances(loanId, options = {}) {
         [balanceBefore, balanceAfter, payment.id]
       );
     }
-
-    runningBalance = balanceAfter;
   }
 
-  const finalBalance = roundMoney(runningBalance);
+  const finalBalance = ledger.finalBalance;
   const currentStatus = String(loan.status || '').toLowerCase();
   let nextStatus = loan.status || 'active';
   if (!terminalLoanStatuses.has(currentStatus)) {
@@ -141,7 +154,7 @@ async function recalculateLoanBalances(loanId, options = {}) {
     `UPDATE tblLoan
      SET balance = ?, total_paid = ?, status = ?, updated_at = datetime('now')
      WHERE id = ?`,
-    [finalBalance, totalPaid, nextStatus, loanId]
+    [finalBalance, ledger.totalPaid, nextStatus, loanId]
   );
 
   if (options.recomputeSchedule !== false) {
@@ -156,13 +169,14 @@ async function recalculateLoanBalances(loanId, options = {}) {
     loan_id: loanId,
     opening_balance: getOpeningBalance(loan),
     final_balance: finalBalance,
-    total_paid: totalPaid,
+    total_paid: ledger.totalPaid,
     status: nextStatus,
     payment_changes: changes
   };
 }
 
 module.exports = {
+  calculateLoanLedger,
   getOpeningBalance,
   recalculateLoanBalances,
   roundMoney,

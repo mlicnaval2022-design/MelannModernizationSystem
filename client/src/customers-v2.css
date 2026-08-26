@@ -320,9 +320,20 @@
 .payment-history-refresh {
   border: 1px solid #dbe7ff;
   box-shadow: 0 30px 90px rgba(15, 23, 42, 0.24) !important;
+  min-height: 0;
+}
+
+.payment-history-refresh > div:first-child {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  background: #ffffff;
 }
 
 .payment-history-refresh-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overscroll-behavior: contain;
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%) !important;
 }
 

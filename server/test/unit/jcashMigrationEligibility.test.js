@@ -49,7 +49,7 @@ test('single-loan scan rejects unsafe or non-numeric Loan IDs', () => {
   assert.throws(() => _test.validateLoanId(''), /numbers only/);
 });
 
-test('single-loan eligibility can use the latest payment-ledger balance when loan summary is stale', () => {
+test('single-loan eligibility is rebuilt from its visible payment ledger when loan summary is stale', () => {
   const loan = _test.mapLoan({
     LoanID: 30997,
     Code: 3148,
@@ -68,6 +68,44 @@ test('single-loan eligibility can use the latest payment-ledger balance when loa
 
   assert.equal(loan.balance, 0);
   _test.applyLedgerTotals([loan], payments);
-  assert.equal(loan.balance, 220);
+  assert.equal(loan.balance, 6610);
   assert.equal(_test.isMigratableLoan(loan), true);
+});
+
+test('JCash payment balances are rebuilt chronologically when source rows were backdated', () => {
+  const loan = _test.mapLoan({
+    LoanID: 3828,
+    Code: 745,
+    LoanStatus: 'Good',
+    Principal: 10000,
+    LoanTotal: 10600,
+    TotalPayment: 6280,
+    Balance: 4320,
+    DateRelease: '2017-10-01',
+  });
+  const payments = [
+    _test.mapPayment({ LoanID: 3828, Status: 'Good', DatePaid: '2017-10-31', TotalBalance: 10600, NewBalance: 8920, ID: 175 }),
+    _test.mapPayment({ LoanID: 3828, Status: 'Good', DatePaid: '2017-11-17', TotalBalance: 8920, NewBalance: 8320, ID: 176 }),
+    _test.mapPayment({ LoanID: 3828, Status: 'Good', DatePaid: '2021-04-24', TotalBalance: 8320, NewBalance: 7320, ID: 177 }),
+    _test.mapPayment({ LoanID: 3828, Status: 'Good', DatePaid: '2021-03-30', TotalBalance: 4320, NewBalance: 3320, ID: 181 }),
+  ];
+
+  _test.applyLedgerTotals([loan], payments);
+  const chronological = payments.sort((a, b) => a.date_paid.localeCompare(b.date_paid));
+
+  assert.deepEqual(chronological.map(payment => payment.balance_after), [8920, 8320, 7320, 6320]);
+  assert.equal(loan.balance, 6320);
+});
+
+test('JCash migration trusts an explicit payment amount over a corrupted balance delta', () => {
+  assert.equal(_test.getActualPaymentAmount({
+    amount_paid: 500,
+    balance_before: 9000,
+    balance_after: 7000,
+  }), 500);
+  assert.equal(_test.getActualPaymentAmount({
+    amount_paid: null,
+    balance_before: 9000,
+    balance_after: 8500,
+  }), 500);
 });
