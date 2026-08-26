@@ -105,3 +105,26 @@ test('cannot set a customer with an outstanding balance to RELAX', async () => {
   const saved = await dbGet('SELECT status FROM tblCustomer WHERE id = ?', [customer.id]);
   assert.equal(saved.status, 'active');
 });
+
+test('Relax tab excludes a stale RELAX customer that still has an outstanding balance', async () => {
+  const branch = await dbGet('SELECT id FROM tblBranch LIMIT 1');
+  const customer = await dbRun(`
+    INSERT INTO tblCustomer
+      (customer_code, first_name, last_name, full_name, branch_id, status)
+    VALUES ('RELAX-GUARD', 'Stale', 'Relax', 'RELAX, STALE', ?, 'RELAX')
+  `, [branch.id]);
+  await dbRun(`
+    INSERT INTO tblLoan
+      (loan_code, customer_id, branch_id, loan_type, principal, interest_amount,
+       loan_period, date_released, date_maturity, total_amortization, balance, status)
+    VALUES ('RELAX-GUARD-LOAN', ?, ?, 'Reloan', 3000, 450, 45, '2026-07-27', '2026-09-11', 3450, 1610, 'active')
+  `, [customer.lastID, branch.id]);
+
+  const response = await fetch(`${baseUrl}/api/loans?status=relax`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const rows = await response.json();
+
+  assert.equal(response.status, 200, rows.error);
+  assert.equal(rows.some(row => row.customer_code === 'RELAX-GUARD'), false);
+});

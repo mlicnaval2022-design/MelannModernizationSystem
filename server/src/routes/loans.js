@@ -63,8 +63,17 @@ router.get('/', authenticateToken, async (req, res) => {
     if (search) { q += ` AND (c.full_name LIKE ? OR l.loan_code LIKE ? OR c.customer_code LIKE ?)`; p.push(`%${search}%`, `%${search}%`, `%${search}%`); }
     if (status) { 
         if (status === 'relax' || status === 'hold') {
-            q += ` AND LOWER(c.status) = ? AND l.id = (SELECT MAX(id) FROM tblLoan WHERE customer_id = c.id)`; 
+            q += ` AND LOWER(c.status) = ? AND l.id = (SELECT MAX(id) FROM tblLoan WHERE customer_id = c.id)`;
             p.push(status);
+            if (status === 'relax') {
+              q += ` AND NOT EXISTS (
+                SELECT 1
+                FROM tblLoan outstanding
+                WHERE outstanding.customer_id = c.id
+                  AND COALESCE(outstanding.balance, 0) > 0
+                  AND LOWER(COALESCE(outstanding.status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled')
+              )`;
+            }
         } else {
             q += ` AND l.status = ?`; 
             p.push(status);
