@@ -5840,12 +5840,12 @@ export default function Reports() {
         if (col.length) cols.push(col)
         return cols
       }
-      const printablePageHeightIn = 13.4
+      const printablePageHeightIn = 12.4
       const reservedHeaderHeightIn = 3.05
       const reservedFooterHeightIn = 1.05
       const columnHeaderHeightIn = 0.25
-      const averageEntryHeightIn = 0.265
-      const autoColumnUnits = (printablePageHeightIn - reservedHeaderHeightIn - reservedFooterHeightIn - columnHeaderHeightIn) / averageEntryHeightIn
+      const averageEntryHeightIn = 0.29
+      const autoColumnUnits = 28
       const columns = splitByUnits(orderedEntries, autoColumnUnits)
       const pages = []
       for (let i = 0; i < columns.length; i += 2) {
