@@ -388,6 +388,133 @@
   color: #fff;
 }
 
+.loans-relax-print-report {
+  display: none;
+}
+
+@media print {
+  #printable-area.loans-relax-print-report,
+  #printable-area.loans-relax-print-report * {
+    visibility: visible !important;
+  }
+
+  #printable-area.loans-relax-print-report {
+    position: absolute;
+    inset: 0 auto auto 0;
+    display: block !important;
+    width: 100%;
+    padding: 0;
+    color: #111827;
+    background: #fff;
+    font-family: Arial, sans-serif;
+  }
+
+  .loans-relax-print-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #1d4ed8;
+  }
+
+  .loans-relax-print-header p {
+    margin: 0 0 4px;
+    color: #475569;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  .loans-relax-print-header h1 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 22px;
+    line-height: 1.15;
+  }
+
+  .loans-relax-print-meta {
+    text-align: right;
+  }
+
+  .loans-relax-print-meta span {
+    display: block;
+    color: #64748b;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .loans-relax-print-meta strong {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+  }
+
+  .loans-relax-print-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    margin: 12px 0;
+    color: #475569;
+    font-size: 10px;
+  }
+
+  .loans-relax-print-report table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 9px;
+  }
+
+  .loans-relax-print-report th,
+  .loans-relax-print-report td {
+    padding: 8px 7px;
+    border: 1px solid #cbd5e1;
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+  }
+
+  .loans-relax-print-report th {
+    background: #eaf2ff !important;
+    color: #1e3a8a;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: .035em;
+    text-transform: uppercase;
+  }
+
+  .loans-relax-print-report th:nth-child(1) { width: 9%; }
+  .loans-relax-print-report th:nth-child(2) { width: 17%; }
+  .loans-relax-print-report th:nth-child(3),
+  .loans-relax-print-report th:nth-child(4) { width: 10%; }
+  .loans-relax-print-report th:nth-child(5) { width: 11%; }
+  .loans-relax-print-report th:nth-child(6) { width: 15%; }
+  .loans-relax-print-report th:nth-child(7) { width: 28%; }
+
+  .loans-relax-print-report .amount-column {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .loans-relax-print-report .reason-column {
+    white-space: pre-wrap;
+  }
+
+  .loans-relax-print-report tfoot td {
+    background: #f8fafc !important;
+    font-weight: 800;
+  }
+
+  .loans-relax-print-empty {
+    padding: 24px !important;
+    color: #64748b;
+    text-align: center !important;
+  }
+}
+
 @media (max-width: 980px) {
   .loans-modern .loans-entry-card > div {
     grid-template-columns: repeat(2, minmax(0, 1fr));

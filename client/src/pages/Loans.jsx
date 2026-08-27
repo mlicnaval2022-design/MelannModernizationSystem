@@ -10,6 +10,13 @@ import './Loans.css'
 
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 
+const printDate = value => {
+  if (!value) return '—';
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString('en-PH', { month: 'short', day: '2-digit', year: 'numeric' });
+};
+
 const calculateMaturityDate = (releaseDate, termDays) => {
   if (!releaseDate || !Number.isInteger(Number(termDays)) || Number(termDays) <= 0) return '';
   const date = new Date(`${releaseDate}T00:00:00`);
@@ -395,7 +402,7 @@ export default function Loans() {
             </div>
             <div style={{ display: 'flex', gap: 8, alignSelf: 'flex-end' }}>
               <button className="btn btn-secondary" onClick={load}>🔄 Refresh</button>
-              <button className="btn btn-dark" onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>🖨️ Print</button>
+              <button type="button" className="btn btn-dark" onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>🖨️ Print</button>
             </div>
           </div>
 
@@ -554,6 +561,73 @@ export default function Loans() {
             </table>
           </div>
           </div>
+
+          {status === 'relax' && (
+            <section id="printable-area" className="loans-relax-print-report" aria-label="Relax clients printable report">
+              <style>{'@media print { @page { size: landscape; margin: 12mm; } }'}</style>
+              <header className="loans-relax-print-header">
+                <div>
+                  <p>Melann Lending Corporation</p>
+                  <h1>Relax Clients Report</h1>
+                </div>
+                <div className="loans-relax-print-meta">
+                  <span>Print Date</span>
+                  <strong>{new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })}</strong>
+                </div>
+              </header>
+
+              <div className="loans-relax-print-summary">
+                <span><strong>{filteredRows.length}</strong> {filteredRows.length === 1 ? 'client' : 'clients'}</span>
+                {filterCollector && <span>Collector: <strong>{filterCollector}</strong></span>}
+                {filterType && <span>Loan Type: <strong>{filterType}</strong></span>}
+                {search && <span>Search: <strong>{search}</strong></span>}
+              </div>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Client Code</th>
+                    <th>Name of Client</th>
+                    <th>Release Date</th>
+                    <th>Due Date</th>
+                    <th className="amount-column">Total Loan</th>
+                    <th>Collector</th>
+                    <th className="reason-column">Reason for Relax</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="loans-relax-print-empty">No Relax clients found for the selected filters.</td>
+                    </tr>
+                  ) : filteredRows.map(row => {
+                    const interest = Number(row.interest_amount || (Number(row.total_amortization || 0) - Number(row.principal || 0)) || 0);
+                    const loanTotal = Number(row.total_amortization || (Number(row.principal || 0) + interest) || 0);
+                    return (
+                      <tr key={`relax-print-${row.id}`}>
+                        <td>{row.customer_code || '—'}</td>
+                        <td>{row.customer_name || '—'}</td>
+                        <td>{printDate(row.date_released)}</td>
+                        <td>{printDate(row.date_maturity)}</td>
+                        <td className="amount-column">₱ {fmt(loanTotal)}</td>
+                        <td>{row.collector_name || 'Unassigned'}</td>
+                        <td className="reason-column">{row.status_note || 'No reason provided'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                {filteredRows.length > 0 && (
+                  <tfoot>
+                    <tr>
+                      <td colSpan={4}>TOTAL ({filteredRows.length} {filteredRows.length === 1 ? 'client' : 'clients'})</td>
+                      <td className="amount-column">₱ {fmt(totalLoan)}</td>
+                      <td colSpan={2}></td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </section>
+          )}
 
       {/* ===================== Loan Detail Modal ===================== */}
       {detailModal && detailLoan && (
