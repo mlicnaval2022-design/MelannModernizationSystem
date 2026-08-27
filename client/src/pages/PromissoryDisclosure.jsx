@@ -259,7 +259,7 @@ export default function PromissoryDisclosure() {
     exportRoot.removeAttribute('id')
     exportRoot.style.margin = '0'
     exportRoot.style.boxShadow = 'none'
-    exportRoot.style.width = isIndex ? '8in' : '8.5in'
+    exportRoot.style.width = isIndex ? '6in' : '8.5in'
     exportRoot.style.minHeight = isIndex ? '5in' : '14in'
     exportRoot.style.height = isIndex ? '5in' : ''
     exportRoot.style.maxWidth = 'none'
@@ -269,7 +269,7 @@ export default function PromissoryDisclosure() {
     exportHost.style.position = 'fixed'
     exportHost.style.left = '-10000px'
     exportHost.style.top = '0'
-    exportHost.style.width = isIndex ? '8in' : '8.5in'
+    exportHost.style.width = isIndex ? '6in' : '8.5in'
     exportHost.style.background = '#fff'
     exportHost.appendChild(exportRoot)
     document.body.appendChild(exportHost)
@@ -280,7 +280,7 @@ export default function PromissoryDisclosure() {
         filename: `${isIndex ? 'Index' : activeTab === 'disclosure' ? 'Disclosure' : 'Promissory'}_${safeName(loanCode)}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-        jsPDF: { unit: 'in', format: isIndex ? [8, 5] : [8.5, 14], orientation: isIndex ? 'landscape' : 'portrait' },
+        jsPDF: { unit: 'in', format: isIndex ? [6, 5] : [8.5, 14], orientation: isIndex ? 'landscape' : 'portrait' },
         pagebreak: { mode: [] },
       })
       .from(exportRoot)
@@ -709,22 +709,22 @@ function IndexPreview({ data }) {
         .index-preview-shell { overflow: auto; padding: 14px; border: 1px solid #d7e0ec; border-radius: 10px; background: #f8fafc; }
         .index-preview-note { margin: 0 0 12px; color: #475569; font-size: 12px; line-height: 1.45; }
         .index-preview-note b { color: #0f172a; }
-        .index-card-print { width: 8in; height: 5in; box-sizing: border-box; background: #fff; color: #000; margin: 0 auto; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); overflow: hidden; }
-        .index-card-fields { box-sizing: border-box; display: grid; grid-template-columns: 4.1in 2.5in 1in; grid-template-rows: repeat(3, 0.278in); padding: 0.35in 0.2in 0; }
+        .index-card-print { width: 6in; height: 5in; box-sizing: border-box; background: #fff; color: #000; margin: 0 auto; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); overflow: hidden; }
+        .index-card-fields { box-sizing: border-box; display: grid; grid-template-columns: 3.05in 1.85in 0.7in; grid-template-rows: repeat(3, 0.278in); padding: 0.35in 0.2in 0; }
         .index-card-field { align-self: end; overflow: hidden; white-space: nowrap; font-family: Arial, Helvetica, sans-serif; font-weight: 600; line-height: 1; text-overflow: clip; }
         .index-left { text-align: left; padding-right: 0.08in; }
         .index-middle { text-align: center; padding: 0 0.04in; }
         .index-right { text-align: center; padding-left: 0.02in; }
         @media print {
-          @page { size: 8in 5in; margin: 0; }
+          @page { size: 6in 5in; margin: 0; }
           body { margin: 0 !important; background: #fff !important; }
           body * { visibility: hidden !important; }
           #index-printable, #index-printable * { visibility: visible !important; }
-          #index-printable { position: absolute !important; left: 0 !important; top: 0 !important; width: 8in !important; height: 5in !important; margin: 0 !important; box-shadow: none !important; overflow: hidden !important; }
+          #index-printable { position: absolute !important; left: 0 !important; top: 0 !important; width: 6in !important; height: 5in !important; margin: 0 !important; box-shadow: none !important; overflow: hidden !important; transform: none !important; zoom: 1 !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
       `}</style>
-      <p className="index-preview-note"><b>5 × 8 in landscape index card.</b> The preview shows only the text positions; print on the lined index card at <b>Actual size / 100%</b>.</p>
+      <p className="index-preview-note"><b>5 × 6 in landscape index card.</b> Page margins are set to none; print at <b>Actual size / 100%</b>.</p>
       <div id="index-printable" className="index-card-print" aria-label="Lending index card print preview">
         <div className="index-card-fields">
           {values.map(([position, value], index) => (
