@@ -5933,12 +5933,27 @@ export default function Reports() {
         <th key={side+'dl'} style={{ ...headerCell, width: '8%', textAlign: 'right', paddingLeft: 0, paddingRight: 0 }}>Daily</th>,
         <th key={side+'co'} style={{ ...headerCell, width: '19%', textAlign: 'center' }}>Collected</th>
       ]
-      const renderClientColumn = (entries, keyPrefix) => (
-        <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: '8pt' }}>
-          <thead><tr style={{ textTransform: 'uppercase', fontWeight: 700 }}>{colHdr(keyPrefix)}</tr></thead>
-          <tbody>{entries.map((entry, i) => <tr key={`${keyPrefix}-${i}`} style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>{entryCells(entry)}</tr>)}</tbody>
-        </table>
-      )
+      const renderClientColumn = (entries = [], keyPrefix) => {
+        const clientEntries = (entries || []).filter(e => e && e.type === 'row' && e.client)
+        const hasClients = clientEntries.length > 0
+        const totalDaily = clientEntries.reduce((sum, e) => sum + Number(e.client.amortization || 0), 0)
+
+        return (
+          <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: '8pt' }}>
+            <thead><tr style={{ textTransform: 'uppercase', fontWeight: 700 }}>{colHdr(keyPrefix)}</tr></thead>
+            <tbody>
+              {(entries || []).map((entry, i) => <tr key={`${keyPrefix}-${i}`} style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>{entryCells(entry)}</tr>)}
+              {hasClients && (
+                <tr key={`${keyPrefix}-total`} style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                  <td colSpan={5} style={{ ...cs, textAlign: 'right', fontWeight: 700, fontSize: '8.5pt', color: '#D71920', paddingRight: 6 }}>Total</td>
+                  <td style={{ ...cs, textAlign: 'right', fontWeight: 700, fontSize: '7.5pt', color: '#D71920', paddingLeft: 0 }}>{totalDaily ? Number(totalDaily).toLocaleString() : '0'}</td>
+                  <td style={{ ...cs, width: '19%' }}></td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        )
+      }
       const cashSummaryAmount = amount => Number(amount || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })
       const cashSummaryNoteStyle = { color: CL.pastdue, fontWeight: 800, fontSize: '8.5pt', lineHeight: 1 }
       const fieldReleaseNoteStyle = { color: '#D71920', fontWeight: 800, fontSize: '14pt', lineHeight: 1 }
@@ -6087,14 +6102,12 @@ export default function Reports() {
             <div key={pageIndex} className="collection-sheet-page" style={{ pageBreakAfter: pageIndex < pages.length - 1 ? 'always' : 'auto', breakAfter: pageIndex < pages.length - 1 ? 'page' : 'auto' }}>
               {pageHeader(pageIndex === 0)}
               <div className="collection-sheet-page-body" style={{ display: 'flex', gap: 0, alignItems: 'stretch' }}>
-                <div style={{ flex: 1, minWidth: 0, borderRight: page.singleColumn ? 'none' : '1.5px solid #000', paddingRight: page.singleColumn ? 0 : 8 }}>
-                  {renderClientColumn(page.left, `L${pageIndex}`)}
+                <div style={{ flex: 1, minWidth: 0, borderRight: '1.5px solid #000', paddingRight: 8 }}>
+                  {renderClientColumn(page.left || [], `L${pageIndex}`)}
                 </div>
-                {!page.singleColumn && (
-                  <div style={{ flex: 1, minWidth: 0, paddingLeft: 8 }}>
-                    {renderClientColumn(page.right, `R${pageIndex}`)}
-                  </div>
-                )}
+                <div style={{ flex: 1, minWidth: 0, paddingLeft: 8 }}>
+                  {renderClientColumn(page.right || [], `R${pageIndex}`)}
+                </div>
               </div>
               {pageFooter(pageIndex + 1, pages.length)}
             </div>
