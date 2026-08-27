@@ -89,7 +89,7 @@ export default function Collectors() {
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ first_name: '', last_name: '', branch_id: '', assigned_to: '', supervisor: '' })
+  const [form, setForm] = useState({ first_name: '', last_name: '', index_card_name: '', branch_id: '', assigned_to: '', supervisor: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [successModal, setSuccessModal] = useState(null)
@@ -158,8 +158,8 @@ export default function Collectors() {
 
   const selectableOptions = (configuredOptions, currentValue) => configuredOptions.filter(option => option.is_active || option.option_name === currentValue)
 
-  const openNew = () => { setEditing(null); setForm({ first_name: '', last_name: '', branch_id: '', assigned_to: '', supervisor: '' }); setError(''); setModal(true) }
-  const openEdit = (r) => { setEditing(r); setForm({ first_name: r.first_name || '', last_name: r.last_name || '', branch_id: r.branch_id || '', assigned_to: r.assigned_to || '', supervisor: r.supervisor || '' }); setError(''); setModal(true) }
+  const openNew = () => { setEditing(null); setForm({ first_name: '', last_name: '', index_card_name: '', branch_id: '', assigned_to: '', supervisor: '' }); setError(''); setModal(true) }
+  const openEdit = (r) => { setEditing(r); setForm({ first_name: r.first_name || '', last_name: r.last_name || '', index_card_name: r.index_card_name || '', branch_id: r.branch_id || '', assigned_to: r.assigned_to || '', supervisor: r.supervisor || '' }); setError(''); setModal(true) }
 
   const [editingLoanId, setEditingLoanId] = useState(null)
 
@@ -263,13 +263,14 @@ export default function Collectors() {
         <div className="card">
           <div className="table-wrapper">
             <table className="data-table">
-              <thead><tr><th>Code</th><th>Name</th><th>Supervisor</th><th>Assigned To</th><th>Active Loans</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Code</th><th>Name</th><th>Index Nickname</th><th>Supervisor</th><th>Assigned To</th><th>Active Loans</th><th>Actions</th></tr></thead>
               <tbody>
-                {loading ? <tr className="loading-row"><td colSpan={6}>⏳ Loading...</td></tr>
+                {loading ? <tr className="loading-row"><td colSpan={7}>⏳ Loading...</td></tr>
                   : [...rows].sort((a,b) => a.id - b.id).map(r => (
                     <tr key={r.id}>
                       <td><span className="mono">{r.collector_code}</span></td>
                       <td className="fw-600">{r.first_name} {r.last_name}</td>
+                      <td>{r.index_card_name || r.first_name || '—'}</td>
                       <td>{r.supervisor || '—'}</td>
                       <td>{r.assigned_to || '—'}</td>
                       <td>
@@ -333,6 +334,7 @@ export default function Collectors() {
                 <div className="form-grid">
                   <div className="form-group"><label className="form-label">First Name *</label><input className="form-control" value={form.first_name} onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))} required /></div>
                   <div className="form-group"><label className="form-label">Last Name *</label><input className="form-control" value={form.last_name} onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))} required /></div>
+                  <div className="form-group"><label className="form-label">Index Nickname</label><input className="form-control" value={form.index_card_name} onChange={e => setForm(f => ({ ...f, index_card_name: e.target.value }))} placeholder="e.g. Sem" /></div>
                   <div className="form-group"><label className="form-label">Branch</label>
                     <select className="form-control" value={form.branch_id} onChange={e => setForm(f => ({ ...f, branch_id: e.target.value }))}>
                       <option value="">Select...</option>

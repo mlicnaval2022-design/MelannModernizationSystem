@@ -676,7 +676,7 @@ function IndexPreview({ data }) {
   const values = [
     ['index-left', loan.customer_code || '-'],
     ['index-middle', loanTerms],
-    ['index-right', firstGivenName(loan.collector_name) || 'Unassigned'],
+    ['index-right', loan.collector_index_card_name || firstGivenName(loan.collector_name) || 'Unassigned'],
     ['index-left', borrowerName],
     ['index-middle', indexAmount(totalLoan)],
     ['index-right', indexAmount(dailyPayment)],

@@ -116,6 +116,7 @@ async function initializeDatabase() {
       collector_code TEXT NOT NULL UNIQUE,
       first_name TEXT NOT NULL,
       last_name TEXT NOT NULL,
+      index_card_name TEXT,
       branch_id INTEGER,
       assigned_to TEXT,
       supervisor TEXT,
@@ -842,6 +843,10 @@ async function initializeDatabase() {
     FROM tblCollector
     WHERE TRIM(COALESCE(supervisor, '')) <> ''
   `);
+
+  const collectorCols = await dbAll(`PRAGMA table_info(tblCollector)`);
+  const collectorColNames = new Set(collectorCols.map(c => c.name));
+  if (!collectorColNames.has('index_card_name')) await dbRun(`ALTER TABLE tblCollector ADD COLUMN index_card_name TEXT`);
 
   const customerCols = await dbAll(`PRAGMA table_info(tblCustomer)`);
   const customerColNames = new Set(customerCols.map(c => c.name));
