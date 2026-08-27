@@ -1552,7 +1552,7 @@ export default function Reports() {
         measuredBadges.forEach(b => {
           docInst.setFillColor(...b.color)
           docInst.roundedRect(badgeX, badgeY - 0.09, b.width, 0.18, 0.03, 0.03, 'F')
-          docInst.setTextColor(...CL_PDF.white)
+        docInst.setTextColor(...CL_PDF.white)
           docInst.text(b.label, badgeX + b.width / 2, badgeY + 0.03, { align: 'center' })
           badgeX += b.width + badgeGap
         })
@@ -1571,6 +1571,36 @@ export default function Reports() {
         docInst.setFontSize(12)
         docInst.setTextColor(215, 25, 32)
         docInst.text(pesoFmtPdf(targetAmount), pageW / 2, targetBoxY + 0.38, { align: 'center' })
+
+        // Expense Box (Meals, Gas, Others)
+        const expBoxW = 2.2
+        const expBoxX = (pageW - expBoxW) / 2
+        const expBoxY = targetBoxY + 0.55
+        const expBoxH = 0.68
+
+        docInst.setDrawColor(...CL_PDF.navy)
+        docInst.setLineWidth(0.01)
+        docInst.rect(expBoxX, expBoxY, expBoxW, expBoxH)
+
+        docInst.setFillColor(...CL_PDF.navy)
+        docInst.rect(expBoxX, expBoxY, expBoxW, 0.16, 'F')
+        docInst.setFontSize(7)
+        docInst.setFont('helvetica', 'bold')
+        docInst.setTextColor(255, 255, 255)
+        docInst.text('EXPENSE', expBoxX + expBoxW / 2, expBoxY + 0.11, { align: 'center' })
+
+        const expRows = ['Meals:', 'Gas:', 'Others:']
+        let expRowY = expBoxY + 0.30
+        docInst.setFontSize(6.5)
+        docInst.setFont('helvetica', 'bold')
+        docInst.setTextColor(40, 40, 40)
+        expRows.forEach(label => {
+          docInst.text(label, expBoxX + 0.10, expRowY)
+          docInst.setDrawColor(180, 180, 180)
+          docInst.setLineWidth(0.005)
+          docInst.line(expBoxX + 0.55, expRowY, expBoxX + expBoxW - 0.10, expRowY)
+          expRowY += 0.15
+        })
 
         // --- 3. Daily Cash Summary Box (Top-Right) ---
         const cashX = 6.10
@@ -5978,6 +6008,26 @@ export default function Reports() {
                 {peso(targetAmount)}
               </div>
             </div>
+
+            {showSideBoxes && (
+              <div style={{ marginTop: 6, width: 210, margin: '6px auto 0', border: '1.2px solid ' + CL.navy, borderRadius: 4, overflow: 'hidden', background: '#fff', textAlign: 'left' }}>
+                <div style={{ background: CL.navy, color: '#fff', padding: '2px 6px', fontWeight: 700, fontSize: '7.5pt', textAlign: 'center' }}>EXPENSE</div>
+                <div style={{ padding: '4px 8px', fontSize: '7.5pt', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontWeight: 600, color: '#333', width: 48 }}>Meals:</span>
+                    <span style={{ flex: 1, borderBottom: '1.2px solid #000', height: 11 }}></span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontWeight: 600, color: '#333', width: 48 }}>Gas:</span>
+                    <span style={{ flex: 1, borderBottom: '1.2px solid #000', height: 11 }}></span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontWeight: 600, color: '#333', width: 48 }}>Others:</span>
+                    <span style={{ flex: 1, borderBottom: '1.2px solid #000', height: 11 }}></span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           <div style={{ flex: '0 0 auto' }}>
             {showSideBoxes ? headerBox('DAILY CASH SUMMARY', (
