@@ -9,6 +9,7 @@ import SoaModal from '../components/SoaModal'
 import DeathCertificateModal from '../components/DeathCertificateModal'
 import { useAuth } from '../context/AuthContext'
 import { reportPermissionKey } from '../access'
+import { buildAdaptiveCollectionSheetPages } from '../utils/collectionSheetLayout'
 import {
   AlertTriangle,
   ArrowUp,
@@ -5795,7 +5796,7 @@ export default function Reports() {
       const peso = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-PHP ${f}` : `PHP ${f}` }
       const fDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }) : '-'
 
-      /* Build one ordered stream, then flow down column 1, column 2, next page. */
+      /* Build one ordered stream, using one column whenever it fits on the page. */
       const buildEntries = (sections) => {
         const entries = []
         sections.forEach(s => {
@@ -5825,62 +5826,17 @@ export default function Reports() {
       }
       const autoColumnUnits = 28
       const maxColumnEntries = 27
-      const sumEntryUnits = entries => entries.reduce((total, entry) => total + entryUnits(entry), 0)
-
       /*
-       * Build a page as a pair instead of filling one column at a time.  The old
-       * flow could put 27 rendered entries on one side and 28 on the other.  It
-       * was technically within the height allowance, but the printed columns
-       * visibly ended on different lines.  Keep both the row count and estimated
-       * height balanced while retaining the original reading order.
+       * Keep a short remainder in one full-width column. When the entries no
+       * longer fit vertically, balance them across two columns while retaining
+       * the original reading order.
        */
-      const buildBalancedPages = (entries) => {
-        const result = []
-        let start = 0
-
-        while (start < entries.length) {
-          const maxEnd = Math.min(entries.length, start + (maxColumnEntries * 2))
-          let selected = null
-
-          for (let end = maxEnd; end > start && !selected; end -= 1) {
-            const pageEntries = entries.slice(start, end)
-            const candidates = []
-
-            for (let split = 1; split <= pageEntries.length; split += 1) {
-              const left = pageEntries.slice(0, split)
-              const right = pageEntries.slice(split)
-              if (left.length > maxColumnEntries || right.length > maxColumnEntries) continue
-
-              const leftUnits = sumEntryUnits(left)
-              const rightUnits = sumEntryUnits(right)
-              if (leftUnits > autoColumnUnits || rightUnits > autoColumnUnits) continue
-
-              candidates.push({
-                left,
-                right,
-                score: (Math.abs(left.length - right.length) * 100) + Math.abs(leftUnits - rightUnits)
-              })
-            }
-
-            if (candidates.length) {
-              candidates.sort((a, b) => a.score - b.score)
-              selected = candidates[0]
-              start = end
-            }
-          }
-
-          // A single unusually tall entry must still be printable and make progress.
-          if (!selected) {
-            selected = { left: [entries[start]], right: [] }
-            start += 1
-          }
-
-          result.push({ left: selected.left, right: selected.right })
-        }
-
-        return result
-      }
-      const pages = buildBalancedPages(orderedEntries)
+      const pages = buildAdaptiveCollectionSheetPages({
+        entries: orderedEntries,
+        entryUnits,
+        maxColumnEntries,
+        maxColumnUnits: autoColumnUnits,
+      })
 
       const cs = { borderBottom: '1.2px solid #000', verticalAlign: 'middle', padding: '2px 1px' }
       const collectionNoteStyle = { display: 'block', color: CL.pastdue, lineHeight: 1.05 }
@@ -6081,12 +6037,14 @@ export default function Reports() {
             <div key={pageIndex} className="collection-sheet-page" style={{ pageBreakAfter: pageIndex < pages.length - 1 ? 'always' : 'auto', breakAfter: pageIndex < pages.length - 1 ? 'page' : 'auto' }}>
               {pageHeader(pageIndex === 0)}
               <div className="collection-sheet-page-body" style={{ display: 'flex', gap: 0, alignItems: 'stretch' }}>
-                <div style={{ flex: 1, minWidth: 0, borderRight: '1.5px solid #000', paddingRight: 8 }}>
+                <div style={{ flex: 1, minWidth: 0, borderRight: page.singleColumn ? 'none' : '1.5px solid #000', paddingRight: page.singleColumn ? 0 : 8 }}>
                   {renderClientColumn(page.left, `L${pageIndex}`)}
                 </div>
-                <div style={{ flex: 1, minWidth: 0, paddingLeft: 8 }}>
-                  {renderClientColumn(page.right, `R${pageIndex}`)}
-                </div>
+                {!page.singleColumn && (
+                  <div style={{ flex: 1, minWidth: 0, paddingLeft: 8 }}>
+                    {renderClientColumn(page.right, `R${pageIndex}`)}
+                  </div>
+                )}
               </div>
               {pageFooter(pageIndex + 1, pages.length)}
             </div>
