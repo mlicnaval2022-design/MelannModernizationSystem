@@ -11,6 +11,7 @@ import '../customers-v2.css'
 import CustomerWizard from '../components/CustomerWizard'
 import ReloanModal from '../components/ReloanModal'
 import ConfirmModal from '../components/ConfirmModal'
+import DeathCertificatePanel from '../components/DeathCertificatePanel'
 import logoImg from '../assets/logo.png'
 import { Users, CheckCircle, XCircle, Calendar, Search, Filter, FileText, Phone, Mail, MapPin, User, BarChart2, Plus, Printer, X, PieChart, List, Wallet, Scale, CalendarDays, CalendarClock, Info, ArrowDown, ArrowUp, ArrowDownUp } from 'lucide-react'
 
@@ -156,6 +157,7 @@ export default function Customers() {
     return lstatus || 'unknown';
   };
   const getCalculatedCustomerStatus = (data) => {
+    if (String(data?.status || '').toUpperCase() === 'DECEASED') return 'Deceased';
     if (!data) return 'Active';
     if (!data.loans || data.loans.length === 0) return data.status || 'Active';
     
@@ -967,6 +969,7 @@ export default function Customers() {
             <option value="">Status: All</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
+            <option value="DECEASED">Deceased</option>
             <option value="hold">Hold</option>
             <option value="reversed">Reversed</option>
           </select>
@@ -1120,7 +1123,7 @@ export default function Customers() {
       
       {soaModal && (
         <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setSoaModal(false)}>
-          <div className="soa-modal-v2 soa-modern-refresh">
+          <div className={`soa-modal-v2 soa-modern-refresh ${String(soaData?.status || '').toUpperCase() === 'DECEASED' ? 'soa-deceased' : ''}`}>
             <div className="soa-header-v2">
               <div className="soa-header-left-v2">
                 <div className="soa-icon-box-v2 soa-logo-mark-refresh">
@@ -1224,7 +1227,12 @@ export default function Customers() {
                     </div>
 
                     <div className="soa-tabs-v2 screen-only">
-                      {[['summary', 'Summary', PieChart], ['profile', 'Profile', User], ['history', 'Loans & Payments History', List]].map(([id, label, Icon]) => (
+                      {[
+                        ['summary', 'Summary', PieChart],
+                        ['profile', 'Profile', User],
+                        ['history', 'Loans & Payments History', List],
+                        ...(String(soaData.status || '').toUpperCase() === 'DECEASED' ? [['deceased', 'Deceased Client', FileText]] : [])
+                      ].map(([id, label, Icon]) => (
                         <button key={id} type="button" className={`soa-tab-v2 ${soaTab === id ? 'active' : ''}`} onClick={() => setSoaTab(id)}>
                           <Icon size={18} /> {label}
                         </button>
@@ -1773,6 +1781,15 @@ export default function Customers() {
   </td><td>{l.date_released || '-'}</td><td>{l.date_maturity || '-'}</td><td>{l.loan_period || 0} Days</td><td>{formatPhp(l.principal)}</td><td>{l.interest_rate || 0}%</td><td>{formatPhp(l.interest_amount)}</td><td>{formatPhp(l.total_amortization)}</td><td>{formatPhp(l.amortization)}</td><td>{formatPhp(l.balance)}</td><td><span className={`badge badge-${getLoanStatusClass(l)}`}>{getLoanStatusLabel(l)}</span></td><td style={{ fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>{getLoanUserName(l)}</td><td><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><button className="action-btn" style={{ borderColor: '#bfdbfe', color: '#2563eb', background: '#eff6ff' }} onClick={(e) => { e.stopPropagation(); setEditLoanError(null); setEditLoanModal({ ...l, __original: { ...l } }); }}><i className="bi bi-pencil"></i> Edit</button><button className="action-btn" onClick={(e) => { e.stopPropagation(); setPrintModeLoan(l); }}><i className="bi bi-printer"></i> Print</button><button className="action-btn" style={{ borderColor: '#fecaca', color: '#dc2626', background: '#fff5f5' }} onClick={(e) => { e.stopPropagation(); setLoanDeleteTarget(l); }}><i className="bi bi-trash"></i> Delete</button></div></td></tr>))}</tbody></table>) : (<div className="soa-empty-state"><div className="soa-empty-title">No loans found.</div><div className="soa-empty-sub">There are no loan records associated with this account.</div></div>)}
                         </div>
                       </>
+                    )}
+
+                    {soaTab === 'deceased' && String(soaData.status || '').toUpperCase() === 'DECEASED' && (
+                      <DeathCertificatePanel
+                        customer={soaData}
+                        getImageUrl={getImageUrl}
+                        onPreview={setPreviewImage}
+                        onUpdated={url => setSoaData(current => ({ ...current, death_certificate_image: url }))}
+                      />
                     )}
 
                     <div className="print-footer print-only"><div className="print-footer-col"><p>We are committed to provide reliable and responsible lending solutions for your financial growth.</p></div><div className="print-footer-col center-col"><div>09171131000</div><div>melann.lic2016@gmail.com</div><div>facebook.com/MelannLendingInvestorCorp</div></div><div className="print-footer-col right-col"><div style={{ color: '#1e3a8a', fontStyle: 'italic', fontSize: 16 }}>Thank you for choosing</div><div className="print-footer-brand">MELANN LENDING!</div></div><div className="print-footer-wave"></div></div>

@@ -91,6 +91,14 @@ test('Deceased and Write-off settle balances but stay out of Collection Reports'
     { status: 'deceased', payment_type: 'deceased' }
   );
   assert.match(storedDeceased.remarks, /^\[DECEASED\]/);
+  const deceasedCustomer = await dbGet(`SELECT status FROM tblCustomer WHERE id = ?`, [deceasedLoan.customerId]);
+  assert.equal(deceasedCustomer.status, 'DECEASED');
+  const deceasedStatusHistory = await dbGet(
+    `SELECT new_status, remarks FROM tblCustomerStatusHistory WHERE customer_id = ? ORDER BY id DESC LIMIT 1`,
+    [deceasedLoan.customerId]
+  );
+  assert.equal(deceasedStatusHistory.new_status, 'DECEASED');
+  assert.match(deceasedStatusHistory.remarks, /Deceased payment classification/);
   assert.deepEqual(
     { status: storedWriteoff.status, payment_type: storedWriteoff.payment_type },
     { status: 'writeoff', payment_type: 'writeoff' }
@@ -146,6 +154,29 @@ test('Deceased and Write-off settle balances but stay out of Collection Reports'
     total_accounts: 2,
     total_amount: 2000,
   });
+
+  const certificateForm = new FormData();
+  certificateForm.append('file', new Blob(['death-certificate-image'], { type: 'image/png' }), 'death-certificate.png');
+  const certificateResponse = await fetch(`${baseUrl}/api/customers/${deceasedLoan.customerId}/death-certificate`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+    body: certificateForm,
+  });
+  const certificate = await certificateResponse.json();
+  assert.equal(certificateResponse.status, 200, certificate.error);
+  assert.match(certificate.url, /^\/uploads\//);
+  assert.equal(
+    (await dbGet(`SELECT death_certificate_image FROM tblCustomer WHERE id = ?`, [deceasedLoan.customerId])).death_certificate_image,
+    certificate.url
+  );
+
+  const reversalResponse = await fetch(`${baseUrl}/api/reversals/payment/${deceasedBody.id}`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const reversal = await reversalResponse.json();
+  assert.equal(reversalResponse.status, 200, reversal.error);
+  assert.equal((await dbGet(`SELECT status FROM tblCustomer WHERE id = ?`, [deceasedLoan.customerId])).status, 'active');
 });
 
 test('posting rejects multiple special classifications', async () => {

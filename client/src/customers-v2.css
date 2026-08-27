@@ -303,6 +303,7 @@
 .cell-status.overdue { color: #ea580c; }
 .cell-status.recon { color: #2563eb; }
 .cell-status.pastdue { color: #ef4444; }
+.cell-status.deceased { color: #4b5563; }
 
 .status-dot {
   width: 6px;
@@ -310,6 +311,7 @@
   border-radius: 50%;
 }
 .status-dot.active { background-color: #10b981; }
+.status-dot.deceased { background-color: #4b5563; }
 .status-dot.inactive { background-color: #94a3b8; }
 .status-dot.fullypaid { background-color: #9333ea; }
 .status-dot.hold { background-color: #f59e0b; }

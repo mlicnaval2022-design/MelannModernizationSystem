@@ -2128,14 +2128,21 @@ router.get('/aging-report', authenticateToken, async (req, res) => {
       SELECT
         l.id,
         l.customer_id,
+        l.collector_id,
         l.loan_code,
+        l.loan_type,
         l.principal,
         l.interest_amount,
         COALESCE(l.principal, 0) + COALESCE(l.interest_amount, 0) as total_loan_amount,
+        l.amortization,
         l.balance,
+        l.date_released,
         l.date_maturity,
+        l.status,
         c.customer_code,
-        c.full_name as customer_name,
+        COALESCE(NULLIF(TRIM(c.full_name), ''), NULLIF(TRIM(c.first_name || ' ' || c.last_name), ''), '-') as customer_name,
+        c.contact,
+        c.address,
         COALESCE(NULLIF(TRIM(co.first_name || ' ' || co.last_name), ''), 'Unassigned') as collector_name,
         CAST(julianday(date(?)) - julianday(date(l.date_maturity)) AS INTEGER) as aging_days
       FROM tblLoan l
@@ -2161,15 +2168,17 @@ router.get('/aging-report', authenticateToken, async (req, res) => {
       if (!bucket) return;
 
       const collector = loan.collector_name || 'Unassigned';
-      if (!collectorMaps[collector]) {
-        collectorMaps[collector] = Object.fromEntries(buckets.map(item => [item.key, {
+      const collectorKey = loan.collector_id ? String(loan.collector_id) : 'unassigned';
+      if (!collectorMaps[collectorKey]) {
+        collectorMaps[collectorKey] = Object.fromEntries(buckets.map(item => [item.key, {
           collector,
+          collector_id: loan.collector_id || null,
           ...makeBucketRow(item),
           client_ids: new Set(),
         }]));
       }
 
-      const rows = [overallMap[bucket.key], collectorMaps[collector][bucket.key]];
+      const rows = [overallMap[bucket.key], collectorMaps[collectorKey][bucket.key]];
       rows.forEach(row => {
         if (loan.customer_id) row.client_ids.add(loan.customer_id);
         row.total_principal += Number(loan.principal || 0);
@@ -2189,11 +2198,12 @@ router.get('/aging-report', authenticateToken, async (req, res) => {
 
     const overall = buckets.map(bucket => finalizeRow(overallMap[bucket.key]));
     const byCollector = Object.keys(collectorMaps)
-      .sort((a, b) => a.localeCompare(b))
-      .map(collector => ({
-        collector,
-        buckets: buckets.map(bucket => finalizeRow(collectorMaps[collector][bucket.key])),
-      }));
+      .map(collectorKey => ({
+        collector: collectorMaps[collectorKey][buckets[0].key].collector,
+        collector_id: collectorMaps[collectorKey][buckets[0].key].collector_id,
+        buckets: buckets.map(bucket => finalizeRow(collectorMaps[collectorKey][bucket.key])),
+      }))
+      .sort((a, b) => a.collector.localeCompare(b.collector));
 
     res.json({
       as_of: asOf,

@@ -741,6 +741,7 @@ export default function Reports() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [selectedCollector, setSelectedCollector] = useState(null)
+  const [agingDetail, setAgingDetail] = useState(null)
   const [soaCustomerId, setSoaCustomerId] = useState(null)
   const [modalSortConfig, setModalSortConfig] = useState({ key: null, direction: 'asc' })
   const [modalTypeFilter, setModalTypeFilter] = useState([])
@@ -867,6 +868,45 @@ export default function Reports() {
   const [categoryForm, setCategoryForm] = useState({ id: '', category_name: '', status: 'active' })
   const allowedReportTypes = REPORT_TYPES.filter(report => hasPermission(reportPermissionKey(report.key), 'view'))
   const allowedReportKeys = allowedReportTypes.map(report => report.key).join('|')
+
+  const openAgingDetails = (group, bucket, reportData) => {
+    const loans = (reportData?.loans || []).filter(loan => {
+      const collectorMatches = group.collector_id !== null && group.collector_id !== undefined
+        ? String(loan.collector_id) === String(group.collector_id)
+        : String(loan.collector_name || 'Unassigned').trim().toLowerCase()
+          === String(group.collector || 'Unassigned').trim().toLowerCase()
+      const days = Number(loan.aging_days || 0)
+      const bucketMatches = bucket.bucket_key === '121+'
+        ? days >= 121
+        : (() => {
+            const [min, max] = String(bucket.bucket_key).split('-').map(Number)
+            return days >= min && days <= max
+          })()
+      return collectorMatches && bucketMatches
+    })
+
+    const clientIds = new Set(loans.map(loan => loan.customer_id || loan.customer_code).filter(Boolean))
+    const totals = loans.reduce((summary, loan) => ({
+      total_clients: clientIds.size,
+      total_principal: summary.total_principal + Number(loan.principal || 0),
+      total_interest: summary.total_interest + Number(loan.interest_amount || 0),
+      total_loan_amount: summary.total_loan_amount + Number(loan.total_loan_amount || 0),
+      total_collectibles: summary.total_collectibles + Number(loan.balance || 0),
+    }), {
+      total_clients: clientIds.size,
+      total_principal: 0,
+      total_interest: 0,
+      total_loan_amount: 0,
+      total_collectibles: 0,
+    })
+
+    setAgingDetail({
+      collector: group.collector || 'Unassigned',
+      bucket: bucket.bucket_label,
+      totals,
+      loans,
+    })
+  }
 
   const openExpenseEmployeeDetails = (row) => {
     setSelectedExpenseEmployee({
@@ -2106,7 +2146,7 @@ export default function Reports() {
 
   const handleSelect = (key) => {
     if (!hasPermission(reportPermissionKey(key), 'view')) return
-    setActive(key); setData(null); setSelectedCollector(null)
+    setActive(key); setData(null); setSelectedCollector(null); setAgingDetail(null)
     setExportMenuOpen(false)
     if (key === 'collection-report') {
       const defaultDate = yesterday()
@@ -2150,7 +2190,7 @@ export default function Reports() {
       setData({ error: 'Your role does not have access to this report type.' })
       return null
     }
-    setLoading(true); setData(null); setSelectedCollector(null)
+    setLoading(true); setData(null); setSelectedCollector(null); setAgingDetail(null)
     try {
       let endpoint = reportKey
       let finalParams = reportParams
@@ -3930,6 +3970,9 @@ export default function Reports() {
       return (
         <div id="printable-area" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <style>{`${REPORT_PRINT_CLARITY_CSS}
+            .aging-detail-row { cursor: pointer; transition: background 150ms ease, box-shadow 150ms ease; }
+            .aging-detail-row:hover td, .aging-detail-row:focus td { background: #eff6ff !important; }
+            .aging-detail-row:focus { outline: 2px solid #2563eb; outline-offset: -2px; }
             @media print {
               @page { size: landscape; margin: 9mm; }
               .aging-actions { display: none !important; }
@@ -3982,7 +4025,10 @@ export default function Reports() {
           </div>
 
           <div className="card-v2 aging-section" style={{ padding: 18 }}>
-            <h3 style={{ margin: '0 0 12px 0', color: 'var(--blue-dark)' }}>Aging Report By Collector</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
+              <h3 style={{ margin: 0, color: 'var(--blue-dark)' }}>Aging Report By Collector</h3>
+              <span className="aging-actions" style={{ color: '#64748b', fontSize: 12, fontWeight: 600 }}>Click a period row to view client details</span>
+            </div>
             <div className="table-responsive-print" style={{ overflowX: 'auto' }}>
               <table className="data-table" style={{ minWidth: 860 }}>
                 <thead>
@@ -3993,14 +4039,28 @@ export default function Reports() {
                     const groupRows = group.buckets || []
                     const groupTotals = sumRows(groupRows)
                     return (
-                      <Fragment key={group.collector || 'Unassigned'}>
+                      <Fragment key={group.collector_id || group.collector || 'Unassigned'}>
                         <tr>
                           <td colSpan={6} className="fw-bold" style={{ background: '#eef4ff', color: '#1d4ed8', fontSize: 13 }}>
                             {group.collector || 'Unassigned'} <span style={{ color: '#64748b', fontWeight: 600 }}>- {groupTotals.total_clients} Clients</span>
                           </td>
                         </tr>
                         {groupRows.map(row => (
-                          <tr key={`${group.collector}-${row.bucket_key}`}>
+                          <tr
+                            key={`${group.collector_id || group.collector}-${row.bucket_key}`}
+                            className="aging-detail-row"
+                            role="button"
+                            tabIndex={0}
+                            title={`View ${group.collector || 'Unassigned'} clients in ${row.bucket_label}`}
+                            aria-label={`View ${group.collector || 'Unassigned'} client details for ${row.bucket_label}`}
+                            onClick={() => openAgingDetails(group, row, data)}
+                            onKeyDown={event => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault()
+                                openAgingDetails(group, row, data)
+                              }
+                            }}
+                          >
                             <td style={{ paddingLeft: 24 }}>{row.bucket_label}</td>
                             {renderMetricCells(row)}
                           </tr>
@@ -6403,6 +6463,72 @@ export default function Reports() {
           </div>
         )
       })()}
+      {agingDetail && (
+        <div className="modal-overlay" onMouseDown={event => event.target === event.currentTarget && setAgingDetail(null)}>
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="aging-detail-title" style={{ width: 'min(1500px, 96vw)', maxWidth: '96vw' }}>
+            <div className="modal-header">
+              <div>
+                <div id="aging-detail-title" className="modal-title">Aging Client Details — {agingDetail.collector}</div>
+                <div style={{ marginTop: 3, color: '#64748b', fontSize: 12 }}>{agingDetail.bucket}</div>
+              </div>
+              <button type="button" className="modal-close" aria-label="Close aging client details" onClick={() => setAgingDetail(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
+                {[
+                  ['Total Clients', agingDetail.totals.total_clients || 0],
+                  ['Loan Accounts', agingDetail.loans.length],
+                  ['Total Principal', `PHP ${fmt(agingDetail.totals.total_principal)}`],
+                  ['Total Interest', `PHP ${fmt(agingDetail.totals.total_interest)}`],
+                  ['Total Loan Amount', `PHP ${fmt(agingDetail.totals.total_loan_amount)}`],
+                  ['Total Collectibles', `PHP ${fmt(agingDetail.totals.total_collectibles)}`],
+                ].map(([label, value]) => (
+                  <div key={label} style={{ padding: 12, border: '1px solid #e2e8f0', borderRadius: 10, background: '#f8fafc' }}>
+                    <div className="nav-section-label" style={{ marginBottom: 5 }}>{label}</div>
+                    <div className="fw-bold" style={{ color: label === 'Total Collectibles' ? '#2563eb' : '#0f172a' }}>{value}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ maxHeight: '62vh', overflow: 'auto', border: '1px solid #e2e8f0', borderRadius: 10 }}>
+                <table className="data-table" style={{ minWidth: 1500 }}>
+                  <thead>
+                    <tr>
+                      <th>Client Code</th><th>Client Name</th><th>Contact</th><th>Address</th><th>Loan #</th><th>Type</th>
+                      <th>Date Released</th><th>Maturity Date</th><th className="text-center">Days Overdue</th>
+                      <th className="text-right">Principal</th><th className="text-right">Interest</th>
+                      <th className="text-right">Total Loan Amount</th><th className="text-right">Amortization</th>
+                      <th className="text-right">Collectibles</th><th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {agingDetail.loans.length === 0 ? (
+                      <tr><td colSpan={15} className="empty-state">No clients found for this collector and aging period.</td></tr>
+                    ) : agingDetail.loans.map(loan => (
+                      <tr key={loan.id}>
+                        <td className="mono">{loan.customer_code || '-'}</td>
+                        <td className="fw-600">{loan.customer_name || '-'}</td>
+                        <td>{loan.contact || '-'}</td>
+                        <td style={{ minWidth: 210, whiteSpace: 'normal' }}>{loan.address || '-'}</td>
+                        <td className="mono">{loan.loan_code || '-'}</td>
+                        <td><span className="tag">{loan.loan_type || '-'}</span></td>
+                        <td>{displayDate(dateOnly(loan.date_released))}</td>
+                        <td>{displayDate(dateOnly(loan.date_maturity))}</td>
+                        <td className="text-center fw-bold" style={{ color: '#b45309' }}>{loan.aging_days || 0}</td>
+                        <td className="text-right">PHP {fmt(loan.principal)}</td>
+                        <td className="text-right">PHP {fmt(loan.interest_amount)}</td>
+                        <td className="text-right fw-bold">PHP {fmt(loan.total_loan_amount)}</td>
+                        <td className="text-right">{loan.amortization === null || loan.amortization === undefined ? '—' : `PHP ${fmt(loan.amortization)}`}</td>
+                        <td className="text-right fw-bold" style={{ color: '#2563eb' }}>PHP {fmt(loan.balance)}</td>
+                        <td><span className="tag">{loan.status || '-'}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {selectedCollector && (
         <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && setSelectedCollector(null)}>
           <div className="modal modal-print-area" id="printable-area" style={{ maxWidth: (active === 'full-paid' || active === 'past-due') ? 1180 : 980 }}>

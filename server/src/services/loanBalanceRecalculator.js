@@ -92,7 +92,7 @@ async function updateCustomerFullyPaidStatus(customerId, userId) {
   if (openLoansCount.c !== 0) return;
 
   const customer = await dbGet(`SELECT status FROM tblCustomer WHERE id = ?`, [customerId]);
-  if (customer && customer.status !== 'FULLY PAID') {
+  if (customer && !['FULLY PAID', 'DECEASED'].includes(String(customer.status || '').toUpperCase())) {
     await dbRun(`UPDATE tblCustomer SET status='FULLY PAID' WHERE id=?`, [customerId]);
     await dbRun(
       `INSERT INTO tblCustomerStatusHistory (customer_id, previous_status, new_status, changed_by, remarks)

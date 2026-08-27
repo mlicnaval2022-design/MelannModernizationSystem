@@ -6,6 +6,35 @@ const { recalculateLoanBalances } = require('../services/loanBalanceRecalculator
 const { SPECIAL_PAYMENT_TYPES } = require('../services/paymentClassification');
 const router = express.Router();
 
+async function restoreCustomerAfterDeceasedReversal(customerId, userId) {
+  if (!customerId) return;
+  const remaining = await dbGet(
+    `SELECT 1 AS found FROM tblPayment
+     WHERE customer_id = ? AND status = 'deceased'
+     LIMIT 1`,
+    [customerId]
+  );
+  if (remaining) return;
+
+  const customer = await dbGet(`SELECT status FROM tblCustomer WHERE id = ?`, [customerId]);
+  if (!customer || String(customer.status || '').toUpperCase() !== 'DECEASED') return;
+
+  const openLoans = await dbGet(
+    `SELECT COUNT(*) AS count FROM tblLoan
+     WHERE customer_id = ?
+       AND COALESCE(balance, 0) > 0
+       AND LOWER(COALESCE(status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled', 'closed')`,
+    [customerId]
+  );
+  const nextStatus = Number(openLoans?.count || 0) > 0 ? 'active' : 'FULLY PAID';
+  await dbRun(`UPDATE tblCustomer SET status=?, updated_at=datetime('now') WHERE id=?`, [nextStatus, customerId]);
+  await dbRun(
+    `INSERT INTO tblCustomerStatusHistory (customer_id, previous_status, new_status, changed_by, remarks)
+     VALUES (?, 'DECEASED', ?, ?, 'Auto-transition: Deceased payment reversed')`,
+    [customerId, nextStatus, userId || null]
+  );
+}
+
 router.get('/search', authenticateToken, async (req, res) => {
   try {
     const { customer_code, payment_code } = req.query;
@@ -125,6 +154,7 @@ router.post('/payment/by-code', authenticateToken, requireRole('admin', 'manager
     await dbRun('BEGIN TRANSACTION');
     await dbRun(`UPDATE tblPayment SET status='reversed', reversed_at=datetime('now'), reversed_by=?, reversal_reason=? WHERE id=?`, [req.user.id, reason, p.id]);
     await recalculateLoanBalances(p.loan_id, { userId: req.user.id });
+    if (p.status === 'deceased') await restoreCustomerAfterDeceasedReversal(p.customer_id, req.user.id);
 
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REVERSE', 'PAYMENT', p.id, `Reversed OR#${p.or_number} Reason: ${reason}`]);
     await dbRun('COMMIT');
@@ -147,6 +177,7 @@ router.post('/payment/:id', authenticateToken, requireRole('admin', 'manager'), 
     await dbRun('BEGIN TRANSACTION');
     await dbRun(`UPDATE tblPayment SET status='reversed', reversed_at=datetime('now'), reversed_by=? WHERE id=?`, [req.user.id, payment.id]);
     await recalculateLoanBalances(payment.loan_id, { userId: req.user.id });
+    if (payment.status === 'deceased') await restoreCustomerAfterDeceasedReversal(payment.customer_id, req.user.id);
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REVERSE', 'PAYMENT', payment.id, `Reversed OR#${payment.or_number}`]);
     await dbRun('COMMIT');
     triggerLoanRecalculation(payment.loan_id).catch(e => console.error(e));
@@ -200,6 +231,10 @@ router.post('/batch', authenticateToken, requireRole('admin', 'manager'), async 
     for (const lid of uniqueLoans) {
       await recalculateLoanBalances(lid, { userId: req.user.id });
       triggerLoanRecalculation(lid).catch(e => console.error(e));
+    }
+    const deceasedCustomerIds = [...new Set(payments.filter(p => p.status === 'deceased').map(p => p.customer_id))];
+    for (const customerId of deceasedCustomerIds) {
+      await restoreCustomerAfterDeceasedReversal(customerId, req.user.id);
     }
 
     await dbRun('COMMIT');

@@ -15,7 +15,7 @@ const sendRouteError = (res, err) => res.status(err.statusCode || 500).json({ er
 const uploadDir = process.env.UPLOADS_PATH || path.join(__dirname, '../../../uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
-const customerPhotoFields = ['photo_id_front', 'photo_id_back', 'photo_business_proof', 'photo_client'];
+const customerPhotoFields = ['photo_id_front', 'photo_id_back', 'photo_business_proof', 'photo_client', 'death_certificate_image'];
 
 function getStoredUploadPath(fileUrl) {
   if (!fileUrl || typeof fileUrl !== 'string') return null;
@@ -352,6 +352,32 @@ router.post('/upload', authenticateToken, upload.single('file'), (req, res) => {
   res.json({ url, stored: true });
 });
 
+router.post('/:id/death-certificate', authenticateToken, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No death certificate image uploaded' });
+    const customer = await dbGet(`SELECT id, status, death_certificate_image FROM tblCustomer WHERE id = ?`, [req.params.id]);
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+    if (String(customer.status || '').toUpperCase() !== 'DECEASED') {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ error: 'A death certificate can only be attached to a deceased client.' });
+    }
+
+    const url = `/uploads/${req.file.filename}`;
+    await dbRun(`UPDATE tblCustomer SET death_certificate_image=?, updated_at=datetime('now') WHERE id=?`, [url, customer.id]);
+    await dbRun(
+      `INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
+      [req.user.id, req.user.username, 'UPLOAD_DEATH_CERTIFICATE', 'CUSTOMER', customer.id, 'Uploaded death certificate proof']
+    );
+
+    const previousPath = getStoredUploadPath(customer.death_certificate_image);
+    if (previousPath && previousPath !== req.file.path) fs.unlink(previousPath, () => {});
+    res.json({ url, stored: true });
+  } catch (err) {
+    if (req.file?.path) fs.unlink(req.file.path, () => {});
+    sendRouteError(res, err);
+  }
+});
+
 router.get('/list/fully-paid', authenticateToken, async (req, res) => {
   try {
     const fullyPaid = await dbAll(`
@@ -476,7 +502,9 @@ router.get('/', authenticateToken, async (req, res) => {
     today.setHours(0,0,0,0);
     const finalRows = rows.map(r => {
       let displayStatus = r.status || 'Active';
-      if (r.active_loan_status) {
+      if (String(r.status || '').toUpperCase() === 'DECEASED') {
+        displayStatus = 'Deceased';
+      } else if (r.active_loan_status) {
         let isPastdue = false;
         let isOverdue = false;
         if (r.active_loan_maturity) {

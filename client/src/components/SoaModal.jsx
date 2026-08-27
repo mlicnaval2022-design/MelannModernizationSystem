@@ -6,6 +6,7 @@ import '../soa-profile.css';
 import '../customers.css';
 import '../customers-v2.css';
 import ReloanModal from './ReloanModal';
+import DeathCertificatePanel from './DeathCertificatePanel';
 import logoImg from '../assets/logo.png';
 import {
   Users,
@@ -212,6 +213,7 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
   };
 
   const getCalculatedCustomerStatus = (data) => {
+    if (String(data?.status || '').toUpperCase() === 'DECEASED') return 'Deceased';
     if (!data) return 'Active';
     if (!data.loans || data.loans.length === 0) return data.status || 'Active';
 
@@ -711,7 +713,7 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
   return (
     <>
       <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && onClose && onClose()}>
-        <div className="soa-modal-v2 soa-modern-refresh">
+        <div className={`soa-modal-v2 soa-modern-refresh ${String(soaData?.status || '').toUpperCase() === 'DECEASED' ? 'soa-deceased' : ''}`}>
           <div className="soa-header-v2">
             <div className="soa-header-left-v2">
               <div className="soa-icon-box-v2 soa-logo-mark-refresh">
@@ -812,7 +814,12 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                     </div>
 
                     <div className="soa-tabs-v2 screen-only">
-                      {[['summary', 'Summary', PieChart], ['profile', 'Profile', User], ['history', 'Loans & Payments History', List]].map(([id, label, IconComp]) => (
+                      {[
+                        ['summary', 'Summary', PieChart],
+                        ['profile', 'Profile', User],
+                        ['history', 'Loans & Payments History', List],
+                        ...(String(soaData.status || '').toUpperCase() === 'DECEASED' ? [['deceased', 'Deceased Client', FileText]] : [])
+                      ].map(([id, label, IconComp]) => (
                         <button key={id} type="button" className={`soa-tab-v2 ${soaTab === id ? 'active' : ''}`} onClick={() => setSoaTab(id)}>
                           <IconComp size={18} /> {label}
                         </button>
@@ -1402,6 +1409,15 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                           )}
                         </div>
                       </>
+                    )}
+
+                    {soaTab === 'deceased' && String(soaData.status || '').toUpperCase() === 'DECEASED' && (
+                      <DeathCertificatePanel
+                        customer={soaData}
+                        getImageUrl={getImageUrl}
+                        onPreview={setPreviewImage}
+                        onUpdated={url => setSoaData(current => ({ ...current, death_certificate_image: url }))}
+                      />
                     )}
 
                     <div className="print-footer print-only">

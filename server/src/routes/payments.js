@@ -107,6 +107,18 @@ router.post('/', authenticateToken, async (req, res) => {
     const result = await dbRun(`INSERT INTO tblPayment (loan_id, customer_id, collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, payment_type, status, remarks, encoded_by, payment_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`, [loan_id, loan.customer_id, collector_id || loan.collector_id, or_number, date_paid, amount_paid, balance_before, balance_after, paymentType, paymentStatus, paymentRemarks, req.user.id, payment_code]);
     const recalculation = await recalculateLoanBalances(loan_id, { userId: req.user.id });
 
+    if (specialPaymentType === 'deceased') {
+      const customer = await dbGet(`SELECT status FROM tblCustomer WHERE id = ?`, [loan.customer_id]);
+      if (customer && String(customer.status || '').toUpperCase() !== 'DECEASED') {
+        await dbRun(`UPDATE tblCustomer SET status='DECEASED', updated_at=datetime('now') WHERE id=?`, [loan.customer_id]);
+        await dbRun(
+          `INSERT INTO tblCustomerStatusHistory (customer_id, previous_status, new_status, changed_by, remarks)
+           VALUES (?, ?, 'DECEASED', ?, 'Auto-transition: Deceased payment classification')`,
+          [loan.customer_id, customer.status, req.user.id]
+        );
+      }
+    }
+
     const logTag = specialPaymentType ? `[${PAYMENT_TYPE_CONFIG[specialPaymentType].remarkTag}] ` : '';
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'PAYMENT', result.lastID, `${logTag}OR#${or_number} Amt:${amount_paid} Col:${collector_id || loan.collector_id}`]);
     await dbRun('COMMIT');

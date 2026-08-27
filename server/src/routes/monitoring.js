@@ -119,14 +119,81 @@ router.post('/follow-up', authenticateToken, async (req, res) => {
 router.post('/ptp', authenticateToken, async (req, res) => {
   try {
     const { alert_id, customer_id, promise_date, promised_amount, payment_method, reason, remarks } = req.body;
-    
-    await dbRun(`
-      INSERT INTO tblPromiseToPay (alert_id, customer_id, user_id, promise_date, promised_amount, payment_method, reason, remarks) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `, [alert_id, customer_id, req.user.id, promise_date, promised_amount, payment_method, reason, remarks]);
+
+    if (!alert_id || !customer_id || !promise_date) {
+      return res.status(400).json({ error: 'Alert, customer, and promise date are required' });
+    }
+
+    const pDate = String(promise_date).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(pDate) || !dayjs(pDate).isValid() || dayjs(pDate).format('YYYY-MM-DD') !== pDate) {
+      return res.status(400).json({ error: 'A valid promise date is required' });
+    }
+
+    const parsedAmount = Number(promised_amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
+      return res.status(400).json({ error: 'A valid promised amount (0 or higher) is required' });
+    }
+
+    // Use the monitoring alert as the source of truth so this commitment is
+    // filed under the same loan, collector, and branch in the PTP module.
+    const alert = await dbGet(`
+      SELECT m.id, m.customer_id, m.loan_id,
+             COALESCE(m.collector_id, l.collector_id, c.collector_id) AS collector_id,
+             COALESCE(m.branch_id, l.branch_id, c.branch_id) AS branch_id
+      FROM tblMonitoringAlert m
+      JOIN tblCustomer c ON c.id = m.customer_id
+      JOIN tblLoan l ON l.id = m.loan_id
+      WHERE m.id = ?
+    `, [alert_id]);
+
+    if (!alert) {
+      return res.status(404).json({ error: 'Monitoring alert not found' });
+    }
+    if (Number(alert.customer_id) !== Number(customer_id)) {
+      return res.status(400).json({ error: 'Customer does not match the monitoring alert' });
+    }
+
+    const todayStr = dayjs().format('YYYY-MM-DD');
+    const initialStatus = pDate < todayStr
+      ? 'Overdue PTP'
+      : (pDate === todayStr ? 'Due Today' : 'Pending');
+
+    const result = await dbRun(`
+      INSERT INTO tblPromiseToPay (
+        alert_id, customer_id, loan_id, collector_id, branch_id, user_id,
+        promise_date, promised_amount, recurring_schedule, payment_method,
+        reason, remarks, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'One-time', ?, ?, ?, ?, datetime('now'), datetime('now'))
+    `, [
+      alert.id,
+      alert.customer_id,
+      alert.loan_id,
+      alert.collector_id,
+      alert.branch_id,
+      req.user.id,
+      pDate,
+      parsedAmount,
+      payment_method || 'Cash at Branch',
+      reason || 'Payment Commitment',
+      remarks || null,
+      initialStatus
+    ]);
     
     await logAudit(req.user.role, 'Added Promise To Pay', null, `${promise_date} - ${promised_amount}`, 'Monitoring', alert_id);
-    res.json({ message: 'Promise to Pay recorded' });
+    res.status(201).json({
+      message: 'Promise to Pay recorded',
+      data: {
+        id: result.lastID,
+        alert_id: alert.id,
+        customer_id: alert.customer_id,
+        loan_id: alert.loan_id,
+        collector_id: alert.collector_id,
+        branch_id: alert.branch_id,
+        promise_date: pDate,
+        promised_amount: parsedAmount,
+        status: initialStatus
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
