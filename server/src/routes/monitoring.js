@@ -138,7 +138,7 @@ router.post('/ptp', authenticateToken, async (req, res) => {
     // filed under the same loan, collector, and branch in the PTP module.
     const alert = await dbGet(`
       SELECT m.id, m.customer_id, m.loan_id,
-             COALESCE(m.collector_id, l.collector_id, c.collector_id) AS collector_id,
+             COALESCE(NULLIF(m.collector_id, 0), NULLIF(l.collector_id, 0), NULLIF(c.collector_id, 0)) AS collector_id,
              COALESCE(m.branch_id, l.branch_id, c.branch_id) AS branch_id
       FROM tblMonitoringAlert m
       JOIN tblCustomer c ON c.id = m.customer_id

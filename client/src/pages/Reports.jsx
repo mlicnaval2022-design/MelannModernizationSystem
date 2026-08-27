@@ -743,6 +743,7 @@ export default function Reports() {
   const [selectedCollector, setSelectedCollector] = useState(null)
   const [agingDetail, setAgingDetail] = useState(null)
   const [soaCustomerId, setSoaCustomerId] = useState(null)
+  const [soaInitialTab, setSoaInitialTab] = useState('summary')
   const [modalSortConfig, setModalSortConfig] = useState({ key: null, direction: 'asc' })
   const [modalTypeFilter, setModalTypeFilter] = useState([])
   const [typeFilterMenuOpen, setTypeFilterMenuOpen] = useState(false)
@@ -3809,9 +3810,49 @@ export default function Reports() {
         return (
           <div id="printable-area" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <style>{`${REPORT_PRINT_CLARITY_CSS}
+              .special-accounts-card {
+                background: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 14px;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+                overflow: hidden;
+              }
+              .special-accounts-table {
+                width: 100%;
+                border-collapse: collapse;
+                text-align: left;
+              }
+              .special-accounts-table th {
+                background: #f8fafc;
+                color: #475569;
+                font-size: 11.5px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.6px;
+                padding: 14px 18px;
+                border-bottom: 2px solid #e2e8f0;
+                white-space: nowrap !important;
+              }
+              .special-accounts-table td {
+                padding: 14px 18px;
+                font-size: 13px;
+                color: #1e293b;
+                border-bottom: 1px solid #f1f5f9;
+                white-space: nowrap !important;
+                vertical-align: middle;
+              }
+              .special-accounts-table tbody tr {
+                transition: background-color 0.15s ease;
+              }
+              .special-accounts-table tbody tr:hover {
+                background-color: #f8fafc;
+              }
               @media print {
                 @page { size: landscape; margin: 9mm; }
                 .special-account-actions { display: none !important; }
+                .special-accounts-card { border: none !important; box-shadow: none !important; }
+                .special-accounts-table th,
+                .special-accounts-table td { font-size: 9px !important; padding: 6px 8px !important; white-space: nowrap !important; }
               }
             `}</style>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
@@ -3839,19 +3880,29 @@ export default function Reports() {
                 <div style={{ marginTop: 5, color: '#475569' }}>PHP {fmtMoney(grandSummary.settlement)}</div>
               </div>
             </div>
-            <div className="table-responsive-print" style={{ overflowX: 'auto' }}>
-              <table className="data-table" style={{ minWidth: 760 }}>
-                <thead><tr><th>Account Type</th><th className="text-center">Total Accounts</th><th className="text-right">Total Principal</th><th className="text-right">Total Loans</th><th className="text-right">Total Settlement Amount</th></tr></thead>
-                <tbody>{summaryRows.map(row => (
-                  <tr key={row.label} style={row.label === 'Grand Total' ? { fontWeight: 800, background: '#f8fafc' } : undefined}>
-                    <td style={{ color: row.color, fontWeight: 800 }}>{row.label}</td>
-                    <td className="text-center">{row.count}</td>
-                    <td className="text-right">PHP {fmtMoney(row.principal)}</td>
-                    <td className="text-right">PHP {fmtMoney(row.totalLoans)}</td>
-                    <td className="text-right" style={{ fontWeight: 800 }}>PHP {fmtMoney(row.settlement)}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
+            <div className="special-accounts-card">
+              <div style={{ overflowX: 'auto' }}>
+                <table className="special-accounts-table" style={{ minWidth: 760 }}>
+                  <thead>
+                    <tr>
+                      <th>Account Type</th>
+                      <th style={{ textAlign: 'center' }}>Total Accounts</th>
+                      <th style={{ textAlign: 'right' }}>Total Principal</th>
+                      <th style={{ textAlign: 'right' }}>Total Loans</th>
+                      <th style={{ textAlign: 'right' }}>Total Settlement Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>{summaryRows.map(row => (
+                    <tr key={row.label} style={row.label === 'Grand Total' ? { fontWeight: 800, background: '#f8fafc' } : undefined}>
+                      <td style={{ color: row.color, fontWeight: 800 }}>{row.label}</td>
+                      <td style={{ textAlign: 'center', fontWeight: 600 }}>{row.count}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600, color: '#475569' }}>PHP {fmtMoney(row.principal)}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600, color: '#475569' }}>PHP {fmtMoney(row.totalLoans)}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 800, color: row.color }}>PHP {fmtMoney(row.settlement)}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
             </div>
           </div>
         )
@@ -3862,14 +3913,54 @@ export default function Reports() {
       const accounts = specialAccountsForCollector(allAccounts, specialCollectorSheetId, specialCollectors)
       const reportLabel = isDeceased ? 'Deceased Accounts' : 'Written-Off Accounts'
       const totalAmount = accounts.reduce((sum, account) => sum + Number(account.amount_paid || 0), 0)
+      const showCollectorColumn = specialCollectorSheetId === 'all'
+      const totalColumns = 11 + (showCollectorColumn ? 1 : 0) + (isDeceased ? 1 : 0)
       return (
         <div id="printable-area" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <style>{`${REPORT_PRINT_CLARITY_CSS}
+            .special-accounts-card {
+              background: #ffffff;
+              border: 1px solid #e2e8f0;
+              border-radius: 14px;
+              box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+              overflow: hidden;
+            }
+            .special-accounts-table {
+              width: 100%;
+              border-collapse: collapse;
+              text-align: left;
+            }
+            .special-accounts-table th {
+              background: #f8fafc;
+              color: #475569;
+              font-size: 11.5px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.6px;
+              padding: 14px 18px;
+              border-bottom: 2px solid #e2e8f0;
+              white-space: nowrap !important;
+            }
+            .special-accounts-table td {
+              padding: 14px 18px;
+              font-size: 13px;
+              color: #1e293b;
+              border-bottom: 1px solid #f1f5f9;
+              white-space: nowrap !important;
+              vertical-align: middle;
+            }
+            .special-accounts-table tbody tr {
+              transition: background-color 0.15s ease;
+            }
+            .special-accounts-table tbody tr:hover {
+              background-color: #f8fafc;
+            }
             @media print {
               @page { size: landscape; margin: 9mm; }
               .special-account-actions { display: none !important; }
-              #printable-area table.data-table th,
-              #printable-area table.data-table td { font-size: 9px !important; padding: 5px 6px !important; }
+              .special-accounts-card { border: none !important; box-shadow: none !important; }
+              .special-accounts-table th,
+              .special-accounts-table td { font-size: 9px !important; padding: 6px 8px !important; white-space: nowrap !important; }
             }
           `}</style>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
@@ -3892,30 +3983,135 @@ export default function Reports() {
               <div style={{ fontSize: 26, fontWeight: 800, color: isDeceased ? '#b45309' : '#b91c1c', marginTop: 6 }}>PHP {fmtMoney(totalAmount)}</div>
             </div>
           </div>
-          <div className="table-responsive-print" style={{ overflowX: 'auto' }}>
-            <table className="data-table" style={{ minWidth: 1420 }}>
-              <thead><tr><th>Client Code</th><th>Client Name</th><th>Loan Number</th><th className="text-right">Principal</th><th className="text-right">Total Loans</th><th>Collector</th><th>Settlement Date</th><th className="text-right">Amount</th><th className="text-right">Balance Before</th><th>Payment Code</th><th>Remarks</th><th>Encoded By</th></tr></thead>
-              <tbody>
-                {accounts.length === 0 ? (
-                  <tr><td colSpan={12} className="empty-state">No {reportLabel.toLowerCase()} found for this period.</td></tr>
-                ) : accounts.map(account => (
-                  <tr key={account.payment_id}>
-                    <td className="mono">{account.customer_code || '-'}</td>
-                    <td className="fw-600">{account.customer_name || '-'}</td>
-                    <td className="mono">{account.loan_code || '-'}</td>
-                    <td className="text-right">PHP {fmtMoney(account.principal)}</td>
-                    <td className="text-right fw-bold">PHP {fmtMoney(account.total_amortization)}</td>
-                    <td>{account.collector_name || 'Unassigned'}</td>
-                    <td>{displayDate(dateOnly(account.settlement_date))}</td>
-                    <td className="text-right fw-bold">PHP {fmtMoney(account.amount_paid)}</td>
-                    <td className="text-right">PHP {fmtMoney(account.balance_before)}</td>
-                    <td className="mono">{account.payment_code || account.or_number || '-'}</td>
-                    <td>{account.remarks || '-'}</td>
-                    <td>{account.encoded_by_name || '-'}</td>
+          <div className="special-accounts-card">
+            <div style={{ overflowX: 'auto' }}>
+              <table className="special-accounts-table" style={{ minWidth: 1420 }}>
+                <thead>
+                  <tr>
+                    <th>Client Code</th>
+                    <th>Client Name</th>
+                    <th>Loan Number</th>
+                    <th style={{ textAlign: 'right' }}>Principal</th>
+                    <th style={{ textAlign: 'right' }}>Total Loans</th>
+                    {showCollectorColumn && <th>Collector</th>}
+                    <th>Settlement Date</th>
+                    <th style={{ textAlign: 'right' }}>Amount</th>
+                    <th style={{ textAlign: 'right' }}>Balance Before</th>
+                    <th>Payment Code</th>
+                    <th>Remarks</th>
+                    <th>Encoded By</th>
+                    {isDeceased && <th style={{ textAlign: 'center' }} className="reports-screen-only">Action</th>}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {accounts.length === 0 ? (
+                    <tr>
+                      <td colSpan={totalColumns} style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b' }}>
+                        No {reportLabel.toLowerCase()} found for this period.
+                      </td>
+                    </tr>
+                  ) : accounts.map(account => (
+                    <tr key={account.payment_id}>
+                      <td>
+                        <span style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 700, color: '#2563eb', background: '#eff6ff', padding: '3px 8px', borderRadius: 6, fontSize: 12 }}>
+                          {account.customer_code || '-'}
+                        </span>
+                      </td>
+                      <td>
+                        <span style={{ fontWeight: 700, color: '#0f172a' }}>
+                          {account.customer_name || '-'}
+                        </span>
+                      </td>
+                      <td>
+                        <span style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 600, color: '#475569' }}>
+                          {account.loan_code || '-'}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 600, color: '#475569' }}>
+                        PHP {fmtMoney(account.principal)}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>
+                        PHP {fmtMoney(account.total_amortization)}
+                      </td>
+                      {showCollectorColumn && (
+                        <td style={{ fontWeight: 600, color: '#334155' }}>
+                          {account.collector_name || 'Unassigned'}
+                        </td>
+                      )}
+                      <td style={{ color: '#334155' }}>
+                        {displayDate(dateOnly(account.settlement_date))}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 800, color: isDeceased ? '#b45309' : '#b91c1c', fontSize: 13.5 }}>
+                        PHP {fmtMoney(account.amount_paid)}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 600, color: '#64748b' }}>
+                        PHP {fmtMoney(account.balance_before)}
+                      </td>
+                      <td>
+                        <span style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 600, color: '#475569', background: '#f1f5f9', padding: '3px 8px', borderRadius: 4, fontSize: 11.5 }}>
+                          {account.payment_code || account.or_number || '-'}
+                        </span>
+                      </td>
+                      <td>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '3px 10px',
+                          borderRadius: 6,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          background: isDeceased ? '#fffbeb' : '#fef2f2',
+                          color: isDeceased ? '#92400e' : '#991b1b',
+                          border: isDeceased ? '1px solid #fef3c7' : '1px solid #fee2e2'
+                        }}>
+                          {account.remarks || '-'}
+                        </span>
+                      </td>
+                      <td style={{ color: '#475569', fontWeight: 500 }}>
+                        {account.encoded_by_name || '-'}
+                      </td>
+                      {isDeceased && (
+                        <td style={{ textAlign: 'center' }} className="reports-screen-only">
+                          <button
+                            type="button"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              whiteSpace: 'nowrap',
+                              color: '#b45309',
+                              border: '1px solid #fde68a',
+                              background: '#fffbeb',
+                              padding: '5px 12px',
+                              borderRadius: 8,
+                              cursor: 'pointer',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                              transition: 'all 0.15s ease',
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.background = '#fef3c7';
+                              e.currentTarget.style.borderColor = '#f59e0b';
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.background = '#fffbeb';
+                              e.currentTarget.style.borderColor = '#fde68a';
+                            }}
+                            onClick={() => {
+                              setSoaInitialTab('deceased');
+                              setSoaCustomerId(account.customer_id);
+                            }}
+                            title="View Death Certificate in SOA"
+                          >
+                            <FileText size={13} /> View Death Cert.
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )
@@ -6346,7 +6542,11 @@ export default function Reports() {
       {soaCustomerId && (
         <SoaModal
           customerId={soaCustomerId}
-          onClose={() => setSoaCustomerId(null)}
+          initialTab={soaInitialTab}
+          onClose={() => {
+            setSoaCustomerId(null)
+            setSoaInitialTab('summary')
+          }}
         />
       )}
       {selectedExpenseEmployee && (

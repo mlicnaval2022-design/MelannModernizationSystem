@@ -23,6 +23,28 @@ client/dist/
 *.sqlite-shm
 *.bak
 server/melann.db*
+server/node_modules/
+
+# Build and Dist
+build/
+dist/
+client/build/
+client/dist/
+
+# Environment Variables
+.env
+.env.*
+*.local
+
+# Database Files and Backups
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.bak
+server/melann.db*
 melann.db*
 server/src/db/*.sqlite*
 server/backups/
@@ -30,6 +52,7 @@ uploads/
 scratch/client-build-check/
 
 # System and Agent Logs
+*.log
 .omx/
 .gemini/
 npm-debug.log*

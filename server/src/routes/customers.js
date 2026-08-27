@@ -76,6 +76,27 @@ const upload = multer({
   }
 });
 
+const deathCertificateExtensions = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.pdf', '.doc', '.docx']);
+const deathCertificateMimeTypes = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
+const deathCertificateUpload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, callback) => {
+    const extension = path.extname(String(file.originalname || '')).toLowerCase();
+    const isAllowed = String(file.mimetype || '').startsWith('image/')
+      || deathCertificateMimeTypes.has(String(file.mimetype || '').toLowerCase())
+      || deathCertificateExtensions.has(extension);
+    if (!isAllowed) {
+      return callback(new Error('Death certificate must be an image, PDF, Word DOC, or Word DOCX file.'));
+    }
+    return callback(null, true);
+  }
+});
+
 async function ensureComplianceChecklistColumns() {
   const cols = await dbAll(`PRAGMA table_info(tblCustomer)`);
   const names = new Set(cols.map(c => c.name));
@@ -352,9 +373,9 @@ router.post('/upload', authenticateToken, upload.single('file'), (req, res) => {
   res.json({ url, stored: true });
 });
 
-router.post('/:id/death-certificate', authenticateToken, upload.single('file'), async (req, res) => {
+router.post('/:id/death-certificate', authenticateToken, deathCertificateUpload.single('file'), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'No death certificate image uploaded' });
+    if (!req.file) return res.status(400).json({ error: 'No death certificate file uploaded' });
     const customer = await dbGet(`SELECT id, status, death_certificate_image FROM tblCustomer WHERE id = ?`, [req.params.id]);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
     if (String(customer.status || '').toUpperCase() !== 'DECEASED') {

@@ -33,10 +33,10 @@ import {
   ArrowDownUp
 } from 'lucide-react';
 
-export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefresh }) {
+export default function SoaModal({ customerId, initialTab = 'summary', onClose, onCustomerEdit, onRefresh }) {
   const [soaLoading, setSoaLoading] = useState(true);
   const [soaData, setSoaData] = useState(null);
-  const [soaTab, setSoaTab] = useState('summary');
+  const [soaTab, setSoaTab] = useState(initialTab || 'summary');
   const [selectedLoanForPayments, setSelectedLoanForPayments] = useState(null);
   const [paymentHistoryDateSort, setPaymentHistoryDateSort] = useState('desc');
   const [hideReversedPayments, setHideReversedPayments] = useState(true);
@@ -84,10 +84,13 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
 
   useEffect(() => {
     if (customerId) {
+      if (initialTab) {
+        setSoaTab(initialTab);
+      }
       fetchSoaData(customerId);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customerId]);
+  }, [customerId, initialTab]);
 
   useEffect(() => {
     if (printModeLoan) {
@@ -790,6 +793,10 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
 
               const initials = (soaData.first_name?.[0] || '') + (soaData.last_name?.[0] || '');
               const cleanInitials = initials || soaData.full_name?.substring(0, 2).toUpperCase() || 'AJ';
+              const isDeceasedClient = String(soaData.status || '').toUpperCase() === 'DECEASED' ||
+                (soaData.payments || []).some(p => String(p.status).toLowerCase() === 'deceased' || String(p.payment_type).toLowerCase() === 'deceased' || String(p.remarks).toLowerCase().includes('deceased')) ||
+                Boolean(soaData.death_certificate_image) ||
+                soaTab === 'deceased';
 
               return (
                 <>
@@ -818,7 +825,7 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                         ['summary', 'Summary', PieChart],
                         ['profile', 'Profile', User],
                         ['history', 'Loans & Payments History', List],
-                        ...(String(soaData.status || '').toUpperCase() === 'DECEASED' ? [['deceased', 'Deceased Client', FileText]] : [])
+                        ...(isDeceasedClient ? [['deceased', 'Deceased Client', FileText]] : [])
                       ].map(([id, label, IconComp]) => (
                         <button key={id} type="button" className={`soa-tab-v2 ${soaTab === id ? 'active' : ''}`} onClick={() => setSoaTab(id)}>
                           <IconComp size={18} /> {label}
@@ -1411,7 +1418,7 @@ export default function SoaModal({ customerId, onClose, onCustomerEdit, onRefres
                       </>
                     )}
 
-                    {soaTab === 'deceased' && String(soaData.status || '').toUpperCase() === 'DECEASED' && (
+                    {soaTab === 'deceased' && isDeceasedClient && (
                       <DeathCertificatePanel
                         customer={soaData}
                         getImageUrl={getImageUrl}

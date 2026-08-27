@@ -147,9 +147,17 @@
 .death-certificate-preview img { display: block; max-width: 100%; max-height: 560px; margin: 0 auto 10px; border-radius: 10px; border: 1px solid #d1d5db; object-fit: contain; }
 .death-certificate-empty { min-height: 280px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; border: 2px dashed #cbd5e1; border-radius: 12px; color: #6b7280; }
 .death-certificate-empty strong { color: #374151; }
+.death-certificate-document { min-height: 180px; display: flex; align-items: center; justify-content: center; gap: 16px; padding: 22px; border: 2px dashed #cbd5e1; border-radius: 12px; color: #6b7280; }
+.death-certificate-document > svg { color: #4b5563; flex: 0 0 auto; }
+.death-certificate-document div { display: flex; flex-direction: column; gap: 5px; }
+.death-certificate-document strong { color: #374151; }
+.death-certificate-open { display: inline-flex; align-items: center; gap: 7px; padding: 10px 14px; margin-left: 8px; border-radius: 8px; background: #4b5563; color: #fff; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.death-certificate-open:hover { background: #374151; color: #fff; }
 
 @media (max-width: 760px) {
   .death-certificate-heading { flex-direction: column; }
+  .death-certificate-document { align-items: flex-start; flex-direction: column; }
+  .death-certificate-open { margin-left: 0; }
 }
 
 /* Brand Title */

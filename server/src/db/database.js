@@ -860,6 +860,76 @@ async function initializeDatabase() {
     if (!customerColNames.has(c)) await dbRun(`ALTER TABLE tblCustomer ADD COLUMN ${c} TEXT`);
   }
 
+  // Repair customers whose Deceased payment was posted by an older running
+  // server before customer-level status synchronization was introduced.
+  await dbRun(`
+    INSERT INTO tblCustomerStatusHistory (customer_id, previous_status, new_status, changed_by, remarks)
+    SELECT c.id, c.status, 'DECEASED', NULL, 'Auto-repair: Existing Deceased payment classification'
+    FROM tblCustomer c
+    WHERE UPPER(TRIM(COALESCE(c.status, ''))) <> 'DECEASED'
+      AND EXISTS (
+        SELECT 1
+        FROM tblPayment p
+        WHERE p.customer_id = c.id
+          AND LOWER(TRIM(COALESCE(p.status, ''))) <> 'reversed'
+          AND (
+            LOWER(TRIM(COALESCE(p.status, ''))) = 'deceased'
+            OR LOWER(TRIM(COALESCE(p.payment_type, ''))) = 'deceased'
+            OR LOWER(COALESCE(p.remarks, '')) LIKE '%deceased%'
+          )
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM tblCustomerStatusHistory h
+        WHERE h.customer_id = c.id
+          AND h.new_status = 'DECEASED'
+          AND h.remarks = 'Auto-repair: Existing Deceased payment classification'
+      )
+  `);
+  await dbRun(`
+    UPDATE tblCustomer
+    SET status = 'DECEASED', updated_at = datetime('now')
+    WHERE UPPER(TRIM(COALESCE(status, ''))) <> 'DECEASED'
+      AND EXISTS (
+        SELECT 1
+        FROM tblPayment p
+        WHERE p.customer_id = tblCustomer.id
+          AND LOWER(TRIM(COALESCE(p.status, ''))) <> 'reversed'
+          AND (
+            LOWER(TRIM(COALESCE(p.status, ''))) = 'deceased'
+            OR LOWER(TRIM(COALESCE(p.payment_type, ''))) = 'deceased'
+            OR LOWER(COALESCE(p.remarks, '')) LIKE '%deceased%'
+          )
+      )
+  `);
+
+  // Repair older 3-Day Monitoring PTP records that were saved without the
+  // collector even though their alert, loan, or customer already had one.
+  await dbRun(`
+    UPDATE tblPromiseToPay
+    SET collector_id = (
+      SELECT COALESCE(
+        NULLIF(m.collector_id, 0),
+        NULLIF(l.collector_id, 0),
+        NULLIF(c.collector_id, 0)
+      )
+      FROM tblCustomer c
+      LEFT JOIN tblLoan l ON l.id = tblPromiseToPay.loan_id
+      LEFT JOIN tblMonitoringAlert m ON m.id = tblPromiseToPay.alert_id
+      WHERE c.id = tblPromiseToPay.customer_id
+    ),
+    updated_at = datetime('now')
+    WHERE COALESCE(collector_id, 0) = 0
+      AND EXISTS (
+        SELECT 1
+        FROM tblCustomer c
+        LEFT JOIN tblLoan l ON l.id = tblPromiseToPay.loan_id
+        LEFT JOIN tblMonitoringAlert m ON m.id = tblPromiseToPay.alert_id
+        WHERE c.id = tblPromiseToPay.customer_id
+          AND COALESCE(NULLIF(m.collector_id, 0), NULLIF(l.collector_id, 0), NULLIF(c.collector_id, 0)) IS NOT NULL
+      )
+  `);
+
   const loanCols = await dbAll(`PRAGMA table_info(tblLoan)`);
   const loanColNames = new Set(loanCols.map(c => c.name));
   if (!loanColNames.has('previous_balance')) await dbRun(`ALTER TABLE tblLoan ADD COLUMN previous_balance REAL DEFAULT 0`);

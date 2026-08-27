@@ -170,6 +170,17 @@ test('Deceased and Write-off settle balances but stay out of Collection Reports'
     certificate.url
   );
 
+  const wordCertificateForm = new FormData();
+  wordCertificateForm.append('file', new Blob(['death-certificate-word-document'], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }), 'death-certificate.docx');
+  const wordCertificateResponse = await fetch(`${baseUrl}/api/customers/${deceasedLoan.customerId}/death-certificate`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+    body: wordCertificateForm,
+  });
+  const wordCertificate = await wordCertificateResponse.json();
+  assert.equal(wordCertificateResponse.status, 200, wordCertificate.error);
+  assert.match(wordCertificate.url, /\.docx$/);
+
   const reversalResponse = await fetch(`${baseUrl}/api/reversals/payment/${deceasedBody.id}`, {
     method: 'POST',
     headers: { authorization: `Bearer ${token}` },

@@ -1203,6 +1203,10 @@ export default function Customers() {
                 
                 const initials = (soaData.first_name?.[0] || '') + (soaData.last_name?.[0] || '');
                 const cleanInitials = initials || soaData.full_name?.substring(0, 2).toUpperCase() || 'AJ';
+                const isDeceasedClient = String(soaData.status || '').toUpperCase() === 'DECEASED' ||
+                  (soaData.payments || []).some(p => String(p.status).toLowerCase() === 'deceased' || String(p.payment_type).toLowerCase() === 'deceased' || String(p.remarks).toLowerCase().includes('deceased')) ||
+                  Boolean(soaData.death_certificate_image) ||
+                  soaTab === 'deceased';
 
                 return (
                   <>
@@ -1231,7 +1235,7 @@ export default function Customers() {
                         ['summary', 'Summary', PieChart],
                         ['profile', 'Profile', User],
                         ['history', 'Loans & Payments History', List],
-                        ...(String(soaData.status || '').toUpperCase() === 'DECEASED' ? [['deceased', 'Deceased Client', FileText]] : [])
+                        ...(isDeceasedClient ? [['deceased', 'Deceased Client', FileText]] : [])
                       ].map(([id, label, Icon]) => (
                         <button key={id} type="button" className={`soa-tab-v2 ${soaTab === id ? 'active' : ''}`} onClick={() => setSoaTab(id)}>
                           <Icon size={18} /> {label}
@@ -1783,7 +1787,7 @@ export default function Customers() {
                       </>
                     )}
 
-                    {soaTab === 'deceased' && String(soaData.status || '').toUpperCase() === 'DECEASED' && (
+                    {soaTab === 'deceased' && isDeceasedClient && (
                       <DeathCertificatePanel
                         customer={soaData}
                         getImageUrl={getImageUrl}
