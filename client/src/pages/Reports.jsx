@@ -5823,34 +5823,64 @@ export default function Reports() {
         ].filter(amount => amount > 0).length * 0.65
         return (formatCollectionClientName(client).length > 24 ? 1.35 : 1) + noteUnits
       }
-      const splitByUnits = (entries, maxUnits) => {
-        const cols = []
-        let col = []
-        let units = 0
-        entries.forEach(entry => {
-          const needed = entryUnits(entry)
-          if (col.length && units + needed > maxUnits) {
-            cols.push(col)
-            col = []
-            units = 0
-          }
-          col.push(entry)
-          units += needed
-        })
-        if (col.length) cols.push(col)
-        return cols
-      }
-      const printablePageHeightIn = 12.4
-      const reservedHeaderHeightIn = 3.05
-      const reservedFooterHeightIn = 1.05
-      const columnHeaderHeightIn = 0.25
-      const averageEntryHeightIn = 0.29
       const autoColumnUnits = 28
-      const columns = splitByUnits(orderedEntries, autoColumnUnits)
-      const pages = []
-      for (let i = 0; i < columns.length; i += 2) {
-        pages.push({ left: columns[i] || [], right: columns[i + 1] || [] })
+      const maxColumnEntries = 27
+      const sumEntryUnits = entries => entries.reduce((total, entry) => total + entryUnits(entry), 0)
+
+      /*
+       * Build a page as a pair instead of filling one column at a time.  The old
+       * flow could put 27 rendered entries on one side and 28 on the other.  It
+       * was technically within the height allowance, but the printed columns
+       * visibly ended on different lines.  Keep both the row count and estimated
+       * height balanced while retaining the original reading order.
+       */
+      const buildBalancedPages = (entries) => {
+        const result = []
+        let start = 0
+
+        while (start < entries.length) {
+          const maxEnd = Math.min(entries.length, start + (maxColumnEntries * 2))
+          let selected = null
+
+          for (let end = maxEnd; end > start && !selected; end -= 1) {
+            const pageEntries = entries.slice(start, end)
+            const candidates = []
+
+            for (let split = 1; split <= pageEntries.length; split += 1) {
+              const left = pageEntries.slice(0, split)
+              const right = pageEntries.slice(split)
+              if (left.length > maxColumnEntries || right.length > maxColumnEntries) continue
+
+              const leftUnits = sumEntryUnits(left)
+              const rightUnits = sumEntryUnits(right)
+              if (leftUnits > autoColumnUnits || rightUnits > autoColumnUnits) continue
+
+              candidates.push({
+                left,
+                right,
+                score: (Math.abs(left.length - right.length) * 100) + Math.abs(leftUnits - rightUnits)
+              })
+            }
+
+            if (candidates.length) {
+              candidates.sort((a, b) => a.score - b.score)
+              selected = candidates[0]
+              start = end
+            }
+          }
+
+          // A single unusually tall entry must still be printable and make progress.
+          if (!selected) {
+            selected = { left: [entries[start]], right: [] }
+            start += 1
+          }
+
+          result.push({ left: selected.left, right: selected.right })
+        }
+
+        return result
       }
+      const pages = buildBalancedPages(orderedEntries)
 
       const cs = { borderBottom: '1.2px solid #000', verticalAlign: 'middle', padding: '2px 1px' }
       const collectionNoteStyle = { display: 'block', color: CL.pastdue, lineHeight: 1.05 }

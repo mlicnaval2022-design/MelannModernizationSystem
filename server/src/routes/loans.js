@@ -230,6 +230,16 @@ router.post('/', authenticateToken, async (req, res) => {
     const { customer_id, collector_id, branch_id, loan_type, principal, interest_rate, loan_period, date_released, previous_balance, penalty, passbook, remarks, status } = req.body;
     if (!customer_id || !principal || !date_released) return res.status(400).json({ error: 'customer_id, principal, date_released required' });
     requireOperationDate(date_released, 'Release date');
+    const canonicalType = canonicalLoanType(loan_type);
+    if (canonicalType === 'Reloan') {
+      const customer = await dbGet('SELECT status FROM tblCustomer WHERE id = ?', [customer_id]);
+      if (!customer) return res.status(404).json({ error: 'Customer not found' });
+
+      const customerStatus = String(customer.status || '').trim().toUpperCase();
+      if (!['FULLY PAID', 'RELAX'].includes(customerStatus)) {
+        return res.status(400).json({ error: 'This client must be FULLY PAID or RELAX before processing a RELOAN.' });
+      }
+    }
     const period = Number.parseInt(loan_period, 10) || 45;
     const { interest_amount, total_amortization, amortization } = computeAmortization(principal, interest_rate || 0, period);
     const date_maturity = computeMaturityDate(date_released, period);
@@ -243,7 +253,7 @@ router.post('/', authenticateToken, async (req, res) => {
     const loan_code = await generateLoanReference(date_released);
     const loan_status = status || 'pending';
     const result = await dbRun(`INSERT INTO tblLoan (loan_code, customer_id, collector_id, branch_id, loan_type, principal, interest_rate, interest_amount, loan_period, date_released, date_maturity, amortization, total_amortization, service_fee, insurance, notarial_fee, filing_fee, total_deductions, net_proceeds, balance, previous_balance, penalty, passbook, or_number, remarks, created_by, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [loan_code, customer_id, collector_id, branch_id || null, canonicalLoanType(loan_type), principal, interest_rate || 0, interest_amount, period, date_released, date_maturity, amortization, total_amortization, 0, 0, 0, 0, 0, net_proceeds, total_amortization, balanceAmount, penaltyAmount, passbookAmount, '', remarks, req.user.id, loan_status]);
+      [loan_code, customer_id, collector_id, branch_id || null, canonicalType, principal, interest_rate || 0, interest_amount, period, date_released, date_maturity, amortization, total_amortization, 0, 0, 0, 0, 0, net_proceeds, total_amortization, balanceAmount, penaltyAmount, passbookAmount, '', remarks, req.user.id, loan_status]);
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'LOAN', result.lastID, `New loan created (${loan_status}): ${loan_code}`]);
     res.status(201).json({ id: result.lastID, loan_code, amortization, total_amortization, date_maturity, net_proceeds });
   } catch (err) { sendRouteError(res, err); }
