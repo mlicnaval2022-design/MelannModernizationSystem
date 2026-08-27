@@ -20,6 +20,12 @@ const indexLoanAmount = value => {
   if (amount >= 1000 && amount % 1000 === 0) return `${amount / 1000}k`
   return indexAmount(amount)
 }
+const firstGivenName = value => {
+  const name = String(value || '').trim()
+  if (!name) return ''
+  const givenNamePart = name.includes(',') ? name.split(',').slice(1).join(',').trim() : name
+  return givenNamePart.split(/\s+/)[0] || ''
+}
 const toDateInputValue = date => {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -670,7 +676,7 @@ function IndexPreview({ data }) {
   const values = [
     ['index-left', loan.customer_code || '-'],
     ['index-middle', loanTerms],
-    ['index-right', loan.collector_name || 'Unassigned'],
+    ['index-right', firstGivenName(loan.collector_name) || 'Unassigned'],
     ['index-left', borrowerName],
     ['index-middle', indexAmount(totalLoan)],
     ['index-right', indexAmount(dailyPayment)],
