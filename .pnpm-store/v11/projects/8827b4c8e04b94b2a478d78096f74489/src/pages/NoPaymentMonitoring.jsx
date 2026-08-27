@@ -1,0 +1,971 @@
+import { useState, useEffect, useMemo } from 'react';
+import dayjs from 'dayjs';
+import API from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { useLocation } from 'react-router-dom';
+import {
+  AlertTriangle,
+  Bell,
+  Banknote,
+  Check,
+  CheckCircle2,
+  Clock3,
+  CreditCard,
+  Eye,
+  Flame,
+  Handshake,
+  History,
+  Loader2,
+  Phone,
+  Printer,
+  Receipt,
+  RefreshCw,
+  Settings,
+  ShieldCheck,
+  UserRound,
+  FileText,
+  X,
+  XCircle
+} from 'lucide-react';
+import './NoPaymentMonitoring.css';
+import SoaModal from '../components/SoaModal';
+import MonitoringSettings from './MonitoringSettings';
+
+function fmtDate(d) {
+  if (!d) return '-';
+  return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function fmtAmt(n) {
+  return Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 });
+}
+
+const COLLECTOR_GROUP_TABS = new Set(['new', 'monitoring', 'escalated']);
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function getCollectorName(item) {
+  return String(item?.collector_name || '').trim() || 'Unassigned Collector';
+}
+
+function groupByCollector(records) {
+  const groups = new Map();
+  records.forEach(item => {
+    const collectorName = getCollectorName(item);
+    if (!groups.has(collectorName)) groups.set(collectorName, []);
+    groups.get(collectorName).push(item);
+  });
+  return Array.from(groups.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([collectorName, items]) => ({ collectorName, items }));
+}
+
+export default function NoPaymentMonitoring() {
+  const { user, hasPermission } = useAuth();
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const initialTab = params.get('tab') || 'new';
+
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const [collectors, setCollectors] = useState([]);
+  const [branches, setBranches] = useState([]);
+
+  useEffect(() => {
+    API.get('/branches').then(r => setBranches(r.data)).catch(console.error);
+    API.get('/collectors').then(r => setCollectors(r.data)).catch(console.error);
+  }, []);
+
+  const [collectorId, setCollectorId] = useState(user.role === 'collector' ? user.id : '');
+  const [branchId, setBranchId] = useState(user.branch_id || '');
+
+  const [followUpModal, setFollowUpModal] = useState({ show: false, alert: null });
+  const [ptpModal, setPtpModal] = useState({ show: false, alert: null });
+  const [timelineModal, setTimelineModal] = useState({ show: false, alert: null, history: [] });
+  const [resolveModal, setResolveModal] = useState({ show: false, alert: null });
+  const [escalateModal, setEscalateModal] = useState({ show: false, alert: null });
+  const [clientProfileModal, setClientProfileModal] = useState({ show: false, data: null, loading: false });
+  const [toastModal, setToastModal] = useState({ show: false, type: 'success', title: '', message: '', meta: null });
+  const [soaCustomerId, setSoaCustomerId] = useState(null);
+
+  const showToast = (type, title, message, meta = null) => {
+    setToastModal({ show: true, type, title, message, meta });
+  };
+
+  const fetchAlerts = async () => {
+    setLoading(true);
+    try {
+      const res = await API.get('/monitoring/alerts', { params: { tab: activeTab, branch_id: branchId, collector_id: collectorId } });
+      setData(res.data);
+    } catch (err) {
+      setError(err.response?.data?.error || err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openClientProfile = async (customerId) => {
+    setClientProfileModal({ show: true, data: null, loading: true });
+    try {
+      const res = await API.get(`/customers/${customerId}`);
+      setClientProfileModal({ show: true, data: res.data, loading: false });
+    } catch (err) {
+      showToast('error', 'Load Failed', 'Could not load client profile: ' + (err.response?.data?.error || err.message));
+      setClientProfileModal({ show: false, data: null, loading: false });
+    }
+  };
+
+  useEffect(() => {
+    fetchAlerts();
+    // eslint-disable-next-line
+  }, [activeTab, branchId, collectorId]);
+
+  const tabs = [
+    { id: 'new', label: 'New (Day 3)', Icon: Bell, tone: 'blue' },
+    { id: 'monitoring', label: 'Under Monitoring', Icon: Eye, tone: 'indigo' },
+    { id: 'escalated', label: 'Escalated', Icon: Flame, tone: 'red' },
+    { id: 'resolved', label: 'Resolved', Icon: CheckCircle2, tone: 'green' },
+    { id: 'history', label: 'History', Icon: History, tone: 'slate' }
+  ];
+
+  const activeTabLabel = tabs.find(tab => tab.id === activeTab)?.label || 'Monitoring';
+  const shouldGroupByCollector = COLLECTOR_GROUP_TABS.has(activeTab);
+  const filteredRecords = useMemo(() => {
+    return data.filter(item => {
+      const cStatus = String(item.customer_status || '').toLowerCase();
+      const lStatus = String(item.status || item.loan_status || item.loan_type || '').toLowerCase();
+      if (cStatus.includes('pastdue') || cStatus.includes('past due')) return false;
+      if (lStatus.includes('pastdue') || lStatus.includes('past due')) return false;
+      if (item.date_maturity && dayjs(item.date_maturity).isBefore(dayjs(), 'day')) return false;
+      return true;
+    });
+  }, [data]);
+  const collectorGroups = useMemo(() => groupByCollector(filteredRecords), [filteredRecords]);
+
+  const handleAction = async (action, payload) => {
+    try {
+      if (action === 'follow-up') await API.post('/monitoring/follow-up', payload);
+      else if (action === 'ptp') await API.post('/monitoring/ptp', payload);
+      else if (action === 'resolve') await API.post('/monitoring/resolve', payload);
+      else if (action === 'escalate') await API.post('/monitoring/escalate', payload);
+
+      fetchAlerts();
+      return true;
+    } catch (err) {
+      showToast('error', 'Action Failed', err.response?.data?.error || err.message);
+      return false;
+    }
+  };
+
+  const openTimeline = async (alertItem) => {
+    try {
+      const res = await API.get(`/monitoring/timeline/${alertItem.id}`);
+      setTimelineModal({ show: true, alert: alertItem, history: res.data });
+    } catch {
+      showToast('error', 'Load Failed', 'Could not load timeline.');
+    }
+  };
+
+  const canManageMonitoring = hasPermission('monitoring', 'crud');
+  const canFilter = canManageMonitoring || user.role === 'manager' || user.role === 'teller' || user.role === 'accounting';
+
+  const handlePrint = () => {
+    const printGroups = shouldGroupByCollector ? collectorGroups : groupByCollector(filteredRecords);
+    const today = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
+    const rowsHtml = printGroups.map(group => `
+      <tr class="npm-print-group-row">
+        <td colspan="7">${escapeHtml(group.collectorName)} <span>${group.items.length} client${group.items.length === 1 ? '' : 's'}</span></td>
+      </tr>
+      ${group.items.map(item => `
+        <tr>
+          <td>
+            <strong>${escapeHtml(item.customer_name)}</strong>
+            <small>${escapeHtml(item.customer_code)}${item.contact ? ` | ${escapeHtml(item.contact)}` : ''}</small>
+          </td>
+          <td>
+            <strong>${escapeHtml(item.loan_code)}</strong>
+            <small>Bal: PHP ${escapeHtml(fmtAmt(item.balance))} | Amort: PHP ${escapeHtml(fmtAmt(item.amortization))}</small>
+          </td>
+          <td>${escapeHtml(item.alert_level)}</td>
+          <td>${escapeHtml(item.consecutive_days)}</td>
+          <td>${escapeHtml(fmtDate(item.first_missed_date))}</td>
+          <td>${escapeHtml(item.repeat_risk)} (Seq: ${escapeHtml(item.sequence_number)})</td>
+          <td></td>
+        </tr>
+      `).join('')}
+    `).join('');
+
+    const printRoot = document.createElement('div');
+    printRoot.className = 'npm-print-root';
+    printRoot.innerHTML = `
+      <section class="npm-print-sheet">
+        <header class="npm-print-header">
+          <div>
+            <h1>3-Day No-Payment Monitoring</h1>
+            <p>${escapeHtml(activeTabLabel)} | ${escapeHtml(today)}</p>
+          </div>
+          <strong>${filteredRecords.length} record${filteredRecords.length === 1 ? '' : 's'}</strong>
+        </header>
+        <table class="npm-print-table">
+          <thead>
+            <tr>
+              <th>Client</th>
+              <th>Loan Info</th>
+              <th>Alert Level</th>
+              <th>Consecutive Days</th>
+              <th>First Missed</th>
+              <th>Repeat Risk</th>
+              <th>Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="7" class="npm-print-empty">No records found.</td></tr>'}
+          </tbody>
+        </table>
+      </section>
+    `;
+
+    const cleanupPrintMode = () => {
+      document.body.classList.remove('npm-printing');
+      printRoot.remove();
+    };
+
+    document.body.appendChild(printRoot);
+    document.body.classList.add('npm-printing');
+    window.addEventListener('afterprint', cleanupPrintMode, { once: true });
+    setTimeout(() => {
+      window.print();
+      setTimeout(cleanupPrintMode, 500);
+    }, 100);
+  };
+
+  const renderAlertRow = (item, showCollector = true) => (
+    <tr key={item.id} className={item.repeat_risk === 'High Risk' ? 'npm-row-high-risk' : ''}>
+      <td>
+        <div className="npm-client">
+          <div className="npm-avatar"><UserRound size={15} /></div>
+          <div>
+            <button
+              type="button"
+              className="npm-client-name-btn"
+              onClick={() => openClientProfile(item.customer_id)}
+              title="Click to view loans & payment history"
+            >
+              {item.customer_name}
+            </button>
+            <span>{item.customer_code} | {item.contact}</span>
+          </div>
+        </div>
+      </td>
+      <td>
+        <div className="npm-loan-code">{item.loan_code}</div>
+        <div className="npm-loan-meta">Bal: PHP {fmtAmt(item.balance)} | Amort: PHP {fmtAmt(item.amortization)}</div>
+      </td>
+      {showCollector && <td>{item.collector_name}</td>}
+      <td>
+        <span className={`npm-alert-badge ${item.alert_level === 'Day 4+' ? 'danger' : 'warning'}`}>
+          {item.alert_level}
+        </span>
+      </td>
+      <td>
+        <strong className="npm-days">{item.consecutive_days}</strong>
+      </td>
+      <td>{fmtDate(item.first_missed_date)}</td>
+      <td>
+        <span className={`npm-risk ${item.repeat_risk === 'High Risk' ? 'high' : item.repeat_risk === 'Moderate Risk' ? 'moderate' : 'low'}`}>
+          {item.repeat_risk} (Seq: {item.sequence_number})
+        </span>
+      </td>
+      <td>
+        {item.last_follow_up_date ? (
+          <div className="npm-followup">
+            <Clock3 size={14} />
+            <div>
+              <div>{fmtDate(item.last_follow_up_date)}</div>
+              <span>{item.last_follow_up_result}</span>
+            </div>
+          </div>
+        ) : <span className="npm-muted">None</span>}
+      </td>
+      <td>
+        <div className="npm-actions">
+          <button className="npm-action npm-action-light" onClick={() => openTimeline(item)}><Clock3 size={12} /> Timeline</button>
+          {activeTab !== 'resolved' && (
+            <>
+              <button className="npm-action npm-action-dark" onClick={() => setFollowUpModal({ show: true, alert: item })}><Phone size={12} /> Log</button>
+              <button className="npm-action npm-action-ptp" onClick={() => setPtpModal({ show: true, alert: item })}><Handshake size={12} /> PTP</button>
+              <button className="npm-action npm-action-resolve" onClick={() => setResolveModal({ show: true, alert: item })}><Check size={12} /> Resolve</button>
+              {item.alert_level !== 'Day 4+' && (
+                <button className="npm-action npm-action-escalate" onClick={() => setEscalateModal({ show: true, alert: item })}><Flame size={12} /> Escalate</button>
+              )}
+            </>
+          )}
+          <button className="npm-action npm-action-soa" onClick={() => setSoaCustomerId(item.customer_id)}><FileText size={12} /> SOA</button>
+        </div>
+      </td>
+    </tr>
+  );
+
+  return (
+    <div className="card npm-monitoring">
+      <div className="npm-hero">
+        <div className="npm-title-block">
+          <div className="npm-title-icon">
+            <AlertTriangle size={24} />
+          </div>
+          <div>
+            <h2>3-Day No-Payment Monitoring</h2>
+            <p>{filteredRecords.length} record{filteredRecords.length === 1 ? '' : 's'} in current view</p>
+          </div>
+        </div>
+        <div className="npm-toolbar">
+          <button className="npm-button npm-button-secondary" onClick={handlePrint} disabled={loading}>
+            <Printer size={16} />
+            Print {activeTabLabel}
+          </button>
+          {canManageMonitoring && (
+            <button className="npm-button npm-button-danger" disabled={scanning} onClick={async () => {
+              setScanning(true);
+              try {
+                const res = await API.post('/monitoring/run-daily');
+                fetchAlerts();
+                showToast('success', 'Scan Complete', res.data.message || 'Daily scan finished successfully.', { active_alerts: res.data.active_alerts });
+              } catch (err) {
+                showToast('error', 'Scan Failed', err.response?.data?.error || err.message);
+              } finally {
+                setScanning(false);
+              }
+            }}>
+              {scanning ? <Loader2 size={16} className="npm-spin" /> : <RefreshCw size={16} />}
+              {scanning ? 'Scanning...' : 'Run Scan'}
+            </button>
+          )}
+          {canManageMonitoring && (
+            <button className="npm-button npm-button-secondary" onClick={() => setSettingsOpen(true)}>
+              <Settings size={16} />
+              Settings
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="npm-tabs">
+        {tabs.map(({ id, label, Icon, tone }) => (
+          <button
+            type="button"
+            key={id}
+            className={`npm-tab npm-tab-${tone} ${activeTab === id ? 'active' : ''}`}
+            onClick={() => setActiveTab(id)}
+          >
+            <Icon size={16} />
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
+
+      {canFilter && (
+        <div className="npm-filters">
+          <div className="form-group npm-filter-field">
+            <label>Branch</label>
+            <select className="form-control" value={branchId} onChange={e => setBranchId(e.target.value)}>
+              <option value="">All Branches</option>
+              {branches.map(b => (
+                <option key={b.id} value={b.id}>{b.branch_name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group npm-filter-field">
+            <label>Collector</label>
+            <select className="form-control" value={collectorId} onChange={e => setCollectorId(e.target.value)}>
+              <option value="">All Collectors</option>
+              {collectors.map(c => (
+                <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="npm-state"><Loader2 size={22} className="npm-spin" /> Loading monitoring records...</div>
+      ) : error ? (
+        <div className="npm-error">{error}</div>
+      ) : (
+        <div className="npm-table-wrap">
+          <table className={`data-table npm-table ${shouldGroupByCollector ? 'npm-table-grouped' : ''}`}>
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Loan Info</th>
+                {!shouldGroupByCollector && <th>Collector</th>}
+                <th>Alert Level</th>
+                <th>Consecutive Days</th>
+                <th>First Missed</th>
+                <th>Repeat Risk</th>
+                <th>Last Follow-up</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRecords.length === 0 ? (
+                <tr>
+                  <td colSpan={shouldGroupByCollector ? 8 : 9}>
+                    <div className="npm-empty">
+                      <CheckCircle2 size={28} />
+                      <strong>No alerts found</strong>
+                      <span>There are no records for this tab and filter.</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : shouldGroupByCollector ? (
+                collectorGroups.flatMap(group => [
+                  <tr key={`group-${group.collectorName}`} className="npm-collector-group-row">
+                    <td colSpan={8}>
+                      <div className="npm-collector-group">
+                        <strong>{group.collectorName}</strong>
+                        <span>{group.items.length} client{group.items.length === 1 ? '' : 's'}</span>
+                      </div>
+                    </td>
+                  </tr>,
+                  ...group.items.map(item => renderAlertRow(item, false))
+                ])
+              ) : (
+                filteredRecords.map(item => renderAlertRow(item, true))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {followUpModal.show && (
+        <Modal title="Log Follow-up" onClose={() => setFollowUpModal({ show: false, alert: null })}>
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            const f = new FormData(e.target);
+            const ok = await handleAction('follow-up', {
+              alert_id: followUpModal.alert.id,
+              customer_id: followUpModal.alert.customer_id,
+              follow_up_date: f.get('date'),
+              follow_up_method: f.get('method'),
+              contact_result: f.get('result'),
+              remarks: f.get('remarks'),
+              next_follow_up_date: f.get('next_date')
+            });
+            if (ok) setFollowUpModal({ show: false, alert: null });
+          }}>
+            <div className="form-group">
+              <label className="form-label">Date</label>
+              <input type="date" name="date" className="form-control" defaultValue={new Date().toISOString().split('T')[0]} required />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Method</label>
+              <select name="method" className="form-control" required>
+                <option value="Phone Call">Phone Call</option>
+                <option value="SMS">SMS</option>
+                <option value="Field Visit">Field Visit</option>
+                <option value="Social Media">Social Media</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Result</label>
+              <select name="result" className="form-control" required>
+                <option value="Promised to Pay">Promised to Pay</option>
+                <option value="Client Unavailable">Client Unavailable</option>
+                <option value="Refused to Pay">Refused to Pay</option>
+                <option value="Requested Extension">Requested Extension</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Next Follow-up Date</label>
+              <input type="date" name="next_date" className="form-control" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Remarks</label>
+              <textarea name="remarks" className="form-control" rows="3" required></textarea>
+            </div>
+            <button className="btn btn-primary" type="submit">Save Follow-up</button>
+          </form>
+        </Modal>
+      )}
+
+      {ptpModal.show && (
+        <Modal title="Log Promise to Pay" onClose={() => setPtpModal({ show: false, alert: null })}>
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            const f = new FormData(e.target);
+            const ok = await handleAction('ptp', {
+              alert_id: ptpModal.alert.id,
+              customer_id: ptpModal.alert.customer_id,
+              promise_date: f.get('date'),
+              promised_amount: f.get('amount'),
+              payment_method: f.get('method'),
+              reason: f.get('reason'),
+              remarks: f.get('remarks')
+            });
+            if (ok) setPtpModal({ show: false, alert: null });
+          }}>
+            <div className="form-group">
+              <label className="form-label">Promise Date</label>
+              <input type="date" name="date" className="form-control" required />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Promised Amount (PHP)</label>
+              <input type="number" step="0.01" name="amount" className="form-control" required defaultValue={ptpModal.alert?.amortization} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Payment Method</label>
+              <select name="method" className="form-control" required>
+                <option value="Cash at Branch">Cash at Branch</option>
+                <option value="Cash to Collector">Cash to Collector</option>
+                <option value="Online Transfer">Online Transfer</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Reason for Delay</label>
+              <select name="reason" className="form-control" required>
+                <option value="Financial Hardship">Financial Hardship</option>
+                <option value="Medical Emergency">Medical Emergency</option>
+                <option value="Forgot to Pay">Forgot to Pay</option>
+                <option value="Out of Town">Out of Town</option>
+                <option value="Business Slow">Business Slow</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Additional Remarks</label>
+              <textarea name="remarks" className="form-control" rows="2"></textarea>
+            </div>
+            <button className="btn btn-primary" type="submit">Save PTP</button>
+          </form>
+        </Modal>
+      )}
+
+      {resolveModal.show && (
+        <Modal title="Resolve Alert" onClose={() => setResolveModal({ show: false, alert: null })}>
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            const ok = await handleAction('resolve', {
+              alert_id: resolveModal.alert.id,
+              reason: new FormData(e.target).get('reason')
+            });
+            if (ok) setResolveModal({ show: false, alert: null });
+          }}>
+            <div className="form-group">
+              <label className="form-label">Reason for Manual Resolution</label>
+              <select name="reason" className="form-control" required>
+                <option value="Paid directly to bank">Paid directly to bank</option>
+                <option value="Restructured">Restructured Loan</option>
+                <option value="System Error">System Error / Duplicate</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <p className="npm-modal-note">Note: Alerts are automatically resolved when a valid payment is posted.</p>
+            <button className="btn btn-primary" style={{ background: '#10b981' }} type="submit">Confirm Resolution</button>
+          </form>
+        </Modal>
+      )}
+
+      {escalateModal.show && (
+        <Modal title="Escalate Alert" onClose={() => setEscalateModal({ show: false, alert: null })}>
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            const ok = await handleAction('escalate', {
+              alert_id: escalateModal.alert.id,
+              remarks: new FormData(e.target).get('remarks')
+            });
+            if (ok) setEscalateModal({ show: false, alert: null });
+          }}>
+            <p>You are escalating this case to <strong>Day 4+ (Critical)</strong>.</p>
+            <div className="form-group">
+              <label className="form-label">Escalation Remarks</label>
+              <textarea name="remarks" className="form-control" rows="3" required></textarea>
+            </div>
+            <button className="btn btn-danger" type="submit">Escalate Case</button>
+          </form>
+        </Modal>
+      )}
+
+      {timelineModal.show && (
+        <Modal title={`Timeline: ${timelineModal.alert?.customer_name}`} onClose={() => setTimelineModal({ show: false, alert: null, history: [] })}>
+          <div className="npm-timeline">
+            {timelineModal.history.length === 0 ? <p>No history found.</p> : timelineModal.history.map((h, i) => (
+              <div key={i} className="npm-timeline-item">
+                <div className={`npm-timeline-dot ${h._type === 'ptp' ? 'ptp' : 'followup'}`}></div>
+                <div>
+                  <div className="npm-timeline-date">{fmtDate(h.created_at)}</div>
+                  {h._type === 'ptp' ? (
+                    <div className="npm-timeline-card ptp">
+                      <strong>Promise To Pay Logged</strong>
+                      <span>Date: {fmtDate(h.promise_date)} | Amount: PHP {fmtAmt(h.promised_amount)}</span>
+                      <span>Reason: {h.reason}</span>
+                    </div>
+                  ) : (
+                    <div className="npm-timeline-card">
+                      <strong>Follow-up: {h.follow_up_method}</strong>
+                      <span>Result: {h.contact_result}</span>
+                      <span>Remarks: {h.remarks}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      )}
+
+      {clientProfileModal.show && (
+        <ClientProfileModal
+          data={clientProfileModal.data}
+          loading={clientProfileModal.loading}
+          onClose={() => setClientProfileModal({ show: false, data: null, loading: false })}
+        />
+      )}
+
+      {soaCustomerId && (
+        <SoaModal
+          customerId={soaCustomerId}
+          onClose={() => setSoaCustomerId(null)}
+          onRefresh={fetchAlerts}
+        />
+      )}
+
+      {toastModal.show && (
+        <ToastModal
+          type={toastModal.type}
+          title={toastModal.title}
+          message={toastModal.message}
+          meta={toastModal.meta}
+          onClose={() => setToastModal({ show: false, type: 'success', title: '', message: '', meta: null })}
+        />
+      )}
+
+      {settingsOpen && (
+        <div className="modal-overlay" onMouseDown={event => event.target === event.currentTarget && setSettingsOpen(false)}>
+          <div className="modal npm-monitoring-settings-modal">
+            <div className="modal-header">
+              <span className="modal-title">3-Day Monitoring Settings</span>
+              <button className="modal-close" onClick={() => setSettingsOpen(false)}>x</button>
+            </div>
+            <div className="modal-body">
+              <MonitoringSettings />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Modal({ title, onClose, children }) {
+  return (
+    <div className="npm-modal-overlay">
+      <div className="npm-modal-content">
+        <div className="npm-modal-header">
+          <h3>{title}</h3>
+          <button onClick={onClose} aria-label="Close modal"><X size={20} /></button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ToastModal({ type, title, message, meta, onClose }) {
+  const isSuccess = type === 'success';
+  return (
+    <div className="npm-modal-overlay npm-toast-overlay" onClick={onClose}>
+      <div className={`npm-toast-modal ${isSuccess ? 'npm-toast-success' : 'npm-toast-error'}`} onClick={e => e.stopPropagation()}>
+        {/* Icon */}
+        <div className="npm-toast-icon-wrap">
+          <div className="npm-toast-icon-ring" />
+          <div className="npm-toast-icon">
+            {isSuccess ? <ShieldCheck size={32} /> : <XCircle size={32} />}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="npm-toast-body">
+          <h3 className="npm-toast-title">{title}</h3>
+          <p className="npm-toast-message">{message}</p>
+
+          {/* Scan stats — only shown on success with meta */}
+          {isSuccess && meta && (
+            <div className="npm-toast-stats">
+              <div className="npm-toast-stat">
+                <span className="npm-toast-stat-num">{meta.active_alerts ?? '—'}</span>
+                <span className="npm-toast-stat-label">Active Alerts</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Close button */}
+        <button className="npm-toast-close" onClick={onClose}>
+          <X size={16} />
+        </button>
+
+        {/* OK button */}
+        <div className="npm-toast-footer">
+          <button className={`npm-toast-btn ${isSuccess ? 'npm-toast-btn-success' : 'npm-toast-btn-error'}`} onClick={onClose}>
+            <Check size={16} /> Got it
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClientProfileModal({ data, loading, onClose }) {
+  // Only show the latest loan and its payments
+  const latestLoan = (data?.loans || [])[0] || null;
+  const latestLoanPayments = latestLoan
+    ? (data?.payments || []).filter(p => p.loan_code === latestLoan.loan_code)
+    : [];
+
+  const loans = data?.loans || [];
+  const payments = data?.payments || [];
+  const activePaymentsCount = payments.filter(p => p.status === 'active').length;
+  const pastDueCount = loans.filter(l => String(l.status || '').toLowerCase() === 'pastdue').length;
+
+  const latestL = loans[0];
+  const releaseDate = latestL ? (latestL.date_released || (latestL.created_at ? String(latestL.created_at).split('T')[0] : null)) : null;
+  const todayStr = new Date().toISOString().split('T')[0];
+  const daysSinceRel = releaseDate ? Math.max(0, Math.floor((new Date(todayStr) - new Date(releaseDate)) / 86400000)) : 0;
+  const isUnrated = activePaymentsCount === 0 && daysSinceRel <= 1;
+
+  let creditScore = 100;
+  if (activePaymentsCount === 0) {
+    if (daysSinceRel > 1) {
+      creditScore = Math.max(0, 100 - (daysSinceRel * 15) - (pastDueCount * 20));
+    }
+  } else {
+    creditScore = Math.max(0, Math.min(100, 100 - (pastDueCount * 20)));
+  }
+
+  let creditColor;
+  let creditLabel;
+  let creditIcon;
+
+  if (isUnrated) {
+    creditColor = '#64748b';
+    creditLabel = 'NEW (UNRATED)';
+    creditIcon = '🆕';
+  } else if (creditScore >= 90) {
+    creditColor = '#059669';
+    creditLabel = 'EXCELLENT';
+    creditIcon = '⭐';
+  } else if (creditScore >= 80) {
+    creditColor = '#0284c7';
+    creditLabel = 'GOOD';
+    creditIcon = '👍';
+  } else if (creditScore >= 70) {
+    creditColor = '#ca8a04';
+    creditLabel = 'FAIR';
+    creditIcon = '⚖️';
+  } else if (creditScore >= 60) {
+    creditColor = '#ea580c';
+    creditLabel = 'RISKY';
+    creditIcon = '⚠️';
+  } else {
+    creditColor = '#dc2626';
+    creditLabel = 'POOR';
+    creditIcon = '🚨';
+  }
+
+  return (
+    <div className="npm-modal-overlay" onClick={onClose}>
+      <div className="npm-profile-modal" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="npm-profile-header">
+          <div className="npm-profile-title">
+            <div className="npm-profile-avatar">
+              <UserRound size={22} />
+            </div>
+            <div>
+              {loading ? (
+                <div className="npm-profile-loading"><Loader2 size={18} className="npm-spin" /> Loading profile...</div>
+              ) : (
+                <>
+                  <h3>{data?.full_name}</h3>
+                  <span>{data?.customer_code} &bull; {data?.contact || 'No contact'}</span>
+                </>
+              )}
+            </div>
+          </div>
+          <button className="npm-profile-close" onClick={onClose} aria-label="Close"><X size={20} /></button>
+        </div>
+
+        {!loading && data && (
+          <div className="npm-profile-content">
+            {/* Info bar */}
+            <div className="npm-profile-infobar">
+              <div className="npm-profile-info-item">
+                <span>Branch</span>
+                <strong>{data.branch_name || '—'}</strong>
+              </div>
+              <div className="npm-profile-info-item">
+                <span>Address</span>
+                <strong>{data.address || '—'}</strong>
+              </div>
+              <div className="npm-profile-info-item">
+                <span>Collector</span>
+                <strong>{data.collector_name || '—'}</strong>
+              </div>
+              <div className="npm-profile-info-item">
+                <span>Status</span>
+                <strong className={`npm-profile-status npm-profile-status--${(data.status || 'active').toLowerCase()}`}>
+                  {data.status || '—'}
+                </strong>
+              </div>
+              <div className="npm-profile-info-item">
+                <span>Credit Score</span>
+                <strong style={{ color: creditColor }}>
+                  {creditIcon} {isUnrated ? 'NEW (UNRATED)' : `${creditScore}/100 (${creditLabel})`}
+                </strong>
+              </div>
+            </div>
+
+            {/* Combined Profile Body */}
+            <div className="npm-profile-body">
+              {/* Latest Loan Section */}
+              <div className="npm-profile-block">
+                <div className="npm-profile-block-title">
+                  <CreditCard size={16} />
+                  <span>Latest Loan Details</span>
+                </div>
+                {(data.loans || []).length === 0 ? (
+                  <div className="npm-profile-empty">No loans found.</div>
+                ) : (
+                  <div className="npm-profile-table-wrap">
+                    <table className="npm-profile-table">
+                      <thead>
+                        <tr>
+                          <th>Loan Code</th>
+                          <th>Type</th>
+                          <th>Principal</th>
+                          <th>Interest</th>
+                          <th>Total Loan</th>
+                          <th>Balance</th>
+                          <th>Amortization</th>
+                          <th>Released</th>
+                          <th>Maturity</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.loans.slice(0, 1).map(loan => {
+                          const interestAmt = Number(loan.interest_amount || (Number(loan.total_amortization || 0) - Number(loan.principal || 0)) || 0);
+                          const totalLoanAmt = Number(loan.total_amortization || (Number(loan.principal || 0) + interestAmt) || 0);
+
+                          return (
+                            <tr key={loan.id}>
+                              <td><strong className="npm-profile-loan-code">{loan.loan_code}</strong></td>
+                              <td>{loan.loan_type || '—'}</td>
+                              <td>₱{fmtAmt(loan.principal)}</td>
+                              <td>₱{fmtAmt(interestAmt)}</td>
+                              <td><strong>₱{fmtAmt(totalLoanAmt)}</strong></td>
+                              <td>
+                                <strong className={Number(loan.balance) > 0 ? 'npm-profile-bal-active' : 'npm-profile-bal-paid'}>
+                                  ₱{fmtAmt(loan.balance)}
+                                </strong>
+                              </td>
+                              <td>₱{fmtAmt(loan.amortization)}</td>
+                              <td>{fmtDate(loan.date_released)}</td>
+                              <td>{fmtDate(loan.date_maturity)}</td>
+                              <td>
+                                <span className={`npm-profile-loan-status npm-profile-loan-status--${(loan.status || '').toLowerCase()}`}>
+                                  {loan.status}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Payment History Section */}
+              <div className="npm-profile-block">
+                <div className="npm-profile-block-title">
+                  <Receipt size={16} />
+                  <span>Payment History ({latestLoanPayments.length})</span>
+                </div>
+                {latestLoanPayments.length === 0 ? (
+                  <div className="npm-profile-empty">No payment history found for this loan.</div>
+                ) : (
+                  <div className="npm-profile-table-wrap npm-profile-scroll-wrap">
+                    <table className="npm-profile-table">
+                      <thead>
+                        <tr>
+                          <th>Loan Code</th>
+                          <th>Date Paid</th>
+                          <th>Amount</th>
+                          <th>Running Balance</th>
+                          <th>Type</th>
+                          <th>OR No.</th>
+                          <th>Notes</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {latestLoanPayments.map(p => (
+                          <tr key={p.id} className={p.status !== 'active' ? 'npm-profile-row-voided' : ''}>
+                            <td><strong>{p.loan_code}</strong></td>
+                            <td>{fmtDate(p.date_paid)}</td>
+                            <td>
+                              <strong className="npm-profile-pay-amount">
+                                <Banknote size={13} style={{ verticalAlign: 'middle', marginRight: 3 }} />
+                                ₱{fmtAmt(p.amount_paid)}
+                              </strong>
+                            </td>
+                            <td>
+                              <strong style={{ color: '#0f172a' }}>
+                                ₱{fmtAmt(p.balance_after ?? 0)}
+                              </strong>
+                            </td>
+                            <td>{p.payment_type || p.or_type || '—'}</td>
+                            <td>{p.or_number || '—'}</td>
+                            <td style={{ fontSize: '12px', color: '#475569', maxWidth: '160px', wordBreak: 'break-word' }}>
+                              {p.remarks || '—'}
+                            </td>
+                            <td>
+                              <span className={`npm-profile-pay-status ${p.status !== 'active' ? 'voided' : 'active'}`}>
+                                {p.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {loading && (
+          <div className="npm-profile-loading-full">
+            <Loader2 size={28} className="npm-spin" />
+            <span>Loading client data...</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
