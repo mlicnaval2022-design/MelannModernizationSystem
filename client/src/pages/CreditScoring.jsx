@@ -277,6 +277,21 @@ export default function CreditScoring() {
             onChange={e => setSearch(e.target.value)} 
           />
         </div>
+        {(hasRole('admin', 'manager') || hasPermission('credit-scoring', 'create') || hasPermission('credit-scoring', 'crud') || hasPermission('loans', 'create') || hasPermission('loans', 'crud')) && (
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              setForm(EMPTY)
+              setClientCodeInput('')
+              setError('')
+              setAppModal(true)
+            }}
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            + New CI Application
+          </button>
+        )}
 
       </div>
 
@@ -423,7 +438,7 @@ export default function CreditScoring() {
                   <div className="form-group span-2">
                     <label className="form-label">Customer *</label>
                     <select className="form-control" value={form.customer_id} onChange={handleCustomerSelect} required>
-                      <option value="">Select Customer...</option>
+                      <option value="">Select active customer (new or existing)...</option>
                       {customers.map(c => <option key={c.id} value={c.id}>{c.full_name} ({c.customer_code})</option>)}
                     </select>
                   </div>
