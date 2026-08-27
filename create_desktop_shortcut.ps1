@@ -52,6 +52,18 @@ if ($Mode -eq "server" -or $Mode -eq "both") {
     } else {
         Write-Host "  MLS_SERVER_VISIBLE.cmd not found!" -ForegroundColor Red
     }
+
+    $RestartServer = Join-Path $ProjectDir "RESTART_SERVER.bat"
+    if (Test-Path $RestartServer) {
+        $RestartArguments = "/d /k call `"$RestartServer`""
+        Create-Shortcut "MLS Server - RESTART" $CommandPrompt "$IconPath,0" "Stop and restart the Melann server in a visible console" $ProjectDir $RestartArguments
+    }
+
+    $ServerStatus = Join-Path $ProjectDir "SERVER_STATUS.bat"
+    if (Test-Path $ServerStatus) {
+        $StatusArguments = "/d /k call `"$ServerStatus`""
+        Create-Shortcut "MLS Server - STATUS" $CommandPrompt "$IconPath,0" "Check whether the Melann server is running" $ProjectDir $StatusArguments
+    }
 }
 
 # --- CLIENT SHORTCUT (opens browser to server IP) ---

@@ -8,7 +8,7 @@ set "NODE_DIR=%~dp0.runtime\node"
 set "NODE_EXE=%NODE_DIR%\node.exe"
 set "PORT=5001"
 
-rem If MLS is already running, open it instead of starting a second server.
+rem If MLS is already running, report it instead of starting a second server.
 powershell.exe -NoProfile -Command "try { $r = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:%PORT%/api/health' -TimeoutSec 3; if ($r.StatusCode -eq 200) { exit 0 }; exit 1 } catch { exit 1 }"
 if not errorlevel 1 (
   echo.
@@ -16,12 +16,16 @@ if not errorlevel 1 (
   echo   MELANN LENDING SYSTEM - SERVER
   echo ======================================================
   echo   The server is already running on port %PORT%.
-  echo   Opening the system in your browser...
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0SERVER_CONTROL.ps1" status
   echo ======================================================
   echo.
   if /I not "%MLS_NO_BROWSER%"=="1" start "" "http://localhost:%PORT%/login?fix=favicon-v5"
   if /I "%MLS_MONITOR_ONCE%"=="1" exit /b 0
-  goto :monitor_existing_server
+  echo This window did not start the running server, so closing it will
+  echo NOT stop the server. Use RESTART_SERVER.bat for a clean restart.
+  echo.
+  pause
+  exit /b 0
 )
 
 if not exist "%NODE_EXE%" (
@@ -91,34 +95,3 @@ if not "%MLS_SERVER_EXIT_CODE%"=="0" (
 )
 pause
 exit /b %MLS_SERVER_EXIT_CODE%
-
-:monitor_existing_server
-cls
-echo.
-echo ======================================================
-echo   MELANN LENDING SYSTEM - SERVER STATUS
-echo ======================================================
-echo.
-echo   SERVER STATUS: RUNNING
-echo   Address: http://localhost:%PORT%
-echo   Last checked: %DATE% %TIME%
-echo.
-echo   This window is monitoring the background server.
-echo   Closing this window will only close the monitor.
-echo   The existing background server will continue running.
-echo.
-echo ======================================================
-powershell.exe -NoProfile -Command "try { $r = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:%PORT%/api/health' -TimeoutSec 3; if ($r.StatusCode -eq 200) { exit 0 }; exit 1 } catch { exit 1 }"
-if errorlevel 1 goto :existing_server_stopped
-powershell.exe -NoProfile -Command "Start-Sleep -Seconds 10"
-goto :monitor_existing_server
-
-:existing_server_stopped
-color 0C
-echo.
-echo   SERVER STATUS: STOPPED
-echo   The background server is no longer responding.
-echo   Close this window, then run START_SERVER.bat again.
-echo.
-pause
-exit /b 1
