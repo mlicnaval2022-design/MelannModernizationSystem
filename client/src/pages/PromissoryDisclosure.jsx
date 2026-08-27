@@ -115,17 +115,18 @@ const formatClientAddress = loan => {
   return composed ? toDisplayCase(composed) : '-'
 }
 const formatBorrowerName = loan => {
-  const orderedName = [loan.first_name, loan.middle_name, loan.last_name]
-    .map(part => String(part || '').trim())
-    .filter(Boolean)
-    .join(' ')
-
-  if (orderedName) return toDisplayCase(orderedName)
+  const first = String(loan.first_name || '').trim()
+  const middle = String(loan.middle_name || '').trim()
+  const last = String(loan.last_name || '').trim()
+  if (first || last) {
+    const middleInitial = middle ? `${middle.charAt(0).toUpperCase()}.` : ''
+    return toDisplayCase(`${last}, ${first}${middleInitial ? ` ${middleInitial}` : ''}`.trim())
+  }
 
   const fallback = String(loan.customer_name || '').trim()
   if (fallback.includes(',')) {
-    const [last, rest] = fallback.split(',', 2)
-    return toDisplayCase([rest, last].map(part => part.trim()).filter(Boolean).join(' '))
+    const [lastName, rest] = fallback.split(',', 2)
+    return toDisplayCase(`${lastName.trim()}, ${rest.trim()}`)
   }
 
   return fallback ? toDisplayCase(fallback) : '-'
