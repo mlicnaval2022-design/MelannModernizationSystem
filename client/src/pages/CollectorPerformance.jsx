@@ -561,7 +561,7 @@ const normalizePrintForms = (period, selectedRatingPeriod, collectorEdits = {}) 
     displayRole: 'Collector',
     position: 'CI/Collector',
     assignedArea: collectorEdits[row.collector_id]?.area || getCollectorArea(getRankingName(row)),
-    teamBranch: 'Ormoc',
+    teamBranch: 'Naval',
     supervisorName: row.supervisor || 'Not encoded',
     statusLabel: getPrintFormStatusLabel(periodFinalized, row)
   }))
@@ -575,18 +575,18 @@ const normalizePrintForms = (period, selectedRatingPeriod, collectorEdits = {}) 
       position: 'Supervisor',
       assignedArea: row.branch_name || row.collector_results?.[0]?.branch_name || 'Main Branch',
       branch_name: row.branch_name || row.collector_results?.[0]?.branch_name || 'Main Branch',
-      teamBranch: 'Ormoc',
-      supervisorName: 'MARILYN O. RELOBA',
+      teamBranch: 'Naval',
+      supervisorName: 'MARISSA P. ENTERO',
       statusLabel: getPrintFormStatusLabel(periodFinalized, row)
     }))
   const branchManagers = (selectedRatingPeriod?.branch_manager_evaluations || []).map(row => ({
     ...row,
     printType: 'branch-manager',
-    personName: 'MARILYN O. RELOBA',
+    personName: 'MARISSA P. ENTERO',
     displayRole: 'Manager',
     position: 'Branch Manager',
     assignedArea: row.branch_name || 'Main Branch',
-    teamBranch: 'Ormoc',
+    teamBranch: 'Naval',
     supervisorName: 'VICTORIO L. RELOBA JR.',
     statusLabel: getPrintFormStatusLabel(periodFinalized, row)
   }))
@@ -598,7 +598,7 @@ const normalizePrintForms = (period, selectedRatingPeriod, collectorEdits = {}) 
     displayRole: 'Manager',
     position: 'Operations Manager',
     assignedArea: 'All Branches',
-    teamBranch: 'Ormoc',
+    teamBranch: 'Naval',
     supervisorName: 'Executive Office',
     statusLabel: getPrintFormStatusLabel(periodFinalized, operationsManager)
   }] : []
@@ -633,7 +633,7 @@ function FortyFivePrintForm({ period, form }) {
       <tbody>
         <tr><th>Rating Period</th><td>{periodLabel}</td><th>Supervisor</th><td>{form.supervisorName}</td></tr>
         <tr><th>Name of Employee</th><td>{String(form.personName || '').toUpperCase()}</td><th>Assigned Area</th><td>{form.assignedArea}</td></tr>
-        <tr><th>Position/Designation</th><td>{form.position}</td><th>Team/Branch</th><td>{form.teamBranch || 'Ormoc'}</td></tr>
+        <tr><th>Position/Designation</th><td>{form.position}</td><th>Team/Branch</th><td>{form.teamBranch || 'Naval'}</td></tr>
       </tbody>
     </table>
 
@@ -680,7 +680,7 @@ function FortyFivePrintForm({ period, form }) {
     <div className="forty-five-form-signatures">
       {[
         [form.personName, "Ratee's Printed Name & Signature"],
-        ['MARILYN O. RELOBA', "Rater's Printed Name & Signature / Branch Head"],
+        ['MARISSA P. ENTERO', "Rater's Printed Name & Signature / Branch Head"],
         [form.supervisorName, 'Printed Name and Signature of Supervisor'],
         ['', 'Printed Name and Signature of Coach']
       ].map(([name, label], index) => <div key={`sig-${index}`}><strong>{String(name || '').toUpperCase()}</strong><span>{label}</span><em>Date:</em></div>)}
