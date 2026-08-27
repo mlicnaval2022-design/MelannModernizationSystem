@@ -684,6 +684,13 @@ function IndexPreview({ data }) {
     ['index-middle', indexDate(loan.date_released)],
     ['index-right', indexDate(maturityDate)],
   ]
+  const fontSize = value => {
+    const length = String(value || '').length
+    if (length > 52) return '7pt'
+    if (length > 40) return '8pt'
+    if (length > 30) return '9pt'
+    return '10pt'
+  }
   return (
     <div className="index-preview-shell">
       <style>{`
@@ -691,9 +698,8 @@ function IndexPreview({ data }) {
         .index-preview-note { margin: 0 0 12px; color: #475569; font-size: 12px; line-height: 1.45; }
         .index-preview-note b { color: #0f172a; }
         .index-card-print { width: 8in; height: 5in; box-sizing: border-box; background: #fff; color: #000; margin: 0 auto; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); overflow: hidden; }
-        .index-card-fields { box-sizing: border-box; display: grid; grid-template-columns: 4.1in 2.5in 1in; grid-template-rows: repeat(2, 0.278in) auto; padding: 0.35in 0.2in 0; }
-        .index-card-field { align-self: end; overflow: hidden; white-space: nowrap; font-family: Arial, Helvetica, sans-serif; font-size: 10pt; font-weight: 600; line-height: 1; text-overflow: clip; }
-        .index-address { align-self: start; white-space: normal; overflow-wrap: break-word; line-height: 1.15; }
+        .index-card-fields { box-sizing: border-box; display: grid; grid-template-columns: 4.1in 2.5in 1in; grid-template-rows: repeat(3, 0.278in); padding: 0.35in 0.2in 0; }
+        .index-card-field { align-self: end; overflow: hidden; white-space: nowrap; font-family: Arial, Helvetica, sans-serif; font-weight: 600; line-height: 1; text-overflow: clip; }
         .index-left { text-align: left; padding-right: 0.08in; }
         .index-middle { text-align: center; padding: 0 0.04in; }
         .index-right { text-align: center; padding-left: 0.02in; }
@@ -710,7 +716,7 @@ function IndexPreview({ data }) {
       <div id="index-printable" className="index-card-print" aria-label="Lending index card print preview">
         <div className="index-card-fields">
           {values.map(([position, value], index) => (
-            <div key={`${position}-${index}`} className={`index-card-field ${position}${index === 6 ? ' index-address' : ''}`}>
+            <div key={`${position}-${index}`} className={`index-card-field ${position}`} style={{ fontSize: fontSize(value) }}>
               {value}
             </div>
           ))}
