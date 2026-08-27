@@ -5945,8 +5945,8 @@ export default function Reports() {
               {(entries || []).map((entry, i) => <tr key={`${keyPrefix}-${i}`} style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>{entryCells(entry)}</tr>)}
               {hasClients && (
                 <tr key={`${keyPrefix}-total`} style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                  <td colSpan={6} style={{ ...cs, textAlign: 'right', fontWeight: 700, fontSize: '8.5pt', color: '#059669', paddingRight: 4 }}>
-                    Total({totalDaily ? Number(totalDaily).toLocaleString() : '0'})
+                  <td colSpan={6} style={{ ...cs, textAlign: 'right', fontWeight: 700, fontSize: '8.5pt', color: '#059669', paddingRight: 6 }}>
+                    Total:
                   </td>
                   <td style={{ ...cs, width: '19%' }}></td>
                 </tr>
