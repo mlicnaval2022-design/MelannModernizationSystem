@@ -282,7 +282,9 @@ async function computeEvaluations({ branch_id, start_date, end_date }) {
       co.supervisor, co.branch_id, b.branch_name
     FROM tblCollector co
     LEFT JOIN tblBranch b ON b.id = co.branch_id
-    WHERE co.is_active = 1${collectorBranch.sql}
+    WHERE co.is_active = 1
+      -- Pastdue is tracked separately and must not be rated as a collector.
+      AND LOWER(TRIM(co.first_name || ' ' || co.last_name)) NOT LIKE '%pastdue%'${collectorBranch.sql}
     ORDER BY co.last_name, co.first_name
   `, collectorBranch.params);
   // Expense Share is controlled from the 45-Day Performance Expense Share tab.

@@ -60,6 +60,11 @@ test('forty-five-day-rating calculate returns on-the-fly evaluations for date ra
     VALUES ('COL-ANY', 'Maria', 'Santos', ?, 1)
   `, [branch.id]);
 
+  const pastdueCollector = await dbRun(`
+    INSERT INTO tblCollector (collector_code, first_name, last_name, branch_id, is_active)
+    VALUES ('COL-PASTDUE', 'Alberto', 'Borinaga PastDue', ?, 1)
+  `, [branch.id]);
+
   const customer = await dbRun(`
     INSERT INTO tblCustomer (customer_code, first_name, last_name, full_name, branch_id, collector_id)
     VALUES ('CUST-45', 'Client', 'Sample', 'Client Sample', ?, ?)
@@ -123,6 +128,7 @@ test('forty-five-day-rating calculate returns on-the-fly evaluations for date ra
   const additionalEval = data.evaluations.find(e => e.collector_id === additionalCollector.lastID);
   assert.ok(additionalEval);
   assert.equal(additionalEval.collector_name, 'Maria Santos');
+  assert.equal(data.evaluations.some(e => e.collector_id === pastdueCollector.lastID), false);
 
   const collectionReportResponse = await api('/reports/daily-collection?date_from=2026-07-01&date_to=2026-08-15');
   const collectionReport = await collectionReportResponse.json();
