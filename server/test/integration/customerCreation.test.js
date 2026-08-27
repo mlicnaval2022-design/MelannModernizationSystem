@@ -98,7 +98,7 @@ test('an ID number cannot be saved without an ID type', async () => {
   assert.equal(body.error, 'Type of ID is required when an ID number is provided.');
 });
 
-test('only a Relax customer classified as Reloan is eligible without a previous loan record', async () => {
+test('a customer classified as Reloan is eligible without a previous loan record', async () => {
   const loginResponse = await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -131,26 +131,8 @@ test('only a Relax customer classified as Reloan is eligible without a previous 
   const eligibility = await eligibilityResponse.json();
 
   assert.equal(eligibilityResponse.status, 200, eligibility.error);
-  assert.equal(eligibility.is_eligible, false);
-  assert.equal(eligibility.can_proceed, false);
-
-  const deniedResponse = await fetch(`${baseUrl}/api/customers/${customer.id}/reloan`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      principal: 5000,
-      loan_period: 45,
-      interest_rate: 15,
-      date_released: '2026-08-21',
-      loan_type: 'Reloan',
-    }),
-  });
-  const deniedResult = await deniedResponse.json();
-
-  assert.equal(deniedResponse.status, 400);
-  assert.match(deniedResult.error, /FULLY PAID or RELAX/);
-
-  await dbRun("UPDATE tblCustomer SET status = 'RELAX' WHERE id = ?", [customer.id]);
+  assert.equal(eligibility.is_eligible, true);
+  assert.equal(eligibility.can_proceed, true);
 
   const loanResponse = await fetch(`${baseUrl}/api/customers/${customer.id}/reloan`, {
     method: 'POST',
@@ -173,7 +155,7 @@ test('only a Relax customer classified as Reloan is eligible without a previous 
   assert.deepEqual(savedLoan, { loan_type: 'Reloan', principal: 5000, status: 'active' });
 });
 
-test('the generic loan endpoint rejects a Reloan for a client who is not Fully Paid or Relax', async () => {
+test('an active client can reloan by carrying the unpaid amount as the previous balance', async () => {
   const loginResponse = await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -188,25 +170,57 @@ test('the generic loan endpoint rejects a Reloan for a client who is not Fully P
   const customer = await dbRun(`
     INSERT INTO tblCustomer (customer_code, first_name, last_name, full_name, branch_id, status)
     VALUES (?, ?, ?, ?, ?, ?)
-  `, ['C-RELOAN-GUARD', 'Active', 'Client', 'Active Client', branch.id, 'active']);
+  `, ['C-RELOAN-BAL', 'Balance', 'Client', 'Balance Client', branch.id, 'active']);
+  const oldLoan = await dbRun(`
+    INSERT INTO tblLoan (
+      loan_code, customer_id, branch_id, loan_type, principal, interest_rate,
+      interest_amount, loan_period, date_released, date_maturity,
+      total_amortization, balance, total_paid, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, ['LN-RELOAN-BAL', customer.lastID, branch.id, 'New', 5000, 15, 750, 45,
+    '2026-07-01', '2026-08-15', 5750, 100, 5650, 'active']);
 
-  const response = await fetch(`${baseUrl}/api/loans`, {
+  const eligibilityResponse = await fetch(`${baseUrl}/api/customers/${customer.lastID}/reloan-eval`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const eligibility = await eligibilityResponse.json();
+
+  assert.equal(eligibilityResponse.status, 200, eligibility.error);
+  assert.equal(eligibility.active_balance, 100);
+  assert.equal(eligibility.is_eligible, true);
+  assert.equal(eligibility.can_proceed, true);
+
+  const response = await fetch(`${baseUrl}/api/customers/${customer.lastID}/reloan`, {
     method: 'POST',
     headers,
     body: JSON.stringify({
-      customer_id: customer.lastID,
-      branch_id: branch.id,
       principal: 5000,
       interest_rate: 15,
       loan_period: 45,
       date_released: '2026-08-21',
       loan_type: 'Reloan',
+      source_loan_id: oldLoan.lastID,
+      previous_balance: 100,
     }),
   });
   const result = await response.json();
+  const settledLoan = await dbGet('SELECT balance, total_paid, status FROM tblLoan WHERE id = ?', [oldLoan.lastID]);
+  const reloan = await dbGet(
+    "SELECT loan_type, previous_balance, status FROM tblLoan WHERE customer_id = ? AND id != ? ORDER BY id DESC LIMIT 1",
+    [customer.lastID, oldLoan.lastID]
+  );
+  const balancePayment = await dbGet(
+    "SELECT amount_paid, balance_before, balance_after, remarks FROM tblPayment WHERE loan_id = ? ORDER BY id DESC LIMIT 1",
+    [oldLoan.lastID]
+  );
 
-  assert.equal(response.status, 400);
-  assert.match(result.error, /FULLY PAID or RELAX/);
+  assert.equal(response.status, 200, result.error);
+  assert.deepEqual(settledLoan, { balance: 0, total_paid: 5750, status: 'fullpaid' });
+  assert.deepEqual(reloan, { loan_type: 'Reloan', previous_balance: 100, status: 'active' });
+  assert.equal(balancePayment.amount_paid, 100);
+  assert.equal(balancePayment.balance_before, 100);
+  assert.equal(balancePayment.balance_after, 0);
+  assert.match(balancePayment.remarks, /old balance during Reloan/i);
 });
 
 test('creating and releasing a 30-day loan keeps maturity at exactly 30 calendar days', async () => {

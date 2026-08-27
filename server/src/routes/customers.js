@@ -921,10 +921,10 @@ router.get('/:id/reloan-eval', authenticateToken, async (req, res) => {
     const customerStatus = String(customer.status || '').trim().toUpperCase();
     const is_fully_paid = customerStatus === 'FULLY PAID';
     const is_relax = customerStatus === 'RELAX';
-    const no_active_loan = !activeOrPastDueLoans || activeOrPastDueLoans.count === 0;
-    const no_outstanding_balance = !activeOrPastDueLoans || !activeOrPastDueLoans.total_balance || activeOrPastDueLoans.total_balance <= 0;
-    const has_allowed_reloan_status = is_fully_paid || is_relax;
-    const is_good_standing = has_allowed_reloan_status && no_active_loan && no_outstanding_balance;
+    const is_reloan_classification = normalizeLoanType(customer.customer_classification) === 'RELOAN';
+    const has_loan_history = Number(stats?.total_loans || 0) > 0;
+    const has_reloan_basis = is_reloan_classification || has_loan_history || is_fully_paid || is_relax;
+    const is_good_standing = customerStatus !== 'HOLD' && has_reloan_basis;
 
     const can_proceed = is_good_standing;
     const last_loan = stats && stats.last_loan_amount ? stats.last_loan_amount : 0;
@@ -1144,11 +1144,6 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
       }
       if (customerStatus === 'HOLD') {
         const err = new Error(`This client is not eligible for RELOAN. Client is on ${customerStatus} status.`);
-        err.statusCode = 400;
-        throw err;
-      }
-      if (!['FULLY PAID', 'RELAX'].includes(customerStatus)) {
-        const err = new Error('This client must be FULLY PAID or RELAX before processing a RELOAN.');
         err.statusCode = 400;
         throw err;
       }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import API from '../services/api'
+import ConfirmModal from '../components/ConfirmModal'
 import dayjs from 'dayjs'
 const fmt = n => Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 const today = () => dayjs().format('YYYY-MM-DD')
@@ -19,9 +20,11 @@ export default function Transactions() {
   const [form, setForm] = useState({ id: null, branch_id: '', transaction_date: today(), amount: '', category: '', description: '', payee: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
   const [search, setSearch] = useState('')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState(today())
+  const [confirmModal, setConfirmModal] = useState(null)
 
   const load = () => { 
     setLoading(true); 
@@ -43,42 +46,135 @@ export default function Transactions() {
     handleClear()
   }
 
-  const handleSave = async () => {
-    if (!form.amount || !form.transaction_date || (activeTab === 'Expense' && !form.category)) {
-      setError('Please fill in all required fields (*)');
-      return;
+  const validateForm = () => {
+    if (!form.amount || Number(form.amount) <= 0) {
+      setError('Please enter a valid amount greater than 0.');
+      return false;
     }
+    if (!form.transaction_date) {
+      setError('Please select a valid transaction date.');
+      return false;
+    }
+    if (activeTab === 'Expense' && !form.category) {
+      setError('Please select a category for this expense.');
+      return false;
+    }
+    return true;
+  }
+
+  const performSave = async () => {
     setSaving(true);
     setError('');
+    setSuccessMsg('');
     try {
       const payload = { ...form, transaction_type: activeTab };
       if (form.id) {
         await API.put(`/transactions/${form.id}`, payload);
+        setSuccessMsg(`Transaction #${form.id} updated successfully.`);
       } else {
-        await API.post('/transactions', payload);
+        const res = await API.post('/transactions', payload);
+        setSuccessMsg(`Transaction ${res.data?.id ? `#${res.data.id} ` : ''}saved successfully.`);
       }
+      setConfirmModal(null);
       handleClear();
       load();
     } catch (err) {
       setError(err.response?.data?.error || 'Error saving transaction');
+      setConfirmModal(null);
     } finally {
       setSaving(false);
     }
   }
 
-  const handleDelete = async () => {
-    if (!form.id) {
-      setError('Please select a transaction from the table first to delete.');
-      return;
-    }
-    if (!confirm('Are you sure you want to delete (void) this transaction?')) return;
+  const performDelete = async () => {
+    if (!form.id) return;
+    setSaving(true);
+    setError('');
+    setSuccessMsg('');
     try {
       await API.delete(`/transactions/${form.id}`);
+      setSuccessMsg(`Transaction #${form.id} deleted successfully.`);
+      setConfirmModal(null);
       handleClear();
       load();
     } catch (err) {
       setError(err.response?.data?.error || 'Error deleting transaction');
+      setConfirmModal(null);
+    } finally {
+      setSaving(false);
     }
+  }
+
+  const handleSaveClick = (e) => {
+    if (e) e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+    if (!validateForm()) return;
+
+    if (form.id) {
+      setConfirmModal({
+        title: 'Confirm Update Transaction',
+        message: `Are you sure you want to save changes to transaction #${form.id}?`,
+        badgeText: `ID #${form.id} • ₱${fmt(form.amount)}`,
+        subMessage: `Type: ${activeTab} • Date: ${form.transaction_date}${form.category ? ` • Category: ${form.category}` : ''}${form.description ? ` • ${activeTab === 'Collectors Over' ? 'Collector' : 'Particulars'}: ${form.description}` : ''}`,
+        type: 'warning',
+        confirmText: 'Yes, Save Changes',
+        cancelText: 'Cancel',
+        onConfirm: performSave
+      });
+    } else {
+      setConfirmModal({
+        title: 'Confirm Save Transaction',
+        message: `Are you sure you want to save this new ${activeTab.toLowerCase()} record?`,
+        badgeText: `₱${fmt(form.amount)}`,
+        subMessage: `Type: ${activeTab} • Date: ${form.transaction_date}${form.category ? ` • Category: ${form.category}` : ''}${form.description ? ` • ${activeTab === 'Collectors Over' ? 'Collector' : 'Particulars'}: ${form.description}` : ''}`,
+        type: 'success',
+        confirmText: 'Yes, Save Transaction',
+        cancelText: 'Cancel',
+        onConfirm: performSave
+      });
+    }
+  }
+
+  const handleEditClick = () => {
+    setError('');
+    setSuccessMsg('');
+    if (!form.id) {
+      setError('Please select a transaction from the table first to edit.');
+      return;
+    }
+    if (!validateForm()) return;
+
+    setConfirmModal({
+      title: 'Confirm Edit Transaction',
+      message: `Are you sure you want to apply modifications to transaction #${form.id}?`,
+      badgeText: `ID #${form.id} • ₱${fmt(form.amount)}`,
+      subMessage: `Type: ${activeTab} • Date: ${form.transaction_date}${form.category ? ` • Category: ${form.category}` : ''}${form.description ? ` • ${activeTab === 'Collectors Over' ? 'Collector' : 'Particulars'}: ${form.description}` : ''}`,
+      type: 'warning',
+      confirmText: 'Yes, Update',
+      cancelText: 'Cancel',
+      onConfirm: performSave
+    });
+  }
+
+  const handleDeleteClick = () => {
+    setError('');
+    setSuccessMsg('');
+    if (!form.id) {
+      setError('Please select a transaction from the table first to delete.');
+      return;
+    }
+
+    setConfirmModal({
+      title: 'Confirm Delete Transaction',
+      message: `Are you sure you want to delete (void) transaction #${form.id}?`,
+      badgeText: `ID #${form.id} • ₱${fmt(form.amount)}`,
+      subMessage: `Type: ${activeTab} • Particulars: ${form.category || form.description || activeTab}. This action cannot be undone.`,
+      type: 'danger',
+      confirmText: 'Yes, Delete',
+      cancelText: 'Cancel',
+      onConfirm: performDelete
+    });
   }
 
   const selectRow = (r) => {
@@ -92,6 +188,7 @@ export default function Transactions() {
       payee: r.payee || '' 
     });
     setError('');
+    setSuccessMsg('');
   };
 
   const filteredRows = rows.filter(r => {
@@ -152,8 +249,9 @@ export default function Transactions() {
         </div>
 
         {/* Form Section */}
-        <form style={{ padding: '20px 25px' }} onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
-          {error && <div style={{ color: 'white', background: '#ef4444', padding: '10px', borderRadius: '4px', marginBottom: '15px' }}>⚠️ {error}</div>}
+        <form style={{ padding: '20px 25px' }} onSubmit={handleSaveClick}>
+          {error && <div style={{ color: 'white', background: '#ef4444', padding: '10px 14px', borderRadius: '6px', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}><span>⚠️</span> <span>{error}</span></div>}
+          {successMsg && <div style={{ color: '#065f46', background: '#d1fae5', border: '1px solid #a7f3d0', padding: '10px 14px', borderRadius: '6px', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}><span>✅</span> <span>{successMsg}</span></div>}
           
           <div style={{ display: 'flex', gap: '20px', marginBottom: '15px' }}>
             <div style={{ flex: 1 }}>
@@ -174,7 +272,7 @@ export default function Transactions() {
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#334155' }}>Amount <span style={{color: 'red'}}>*</span></label>
               <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: '10px', top: '8px', color: '#64748b', fontWeight: 'bold' }}>₱</span>
-                <input type="number" className="form-control" style={{ paddingLeft: '25px', textAlign: 'right', background: '#fff', fontWeight: 'bold' }} value={form.amount} onChange={e=>setForm({...form, amount: e.target.value})} placeholder="0.00" />
+                <input type="number" step="any" min="0" className="form-control" style={{ paddingLeft: '25px', textAlign: 'right', background: '#fff', fontWeight: 'bold' }} value={form.amount} onChange={e=>setForm({...form, amount: e.target.value})} placeholder="0.00" />
               </div>
             </div>
           </div>
@@ -207,10 +305,10 @@ export default function Transactions() {
             <button type="submit" className="btn" style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 'bold' }} disabled={saving}>
               <span>{saving ? '⏳' : '💾'}</span> Save
             </button>
-            <button type="button" className="btn" style={{ background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 'bold' }} onClick={handleSave}>
+            <button type="button" className="btn" style={{ background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 'bold' }} onClick={handleEditClick} disabled={saving}>
               <span>✏️</span> Edit
             </button>
-            <button type="button" className="btn" style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 'bold' }} onClick={handleDelete}>
+            <button type="button" className="btn" style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 'bold' }} onClick={handleDeleteClick} disabled={saving}>
               <span>🗑️</span> Delete
             </button>
           </div>
@@ -283,6 +381,22 @@ export default function Transactions() {
           </div>
         </div>
       </div>
+
+      {confirmModal && (
+        <ConfirmModal
+          isOpen={Boolean(confirmModal)}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          badgeText={confirmModal.badgeText}
+          subMessage={confirmModal.subMessage}
+          type={confirmModal.type}
+          confirmText={confirmModal.confirmText}
+          cancelText={confirmModal.cancelText}
+          loading={saving}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => !saving && setConfirmModal(null)}
+        />
+      )}
     </div>
   )
 }

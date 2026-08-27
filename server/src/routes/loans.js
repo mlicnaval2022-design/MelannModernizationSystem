@@ -231,15 +231,6 @@ router.post('/', authenticateToken, async (req, res) => {
     if (!customer_id || !principal || !date_released) return res.status(400).json({ error: 'customer_id, principal, date_released required' });
     requireOperationDate(date_released, 'Release date');
     const canonicalType = canonicalLoanType(loan_type);
-    if (canonicalType === 'Reloan') {
-      const customer = await dbGet('SELECT status FROM tblCustomer WHERE id = ?', [customer_id]);
-      if (!customer) return res.status(404).json({ error: 'Customer not found' });
-
-      const customerStatus = String(customer.status || '').trim().toUpperCase();
-      if (!['FULLY PAID', 'RELAX'].includes(customerStatus)) {
-        return res.status(400).json({ error: 'This client must be FULLY PAID or RELAX before processing a RELOAN.' });
-      }
-    }
     const period = Number.parseInt(loan_period, 10) || 45;
     const { interest_amount, total_amortization, amortization } = computeAmortization(principal, interest_rate || 0, period);
     const date_maturity = computeMaturityDate(date_released, period);

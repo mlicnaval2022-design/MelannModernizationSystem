@@ -68,7 +68,8 @@ describe('Loans Relax printing', () => {
     expect(reportView.getByText('Sem Jesson Narido')).toBeInTheDocument();
     expect(reportView.getByText('WALA PAY GAMITAN')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /print/i }));
+    const printButtons = screen.getAllByRole('button', { name: /print/i });
+    fireEvent.click(printButtons[0]);
     expect(window.print).toHaveBeenCalledTimes(1);
   });
 });

@@ -185,15 +185,10 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
     if (!type) return { ok: false, message: 'Loan Type is required.' };
     if (status === 'HOLD') return { ok: false, message: `This client is not eligible for ${type}. Client is on ${status} status.` };
     if (type === 'NEW' && activeLoan) return { ok: false, message: 'This client already has an active loan and cannot be processed as NEW.' };
-    if (type === 'RELOAN' && !['FULLY PAID', 'RELAX'].includes(status)) {
-      return { ok: false, message: 'This client must be FULLY PAID or RELAX before processing a RELOAN.' };
-    }
     if (type === 'RELOAN' && !latestLoan && !classifiedForReloan) return { ok: false, message: 'This client is not eligible for RELOAN. No previous loan record or Reloan classification found. Use NEW loan type.' };
     if (type === 'RECON' && !latestLoan) return { ok: false, message: 'This client is not eligible for RECON. Please review the account status and required approval.' };
     return { ok: true, message: 'Eligible for loan encoding subject to approval controls.' };
   }, [activeCustomerId, activeLoan, classifiedForReloan, form.loanType, latestLoan, status]);
-  const reloanBlocked = normalizeLoanType(form.loanType) === 'RELOAN' && !eligibility.ok;
-
   if (!isOpen) return null;
 
   const searchCustomers = async () => {
@@ -444,11 +439,11 @@ export default function ReloanModal({ isOpen, onClose, customerId, customer, loa
           <button type="button" className="reloan-secondary" onClick={onClose}>Cancel</button>
           {preview && <button type="button" className="reloan-secondary" onClick={() => setPreview(false)}>Back to Edit</button>}
           {!preview ? (
-            <button type="button" className="reloan-primary" disabled={reloanBlocked} onClick={() => {
+            <button type="button" className="reloan-primary" onClick={() => {
               const validation = validate();
               if (validation) setError(validation);
               else { setError(''); setPreview(true); }
-            }}>{reloanBlocked ? 'RELOAN Not Allowed' : 'Preview Loan'}</button>
+            }}>Preview Loan</button>
           ) : (
             <button type="button" className="reloan-primary" onClick={submit} disabled={submitting}>{submitting ? 'Saving...' : 'Confirm and Save'}</button>
           )}
