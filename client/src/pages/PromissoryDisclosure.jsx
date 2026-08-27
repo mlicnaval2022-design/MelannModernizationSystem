@@ -120,16 +120,27 @@ const formatBorrowerName = loan => {
   const last = String(loan.last_name || '').trim()
   if (first || last) {
     const middleInitial = middle ? `${middle.charAt(0).toUpperCase()}.` : ''
-    return toDisplayCase(`${last}, ${first}${middleInitial ? ` ${middleInitial}` : ''}`.trim())
+    return toDisplayCase(`${first}${middleInitial ? ` ${middleInitial}` : ''} ${last}`.trim())
   }
 
   const fallback = String(loan.customer_name || '').trim()
   if (fallback.includes(',')) {
     const [lastName, rest] = fallback.split(',', 2)
-    return toDisplayCase(`${lastName.trim()}, ${rest.trim()}`)
+    return toDisplayCase(`${rest.trim()} ${lastName.trim()}`)
   }
 
   return fallback ? toDisplayCase(fallback) : '-'
+}
+const formatIndexBorrowerName = loan => {
+  const first = String(loan.first_name || '').trim()
+  const middle = String(loan.middle_name || '').trim()
+  const last = String(loan.last_name || '').trim()
+  if (first || last) {
+    const middleInitial = middle ? `${middle.charAt(0).toUpperCase()}.` : ''
+    return toDisplayCase(`${last}, ${first}${middleInitial ? ` ${middleInitial}` : ''}`.trim())
+  }
+  const fallback = String(loan.customer_name || '').trim()
+  return fallback || '-'
 }
 
 export default function PromissoryDisclosure() {
@@ -667,7 +678,7 @@ function IndexPreview({ data }) {
   const workingDays = getWorkingDays(loanPeriod)
   const dailyPayment = Number(loan.amortization || (workingDays > 0 ? Math.ceil(totalLoan / workingDays) : 0))
   const maturityDate = loan.date_maturity || addDays(loan.date_released, loanPeriod)
-  const borrowerName = formatBorrowerName(loan)
+  const borrowerName = formatIndexBorrowerName(loan)
   const address = formatClientAddress(loan)
   const loanTerms = [
     indexLoanAmount(principal),
