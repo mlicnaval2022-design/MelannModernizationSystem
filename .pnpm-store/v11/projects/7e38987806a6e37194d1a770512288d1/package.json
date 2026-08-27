@@ -1,0 +1,35 @@
+{
+  "name": "melann-lending-server",
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "description": "Melann Lending System V2 - REST API Server",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test \"test/**/*.test.js\"",
+    "test:unit": "node --test \"test/unit/**/*.test.js\"",
+    "test:integration": "node --test \"test/integration/**/*.test.js\"",
+    "test:e2e": "node --test \"test/e2e/**/*.test.js\"",
+    "initialize:fresh": "node scripts/initializeFreshDatabase.js",
+    "verify:database": "node scripts/verifyDatabase.js",
+    "seed": "node src/db/seed.js",
+    "import:jcash": "node import_jcash_good_status.js",
+    "import:jcash-history": "node import_jcash_good_status.js --history --from 2024-01-01 --to 2026-06-26",
+    "import:jcash-all": "node import_jcash_good_status.js --all",
+    "verify:jcash-all": "node verify_jcash_all_import.js",
+    "repair:running-balances": "node scripts/repairRunningBalances.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dayjs": "^1.11.21",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.2.0",
+    "sqlite3": "^6.0.1"
+  }
+}

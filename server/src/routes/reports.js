@@ -1871,7 +1871,8 @@ router.get('/disclosure-statement', authenticateToken, async (req, res) => {
         c.nationality,
         c.collateral,
         b.branch_name,
-        co.first_name || ' ' || co.last_name as collector_name
+        co.first_name || ' ' || co.last_name as collector_name,
+        NULLIF(TRIM(COALESCE(co.index_card_name, '')), '') as collector_index_card_name
       FROM tblLoan l
       JOIN tblCustomer c ON l.customer_id = c.id
       LEFT JOIN tblBranch b ON l.branch_id = b.id

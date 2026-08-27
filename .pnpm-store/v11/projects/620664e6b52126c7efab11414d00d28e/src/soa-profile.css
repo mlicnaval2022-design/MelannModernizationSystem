@@ -1,0 +1,288 @@
+/* ============================================================
+   CUSTOMER SOA - PROFILE OVERVIEW REDESIGN (.po-*)
+   Matches the exact design mockup requested by the user.
+   ============================================================ */
+
+.po-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: #f8fafc;
+  padding: 12px;
+  border-radius: 14px;
+}
+
+/* Header */
+.po-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
+  padding: 16px 24px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.po-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.po-header-icon {
+  width: 44px;
+  height: 44px;
+  background: #0b297a;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(11, 41, 122, 0.2);
+}
+
+.po-header-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0b297a;
+  margin: 0 0 2px 0;
+  letter-spacing: -0.2px;
+}
+
+.po-header-sub {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+}
+
+.po-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  background: #ffffff;
+  border: 1px solid #2563eb;
+  border-radius: 8px;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.po-edit-btn:hover {
+  background: #eff6ff;
+  border-color: #1d4ed8;
+  color: #1d4ed8;
+}
+
+/* 2-Column Grid */
+.po-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.po-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Card */
+.po-card {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
+}
+
+.po-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fafbfc;
+}
+
+.po-card-icon-box {
+  width: 32px;
+  height: 32px;
+  background: #eff6ff;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.po-card-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0b297a;
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+.po-card-body {
+  padding: 16px 20px;
+}
+
+/* Fields Grids */
+.po-fields-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px 20px;
+}
+
+.po-fields-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px 20px;
+}
+
+.po-fields-grid-4 {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 16px 20px;
+}
+
+.po-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.po-field-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.po-field-val-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.po-field-icon {
+  color: #3b82f6;
+  flex-shrink: 0;
+}
+
+.po-field strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+/* Status Badge */
+.po-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.po-status-badge.active { background: #dcfce7; color: #16a34a; }
+.po-status-badge.reloan { background: #dcfce7; color: #16a34a; }
+.po-status-badge.fullypaid { background: #f3e8ff; color: #9333ea; }
+.po-status-badge.pastdue { background: #fee2e2; color: #ef4444; }
+.po-status-badge.overdue { background: #ffedd5; color: #ea580c; }
+
+/* Photo Attachments */
+.po-attachments-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.po-attachment-tile {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.po-attachment-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.po-attachment-img-box {
+  width: 100%;
+  height: 100px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.po-attachment-img-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.po-attachment-placeholder {
+  width: 100%;
+  height: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: #ffffff;
+  border-radius: 6px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Footer Bar */
+.po-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  padding: 12px 24px;
+  color: #1e40af;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.po-footer-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .po-grid {
+    grid-template-columns: 1fr;
+  }
+  .po-fields-grid-3,
+  .po-fields-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .po-attachments-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
