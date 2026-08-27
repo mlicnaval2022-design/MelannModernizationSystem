@@ -907,6 +907,55 @@ async function initializeDatabase() {
   // collector even though their alert, loan, or customer already had one.
   await dbRun(`
     UPDATE tblPromiseToPay
+    SET loan_id = (
+      SELECT m.loan_id
+      FROM tblMonitoringAlert m
+      WHERE m.id = tblPromiseToPay.alert_id
+    ),
+    collector_id = COALESCE(
+      NULLIF(collector_id, 0),
+      (SELECT NULLIF(m.collector_id, 0) FROM tblMonitoringAlert m WHERE m.id = tblPromiseToPay.alert_id)
+    ),
+    branch_id = COALESCE(
+      NULLIF(branch_id, 0),
+      (SELECT NULLIF(m.branch_id, 0) FROM tblMonitoringAlert m WHERE m.id = tblPromiseToPay.alert_id)
+    ),
+    updated_at = datetime('now')
+    WHERE COALESCE(loan_id, 0) = 0
+      AND EXISTS (
+        SELECT 1
+        FROM tblMonitoringAlert m
+        WHERE m.id = tblPromiseToPay.alert_id
+          AND m.loan_id IS NOT NULL
+      )
+  `);
+
+  // Directly created older PTP entries may not have a monitoring alert.
+  // Attach only missing loan references to the customer's current open loan.
+  await dbRun(`
+    UPDATE tblPromiseToPay
+    SET loan_id = (
+      SELECT l.id
+      FROM tblLoan l
+      WHERE l.customer_id = tblPromiseToPay.customer_id
+        AND LOWER(COALESCE(l.status, '')) IN ('active', 'pastdue', 'recon')
+        AND COALESCE(l.balance, 0) > 0
+      ORDER BY COALESCE(l.date_released, l.created_at) DESC, l.id DESC
+      LIMIT 1
+    ),
+    updated_at = datetime('now')
+    WHERE COALESCE(loan_id, 0) = 0
+      AND EXISTS (
+        SELECT 1
+        FROM tblLoan l
+        WHERE l.customer_id = tblPromiseToPay.customer_id
+          AND LOWER(COALESCE(l.status, '')) IN ('active', 'pastdue', 'recon')
+          AND COALESCE(l.balance, 0) > 0
+      )
+  `);
+
+  await dbRun(`
+    UPDATE tblPromiseToPay
     SET collector_id = (
       SELECT COALESCE(
         NULLIF(m.collector_id, 0),
