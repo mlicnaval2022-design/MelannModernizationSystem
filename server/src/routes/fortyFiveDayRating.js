@@ -6,7 +6,6 @@ const { sqlNotSunday } = require('../services/operationDays');
 const { buildCollectionPaymentExclusionSql } = require('../services/paymentClassification');
 
 const router = express.Router();
-const ratedCollectorLastNames = ['torreta', 'domingono', 'caballes', 'jugar', 'rosal', 'laude'];
 const companyPeriods = [
   ['01-01', '02-15'],
   ['02-16', '03-31'],
@@ -283,13 +282,9 @@ async function computeEvaluations({ branch_id, start_date, end_date }) {
       co.supervisor, co.branch_id, b.branch_name
     FROM tblCollector co
     LEFT JOIN tblBranch b ON b.id = co.branch_id
-    WHERE co.is_active = 1
-      AND (
-        LOWER(TRIM(co.last_name)) IN (${ratedCollectorLastNames.map(() => '?').join(', ')})
-        OR LOWER(TRIM(co.first_name || ' ' || co.last_name)) = 'melann office'
-      )${collectorBranch.sql}
+    WHERE co.is_active = 1${collectorBranch.sql}
     ORDER BY co.last_name, co.first_name
-  `, [...ratedCollectorLastNames, ...collectorBranch.params]);
+  `, collectorBranch.params);
   // Expense Share is controlled from the 45-Day Performance Expense Share tab.
   // This prevents unrelated DCR expenses from affecting collector ratings.
   const manualExpenseTotal = await getManualExpenseTotal(branch_id, start, end);

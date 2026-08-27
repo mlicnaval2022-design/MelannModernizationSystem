@@ -48,10 +48,16 @@ test('forty-five-day-rating calculate returns on-the-fly evaluations for date ra
   const branch = await dbGet(`SELECT id FROM tblBranch LIMIT 1`);
   const adminUser = await dbGet(`SELECT id FROM tblUser WHERE username = 'admin'`);
 
-  // Insert a rated collector (Torreta)
+  // A collector with any name must be included; the 45-day report is not
+  // restricted to a hard-coded list of surnames.
   const collector = await dbRun(`
     INSERT INTO tblCollector (collector_code, first_name, last_name, branch_id, is_active, supervisor)
     VALUES ('COL-TORRETA', 'Juan', 'Torreta', ?, 1, 'Supervisor Cruz')
+  `, [branch.id]);
+
+  const additionalCollector = await dbRun(`
+    INSERT INTO tblCollector (collector_code, first_name, last_name, branch_id, is_active)
+    VALUES ('COL-ANY', 'Maria', 'Santos', ?, 1)
   `, [branch.id]);
 
   const customer = await dbRun(`
@@ -114,6 +120,10 @@ test('forty-five-day-rating calculate returns on-the-fly evaluations for date ra
   assert.ok(Math.abs(torretaEval.accomplishment_percentage - 121.25) < 0.000001);
   assert.equal(torretaEval.rating, 'Outstanding Performance');
 
+  const additionalEval = data.evaluations.find(e => e.collector_id === additionalCollector.lastID);
+  assert.ok(additionalEval);
+  assert.equal(additionalEval.collector_name, 'Maria Santos');
+
   const collectionReportResponse = await api('/reports/daily-collection?date_from=2026-07-01&date_to=2026-08-15');
   const collectionReport = await collectionReportResponse.json();
   assert.equal(collectionReport.total, data.evaluations.reduce((sum, row) => sum + Number(row.collection_total || 0), 0));
@@ -158,7 +168,8 @@ test('manual expenses are divided among collectors and only accepted inside the 
   const after = await afterResponse.json();
   const afterTorreta = after.evaluations.find(e => e.collector_name.includes('Torreta'));
   assert.equal(beforeTorreta.expense_total, 0);
-  assert.equal(afterTorreta.expense_total, 1250.5);
+  // The office expense is shared by every active collector, except Melann Office.
+  assert.equal(afterTorreta.expense_total, 625.25);
   assert.notEqual(afterTorreta.accomplishment_percentage, beforeTorreta.accomplishment_percentage);
 
   const outsidePeriodResponse = await api('/forty-five-day-rating/manual-expenses', {
