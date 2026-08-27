@@ -366,7 +366,9 @@ export default function Customers() {
     if (!value) return '-';
     const date = parseLocalDate(value);
     if (!date) return value;
-    return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+    const month = date.toLocaleDateString('en-US', { month: 'short' });
+    const printableMonth = month === 'Sep' ? 'Sept.' : `${month}.`;
+    return `${printableMonth} ${date.getDate()}, ${date.getFullYear()}`;
   };
   const parseLocalDate = (value) => {
     if (!value) return null;
@@ -2105,7 +2107,7 @@ export default function Customers() {
                           <tbody>
                             {printLedgerPayments.length > 0 ? printLedgerPayments.map((p, index) => (
                               <tr key={p.id} className={index % 2 === 0 ? 'f-soa-row-even' : 'f-soa-row-odd'}>
-                                <td>{formatDateNumeric(p.date_paid)}</td>
+                                <td>{formatDateShort(p.date_paid)}</td>
                                 <td>{formatPaymentCode(p)}</td>
                                 <td className="fw-bold">{formatMoney(p.amount_paid)}</td>
                                 <td>{formatMoney(p.balance_after)}</td>
