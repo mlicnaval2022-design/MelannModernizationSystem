@@ -806,6 +806,7 @@ export default function Customers() {
     const principal = Number(loan?.principal || 0);
     const interestAmount = Number(loan?.interest_amount || 0);
     const registeredOutstanding = Number(loan?.total_amortization || 0) || principal + interestAmount || Number(loan?.balance || 0);
+    const currentLoanBalance = Number(loan?.balance || 0);
     const payments = getLoanPayments(loan);
 
     if (!dueDate) {
@@ -836,7 +837,10 @@ export default function Customers() {
         const nextBoundary = addMonths(periodStart, 1);
         const periodEnd = nextBoundary < datePrepared ? addDays(nextBoundary, -1) : new Date(datePrepared);
         const paymentMade = payments
-          .filter(p => p.paidDate > periodStart && p.paidDate <= periodEnd)
+        // The maturity-date payment is already included in paymentsBeforeDue.
+        // Later cycles must include a payment made on the cycle's start date;
+        // otherwise that payment is skipped between two adjacent periods.
+        .filter(p => p.paidDate > dueDate && p.paidDate >= periodStart && p.paidDate <= periodEnd)
           .reduce((sum, p) => sum + p.amount, 0);
 
         monthlyPeriods.push({
@@ -890,9 +894,9 @@ export default function Customers() {
       paymentsBeforeDue,
       beginningOverdueBalance: Math.max(0, registeredOutstanding - paymentsBeforeDue),
       rows,
-      remainingOverdueBalance: beginningBalance,
+      remainingOverdueBalance: currentLoanBalance,
       totalPenalty,
-      updatedAmountDue: beginningBalance + totalPenalty
+      updatedAmountDue: currentLoanBalance + totalPenalty
     };
   };
 

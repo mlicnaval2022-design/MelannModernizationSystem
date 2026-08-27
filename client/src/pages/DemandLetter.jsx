@@ -245,7 +245,9 @@ const getPenaltyComputation = (loan, payments, asOfDate) => {
       const nextBoundary = addMonths(periodStart, 1)
       const periodEnd = nextBoundary < datePrepared ? addDays(nextBoundary, -1) : new Date(datePrepared)
       const paymentMade = loanPayments
-        .filter(p => p.paidDate > periodStart && p.paidDate <= periodEnd)
+        // Payments made on a later period's first day belong to that period.
+        // Maturity-date payments remain part of the pre-due balance instead.
+        .filter(p => p.paidDate > dueDate && p.paidDate >= periodStart && p.paidDate <= periodEnd)
         .reduce((sum, p) => sum + p.amount, 0)
       monthlyPeriods.push({ periodStart, periodEnd, paymentMade })
       periodStart = nextBoundary
@@ -276,7 +278,7 @@ const getPenaltyComputation = (loan, payments, asOfDate) => {
     runningBalance: registeredRunningBalance ?? beginningBalance,
     paymentsBeforeDue,
     beginningOverdueBalance: Math.max(0, registeredOutstanding - paymentsBeforeDue),
-    remainingOverdueBalance: beginningBalance,
+    remainingOverdueBalance: registeredRunningBalance ?? beginningBalance,
     totalPenalty,
     updatedAmountDue: (registeredRunningBalance ?? beginningBalance) + totalPenalty,
   }

@@ -6,6 +6,7 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import SoaModal from '../components/SoaModal'
+import DeathCertificateModal from '../components/DeathCertificateModal'
 import { useAuth } from '../context/AuthContext'
 import { reportPermissionKey } from '../access'
 import {
@@ -744,6 +745,7 @@ export default function Reports() {
   const [agingDetail, setAgingDetail] = useState(null)
   const [soaCustomerId, setSoaCustomerId] = useState(null)
   const [soaInitialTab, setSoaInitialTab] = useState('summary')
+  const [selectedDeathCertAccount, setSelectedDeathCertAccount] = useState(null)
   const [modalSortConfig, setModalSortConfig] = useState({ key: null, direction: 'asc' })
   const [modalTypeFilter, setModalTypeFilter] = useState([])
   const [typeFilterMenuOpen, setTypeFilterMenuOpen] = useState(false)
@@ -1459,8 +1461,8 @@ export default function Reports() {
       }
     })
 
-    // Create PDF - Legal size (8.5 x 14 inches)
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'in', format: [8.5, 14] })
+    // Create PDF - Long Bond Paper size (8.5 x 13 inches)
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'in', format: [8.5, 13] })
     const pageW = 8.5
     const marginL = 0.4
     const marginR = 0.4
@@ -1674,13 +1676,13 @@ export default function Reports() {
         const pageNum = doc.internal.getCurrentPageInfo().pageNumber
         drawPageHeader(doc, pageNum)
 
-        // Footer on each page
+        // Footer on each page (adjusted for 13-inch height)
         doc.setDrawColor(...CL_PDF.navy)
         doc.setLineWidth(0.02)
-        doc.line(marginL, 13.3, pageW - marginR, 13.3)
+        doc.line(marginL, 12.3, pageW - marginR, 12.3)
 
         // Signatures
-        const sigY = 13.45
+        const sigY = 12.45
         const sigNames = [
           { role: 'Collector', name: collectorDisplayName },
           { role: 'Checked by', name: sigs.checkedBy || 'MARILYN O. RELOBA' },
@@ -1708,9 +1710,9 @@ export default function Reports() {
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(51, 51, 51)
         doc.setFontSize(12)
-        doc.text(displayCollDate, marginL, 13.85)
+        doc.text(displayCollDate, marginL, 12.85)
         doc.setFontSize(7)
-        doc.text(`Page ${pageNum} of ${pageCount}`, pageW - marginR, 13.85, { align: 'right' })
+        doc.text(`Page ${pageNum} of ${pageCount}`, pageW - marginR, 12.85, { align: 'right' })
       }
     })
 
@@ -4098,10 +4100,9 @@ export default function Reports() {
                               e.currentTarget.style.borderColor = '#fde68a';
                             }}
                             onClick={() => {
-                              setSoaInitialTab('deceased');
-                              setSoaCustomerId(account.customer_id);
+                              setSelectedDeathCertAccount(account);
                             }}
-                            title="View Death Certificate in SOA"
+                            title="View Death Certificate"
                           >
                             <FileText size={13} /> View Death Cert.
                           </button>
@@ -6063,18 +6064,20 @@ export default function Reports() {
 
           <style>{`
             @media print {
-              @page { size: 8.5in 14in; margin: 0.25in 0.15in 0.35in 0.15in; }
+              @page { size: 8.5in 13in; margin: 0.25in 0.15in 0.35in 0.15in; }
               body { margin: 0; padding: 0; }
               .sidebar, .navbar, .reports-sidebar { display: none !important; }
               .content { margin: 0 !important; padding: 0 !important; }
               .reports-screen-only { display: none !important; }
               .collection-sheet-print { border: none !important; box-shadow: none !important; margin: 0 !important; padding: 0 !important; }
               .collection-sheet-page {
-                height: 13.4in !important;
-                min-height: 13.4in !important;
+                height: 12.4in !important;
+                min-height: 12.4in !important;
+                max-height: 12.4in !important;
                 display: flex !important;
                 flex-direction: column !important;
                 overflow: hidden !important;
+                box-sizing: border-box !important;
               }
               .collection-sheet-page-header {
                 flex: 0 0 auto !important;
@@ -6104,7 +6107,7 @@ export default function Reports() {
                 max-width: 1160px;
               }
               .collection-sheet-page {
-                min-height: 13.4in;
+                min-height: 12.4in;
                 display: flex;
                 flex-direction: column;
                 margin-bottom: 24px;
@@ -6546,6 +6549,27 @@ export default function Reports() {
           onClose={() => {
             setSoaCustomerId(null)
             setSoaInitialTab('summary')
+          }}
+        />
+      )}
+      {selectedDeathCertAccount && (
+        <DeathCertificateModal
+          account={selectedDeathCertAccount}
+          onClose={() => setSelectedDeathCertAccount(null)}
+          onUpdated={(newUrl) => {
+            setSelectedDeathCertAccount(prev => prev ? { ...prev, death_certificate_image: newUrl } : null)
+            setData(prev => {
+              if (!prev || !prev.deceased) return prev
+              const targetId = selectedDeathCertAccount.customer_id || selectedDeathCertAccount.id
+              return {
+                ...prev,
+                deceased: prev.deceased.map(acc =>
+                  (acc.customer_id === targetId || acc.id === targetId)
+                    ? { ...acc, death_certificate_image: newUrl }
+                    : acc
+                )
+              }
+            })
           }}
         />
       )}

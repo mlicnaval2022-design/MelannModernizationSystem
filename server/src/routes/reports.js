@@ -2038,6 +2038,7 @@ router.get('/special-accounts', authenticateToken, async (req, res) => {
         c.full_name AS customer_name,
         c.contact,
         c.address,
+        c.death_certificate_image,
         COALESCE(c.collector_id, l.collector_id, p.collector_id) AS collector_id,
         COALESCE(
           NULLIF(TRIM(cco.first_name || ' ' || cco.last_name), ''),
