@@ -98,7 +98,7 @@ test('an ID number cannot be saved without an ID type', async () => {
   assert.equal(body.error, 'Type of ID is required when an ID number is provided.');
 });
 
-test('a customer classified as Reloan is eligible without a previous loan record', async () => {
+test('only a Relax customer classified as Reloan is eligible without a previous loan record', async () => {
   const loginResponse = await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -131,8 +131,26 @@ test('a customer classified as Reloan is eligible without a previous loan record
   const eligibility = await eligibilityResponse.json();
 
   assert.equal(eligibilityResponse.status, 200, eligibility.error);
-  assert.equal(eligibility.is_eligible, true);
-  assert.equal(eligibility.can_proceed, true);
+  assert.equal(eligibility.is_eligible, false);
+  assert.equal(eligibility.can_proceed, false);
+
+  const deniedResponse = await fetch(`${baseUrl}/api/customers/${customer.id}/reloan`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      principal: 5000,
+      loan_period: 45,
+      interest_rate: 15,
+      date_released: '2026-08-21',
+      loan_type: 'Reloan',
+    }),
+  });
+  const deniedResult = await deniedResponse.json();
+
+  assert.equal(deniedResponse.status, 400);
+  assert.match(deniedResult.error, /FULLY PAID or RELAX/);
+
+  await dbRun("UPDATE tblCustomer SET status = 'RELAX' WHERE id = ?", [customer.id]);
 
   const loanResponse = await fetch(`${baseUrl}/api/customers/${customer.id}/reloan`, {
     method: 'POST',
@@ -153,6 +171,42 @@ test('a customer classified as Reloan is eligible without a previous loan record
 
   assert.equal(loanResponse.status, 200, loanResult.error);
   assert.deepEqual(savedLoan, { loan_type: 'Reloan', principal: 5000, status: 'active' });
+});
+
+test('the generic loan endpoint rejects a Reloan for a client who is not Fully Paid or Relax', async () => {
+  const loginResponse = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: 'admin123' }),
+  });
+  const { token } = await loginResponse.json();
+  const headers = {
+    'content-type': 'application/json',
+    authorization: `Bearer ${token}`,
+  };
+  const branch = await dbGet('SELECT id FROM tblBranch LIMIT 1');
+  const customer = await dbRun(`
+    INSERT INTO tblCustomer (customer_code, first_name, last_name, full_name, branch_id, status)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `, ['C-RELOAN-GUARD', 'Active', 'Client', 'Active Client', branch.id, 'active']);
+
+  const response = await fetch(`${baseUrl}/api/loans`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      customer_id: customer.lastID,
+      branch_id: branch.id,
+      principal: 5000,
+      interest_rate: 15,
+      loan_period: 45,
+      date_released: '2026-08-21',
+      loan_type: 'Reloan',
+    }),
+  });
+  const result = await response.json();
+
+  assert.equal(response.status, 400);
+  assert.match(result.error, /FULLY PAID or RELAX/);
 });
 
 test('creating and releasing a 30-day loan keeps maturity at exactly 30 calendar days', async () => {

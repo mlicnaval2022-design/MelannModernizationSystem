@@ -316,7 +316,7 @@ test('posting a backdated payment recalculates later payment running balances', 
   assert.equal(updatedLoan.total_paid, 150);
 });
 
-test('reloan old balance posts to prior loan on release date and not to new loan', async () => {
+test('recon old balance posts to prior loan on release date and not to new loan', async () => {
   const login = await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -350,7 +350,7 @@ test('reloan old balance posts to prior loan on release date and not to new loan
       loan_period: 45,
       interest_rate: 10,
       date_released: '2026-07-21',
-      loan_type: 'Reloan',
+      loan_type: 'Recon',
       source_loan_id: sourceLoan.lastID,
       previous_balance: 500,
       penalty: 0,
@@ -375,11 +375,11 @@ test('reloan old balance posts to prior loan on release date and not to new loan
   assert.equal(oldLoan.total_paid, 1000);
   assert.equal(oldLoan.status, 'fullpaid');
   assert.equal(newLoan.previous_balance, 500);
-  assert.equal(newLoan.loan_type, 'Reloan');
+  assert.equal(newLoan.loan_type, 'RECON');
   assert.equal(oldLoanPayment.date_paid, '2026-07-21');
   assert.equal(oldLoanPayment.balance_before, 500);
   assert.equal(oldLoanPayment.balance_after, 0);
-  assert.match(oldLoanPayment.remarks, /old balance during Re-?Loan/i);
+  assert.match(oldLoanPayment.remarks, /old balance during RECON/i);
   assert.equal(newLoanBalancePayment, undefined);
 });
 
