@@ -8,6 +8,18 @@ import marilynSignature from '../assets/marilyn-reloba-signature.png'
 const fmtMoney = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const shortDate = value => value ? new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '-'
 const wordDate = value => value ? new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '-'
+const indexDate = value => value ? new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }).replaceAll('/', '-') : '-'
+const indexAmount = value => {
+  const amount = Number(value || 0)
+  if (!Number.isFinite(amount) || amount === 0) return '-'
+  return amount.toLocaleString('en-PH', { maximumFractionDigits: 2 })
+}
+const indexLoanAmount = value => {
+  const amount = Number(value || 0)
+  if (!Number.isFinite(amount) || amount === 0) return '-'
+  if (amount >= 1000 && amount % 1000 === 0) return `${amount / 1000}k`
+  return indexAmount(amount)
+}
 const toDateInputValue = date => {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -122,7 +134,7 @@ export default function PromissoryDisclosure() {
   const [releaseDate, setReleaseDate] = useState(targetLoanCode ? '' : toDateInputValue(new Date()))
   const [selectedId, setSelectedId] = useState('')
   const [documentData, setDocumentData] = useState(null)
-  const [activeTab, setActiveTab] = useState(targetTab === 'disclosure' ? 'disclosure' : 'promissory')
+  const [activeTab, setActiveTab] = useState(['promissory', 'disclosure', 'index'].includes(targetTab) ? targetTab : 'promissory')
   const [loadingList, setLoadingList] = useState(false)
   const [loadingDoc, setLoadingDoc] = useState(false)
   const [error, setError] = useState('')
@@ -163,7 +175,7 @@ export default function PromissoryDisclosure() {
     if (!targetLoanCode) return
     setSearch(targetLoanCode)
     setReleaseDate('')
-    if (targetTab === 'disclosure' || targetTab === 'promissory') setActiveTab(targetTab)
+    if (['disclosure', 'promissory', 'index'].includes(targetTab)) setActiveTab(targetTab)
   }, [targetLoanCode, targetTab])
 
   useEffect(() => {
@@ -217,7 +229,8 @@ export default function PromissoryDisclosure() {
   const printDocument = () => setTimeout(() => window.print(), 100)
 
   const exportPdf = () => {
-    const printableId = activeTab === 'disclosure' ? 'disclosure-printable' : 'promissory-printable'
+    const isIndex = activeTab === 'index'
+    const printableId = isIndex ? 'index-printable' : activeTab === 'disclosure' ? 'disclosure-printable' : 'promissory-printable'
     const printable = document.getElementById(printableId)
     if (!printable) {
       alert('Document is not ready yet.')
@@ -228,8 +241,9 @@ export default function PromissoryDisclosure() {
     exportRoot.removeAttribute('id')
     exportRoot.style.margin = '0'
     exportRoot.style.boxShadow = 'none'
-    exportRoot.style.width = '8.5in'
-    exportRoot.style.minHeight = '14in'
+    exportRoot.style.width = isIndex ? '8in' : '8.5in'
+    exportRoot.style.minHeight = isIndex ? '5in' : '14in'
+    exportRoot.style.height = isIndex ? '5in' : ''
     exportRoot.style.maxWidth = 'none'
     exportRoot.style.overflow = 'visible'
 
@@ -237,7 +251,7 @@ export default function PromissoryDisclosure() {
     exportHost.style.position = 'fixed'
     exportHost.style.left = '-10000px'
     exportHost.style.top = '0'
-    exportHost.style.width = '8.5in'
+    exportHost.style.width = isIndex ? '8in' : '8.5in'
     exportHost.style.background = '#fff'
     exportHost.appendChild(exportRoot)
     document.body.appendChild(exportHost)
@@ -245,10 +259,10 @@ export default function PromissoryDisclosure() {
     html2pdf()
       .set({
         margin: 0,
-        filename: `${activeTab === 'disclosure' ? 'Disclosure' : 'Promissory'}_${safeName(loanCode)}.pdf`,
+        filename: `${isIndex ? 'Index' : activeTab === 'disclosure' ? 'Disclosure' : 'Promissory'}_${safeName(loanCode)}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-        jsPDF: { unit: 'in', format: [8.5, 14], orientation: 'portrait' },
+        jsPDF: { unit: 'in', format: isIndex ? [8, 5] : [8.5, 14], orientation: isIndex ? 'landscape' : 'portrait' },
         pagebreak: { mode: [] },
       })
       .from(exportRoot)
@@ -264,6 +278,7 @@ export default function PromissoryDisclosure() {
           {[
             ['promissory', 'Promissory'],
             ['disclosure', 'Disclosure'],
+            ['index', 'Index'],
           ].map(([key, label]) => (
             <button
               key={key}
@@ -294,7 +309,7 @@ export default function PromissoryDisclosure() {
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button className="btn btn-secondary" onClick={loadLoans} disabled={loadingList}>{loadingList ? 'Refreshing...' : 'Refresh'}</button>
-            <button className="btn btn-secondary" onClick={printDocument} disabled={!documentData || loadingDoc}>Print {activeTab === 'disclosure' ? 'Disclosure' : 'Promissory'}</button>
+            <button className="btn btn-secondary" onClick={printDocument} disabled={!documentData || loadingDoc}>Print {activeTab === 'index' ? 'Index' : activeTab === 'disclosure' ? 'Disclosure' : 'Promissory'}</button>
             <button className="btn btn-primary" onClick={exportPdf} disabled={!documentData || loadingDoc}>Export PDF</button>
           </div>
         </div>
@@ -330,7 +345,7 @@ export default function PromissoryDisclosure() {
             {loadingDoc ? (
               <div className="empty-state">Loading document...</div>
             ) : documentData ? (
-              activeTab === 'disclosure' ? <DisclosurePreview data={documentData} /> : <DocumentPreview data={documentData} />
+              activeTab === 'index' ? <IndexPreview data={documentData} /> : activeTab === 'disclosure' ? <DisclosurePreview data={documentData} /> : <DocumentPreview data={documentData} />
             ) : (
               <div className="empty-state">Select a posted loan to preview the document.</div>
             )}
@@ -631,6 +646,76 @@ function DisclosurePreview({ data }) {
       <div className="ds-footer">
         <span>{shortDate(new Date().toISOString().split('T')[0])}</span>
         <span>Page 1 of 1</span>
+      </div>
+    </div>
+  )
+}
+
+function IndexPreview({ data }) {
+  const loan = data.loan || {}
+  const principal = Number(loan.principal || 0)
+  const totalLoan = Number(loan.total_amortization || loan.principal || 0)
+  const loanPeriod = Number(loan.loan_period || 0)
+  const interestRate = Number(loan.interest_rate || 0)
+  const workingDays = getWorkingDays(loanPeriod)
+  const dailyPayment = Number(loan.amortization || (workingDays > 0 ? Math.ceil(totalLoan / workingDays) : 0))
+  const maturityDate = loan.date_maturity || addDays(loan.date_released, loanPeriod)
+  const borrowerName = formatBorrowerName(loan)
+  const address = formatClientAddress(loan)
+  const loanTerms = [
+    indexLoanAmount(principal),
+    loanPeriod ? `${loanPeriod}D` : '-',
+    Number.isFinite(interestRate) ? `${interestRate}%` : '-',
+  ].join('  ')
+  const values = [
+    ['index-left', loan.customer_code || '-'],
+    ['index-middle', loanTerms],
+    ['index-right', loan.collector_name || 'Unassigned'],
+    ['index-left', borrowerName],
+    ['index-middle', indexAmount(totalLoan)],
+    ['index-right', indexAmount(dailyPayment)],
+    ['index-left', address],
+    ['index-middle', indexDate(loan.date_released)],
+    ['index-right', indexDate(maturityDate)],
+  ]
+  const fontSize = value => {
+    const length = String(value || '').length
+    if (length > 52) return '7pt'
+    if (length > 40) return '8pt'
+    if (length > 30) return '9pt'
+    return '10pt'
+  }
+
+  return (
+    <div className="index-preview-shell">
+      <style>{`
+        .index-preview-shell { overflow: auto; padding: 14px; border: 1px solid #d7e0ec; border-radius: 10px; background: #f8fafc; }
+        .index-preview-note { margin: 0 0 12px; color: #475569; font-size: 12px; line-height: 1.45; }
+        .index-preview-note b { color: #0f172a; }
+        .index-card-print { width: 8in; height: 5in; box-sizing: border-box; background: #fff; color: #000; margin: 0 auto; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); overflow: hidden; }
+        .index-card-fields { box-sizing: border-box; display: grid; grid-template-columns: 4.1in 2.5in 1in; grid-template-rows: repeat(3, 0.278in); padding: 0.35in 0.2in 0; }
+        .index-card-field { align-self: end; overflow: hidden; white-space: nowrap; font-family: Arial, Helvetica, sans-serif; font-weight: 600; line-height: 1; text-overflow: clip; }
+        .index-left { text-align: left; padding-right: 0.08in; }
+        .index-middle { text-align: center; padding: 0 0.04in; }
+        .index-right { text-align: center; padding-left: 0.02in; }
+        @media print {
+          @page { size: 8in 5in; margin: 0; }
+          body { margin: 0 !important; background: #fff !important; }
+          body * { visibility: hidden !important; }
+          #index-printable, #index-printable * { visibility: visible !important; }
+          #index-printable { position: absolute !important; left: 0 !important; top: 0 !important; width: 8in !important; height: 5in !important; margin: 0 !important; box-shadow: none !important; overflow: hidden !important; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+      `}</style>
+      <p className="index-preview-note"><b>5 × 8 in landscape index card.</b> The preview shows only the text positions; print on the lined index card at <b>Actual size / 100%</b>.</p>
+      <div id="index-printable" className="index-card-print" aria-label="Lending index card print preview">
+        <div className="index-card-fields">
+          {values.map(([position, value], index) => (
+            <div key={`${position}-${index}`} className={`index-card-field ${position}`} style={{ fontSize: fontSize(value) }}>
+              {value}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
