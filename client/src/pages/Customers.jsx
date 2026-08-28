@@ -354,14 +354,6 @@ export default function Customers() {
     if (Number.isNaN(date.getTime())) return value;
     return date.toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' });
   };
-  const formatDateNumeric = (value) => {
-    if (!value) return '-';
-    const date = parseLocalDate(value);
-    if (!date) return value;
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${month}-${day}-${date.getFullYear()}`;
-  };
   const formatDateShort = (value) => {
     if (!value) return '-';
     const date = parseLocalDate(value);

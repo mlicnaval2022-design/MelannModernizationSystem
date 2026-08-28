@@ -5,7 +5,9 @@ const { DB_PATH, dbExec } = require('../db/database');
 
 const SERVER_ROOT = path.join(__dirname, '../..');
 const DEFAULT_BACKUP_ROOT = path.join(SERVER_ROOT, 'backups');
-const UPLOADS_ROOT = path.join(SERVER_ROOT, '../uploads');
+const UPLOADS_ROOT = process.env.UPLOADS_PATH
+  ? path.resolve(SERVER_ROOT, process.env.UPLOADS_PATH)
+  : path.join(SERVER_ROOT, '../uploads');
 
 function pad(value) {
   return String(value).padStart(2, '0');

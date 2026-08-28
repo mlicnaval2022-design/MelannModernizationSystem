@@ -1,5 +1,5 @@
 const express = require('express');
-const { dbAll, dbGet, dbRun } = require('../db/database');
+const { dbAll, dbGet, dbRun, withTransaction } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { computeAmortization, computeMaturityDate, generateAmortizationSchedule, computeNetProceeds } = require('../services/loanCalculator');
 const { requireOperationDate, sqlNotSunday } = require('../services/operationDays');
@@ -310,9 +310,8 @@ router.put('/:id/edit', authenticateToken, requireRole('admin', 'manager'), asyn
     const workingDays = getWorkingDays(period);
     const amortization = principalAmount > 0 && workingDays > 0 ? Math.ceil(totalAmortization / workingDays) : 0;
 
-    await dbRun('BEGIN TRANSACTION');
-
-    await dbRun(`
+    await withTransaction(async () => {
+      await dbRun(`
       UPDATE tblLoan 
       SET loan_type = ?, principal = ?, interest_rate = ?, interest_amount = ?, loan_period = ?, 
           date_released = ?, date_maturity = ?, amortization = ?, total_amortization = ?,
@@ -320,22 +319,20 @@ router.put('/:id/edit', authenticateToken, requireRole('admin', 'manager'), asyn
       WHERE id = ?
     `, [loanType, principalAmount, interestRate, interestAmount, period, date_released, dateMaturity, amortization, totalAmortization, principalAmount, totalAmortization, loan_id]);
 
-    await dbRun(`DELETE FROM tblAmortizationSchedule WHERE loan_id = ?`, [loan_id]);
+      await dbRun(`DELETE FROM tblAmortizationSchedule WHERE loan_id = ?`, [loan_id]);
 
-    const schedule = generateAmortizationSchedule(loan_id, date_released, period, amortization);
-    for (const s of schedule) {
-      await dbRun(`INSERT INTO tblAmortizationSchedule (loan_id, period_number, due_date, amount_due, status) VALUES (?,?,?,?,?)`, 
-        [s.loan_id, s.period_number, s.due_date, s.amount_due, s.status]);
-    }
+      const schedule = generateAmortizationSchedule(loan_id, date_released, period, amortization);
+      for (const s of schedule) {
+        await dbRun(`INSERT INTO tblAmortizationSchedule (loan_id, period_number, due_date, amount_due, status) VALUES (?,?,?,?,?)`,
+          [s.loan_id, s.period_number, s.due_date, s.amount_due, s.status]);
+      }
 
-    const details = `Edited loan ${loan.loan_code}. Old: ${loan.loan_type || 'New'}/P${loan.principal}/${loan.loan_period}days/${loan.date_released}. New: ${loanType}/P${principalAmount}/${period}days/${date_released}.`;
-    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, 
-      [req.user.id, req.user.username, 'EDIT', 'LOAN', loan_id, details]);
-
-    await dbRun('COMMIT');
+      const details = `Edited loan ${loan.loan_code}. Old: ${loan.loan_type || 'New'}/P${loan.principal}/${loan.loan_period}days/${loan.date_released}. New: ${loanType}/P${principalAmount}/${period}days/${date_released}.`;
+      await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
+        [req.user.id, req.user.username, 'EDIT', 'LOAN', loan_id, details]);
+    });
     res.json({ message: 'Loan updated successfully', loan_id, date_maturity: dateMaturity, amortization });
   } catch (err) {
-    await dbRun('ROLLBACK').catch(() => {});
     console.error('Error editing loan:', err);
     res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'Server error editing loan' });
   }
@@ -546,8 +543,7 @@ router.delete('/:id', authenticateToken, requireRole('admin', 'manager'), async 
     const loan = await dbGet('SELECT * FROM tblLoan WHERE id = ?', [loan_id]);
     if (!loan) return res.status(404).json({ error: 'Loan not found' });
 
-    await dbRun('BEGIN IMMEDIATE TRANSACTION');
-    try {
+    await withTransaction(async () => {
       await dbRun('DELETE FROM tblPayment WHERE loan_id = ?', [loan_id]);
       await dbRun('DELETE FROM tblAmortizationSchedule WHERE loan_id = ?', [loan_id]);
       await dbRun('DELETE FROM tblCreditInvestigation WHERE loan_id = ?', [loan_id]);
@@ -560,11 +556,7 @@ router.delete('/:id', authenticateToken, requireRole('admin', 'manager'), async 
       await dbRun('DELETE FROM tblLoan WHERE id = ?', [loan_id]);
       await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
         [req.user.id, req.user.username, 'DELETE', 'LOAN', loan_id, `Deleted loan ${loan.loan_code} and related payments/schedules`]);
-      await dbRun('COMMIT');
-    } catch (err) {
-      await dbRun('ROLLBACK');
-      throw err;
-    }
+    });
     
     res.json({ message: 'Loan deleted successfully' });
   } catch (err) { res.status(500).json({ error: err.message }); }

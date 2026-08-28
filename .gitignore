@@ -13,6 +13,9 @@ client/dist/
 .env
 .env.*
 *.local
+INITIAL_ADMIN_CREDENTIALS.txt
+server/certs/
+MLS_SERVER_CERT.cer
 
 # Database Files and Backups
 *.db
@@ -50,6 +53,7 @@ server/src/db/*.sqlite*
 server/backups/
 uploads/
 scratch/client-build-check/
+release-packages/
 
 # System and Agent Logs
 *.log

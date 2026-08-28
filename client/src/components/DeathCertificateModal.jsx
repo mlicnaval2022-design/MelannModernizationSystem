@@ -18,12 +18,9 @@ export default function DeathCertificateModal({ account, customer, onClose, onUp
   });
 
   const [previewImage, setPreviewImage] = useState(null);
-  const [loading, setLoading] = useState(false);
-
   useEffect(() => {
     let mounted = true;
     if (customerId) {
-      setLoading(true);
       API.get(`/customers/${customerId}`)
         .then(res => {
           if (!mounted) return;
@@ -40,9 +37,6 @@ export default function DeathCertificateModal({ account, customer, onClose, onUp
         })
         .catch(err => {
           console.error('Failed to fetch customer details for death certificate modal:', err);
-        })
-        .finally(() => {
-          if (mounted) setLoading(false);
         });
     }
     return () => {

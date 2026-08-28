@@ -6003,8 +6003,6 @@ export default function Reports() {
       const renderClientColumn = (entries = [], keyPrefix) => {
         const clientEntries = (entries || []).filter(e => e && e.type === 'row' && e.client)
         const hasClients = clientEntries.length > 0
-        const totalDaily = clientEntries.reduce((sum, e) => sum + Number(e.client.amortization || 0), 0)
-
         return (
           <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: '8pt' }}>
             <thead><tr style={{ textTransform: 'uppercase', fontWeight: 700 }}>{colHdr(keyPrefix)}</tr></thead>

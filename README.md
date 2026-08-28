@@ -205,6 +205,28 @@ npm run verify:database
 
 This performs SQLite integrity, foreign-key, and required-schema checks in read-only mode.
 
+Rehearse the newest database backup by copying it to an isolated temporary
+location and running the same integrity checks:
+
+```bash
+npm run verify:restore
+```
+
+### Secure LAN HTTPS
+
+Production LAN deployments use a branch-specific HTTPS certificate and fail
+closed when neither a TLS certificate nor a trusted HTTPS reverse proxy is
+configured. Run `CONFIGURE_HTTPS.ps1` after assigning the server its final
+computer name and fixed IP address. Distribute the generated secure client
+installer so each client trusts only that branch's public certificate.
+
+To create a fresh deployment ZIP containing the current features but no
+database, customer records, uploads, backups, secrets, or private keys:
+
+```bash
+npm run package:blank
+```
+
 ---
 
 ## 🔒 Role Permissions

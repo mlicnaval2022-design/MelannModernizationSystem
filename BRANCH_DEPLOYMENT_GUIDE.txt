@@ -1,28 +1,48 @@
-MELANN LENDING SYSTEM - NEW BRANCH DEPLOYMENT
+MELANN LENDING SYSTEM - SECURE NEW BRANCH DEPLOYMENT
 
-This package contains application code and setup files only.
-It does not contain the source branch database, customer records, uploads,
-backups, environment secrets, generated reports, or installed dependencies.
+This blank package contains the latest application code only. It does not
+contain the source branch database, customer records, uploaded documents,
+backups, environment secrets, HTTPS private keys, or installed dependencies.
 
 SERVER PC - FIRST-TIME SETUP
-1. Extract the complete ZIP to a permanent folder on the new branch server PC.
-2. Keep the server PC connected to the internet during first-time setup.
-3. Run SETUP_SERVER.bat and wait for every check to pass.
-4. Open INITIAL_ADMIN_CREDENTIALS.txt and keep the temporary login secure.
+1. Assign the server PC a fixed LAN IP address and final computer name before
+   setup. The HTTPS certificate is tied to that name and IP address.
+2. Extract the complete blank ZIP to a permanent folder on the new branch
+   server PC.
+3. Keep the server PC connected to the internet during first-time setup.
+4. Run SETUP_SERVER.bat and wait for every check to pass. It will:
+   - install dependencies and build the client;
+   - generate branch-specific secrets and an HTTPS certificate;
+   - create a brand-new empty database;
+   - build MLS_CLIENT_INSTALLER_WITH_ICON.zip with the branch certificate.
 5. Run ALLOW_CLIENT_ACCESS.bat once as Administrator.
 6. Run START_SERVER.bat and keep its window open.
-7. Sign in as admin, change the temporary password immediately, and securely
-   delete INITIAL_ADMIN_CREDENTIALS.txt.
+7. Open INITIAL_ADMIN_CREDENTIALS.txt, sign in as admin, and change the
+   temporary password immediately. Securely delete that credential file.
 8. Update the default branch details and create the required staff accounts.
 
 CLIENT PCS
-Rename the server PC to MELANN-SERVER, or update MLS_SERVER_NAME near the top of
-MLS_Client.bat before distributing it to client PCs. You may also set an
-MLS_SERVER_IP there when the new branch uses a fixed server address.
+1. Copy MLS_CLIENT_INSTALLER_WITH_ICON.zip from the configured branch server.
+2. Extract the ZIP on the client PC.
+3. If necessary, edit MLS_SERVER_NAME or MLS_SERVER_IP in MLS_Client.bat to
+   match the new branch server.
+4. Run INSTALL_MLS_CLIENT_WITH_ICON.bat. It installs only the public branch
+   certificate into the current Windows user's trusted certificate store.
+5. Open the Desktop shortcut and confirm the address begins with https:// and
+   the browser shows no certificate warning.
+
+ONGOING OPERATIONS
+- Run npm run verify:release before every release.
+- Run npm run verify:restore regularly to rehearse the newest database backup.
+- Copy backups to a separate encrypted drive or secured offsite location.
+- Re-run CONFIGURE_HTTPS.ps1 -RotateCertificate before the certificate expiry
+  date, then redistribute the rebuilt client installer to every client PC.
+- Apply supported Node.js and dependency security updates after staging tests.
 
 IMPORTANT
-- SETUP_SERVER.bat creates a brand-new SQLite database on the new server PC.
-- Never copy server/.env or server/melann.db from another branch.
-- The old branch's static-IP launchers are intentionally not included. Use
-  START_SERVER.bat and configure the new branch network independently.
-- Keep regular, tested backups after implementation.
+- Never copy server/.env, server/certs, server/melann.db, uploads, or backups
+  from another branch into a blank deployment package.
+- Never reuse INITIAL_ADMIN_CREDENTIALS.txt between branches.
+- Changing the server PC name or fixed IP requires a new HTTPS certificate.
+- No software is maintenance-free forever; production approval applies to the
+  verified release and depends on backups, certificate renewal, and updates.

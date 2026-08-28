@@ -1,5 +1,5 @@
 const express = require('express');
-const { dbGet, dbRun, dbAll } = require('../db/database');
+const { dbGet, dbRun, dbAll, withTransaction } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { triggerLoanRecalculation } = require('../services/noPaymentMonitoring');
 const { recalculateLoanBalances } = require('../services/loanBalanceRecalculator');
@@ -151,20 +151,19 @@ router.post('/payment/by-code', authenticateToken, requireRole('admin', 'manager
     if (!p) return res.status(404).json({ error: 'Payment Code not found for this client.' });
     if (p.status === 'reversed') return res.status(400).json({ error: 'This payment has already been reversed.' });
 
-    await dbRun('BEGIN TRANSACTION');
-    await dbRun(`UPDATE tblPayment SET status='reversed', reversed_at=datetime('now'), reversed_by=?, reversal_reason=? WHERE id=?`, [req.user.id, reason, p.id]);
-    await recalculateLoanBalances(p.loan_id, { userId: req.user.id });
-    if (p.status === 'deceased') await restoreCustomerAfterDeceasedReversal(p.customer_id, req.user.id);
+    await withTransaction(async () => {
+      await dbRun(`UPDATE tblPayment SET status='reversed', reversed_at=datetime('now'), reversed_by=?, reversal_reason=? WHERE id=?`, [req.user.id, reason, p.id]);
+      await recalculateLoanBalances(p.loan_id, { userId: req.user.id });
+      if (p.status === 'deceased') await restoreCustomerAfterDeceasedReversal(p.customer_id, req.user.id);
 
-    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REVERSE', 'PAYMENT', p.id, `Reversed OR#${p.or_number} Reason: ${reason}`]);
-    await dbRun('COMMIT');
+      await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REVERSE', 'PAYMENT', p.id, `Reversed OR#${p.or_number} Reason: ${reason}`]);
+    });
     
     // Trigger No Payment Monitoring recalculation
     triggerLoanRecalculation(p.loan_id).catch(e => console.error(e));
 
     res.json({ message: 'Payment reversed successfully' });
   } catch (err) {
-    await dbRun('ROLLBACK').catch(() => {});
     res.status(500).json({ error: err.message });
   }
 });
@@ -174,16 +173,15 @@ router.post('/payment/:id', authenticateToken, requireRole('admin', 'manager'), 
     const reversibleStatuses = ['active', ...SPECIAL_PAYMENT_TYPES];
     const payment = await dbGet(`SELECT * FROM tblPayment WHERE id = ? AND status IN (${reversibleStatuses.map(() => '?').join(', ')})`, [req.params.id, ...reversibleStatuses]);
     if (!payment) return res.status(404).json({ error: 'Active settlement payment not found' });
-    await dbRun('BEGIN TRANSACTION');
-    await dbRun(`UPDATE tblPayment SET status='reversed', reversed_at=datetime('now'), reversed_by=? WHERE id=?`, [req.user.id, payment.id]);
-    await recalculateLoanBalances(payment.loan_id, { userId: req.user.id });
-    if (payment.status === 'deceased') await restoreCustomerAfterDeceasedReversal(payment.customer_id, req.user.id);
-    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REVERSE', 'PAYMENT', payment.id, `Reversed OR#${payment.or_number}`]);
-    await dbRun('COMMIT');
+    await withTransaction(async () => {
+      await dbRun(`UPDATE tblPayment SET status='reversed', reversed_at=datetime('now'), reversed_by=? WHERE id=?`, [req.user.id, payment.id]);
+      await recalculateLoanBalances(payment.loan_id, { userId: req.user.id });
+      if (payment.status === 'deceased') await restoreCustomerAfterDeceasedReversal(payment.customer_id, req.user.id);
+      await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REVERSE', 'PAYMENT', payment.id, `Reversed OR#${payment.or_number}`]);
+    });
     triggerLoanRecalculation(payment.loan_id).catch(e => console.error(e));
     res.json({ message: 'Payment reversed successfully' });
   } catch (err) {
-    await dbRun('ROLLBACK').catch(() => {});
     res.status(500).json({ error: err.message });
   }
 });
@@ -192,9 +190,11 @@ router.post('/loan/:id', authenticateToken, requireRole('admin', 'manager'), asy
   try {
     const loan = await dbGet(`SELECT * FROM tblLoan WHERE id = ? AND status = 'active'`, [req.params.id]);
     if (!loan) return res.status(404).json({ error: 'Active loan not found' });
-    await dbRun(`UPDATE tblPayment SET status='reversed', reversed_at=datetime('now'), reversed_by=? WHERE loan_id=? AND status='active'`, [req.user.id, loan.id]);
-    await dbRun(`UPDATE tblLoan SET status='reversed', balance=0, updated_at=datetime('now') WHERE id=?`, [loan.id]);
-    await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REVERSE', 'LOAN', loan.id, `Reversed loan ${loan.loan_code}`]);
+    await withTransaction(async () => {
+      await dbRun(`UPDATE tblPayment SET status='reversed', reversed_at=datetime('now'), reversed_by=? WHERE loan_id=? AND status='active'`, [req.user.id, loan.id]);
+      await dbRun(`UPDATE tblLoan SET status='reversed', balance=0, updated_at=datetime('now') WHERE id=?`, [loan.id]);
+      await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'REVERSE', 'LOAN', loan.id, `Reversed loan ${loan.loan_code}`]);
+    });
     triggerLoanRecalculation(loan.id).catch(e => console.error(e));
     res.json({ message: 'Loan reversed successfully' });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -213,35 +213,32 @@ router.post('/batch', authenticateToken, requireRole('admin', 'manager'), async 
     const placeholders = payment_ids.map(() => '?').join(',');
     const payments = await dbAll(`SELECT * FROM tblPayment WHERE id IN (${placeholders}) ORDER BY date_paid DESC, id DESC`, payment_ids);
 
-    await dbRun('BEGIN TRANSACTION');
+    await withTransaction(async () => {
+      for (const p of payments) {
+        if (p.status === 'reversed') continue;
 
-    for (const p of payments) {
-      if (p.status === 'reversed') continue;
+        // Update Payment Status
+        await dbRun(`UPDATE tblPayment SET status='reversed', reversed_at=datetime('now'), reversed_by=?, reversal_reason=? WHERE id=?`, [req.user.id, reason || 'Batch Reversal', p.id]);
 
-      // Update Payment Status
-      await dbRun(`UPDATE tblPayment SET status='reversed', reversed_at=datetime('now'), reversed_by=?, reversal_reason=? WHERE id=?`, [req.user.id, reason || 'Batch Reversal', p.id]);
+        await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
+          [req.user.id, req.user.username, 'REVERSE', 'PAYMENT', p.id, `Batch Reversal [${batch_id}] OR#${p.or_number}`]
+        );
+      }
 
-      await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, 
-        [req.user.id, req.user.username, 'REVERSE', 'PAYMENT', p.id, `Batch Reversal [${batch_id}] OR#${p.or_number}`]
-      );
-    }
-    
-    // Trigger recalculations for unique loans
-    const uniqueLoans = [...new Set(payments.map(p => p.loan_id))];
-    for (const lid of uniqueLoans) {
-      await recalculateLoanBalances(lid, { userId: req.user.id });
-      triggerLoanRecalculation(lid).catch(e => console.error(e));
-    }
-    const deceasedCustomerIds = [...new Set(payments.filter(p => p.status === 'deceased').map(p => p.customer_id))];
-    for (const customerId of deceasedCustomerIds) {
-      await restoreCustomerAfterDeceasedReversal(customerId, req.user.id);
-    }
-
-    await dbRun('COMMIT');
+      // Trigger recalculations for unique loans
+      const uniqueLoans = [...new Set(payments.map(p => p.loan_id))];
+      for (const lid of uniqueLoans) {
+        await recalculateLoanBalances(lid, { userId: req.user.id });
+        triggerLoanRecalculation(lid).catch(e => console.error(e));
+      }
+      const deceasedCustomerIds = [...new Set(payments.filter(p => p.status === 'deceased').map(p => p.customer_id))];
+      for (const customerId of deceasedCustomerIds) {
+        await restoreCustomerAfterDeceasedReversal(customerId, req.user.id);
+      }
+    });
 
     res.json({ message: 'Batch reversal processed successfully', batch_id });
   } catch (err) {
-    await dbRun('ROLLBACK').catch(() => {});
     res.status(500).json({ error: err.message });
   }
 });

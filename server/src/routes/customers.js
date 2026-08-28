@@ -1,5 +1,5 @@
 const express = require('express');
-const { dbAll, dbGet, dbRun } = require('../db/database');
+const { beginTransaction, dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { computeMaturityDate, generateAmortizationSchedule, getWorkingDays } = require('../services/loanCalculator');
 const { requireOperationDate } = require('../services/operationDays');
@@ -1069,7 +1069,7 @@ router.post('/:id/penalty', authenticateToken, requireRole('admin', 'manager'), 
 });
 
 router.post('/:id/reloan', authenticateToken, async (req, res) => {
-  let transactionStarted = false;
+  let transaction;
   try {
     const { principal, loan_period, interest_rate, date_released, loan_type, source_loan_id, previous_balance, penalty, passbook, remarks } = req.body;
     const customer = await dbGet('SELECT * FROM tblCustomer WHERE id = ?', [req.params.id]);
@@ -1109,8 +1109,7 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
     const totalCharges = balanceAmount + penaltyAmount + passbookAmount;
     const netProceeds = amount;
 
-    await dbRun('BEGIN IMMEDIATE TRANSACTION');
-    transactionStarted = true;
+    transaction = await beginTransaction();
 
     const latestLoan = await dbGet(
       `SELECT * FROM tblLoan WHERE customer_id = ? AND LOWER(COALESCE(status, '')) NOT IN ('reversed', 'rejected', 'cancelled', 'canceled') ORDER BY COALESCE(date_released, created_at) DESC, id DESC LIMIT 1`,
@@ -1202,8 +1201,8 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
         [customer.id, customer.status, 'active', req.user.id, `${normalizedLoanType} activated: ${loan_code}`]);
     }
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, actionName, 'CUSTOMER', customer.id, `${normalizedLoanType} application created: ${loan_code} for ₱${amount}`]);
-    await dbRun('COMMIT');
-    transactionStarted = false;
+    await transaction.commit();
+    transaction = null;
     await synchronizePromiseToPayStatuses({ customerId: customer.id })
       .catch(e => console.error('Error synchronizing PTP after loan release:', e));
     res.json({
@@ -1214,8 +1213,8 @@ router.post('/:id/reloan', authenticateToken, async (req, res) => {
       penalty_entry: penaltyEntry
     });
   } catch (err) {
-    if (transactionStarted) {
-      try { await dbRun('ROLLBACK'); } catch (rollbackErr) { console.error('Rollback failed:', rollbackErr); }
+    if (transaction) {
+      try { await transaction.rollback(); } catch (rollbackErr) { console.error('Rollback failed:', rollbackErr); }
     }
     console.error(err);
     sendRouteError(res, err);

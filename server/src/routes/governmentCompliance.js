@@ -7,7 +7,8 @@ const { authenticateToken } = require('../middleware/auth');
 const { audit } = require('../services/auditLogger');
 
 const router = express.Router();
-const uploadDir = path.join(__dirname, '../../../uploads/compliance');
+const uploadsRoot = process.env.UPLOADS_PATH || path.join(__dirname, '../../../uploads');
+const uploadDir = path.join(uploadsRoot, 'compliance');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const storage = multer.diskStorage({

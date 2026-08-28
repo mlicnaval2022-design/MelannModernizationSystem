@@ -1,5 +1,5 @@
 const express = require('express');
-const { dbAll, dbGet, dbRun } = require('../db/database');
+const { dbAll, dbGet, dbRun, withTransaction } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const router = express.Router();
 
@@ -69,8 +69,7 @@ router.put('/options/:optionId', authenticateToken, requireRole('admin', 'manage
     );
     if (duplicate) return res.status(409).json({ error: 'This option already exists' });
 
-    await dbRun('BEGIN TRANSACTION');
-    try {
+    await withTransaction(async () => {
       await dbRun(
         `UPDATE tblCollectorOption SET option_name = ?, is_active = ?, updated_at = datetime('now') WHERE id = ?`,
         [optionName, isActive, current.id]
@@ -82,11 +81,7 @@ router.put('/options/:optionId', authenticateToken, requireRole('admin', 'manage
           [optionName, current.option_name]
         );
       }
-      await dbRun('COMMIT');
-    } catch (err) {
-      await dbRun('ROLLBACK').catch(() => {});
-      throw err;
-    }
+    });
 
     res.json({ id: current.id, option_type: current.option_type, option_name: optionName, is_active: isActive });
   } catch (err) { res.status(500).json({ error: err.message }); }

@@ -1,5 +1,5 @@
 const express = require('express');
-const { dbAll, dbGet, dbRun } = require('../db/database');
+const { beginTransaction, dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken } = require('../middleware/auth');
 const { triggerLoanRecalculation } = require('../services/noPaymentMonitoring');
 const { requireOperationDate, sqlNotSunday } = require('../services/operationDays');
@@ -44,6 +44,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 router.post('/', authenticateToken, async (req, res) => {
+  let transaction;
   try {
     let { loan_id, or_number, date_paid, amount_paid, collector_id, remarks, force_duplicate } = req.body;
     if (!loan_id || !date_paid || !amount_paid) return res.status(400).json({ error: 'loan_id, date_paid, amount_paid required' });
@@ -56,7 +57,7 @@ router.post('/', authenticateToken, async (req, res) => {
     const paymentType = specialPaymentType || 'regular';
     const paymentRemarks = buildSpecialPaymentRemarks(specialPaymentType, remarks);
 
-    const loan = await dbGet(`SELECT * FROM tblLoan WHERE id = ?`, [loan_id]);
+    let loan = await dbGet(`SELECT * FROM tblLoan WHERE id = ?`, [loan_id]);
     if (!loan) return res.status(404).json({ error: 'Loan not found' });
     if (loan.date_released && String(date_paid).slice(0, 10) < String(loan.date_released).slice(0, 10)) {
       return res.status(400).json({
@@ -95,7 +96,28 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(409).json({ error: 'Possible duplicate payment detected. Please verify before proceeding.', is_duplicate: true });
     }
     
-    await dbRun('BEGIN TRANSACTION');
+    transaction = await beginTransaction();
+
+    // Re-read state after acquiring the transaction queue. This prevents two
+    // simultaneous requests from using the same stale balance or both passing
+    // the duplicate-payment check.
+    loan = await dbGet(`SELECT * FROM tblLoan WHERE id = ?`, [loan_id]);
+    if (!loan || Number(loan.balance || 0) <= 0 || String(loan.status || '').toLowerCase() === 'fullpaid') {
+      await transaction.rollback();
+      transaction = null;
+      return res.status(400).json({ error: 'This account is already fully paid.', is_fully_paid: true });
+    }
+    if (!force_duplicate) {
+      const concurrentDuplicate = await dbGet(
+        `SELECT COUNT(*) as c FROM tblPayment WHERE loan_id = ? AND date_paid = ? AND amount_paid = ? AND status IN (${balancePaymentStatuses.map(() => '?').join(', ')})`,
+        [loan_id, date_paid, amount_paid, ...balancePaymentStatuses]
+      );
+      if (concurrentDuplicate.c > 0) {
+        await transaction.rollback();
+        transaction = null;
+        return res.status(409).json({ error: 'Possible duplicate payment detected. Please verify before proceeding.', is_duplicate: true });
+      }
+    }
 
     const balance_before = loan.balance;
     const balance_after = Math.max(0, balance_before - amount_paid);
@@ -121,7 +143,8 @@ router.post('/', authenticateToken, async (req, res) => {
 
     const logTag = specialPaymentType ? `[${PAYMENT_TYPE_CONFIG[specialPaymentType].remarkTag}] ` : '';
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`, [req.user.id, req.user.username, 'CREATE', 'PAYMENT', result.lastID, `${logTag}OR#${or_number} Amt:${amount_paid} Col:${collector_id || loan.collector_id}`]);
-    await dbRun('COMMIT');
+    await transaction.commit();
+    transaction = null;
     
     // Trigger No Payment Monitoring recalculation
     await triggerLoanRecalculation(loan_id).catch(e => console.error('Error triggering recalculation:', e));
@@ -142,7 +165,7 @@ router.post('/', authenticateToken, async (req, res) => {
       status: paymentStatus
     });
   } catch (err) {
-    await dbRun('ROLLBACK').catch(() => {});
+    if (transaction) await transaction.rollback().catch(() => {});
     sendRouteError(res, err);
   }
 });

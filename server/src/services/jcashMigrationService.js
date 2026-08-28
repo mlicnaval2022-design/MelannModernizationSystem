@@ -1,7 +1,7 @@
 const { spawnSync } = require('child_process');
 const { existsSync } = require('fs');
 const path = require('path');
-const { dbAll, dbGet, dbRun } = require('../db/database');
+const { dbAll, dbGet, dbRun, withTransaction } = require('../db/database');
 const { recalculateLoanBalances, roundMoney } = require('./loanBalanceRecalculator');
 
 const DEFAULT_SOURCE = 'C:\\Users\\User\\OneDrive\\Documents\\lendingV3\\db\\jcashdb.mdb';
@@ -511,8 +511,7 @@ async function migrateSelectedJcash({ from, to, loanId, loanCodes = [], user, pa
   const stats = { customers: 0, loans_inserted: 0, loans_updated: 0, payments_inserted: 0, payment_balances_corrected: 0, skipped: loanCodes.length - rows.length };
   const linkedLoans = [];
 
-  await dbRun('BEGIN IMMEDIATE TRANSACTION');
-  try {
+  return withTransaction(async () => {
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_tblPayment_import_key ON tblPayment (loan_id, date_paid, amount_paid, or_number, status)`);
     for (const row of rows) {
       const collectorId = await getOrCreateCollector(row.loan.collector_name || row.customer.collector_name);
@@ -546,12 +545,8 @@ async function migrateSelectedJcash({ from, to, loanId, loanCodes = [], user, pa
         ? `Migrated Loan ID ${normalizedLoanId}: ${stats.loans_inserted} new and ${stats.loans_updated} existing Good loans. Payments inserted: ${stats.payments_inserted}.`
         : `Migrated ${stats.loans_inserted} new and ${stats.loans_updated} existing Good loans from ${from} to ${to}. Payments inserted: ${stats.payments_inserted}.`]
     );
-    await dbRun('COMMIT');
     return { ...stats, scanned: scan.summary };
-  } catch (err) {
-    await dbRun('ROLLBACK').catch(() => {});
-    throw err;
-  }
+  });
 }
 
 module.exports = {

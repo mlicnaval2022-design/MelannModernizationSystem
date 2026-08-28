@@ -1,6 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const { dbAll, dbExec, dbGet, dbRun } = require('../db/database');
+const { dbAll, dbGet, dbRun, withTransaction } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { ACCESS_LEVELS, ACCESS_MODULES, REPORT_TYPE_PERMISSIONS } = require('../config/accessModules');
 const router = express.Router();
@@ -128,32 +128,28 @@ router.get('/roles', authenticateToken, requireRole('admin'), async (req, res) =
 });
 
 router.post('/roles', authenticateToken, requireRole('admin'), async (req, res) => {
-  let transactionStarted = false;
   try {
     const roleName = String(req.body.role_name || '').trim();
     const permissions = normalizePermissions(req.body.permissions);
     const roleKey = makeRoleKey(req.body.role_key || roleName);
     if (!roleName || !roleKey) return res.status(400).json({ error: 'Role name is required.' });
     if (permissions.length === 0) return res.status(400).json({ error: 'Select at least one module for this role.' });
-    await dbExec('BEGIN IMMEDIATE TRANSACTION');
-    transactionStarted = true;
-    const result = await dbRun(
-      `INSERT INTO tblRole (role_key, role_name, description, status, created_by, updated_by) VALUES (?, ?, ?, 'active', ?, ?)`,
-      [roleKey, roleName, buildRoleDescription(roleName, permissions), req.user.id, req.user.id]
-    );
-    await replacePermissions(result.lastID, permissions);
-    await dbExec('COMMIT');
-    transactionStarted = false;
+    const result = await withTransaction(async () => {
+      const inserted = await dbRun(
+        `INSERT INTO tblRole (role_key, role_name, description, status, created_by, updated_by) VALUES (?, ?, ?, 'active', ?, ?)`,
+        [roleKey, roleName, buildRoleDescription(roleName, permissions), req.user.id, req.user.id]
+      );
+      await replacePermissions(inserted.lastID, permissions);
+      return inserted;
+    });
     res.status(201).json({ id: result.lastID, role_key: roleKey });
   } catch (err) {
-    if (transactionStarted) await dbExec('ROLLBACK').catch(() => {});
     if (String(err.message).includes('UNIQUE')) return res.status(409).json({ error: 'Role name already exists.' });
     res.status(500).json({ error: err.message });
   }
 });
 
 router.put('/roles/:id', authenticateToken, requireRole('admin'), async (req, res) => {
-  let transactionStarted = false;
   try {
     const role = await dbGet(`SELECT * FROM tblRole WHERE id = ?`, [req.params.id]);
     if (!role) return res.status(404).json({ error: 'Role not found.' });
@@ -163,18 +159,15 @@ router.put('/roles/:id', authenticateToken, requireRole('admin'), async (req, re
     if (!roleName) return res.status(400).json({ error: 'Role name is required.' });
     if (role.role_key === 'admin' && status !== 'active') return res.status(400).json({ error: 'Administrator role cannot be deactivated.' });
     if (permissions.length === 0) return res.status(400).json({ error: 'Select at least one module for this role.' });
-    await dbExec('BEGIN IMMEDIATE TRANSACTION');
-    transactionStarted = true;
-    await dbRun(
-      `UPDATE tblRole SET role_name=?, description=?, status=?, updated_by=?, updated_at=datetime('now') WHERE id=?`,
-      [roleName, buildRoleDescription(roleName, permissions), status, req.user.id, role.id]
-    );
-    await replacePermissions(role.id, permissions);
-    await dbExec('COMMIT');
-    transactionStarted = false;
+    await withTransaction(async () => {
+      await dbRun(
+        `UPDATE tblRole SET role_name=?, description=?, status=?, updated_by=?, updated_at=datetime('now') WHERE id=?`,
+        [roleName, buildRoleDescription(roleName, permissions), status, req.user.id, role.id]
+      );
+      await replacePermissions(role.id, permissions);
+    });
     res.json({ message: 'Role updated.' });
   } catch (err) {
-    if (transactionStarted) await dbExec('ROLLBACK').catch(() => {});
     if (String(err.message).includes('UNIQUE')) return res.status(409).json({ error: 'Role name already exists.' });
     res.status(500).json({ error: err.message });
   }

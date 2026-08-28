@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../melann.db');
 
 let db;
+let transactionTail = Promise.resolve();
 
 function getDb() {
   if (!db) {
@@ -63,6 +64,52 @@ function dbExec(sql) {
       else resolve();
     });
   });
+}
+
+async function beginTransaction(mode = 'IMMEDIATE') {
+  let releaseQueue;
+  const previousTransaction = transactionTail;
+  transactionTail = new Promise(resolve => { releaseQueue = resolve; });
+  await previousTransaction;
+
+  let finished = false;
+  try {
+    const normalizedMode = String(mode || 'IMMEDIATE').toUpperCase();
+    if (!['DEFERRED', 'IMMEDIATE', 'EXCLUSIVE'].includes(normalizedMode)) {
+      throw new Error(`Unsupported transaction mode: ${mode}`);
+    }
+    await dbRun(`BEGIN ${normalizedMode} TRANSACTION`);
+  } catch (error) {
+    releaseQueue();
+    throw error;
+  }
+
+  async function finish(sql) {
+    if (finished) return;
+    finished = true;
+    try {
+      await dbRun(sql);
+    } finally {
+      releaseQueue();
+    }
+  }
+
+  return {
+    commit: () => finish('COMMIT'),
+    rollback: () => finish('ROLLBACK'),
+  };
+}
+
+async function withTransaction(work, mode = 'IMMEDIATE') {
+  const transaction = await beginTransaction(mode);
+  try {
+    const result = await work();
+    await transaction.commit();
+    return result;
+  } catch (error) {
+    await transaction.rollback().catch(() => {});
+    throw error;
+  }
 }
 
 async function initializeDatabase() {
@@ -457,6 +504,12 @@ async function initializeDatabase() {
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
       UNIQUE(collector_id, report_date)
+    );
+    CREATE TABLE IF NOT EXISTS tblCollectionFieldReleaseCollector (
+      collector_id INTEGER PRIMARY KEY,
+      created_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (collector_id) REFERENCES tblCollector(id)
     );
     CREATE TABLE IF NOT EXISTS tblCollectionAdvanceManual (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1114,8 +1167,7 @@ async function initializeDatabase() {
   // SQLite cannot remove NOT NULL in place, so rebuild only legacy tables that
   // still require a promise date.
   if (ptpCols.find(column => column.name === 'promise_date')?.notnull) {
-    await dbRun('BEGIN TRANSACTION');
-    try {
+    await withTransaction(async () => {
       await dbRun(`
         CREATE TABLE tblPromiseToPay_new (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1157,11 +1209,7 @@ async function initializeDatabase() {
       `);
       await dbRun(`DROP TABLE tblPromiseToPay`);
       await dbRun(`ALTER TABLE tblPromiseToPay_new RENAME TO tblPromiseToPay`);
-      await dbRun('COMMIT');
-    } catch (err) {
-      await dbRun('ROLLBACK').catch(() => {});
-      throw err;
-    }
+    });
   }
 
   await dbRun(`CREATE INDEX IF NOT EXISTS idx_ptp_customer ON tblPromiseToPay(customer_id)`);
@@ -1284,4 +1332,4 @@ async function initializeDatabase() {
   console.log('✅ Database initialized');
 }
 
-module.exports = { DB_PATH, getDb, closeDb, initializeDatabase, dbRun, dbGet, dbAll, dbExec };
+module.exports = { DB_PATH, getDb, closeDb, initializeDatabase, dbRun, dbGet, dbAll, dbExec, beginTransaction, withTransaction };

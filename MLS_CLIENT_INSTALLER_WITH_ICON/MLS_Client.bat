@@ -2,7 +2,7 @@
 setlocal EnableExtensions
 title Melann Lending System - CLIENT
 color 0B
-set "MLS_LAUNCHER_VERSION=2026-08-21.3"
+set "MLS_LAUNCHER_VERSION=2026-08-28.1"
 
 rem Set the new branch server PC name here, or define MLS_SERVER_NAME before launch.
 if not defined MLS_SERVER_NAME set "MLS_SERVER_NAME=SERVERPC"
@@ -21,22 +21,22 @@ echo.
 
 rem Prefer a fixed LAN address when one has been configured.
 if defined MLS_SERVER_IP (
-  call :check_server "http://%MLS_SERVER_IP%:%MLS_SERVER_PORT%"
+  call :check_server "https://%MLS_SERVER_IP%:%MLS_SERVER_PORT%"
   if not errorlevel 1 goto :connected
 )
 
 echo Trying the server name %MLS_SERVER_NAME%...
-call :check_server "http://%MLS_SERVER_NAME%:%MLS_SERVER_PORT%"
+call :check_server "https://%MLS_SERVER_NAME%:%MLS_SERVER_PORT%"
 if not errorlevel 1 goto :connected
 
 rem A second pass handles a server that is still finishing its startup.
 echo The server is not ready yet. Retrying...
 powershell.exe -NoProfile -Command "Start-Sleep -Seconds 3"
 if defined MLS_SERVER_IP (
-  call :check_server "http://%MLS_SERVER_IP%:%MLS_SERVER_PORT%"
+  call :check_server "https://%MLS_SERVER_IP%:%MLS_SERVER_PORT%"
   if not errorlevel 1 goto :connected
 )
-call :check_server "http://%MLS_SERVER_NAME%:%MLS_SERVER_PORT%"
+call :check_server "https://%MLS_SERVER_NAME%:%MLS_SERVER_PORT%"
 if not errorlevel 1 goto :connected
 
 color 0C
@@ -49,7 +49,8 @@ echo   2. Run ALLOW_CLIENT_ACCESS.bat once as administrator.
 echo.
 echo On this client PC:
 echo   1. Connect to the same local network as the server.
-echo   2. Try this client again.
+echo   2. Reinstall the client if the HTTPS certificate changed.
+echo   3. Try this client again.
 echo.
 pause
 exit /b 1

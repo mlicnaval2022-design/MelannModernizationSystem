@@ -1,5 +1,5 @@
 const express = require('express');
-const { dbAll, dbGet, dbRun } = require('../db/database');
+const { dbAll, dbGet, dbRun, withTransaction } = require('../db/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { authorizeReportType } = require('../middleware/reportPermissions');
 const { runPastDueUpdate } = require('../services/pastDueUpdater');
@@ -470,8 +470,7 @@ router.put('/collection-sheet/field-releases/collectors', authenticateToken, asy
       }
     }
 
-    await dbRun('BEGIN IMMEDIATE TRANSACTION');
-    try {
+    await withTransaction(async () => {
       await dbRun('DELETE FROM tblCollectionFieldReleaseCollector');
       for (const collectorId of collectorIds) {
         await dbRun(`
@@ -479,11 +478,7 @@ router.put('/collection-sheet/field-releases/collectors', authenticateToken, asy
           VALUES (?, ?)
         `, [collectorId, req.user.id]);
       }
-      await dbRun('COMMIT');
-    } catch (err) {
-      await dbRun('ROLLBACK').catch(() => {});
-      throw err;
-    }
+    });
 
     res.json({ message: 'Field Release collector selection saved', collector_ids: collectorIds });
   } catch (err) { sendRouteError(res, err); }
@@ -503,8 +498,7 @@ router.post('/collection-sheet/field-releases', authenticateToken, async (req, r
       return res.status(400).json({ error: 'Field Release amounts can only be saved for selected collectors.' });
     }
 
-    await dbRun('BEGIN IMMEDIATE TRANSACTION');
-    try {
+    await withTransaction(async () => {
       for (const release of releases) {
         const collectorId = Number(release.collector_id);
         const amount = Number(release.amount || 0);
@@ -517,11 +511,7 @@ router.post('/collection-sheet/field-releases', authenticateToken, async (req, r
           DO UPDATE SET amount = excluded.amount, updated_by = excluded.updated_by, updated_at = datetime('now')
         `, [collectorId, targetDate, amount, req.user.id, req.user.id]);
       }
-      await dbRun('COMMIT');
-    } catch (err) {
-      await dbRun('ROLLBACK').catch(() => {});
-      throw err;
-    }
+    });
 
     res.json({ message: 'Field release amounts saved', date: targetDate });
   } catch (err) { sendRouteError(res, err); }
@@ -619,8 +609,7 @@ router.put('/expenses/categories/:id', authenticateToken, async (req, res) => {
     `, [categoryName, req.params.id]);
     if (duplicate) return res.status(409).json({ error: 'Category already exists' });
 
-    await dbRun('BEGIN IMMEDIATE TRANSACTION');
-    try {
+    await withTransaction(async () => {
       await dbRun(`
         UPDATE tblExpenseCategory
         SET category_name = ?, status = ?, updated_by = ?, updated_at = datetime('now')
@@ -633,11 +622,7 @@ router.put('/expenses/categories/:id', authenticateToken, async (req, res) => {
           WHERE category = ? COLLATE NOCASE
         `, [categoryName, req.user.id, current.category_name]);
       }
-      await dbRun('COMMIT');
-    } catch (err) {
-      await dbRun('ROLLBACK').catch(() => {});
-      throw err;
-    }
+    });
 
     const row = await dbGet(`SELECT * FROM tblExpenseCategory WHERE id = ?`, [req.params.id]);
     res.json(row);

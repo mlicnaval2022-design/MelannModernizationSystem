@@ -29,7 +29,7 @@ function Get-ServerListener {
 
 function Test-MelannHealth {
     try {
-        $response = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/health" -TimeoutSec 3
+        $response = Invoke-WebRequest -UseBasicParsing -Uri "https://127.0.0.1:$Port/api/health" -TimeoutSec 3
         return $response.StatusCode -eq 200
     } catch {
         return $false
@@ -77,7 +77,7 @@ if ($Action -eq "status") {
 
     Write-Host "SERVER STATUS: RUNNING" -ForegroundColor Green
     Write-Host "Process ID: $($details.ProcessId)"
-    Write-Host "Address: http://localhost:$Port"
+    Write-Host "Address: https://localhost:$Port"
     exit 0
 }
 

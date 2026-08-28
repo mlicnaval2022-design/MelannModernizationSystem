@@ -85,7 +85,11 @@ router.post('/login', async (req, res) => {
       maxAge: 12 * 60 * 60 * 1000,
     });
     await dbRun(`INSERT INTO tblLogtime (user_id, username, action, module, details) VALUES (?,?,?,?,?)`, [user.id, user.username, 'LOGIN', 'AUTH', 'User logged in']);
-    res.json({ token, user: await buildUserPayload(user) });
+    const response = { user: await buildUserPayload(user) };
+    // Browser clients authenticate with the HttpOnly cookie. Returning the JWT
+    // to production JavaScript would unnecessarily expose it to an XSS bug.
+    if (process.env.NODE_ENV !== 'production') response.token = token;
+    res.json(response);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
