@@ -1,12 +1,14 @@
 param(
     [ValidateSet("status", "stop")]
-    [string]$Action = "status"
+    [string]$Action = "status",
+    [switch]$ElevatedRetry
 )
 
 $ErrorActionPreference = "Stop"
 $Port = 5001
 $ProjectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ExpectedNode = [IO.Path]::GetFullPath((Join-Path $ProjectDir ".runtime\node\node.exe"))
+$HealthCheckScript = [IO.Path]::GetFullPath((Join-Path $ProjectDir "server\scripts\checkServerHealth.js"))
 
 function Get-ServerListener {
     $listener = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) |
@@ -28,12 +30,13 @@ function Get-ServerListener {
 }
 
 function Test-MelannHealth {
-    try {
-        $response = Invoke-WebRequest -UseBasicParsing -Uri "https://127.0.0.1:$Port/api/health" -TimeoutSec 3
-        return $response.StatusCode -eq 200
-    } catch {
+    if (-not (Test-Path -LiteralPath $ExpectedNode) -or
+        -not (Test-Path -LiteralPath $HealthCheckScript)) {
         return $false
     }
+
+    & $ExpectedNode $HealthCheckScript 2>$null | Out-Null
+    return $LASTEXITCODE -eq 0
 }
 
 function Get-ListenerDetails {
@@ -44,17 +47,34 @@ function Get-ListenerDetails {
 
     $process = Get-Process -Id $listener.OwningProcess -ErrorAction SilentlyContinue
     $processPath = $null
+    $commandLine = $null
     if ($process) {
         try { $processPath = $process.Path } catch { $processPath = $null }
+        try {
+            $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $($listener.OwningProcess)" -ErrorAction SilentlyContinue
+            $commandLine = $processInfo.CommandLine
+        } catch {
+            $commandLine = $null
+        }
     }
+
+    $isExpectedNode = $processPath -and
+        ([IO.Path]::GetFullPath($processPath) -ieq $ExpectedNode)
+    $isExpectedCommand = $commandLine -and
+        ($commandLine -match '(?i)(^|[\\/\s"''])src[\\/]index\.js([\s"'']|$)')
 
     [pscustomobject]@{
         Listener = $listener
         Process = $process
         ProcessId = [int]$listener.OwningProcess
         ProcessPath = $processPath
-        IsExpectedNode = $processPath -and
-            ([IO.Path]::GetFullPath($processPath) -ieq $ExpectedNode)
+        CommandLine = $commandLine
+        IsExpectedNode = $isExpectedNode
+        IsExpectedCommand = $isExpectedCommand
+        # Some Windows policies hide another process's command line from a
+        # standard user. The bundled Node executable is private to this MLS
+        # installation, so its exact resolved path is still a safe identity.
+        IsMelannServer = $isExpectedNode -and ($isExpectedCommand -or -not $commandLine)
         IsHealthy = Test-MelannHealth
     }
 }
@@ -68,11 +88,18 @@ if ($Action -eq "status") {
         exit 3
     }
 
-    if (-not $details.IsExpectedNode -or -not $details.IsHealthy) {
+    if (-not $details.IsMelannServer) {
         Write-Host "SERVER STATUS: PORT $Port IS IN USE BY AN UNKNOWN PROGRAM" -ForegroundColor Yellow
         Write-Host "Process ID: $($details.ProcessId)"
         if ($details.ProcessPath) { Write-Host "Program: $($details.ProcessPath)" }
         exit 4
+    }
+
+    if (-not $details.IsHealthy) {
+        Write-Host "SERVER STATUS: MELANN SERVER IS RUNNING BUT NOT HEALTHY" -ForegroundColor Yellow
+        Write-Host "Process ID: $($details.ProcessId)"
+        Write-Host "The process can be safely closed with STOP_SERVER.bat."
+        exit 5
     }
 
     Write-Host "SERVER STATUS: RUNNING" -ForegroundColor Green
@@ -86,7 +113,7 @@ if (-not $details) {
     exit 0
 }
 
-if (-not $details.IsExpectedNode -or -not $details.IsHealthy) {
+if (-not $details.IsMelannServer) {
     Write-Host "STOP CANCELLED: Port $Port belongs to an unknown program." -ForegroundColor Red
     Write-Host "Process ID: $($details.ProcessId)"
     if ($details.ProcessPath) { Write-Host "Program: $($details.ProcessPath)" }
@@ -94,8 +121,33 @@ if (-not $details.IsExpectedNode -or -not $details.IsHealthy) {
     exit 4
 }
 
+if (-not $details.IsHealthy) {
+    Write-Host "The Melann server is not responding to its health check." -ForegroundColor Yellow
+    Write-Host "It was positively identified by its executable and startup command."
+}
+
 Write-Host "Stopping Melann server process $($details.ProcessId)..." -ForegroundColor Yellow
-Stop-Process -Id $details.ProcessId
+try {
+    Stop-Process -Id $details.ProcessId -ErrorAction Stop
+} catch {
+    $accessDenied = $_.Exception.Message -match '(?i)access is denied|cannot stop process'
+    if ($accessDenied -and -not $ElevatedRetry) {
+        Write-Host "Windows administrator approval is required to close this server." -ForegroundColor Yellow
+        Write-Host "Please select Yes in the security prompt."
+        $argumentLine = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" stop -ElevatedRetry"
+        try {
+            $elevated = Start-Process -FilePath "powershell.exe" -Verb RunAs `
+                -ArgumentList $argumentLine -Wait -PassThru -ErrorAction Stop
+            exit $elevated.ExitCode
+        } catch {
+            Write-Host "The administrator request was cancelled or could not be opened." -ForegroundColor Red
+            exit 6
+        }
+    }
+
+    Write-Host "The Melann server could not be stopped: $($_.Exception.Message)" -ForegroundColor Red
+    exit 6
+}
 
 for ($attempt = 0; $attempt -lt 20; $attempt++) {
     Start-Sleep -Milliseconds 500

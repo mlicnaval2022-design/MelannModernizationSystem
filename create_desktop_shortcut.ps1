@@ -12,7 +12,11 @@ param(
 
 $ProjectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $IconPath = Join-Path $ProjectDir "mls_icon.ico"
-$DesktopPath = [Environment]::GetFolderPath("Desktop")
+$ShortcutShell = New-Object -ComObject WScript.Shell
+$DesktopPath = $ShortcutShell.SpecialFolders.Item("Desktop")
+if ([string]::IsNullOrWhiteSpace($DesktopPath)) {
+    $DesktopPath = [Environment]::GetFolderPath("Desktop")
+}
 
 # Verify icon exists
 if (-Not (Test-Path $IconPath)) {
@@ -24,8 +28,7 @@ if (-Not (Test-Path $IconPath)) {
 
 function Create-Shortcut($ShortcutName, $TargetPath, $IconLocation, $Description, $WorkingDir, $Arguments = "") {
     $ShortcutPath = Join-Path $DesktopPath "$ShortcutName.lnk"
-    $WshShell = New-Object -ComObject WScript.Shell
-    $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
+    $Shortcut = $ShortcutShell.CreateShortcut($ShortcutPath)
     $Shortcut.TargetPath = $TargetPath
     $Shortcut.IconLocation = $IconLocation
     $Shortcut.Description = $Description
@@ -57,6 +60,12 @@ if ($Mode -eq "server" -or $Mode -eq "both") {
     if (Test-Path $RestartServer) {
         $RestartArguments = "/d /k call `"$RestartServer`""
         Create-Shortcut "MLS Server - RESTART" $CommandPrompt "$IconPath,0" "Stop and restart the Melann server in a visible console" $ProjectDir $RestartArguments
+    }
+
+    $StopServer = Join-Path $ProjectDir "STOP_SERVER.bat"
+    if (Test-Path $StopServer) {
+        $StopArguments = "/d /k call `"$StopServer`""
+        Create-Shortcut "MLS Server - STOP" $CommandPrompt "$IconPath,0" "Safely stop the Melann Lending System server" $ProjectDir $StopArguments
     }
 
     $ServerStatus = Join-Path $ProjectDir "SERVER_STATUS.bat"

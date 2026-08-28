@@ -2,13 +2,16 @@
 setlocal EnableExtensions
 title Melann Lending System - CLIENT
 color 0B
-set "MLS_LAUNCHER_VERSION=2026-08-28.1"
+set "MLS_LAUNCHER_VERSION=2026-08-28.2"
 
 rem Set the new branch server PC name here, or define MLS_SERVER_NAME before launch.
 if not defined MLS_SERVER_NAME set "MLS_SERVER_NAME=SERVERPC"
 rem Fixed LAN address of this branch server. The server name remains the fallback.
 if not defined MLS_SERVER_IP set "MLS_SERVER_IP=192.168.1.12"
 if not defined MLS_SERVER_PORT set "MLS_SERVER_PORT=5001"
+set "MLS_CERT_FILE=%~dp0MLS_SERVER_CERT.cer"
+rem BUILD_CLIENT_INSTALLER.ps1 supplies this only in the standalone client.
+set "MLS_CERT_EMBEDDED="
 
 echo.
 echo ==============================================
@@ -18,6 +21,10 @@ echo ==============================================
 echo   Looking for the Melann server...
 echo ==============================================
 echo.
+
+rem The certificate is public and can be trusted per Windows user without
+rem administrator access. This keeps the portable client package usable.
+call :ensure_certificate
 
 rem Prefer a fixed LAN address when one has been configured.
 if defined MLS_SERVER_IP (
@@ -106,6 +113,37 @@ exit /b %ERRORLEVEL%
 
 :check_server
 set "MLS_SYSTEM_URL=%~1"
-rem Disable the Windows web proxy for this LAN-only health check.
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference='SilentlyContinue'; try { $request=[Net.HttpWebRequest]::Create($env:MLS_SYSTEM_URL + '/api/health'); $request.Proxy=$null; $request.Timeout=5000; $response=$request.GetResponse(); $status=[int]$response.StatusCode; $response.Close(); if ($status -eq 200) { exit 0 } } catch {}; exit 1"
+rem This only checks local-network reachability. The browser performs the real
+rem HTTPS certificate verification when it opens the application.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$uri=[Uri]$env:MLS_SYSTEM_URL; $client=New-Object Net.Sockets.TcpClient; try { $pending=$client.BeginConnect($uri.Host,$uri.Port,$null,$null); if(-not $pending.AsyncWaitHandle.WaitOne(5000)){ exit 1 }; $client.EndConnect($pending); exit 0 } catch { exit 1 } finally { $client.Dispose() }"
 exit /b %ERRORLEVEL%
+
+:ensure_certificate
+if exist "%MLS_CERT_FILE%" goto :trust_certificate
+if not defined MLS_CERT_EMBEDDED goto :certificate_missing
+set "MLS_CERT_CACHE_DIR=%LOCALAPPDATA%\Melann Lending System\Client"
+set "MLS_CERT_FILE=%MLS_CERT_CACHE_DIR%\MLS_SERVER_CERT.cer"
+if not exist "%MLS_CERT_CACHE_DIR%" mkdir "%MLS_CERT_CACHE_DIR%" >nul 2>&1
+if not exist "%MLS_CERT_FILE%" (
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "try { [IO.File]::WriteAllBytes($env:MLS_CERT_FILE,[Convert]::FromBase64String($env:MLS_CERT_EMBEDDED)); exit 0 } catch { exit 1 }"
+)
+
+:trust_certificate
+if exist "%MLS_CERT_FILE%" (
+  certutil.exe -user -f -addstore Root "%MLS_CERT_FILE%" >nul 2>&1
+  if errorlevel 1 (
+    echo WARNING: The HTTPS certificate could not be installed for this Windows user.
+    echo          Run INSTALL_MLS_CLIENT_WITH_ICON.bat from the complete client package.
+  ) else (
+    echo HTTPS certificate is ready for this Windows user.
+  )
+  exit /b 0
+)
+
+:certificate_missing
+if not exist "%MLS_CERT_FILE%" (
+  echo NOTE: MLS_SERVER_CERT.cer is not beside this client launcher.
+  echo       The system can open, but HTTPS trust may require the full client installer.
+  exit /b 0
+)
+exit /b 0

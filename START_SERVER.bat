@@ -9,7 +9,7 @@ set "NODE_EXE=%NODE_DIR%\node.exe"
 set "PORT=5001"
 
 rem If MLS is already running, report it instead of starting a second server.
-powershell.exe -NoProfile -Command "try { $r = Invoke-WebRequest -UseBasicParsing -Uri 'https://127.0.0.1:%PORT%/api/health' -TimeoutSec 3; if ($r.StatusCode -eq 200) { exit 0 }; exit 1 } catch { exit 1 }"
+"%NODE_EXE%" "%~dp0server\scripts\checkServerHealth.js"
 if not errorlevel 1 (
   echo.
   echo ======================================================
@@ -73,7 +73,7 @@ echo Press Ctrl+C to stop the server.
 echo.
 
 rem Open the browser as soon as the health endpoint becomes available.
-if /I not "%MLS_NO_BROWSER%"=="1" start "" /b powershell.exe -NoProfile -WindowStyle Hidden -Command "for ($i = 0; $i -lt 30; $i++) { try { $r = Invoke-WebRequest -UseBasicParsing -Uri 'https://127.0.0.1:%PORT%/api/health' -TimeoutSec 1; if ($r.StatusCode -eq 200) { Start-Process 'https://localhost:%PORT%/login?fix=favicon-v5'; exit 0 } } catch {}; Start-Sleep -Seconds 1 }"
+if /I not "%MLS_NO_BROWSER%"=="1" start "" /b powershell.exe -NoProfile -WindowStyle Hidden -Command "for ($i = 0; $i -lt 30; $i++) { & '%NODE_EXE%' '%~dp0server\scripts\checkServerHealth.js'; if ($LASTEXITCODE -eq 0) { Start-Process 'https://localhost:%PORT%/login?fix=favicon-v5'; exit 0 }; Start-Sleep -Seconds 1 }"
 
 pushd "%~dp0server"
 "%NODE_EXE%" "src\index.js"
