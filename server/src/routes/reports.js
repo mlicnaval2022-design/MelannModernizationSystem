@@ -1583,6 +1583,54 @@ router.put('/collection-sheet/advance-manual/:id', authenticateToken, async (req
   } catch (err) { sendRouteError(res, err); }
 });
 
+router.get('/collection-sheet/config', authenticateToken, async (req, res) => {
+  try {
+    const rows = await dbAll(`SELECT setting_key, setting_value FROM tblSystemSettings WHERE setting_key IN ('cs_checked_by', 'cs_encoded_by', 'cs_approved_by')`);
+    const map = Object.fromEntries((rows || []).map(r => [r.setting_key, r.setting_value]));
+    res.json({
+      checkedBy: map.cs_checked_by || 'MARILYN O. RELOBA',
+      encodedBy: map.cs_encoded_by || 'IT/ACCOUNTING CLERK',
+      approvedBy: map.cs_approved_by || 'VICTORIO L. RELOBA JR.'
+    });
+  } catch (err) { sendRouteError(res, err); }
+});
+
+router.put('/collection-sheet/config', authenticateToken, async (req, res) => {
+  try {
+    const { checkedBy, encodedBy, approvedBy } = req.body || {};
+    const updates = [
+      { key: 'cs_checked_by', val: checkedBy !== undefined && checkedBy !== null ? String(checkedBy).trim() : 'MARILYN O. RELOBA', desc: 'Collection Sheet Checked By Signatory' },
+      { key: 'cs_encoded_by', val: encodedBy !== undefined && encodedBy !== null ? String(encodedBy).trim() : 'IT/ACCOUNTING CLERK', desc: 'Collection Sheet Encoded By Signatory' },
+      { key: 'cs_approved_by', val: approvedBy !== undefined && approvedBy !== null ? String(approvedBy).trim() : 'VICTORIO L. RELOBA JR.', desc: 'Collection Sheet Approved By Signatory' }
+    ];
+
+    for (const item of updates) {
+      await dbRun(`
+        INSERT INTO tblSystemSettings (setting_key, setting_value, description, updated_at)
+        VALUES (?, ?, ?, datetime('now'))
+        ON CONFLICT(setting_key) DO UPDATE SET
+          setting_value = excluded.setting_value,
+          updated_at = excluded.updated_at
+      `, [item.key, item.val, item.desc]);
+    }
+
+    await dbRun(
+      `INSERT INTO tblLogtime (user_id, username, action, module, reference_id, details) VALUES (?,?,?,?,?,?)`,
+      [req.user.id, req.user.username, 'UPDATE', 'COLLECTION_SHEET_CONFIG', 0,
+        `CS Signatures updated: Checked by="${updates[0].val}", Encoded by="${updates[1].val}", Approved by="${updates[2].val}"`]
+    );
+
+    res.json({
+      message: 'Collection sheet configuration updated successfully',
+      signatures: {
+        checkedBy: updates[0].val || 'MARILYN O. RELOBA',
+        encodedBy: updates[1].val || 'IT/ACCOUNTING CLERK',
+        approvedBy: updates[2].val || 'VICTORIO L. RELOBA JR.'
+      }
+    });
+  } catch (err) { sendRouteError(res, err); }
+});
+
 router.delete('/collection-sheet/advance-manual/:id', authenticateToken, async (req, res) => {
   try {
     const entryId = Number(req.params.id);
@@ -1868,6 +1916,9 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
     // Calculate summary totals
     const totalCollection = collectionLoans.reduce((s, l) => s + Number(l.collected_today || 0), 0);
 
+    const csSettingsRows = await dbAll(`SELECT setting_key, setting_value FROM tblSystemSettings WHERE setting_key IN ('cs_checked_by', 'cs_encoded_by', 'cs_approved_by')`);
+    const csMap = Object.fromEntries((csSettingsRows || []).map(r => [r.setting_key, r.setting_value]));
+
     res.json({
       loans: collectionLoans,
       collector_id: collectorId,
@@ -1882,9 +1933,9 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
         grandTotal: totalCollection + pbInsDstTotal - fieldReleaseTotal
       },
       signatures: {
-        checkedBy: 'MARILYN O. RELOBA',
-        encodedBy: 'IT/ACCOUNTING CLERK',
-        approvedBy: 'VICTORIO L. RELOBA JR.'
+        checkedBy: csMap.cs_checked_by || 'MARILYN O. RELOBA',
+        encodedBy: csMap.cs_encoded_by || 'IT/ACCOUNTING CLERK',
+        approvedBy: csMap.cs_approved_by || 'VICTORIO L. RELOBA JR.'
       }
     });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }

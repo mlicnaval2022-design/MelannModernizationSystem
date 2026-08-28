@@ -816,6 +816,11 @@ async function initializeDatabase() {
     await dbRun("INSERT INTO tblSystemSettings (setting_key, setting_value, description) VALUES (?, ?, ?)", ['escalation_threshold', '4', 'Consecutive days required to escalate case']);
   }
 
+  // Seed default settings for Collection Sheet signatures if missing
+  await dbRun("INSERT OR IGNORE INTO tblSystemSettings (setting_key, setting_value, description) VALUES (?, ?, ?)", ['cs_checked_by', 'MARILYN O. RELOBA', 'Collection Sheet Checked By Signatory']);
+  await dbRun("INSERT OR IGNORE INTO tblSystemSettings (setting_key, setting_value, description) VALUES (?, ?, ?)", ['cs_encoded_by', 'IT/ACCOUNTING CLERK', 'Collection Sheet Encoded By Signatory']);
+  await dbRun("INSERT OR IGNORE INTO tblSystemSettings (setting_key, setting_value, description) VALUES (?, ?, ?)", ['cs_approved_by', 'VICTORIO L. RELOBA JR.', 'Collection Sheet Approved By Signatory']);
+
   // Preserve the original dropdown choices while making future choices
   // configurable. Existing collector values are also imported so no saved
   // assignment disappears from the configuration screen after an upgrade.

@@ -2,7 +2,7 @@ const { authorizeModule } = require('./permissions');
 
 function permissionKeysForReportPath(pathname) {
   if (/^\/expenses(?:\/|$)/.test(pathname)) return ['report:expenses-report'];
-  if (/^\/collection-sheet\/(?:field-releases|advance-client|advance-manual)(?:\/|$)/.test(pathname)) {
+  if (/^\/collection-sheet\/(?:field-releases|advance-client|advance-manual|config)(?:\/|$)/.test(pathname)) {
     return ['report:collection-sheet'];
   }
 

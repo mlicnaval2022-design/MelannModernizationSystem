@@ -849,6 +849,16 @@ export default function Reports() {
   const [advanceEditAmount, setAdvanceEditAmount] = useState('')
   const [advanceDeletingId, setAdvanceDeletingId] = useState(null)
   const [advanceManualSuccess, setAdvanceManualSuccess] = useState(null)
+  const [csConfigOpen, setCsConfigOpen] = useState(false)
+  const [csConfig, setCsConfig] = useState({
+    checkedBy: 'MARILYN O. RELOBA',
+    encodedBy: 'IT/ACCOUNTING CLERK',
+    approvedBy: 'VICTORIO L. RELOBA JR.'
+  })
+  const [csConfigLoading, setCsConfigLoading] = useState(false)
+  const [csConfigSaving, setCsConfigSaving] = useState(false)
+  const [csConfigSuccess, setCsConfigSuccess] = useState('')
+  const [csConfigError, setCsConfigError] = useState('')
   const [printMode, setPrintMode] = useState('detailed')
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const [specialAccountsTab, setSpecialAccountsTab] = useState('summary')
@@ -1009,6 +1019,63 @@ export default function Reports() {
     setAdvanceEditAmount('')
     setAdvanceManualOpen(true)
     loadAdvanceManualEntries()
+  }
+
+  const openCsConfigModal = async () => {
+    setCsConfigOpen(true)
+    setCsConfigLoading(true)
+    setCsConfigSuccess('')
+    setCsConfigError('')
+    try {
+      const res = await API.get('/reports/collection-sheet/config')
+      if (res.data) {
+        setCsConfig({
+          checkedBy: res.data.checkedBy || 'MARILYN O. RELOBA',
+          encodedBy: res.data.encodedBy || 'IT/ACCOUNTING CLERK',
+          approvedBy: res.data.approvedBy || 'VICTORIO L. RELOBA JR.'
+        })
+      }
+    } catch (err) {
+      console.error('Failed to load CS config', err)
+    } finally {
+      setCsConfigLoading(false)
+    }
+  }
+
+  const saveCsConfig = async (event) => {
+    event?.preventDefault?.()
+    setCsConfigSaving(true)
+    setCsConfigSuccess('')
+    setCsConfigError('')
+    try {
+      const res = await API.put('/reports/collection-sheet/config', csConfig)
+      const savedSigs = res.data?.signatures || csConfig
+      setCsConfig(savedSigs)
+      setCsConfigSuccess('Signatories saved successfully!')
+      setData(prev => {
+        if (!prev || active !== 'collection-sheet') return prev
+        return {
+          ...prev,
+          signatures: savedSigs
+        }
+      })
+      setTimeout(() => {
+        setCsConfigOpen(false)
+        setCsConfigSuccess('')
+      }, 1000)
+    } catch (err) {
+      setCsConfigError(err.response?.data?.error || err.message || 'Failed to save configuration.')
+    } finally {
+      setCsConfigSaving(false)
+    }
+  }
+
+  const resetCsConfigDefaults = () => {
+    setCsConfig({
+      checkedBy: 'MARILYN O. RELOBA',
+      encodedBy: 'IT/ACCOUNTING CLERK',
+      approvedBy: 'VICTORIO L. RELOBA JR.'
+    })
   }
 
   const searchAdvanceClient = async (event) => {
@@ -6279,6 +6346,9 @@ export default function Reports() {
                       <button className="btn btn-secondary" onClick={openAdvanceManualModal} disabled={loading}>
                         <Plus size={15} /> Adv. Manual Input
                       </button>
+                      <button className="btn btn-secondary" onClick={openCsConfigModal} disabled={loading}>
+                        <Settings size={15} /> CS Configuration
+                      </button>
                       <button className="btn btn-secondary" onClick={printCollectionSheet} disabled={loading}><Printer size={15} /> Print</button>
                     </>
                   ) : active === 'expenses-report' ? (
@@ -6590,6 +6660,160 @@ export default function Reports() {
                 </div>
               </div>
               <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 18 }} onClick={() => setAdvanceManualSuccess(null)}>OK</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {csConfigOpen && (
+        <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && !csConfigSaving && setCsConfigOpen(false)}>
+          <div className="modal" style={{ maxWidth: 640 }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, background: '#e0e7ff', color: '#4f46e5' }}>
+                  <Settings size={16} />
+                </span>
+                <span className="modal-title">CS Configuration</span>
+              </div>
+              <button className="modal-close" onClick={() => setCsConfigOpen(false)} disabled={csConfigSaving}>x</button>
+            </div>
+            <div className="modal-body">
+              {csConfigLoading ? (
+                <div className="empty-state">Loading signatory configuration...</div>
+              ) : (
+                <form onSubmit={saveCsConfig}>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>
+                    Configure the signatory names displayed on the printed and generated Field Collection Sheet footer.
+                  </div>
+
+                  {csConfigError && (
+                    <div style={{ padding: '8px 12px', background: '#fee2e2', color: '#b91c1c', borderRadius: 6, fontSize: 13, marginBottom: 14 }}>
+                      {csConfigError}
+                    </div>
+                  )}
+
+                  {csConfigSuccess && (
+                    <div style={{ padding: '8px 12px', background: '#dcfce7', color: '#15803d', borderRadius: 6, fontSize: 13, marginBottom: 14, fontWeight: 600 }}>
+                      {csConfigSuccess}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontWeight: 700, color: '#0D1B3D', marginBottom: 4 }}>
+                        Checked by
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="e.g. MARILYN O. RELOBA"
+                        value={csConfig.checkedBy}
+                        onChange={e => setCsConfig({ ...csConfig, checkedBy: e.target.value })}
+                        disabled={csConfigSaving}
+                        required
+                      />
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Default: MARILYN O. RELOBA</span>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontWeight: 700, color: '#0D1B3D', marginBottom: 4 }}>
+                        Encoded by
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="e.g. IT/ACCOUNTING CLERK"
+                        value={csConfig.encodedBy}
+                        onChange={e => setCsConfig({ ...csConfig, encodedBy: e.target.value })}
+                        disabled={csConfigSaving}
+                        required
+                      />
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Default: IT/ACCOUNTING CLERK</span>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontWeight: 700, color: '#0D1B3D', marginBottom: 4 }}>
+                        Approved by
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="e.g. VICTORIO L. RELOBA JR."
+                        value={csConfig.approvedBy}
+                        onChange={e => setCsConfig({ ...csConfig, approvedBy: e.target.value })}
+                        disabled={csConfigSaving}
+                        required
+                      />
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Default: VICTORIO L. RELOBA JR.</span>
+                    </div>
+                  </div>
+
+                  {/* Live Signature Footer Preview */}
+                  <div style={{ marginTop: 20, padding: 14, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>
+                      Collection Sheet Footer Preview
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, textAlign: 'center' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '7.5pt', color: '#64748b', marginBottom: 12 }}>Collector</div>
+                        <div style={{ borderBottom: '1.5px solid #000', marginBottom: 3 }}></div>
+                        <div style={{ fontWeight: 600, fontSize: '7.5pt', color: '#0D1B3D', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          [ COLLECTOR NAME ]
+                        </div>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '7.5pt', color: '#64748b', marginBottom: 12 }}>Checked by</div>
+                        <div style={{ borderBottom: '1.5px solid #000', marginBottom: 3 }}></div>
+                        <div style={{ fontWeight: 600, fontSize: '7.5pt', color: '#0D1B3D', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {csConfig.checkedBy || 'MARILYN O. RELOBA'}
+                        </div>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '7.5pt', color: '#64748b', marginBottom: 12 }}>Encoded by</div>
+                        <div style={{ borderBottom: '1.5px solid #000', marginBottom: 3 }}></div>
+                        <div style={{ fontWeight: 600, fontSize: '7.5pt', color: '#0D1B3D', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {csConfig.encodedBy || 'IT/ACCOUNTING CLERK'}
+                        </div>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '7.5pt', color: '#64748b', marginBottom: 12 }}>Approved by</div>
+                        <div style={{ borderBottom: '1.5px solid #000', marginBottom: 3 }}></div>
+                        <div style={{ fontWeight: 600, fontSize: '7.5pt', color: '#0D1B3D', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {csConfig.approvedBy || 'VICTORIO L. RELOBA JR.'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 20 }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={resetCsConfigDefaults}
+                      disabled={csConfigSaving}
+                      style={{ fontSize: 13 }}
+                    >
+                      <RefreshCcw size={14} /> Reset Defaults
+                    </button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => setCsConfigOpen(false)}
+                        disabled={csConfigSaving}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="btn btn-primary"
+                        disabled={csConfigSaving}
+                      >
+                        {csConfigSaving ? 'Saving...' : 'Save Configuration'}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         </div>
