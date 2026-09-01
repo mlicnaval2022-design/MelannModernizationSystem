@@ -478,8 +478,25 @@
 }
 
 .dl-signature p {
-  margin-bottom: 14px;
+  margin-bottom: 12px;
   text-align: left;
+}
+
+.dl-signature-block {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.dl-signature-img {
+  max-height: 52px;
+  max-width: 170px;
+  object-fit: contain;
+  margin-bottom: -16px;
+  margin-left: 6px;
+  z-index: 2;
+  pointer-events: none;
 }
 
 .dl-signature strong,
@@ -1928,6 +1945,139 @@
   color: #dc2626;
   background: #fee2e2;
   border-color: #fca5a5;
+}
+
+.signature-active-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.demand-config-signature-dropzone {
+  display: block;
+  border: 2px dashed #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 16px 20px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.demand-config-signature-dropzone:hover {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.demand-config-signature-dropzone .dropzone-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.demand-config-signature-dropzone .dropzone-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: #eff6ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.demand-config-signature-dropzone .dropzone-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.demand-config-signature-dropzone .dropzone-text strong {
+  color: #1e293b;
+  font-size: 13px;
+}
+
+.demand-config-signature-dropzone .dropzone-text small {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.demand-config-signature-preview-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.demand-config-signature-preview-wrap {
+  width: 140px;
+  height: 60px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  overflow: hidden;
+}
+
+.demand-config-signature-preview-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.demand-config-signature-preview-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.demand-config-signature-preview-info span {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.demand-config-signature-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.demand-config-change-sig-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  margin-bottom: 0;
+}
+
+.demand-config-remove-sig-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #dc2626;
+  border-color: #fecaca;
+  background: #fff;
+}
+
+.demand-config-remove-sig-btn:hover {
+  background: #fee2e2;
+  border-color: #f87171;
+  color: #b91c1c;
 }
 
 .form-hint {

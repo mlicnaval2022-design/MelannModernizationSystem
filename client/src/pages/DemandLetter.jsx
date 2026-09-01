@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import API from '../services/api'
 import letterHeadImg from '../assets/new-letter-head-logo.jpg'
 import './DemandLetter.css'
-import { ChevronDown, FileText, Printer, RefreshCw, Search, Calendar, Trash2, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, Filter, Send, ArrowRightCircle, SlidersHorizontal, RotateCcw, Check } from 'lucide-react'
+import { ChevronDown, FileText, Printer, RefreshCw, Search, Calendar, Trash2, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, Filter, Send, ArrowRightCircle, SlidersHorizontal, RotateCcw, Check, Upload } from 'lucide-react'
 
 const DEMAND_TYPES = {
   first: {
@@ -36,6 +36,7 @@ export const DEFAULT_DEMAND_CONFIG = {
   signatoryName: 'VICTORIO L. RELOBA, JR.',
   signatoryPosition: 'Operations Manager',
   companyName: 'Melann Lending Investor Corporation',
+  signatureImage: '',
 }
 
 const DEMAND_CONFIG_STORAGE_KEY = 'melann_demand_letter_config'
@@ -506,7 +507,12 @@ function DemandLetterSheet({ type, customer, loan, computation, previousDemand, 
 
         <footer className="dl-signature">
           <p>Sincerely,</p>
-          <strong>{signatoryName}</strong>
+          <div className="dl-signature-block">
+            {config?.signatureImage && (
+              <img src={config.signatureImage} alt="Electronic Signature" className="dl-signature-img" />
+            )}
+            <strong>{signatoryName}</strong>
+          </div>
           <span>{signatoryPosition}</span>
           {companyName && <span>{companyName}</span>}
         </footer>
@@ -755,6 +761,39 @@ export default function DemandLetter() {
     } finally {
       setMonitoringLoading(false)
     }
+  }
+
+  const handleSignatureUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      setErrorModal({
+        title: 'Invalid File Format',
+        message: 'Please upload an image file (PNG, JPG, WebP, or SVG).',
+        variant: 'warning',
+      })
+      return
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setErrorModal({
+        title: 'File Too Large',
+        message: 'Signature image must be less than 2MB in size.',
+        variant: 'warning',
+      })
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result
+      if (typeof dataUrl === 'string') {
+        setConfigForm(prev => ({ ...prev, signatureImage: dataUrl }))
+      }
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
   }
 
   useEffect(() => {
@@ -1920,6 +1959,68 @@ export default function DemandLetter() {
                     onChange={e => setConfigForm(prev => ({ ...prev, companyName: e.target.value }))}
                     placeholder="e.g. Melann Lending Investor Corporation"
                   />
+                </div>
+
+                <div className="form-group" style={{ marginTop: 14 }}>
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>Electronic Signature (Optional)</span>
+                    {configForm.signatureImage && (
+                      <span className="signature-active-badge">
+                        <Check size={12} /> Signature Attached
+                      </span>
+                    )}
+                  </label>
+
+                  {configForm.signatureImage ? (
+                    <div className="demand-config-signature-preview-card">
+                      <div className="demand-config-signature-preview-wrap">
+                        <img
+                          src={configForm.signatureImage}
+                          alt="Signatory Electronic Signature"
+                          className="demand-config-signature-preview-img"
+                        />
+                      </div>
+                      <div className="demand-config-signature-preview-info">
+                        <span>Current Electronic Signature</span>
+                        <div className="demand-config-signature-actions">
+                          <label className="btn btn-secondary btn-sm demand-config-change-sig-btn">
+                            <Upload size={13} /> Change
+                            <input
+                              type="file"
+                              accept="image/png, image/jpeg, image/jpg, image/webp, image/svg+xml"
+                              style={{ display: 'none' }}
+                              onChange={handleSignatureUpload}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm demand-config-remove-sig-btn"
+                            onClick={() => setConfigForm(prev => ({ ...prev, signatureImage: '' }))}
+                          >
+                            <Trash2 size={13} /> Remove
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="demand-config-signature-dropzone">
+                      <input
+                        type="file"
+                        accept="image/png, image/jpeg, image/jpg, image/webp, image/svg+xml"
+                        style={{ display: 'none' }}
+                        onChange={handleSignatureUpload}
+                      />
+                      <div className="dropzone-content">
+                        <div className="dropzone-icon">
+                          <Upload size={20} color="#2563eb" />
+                        </div>
+                        <div className="dropzone-text">
+                          <strong>Click to upload electronic signature image</strong>
+                          <small>Supports PNG, JPG, WebP, SVG (transparent background recommended)</small>
+                        </div>
+                      </div>
+                    </label>
+                  )}
                 </div>
               </div>
 
