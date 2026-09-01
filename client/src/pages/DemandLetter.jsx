@@ -41,7 +41,7 @@ export const DEFAULT_DEMAND_CONFIG = {
 
 const DEMAND_CONFIG_STORAGE_KEY = 'melann_demand_letter_config'
 
-const loadDemandConfig = () => {
+const loadLegacyDemandConfig = () => {
   try {
     const saved = localStorage.getItem(DEMAND_CONFIG_STORAGE_KEY)
     if (saved) {
@@ -50,7 +50,7 @@ const loadDemandConfig = () => {
   } catch (e) {
     console.error('Failed to load demand config from localStorage:', e)
   }
-  return DEFAULT_DEMAND_CONFIG
+  return null
 }
 
 const numberToWords = (num) => {
@@ -539,9 +539,10 @@ export default function DemandLetter() {
   const [activeTab, setActiveTab] = useState('updates')
   const [type, setType] = useState(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [demandConfig, setDemandConfig] = useState(loadDemandConfig)
+  const [demandConfig, setDemandConfig] = useState(DEFAULT_DEMAND_CONFIG)
   const [configModalOpen, setConfigModalOpen] = useState(false)
-  const [configForm, setConfigForm] = useState(demandConfig)
+  const [configForm, setConfigForm] = useState(DEFAULT_DEMAND_CONFIG)
+  const [configSaving, setConfigSaving] = useState(false)
   const [courier, setCourier] = useState('Field Personnel')
   const [asOfDate, setAsOfDate] = useState(toDateInputValue(new Date()))
   const [search, setSearch] = useState('')
@@ -659,6 +660,40 @@ export default function DemandLetter() {
   }, [monitoringRows, courierFilter, collectorFilter, statusFilter, monitoringSearch, sortField, sortOrder])
 
   const monitoringColumnCount = monitoringType === 'third' ? 13 : monitoringType === 'second' ? 12 : 11
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadSharedDemandConfig = async () => {
+      const legacyConfig = loadLegacyDemandConfig()
+      try {
+        const response = await API.get('/demand-letters/config')
+        let config = { ...DEFAULT_DEMAND_CONFIG, ...(response.data?.config || {}) }
+
+        // Preserve the existing configuration from the first PC that opens the
+        // updated system, then all subsequent PCs use the shared server copy.
+        if (!response.data?.hasSavedConfiguration && legacyConfig) {
+          const migrated = await API.put('/demand-letters/config', { config: legacyConfig })
+          config = { ...DEFAULT_DEMAND_CONFIG, ...(migrated.data?.config || legacyConfig) }
+          localStorage.removeItem(DEMAND_CONFIG_STORAGE_KEY)
+        }
+
+        if (!cancelled) {
+          setDemandConfig(config)
+          setConfigForm(config)
+        }
+      } catch {
+        // Keep the page usable during a temporary connection failure.
+        if (!cancelled && legacyConfig) {
+          setDemandConfig(legacyConfig)
+          setConfigForm(legacyConfig)
+        }
+      }
+    }
+
+    loadSharedDemandConfig()
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     const query = search.trim()
@@ -2040,17 +2075,32 @@ export default function DemandLetter() {
                   <button
                     type="button"
                     className="btn btn-primary"
-                    onClick={() => {
-                      localStorage.setItem(DEMAND_CONFIG_STORAGE_KEY, JSON.stringify(configForm))
-                      setDemandConfig(configForm)
-                      setConfigModalOpen(false)
-                      setSuccessModal({
-                        title: 'Configuration Saved',
-                        message: 'Demand Letter configuration has been successfully updated.',
-                      })
+                    disabled={configSaving}
+                    onClick={async () => {
+                      setConfigSaving(true)
+                      try {
+                        const response = await API.put('/demand-letters/config', { config: configForm })
+                        const savedConfig = { ...DEFAULT_DEMAND_CONFIG, ...(response.data?.config || configForm) }
+                        localStorage.removeItem(DEMAND_CONFIG_STORAGE_KEY)
+                        setDemandConfig(savedConfig)
+                        setConfigForm(savedConfig)
+                        setConfigModalOpen(false)
+                        setSuccessModal({
+                          title: 'Configuration Saved',
+                          message: 'Demand Letter configuration has been updated for all client PCs.',
+                        })
+                      } catch (err) {
+                        setErrorModal({
+                          title: 'Configuration Not Saved',
+                          message: err.response?.data?.error || 'Unable to save the shared Demand Letter configuration. Please try again.',
+                          variant: 'warning',
+                        })
+                      } finally {
+                        setConfigSaving(false)
+                      }
                     }}
                   >
-                    <Check size={16} /> Save Configuration
+                    <Check size={16} /> {configSaving ? 'Saving...' : 'Save Configuration'}
                   </button>
                 </div>
               </div>

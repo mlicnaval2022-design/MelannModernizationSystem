@@ -1,11 +1,26 @@
 const express = require('express');
 const { dbAll, dbGet, dbRun } = require('../db/database');
 const { authenticateToken } = require('../middleware/auth');
+const { requireModuleAccess } = require('../middleware/permissions');
 const { applyDemandPenaltyPolicy } = require('../services/demandPenaltyPolicy');
 
 const router = express.Router();
 
 const DEMAND_TYPES = new Set(['first', 'second', 'third']);
+const DEMAND_CONFIG_SETTING_KEY = 'demand_letter_config';
+const DEFAULT_DEMAND_CONFIG = {
+  firstDemandDays: 15,
+  secondDemandDays: 10,
+  contactName: 'Ms. Marilyn O. Reloba',
+  contactPosition: 'Branch Manager',
+  primaryContactNumber: '0917-1131000',
+  secondaryContactNumber: '(053) 520-1138',
+  contactEmail: 'melann.lic2016@gmail.com',
+  signatoryName: 'VICTORIO L. RELOBA, JR.',
+  signatoryPosition: 'Operations Manager',
+  companyName: 'Melann Lending Investor Corporation',
+  signatureImage: '',
+};
 const STATUSES = new Set([
   'Draft',
   'Generated',
@@ -30,6 +45,66 @@ const todayDateOnly = () => {
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   return now.toISOString().slice(0, 10);
 };
+
+const normalizeDemandConfig = value => {
+  const source = value && typeof value === 'object' ? value : {};
+  const text = (key, maxLength = 250) => String(source[key] ?? '').trim().slice(0, maxLength);
+  const days = (key, fallback) => {
+    const parsed = Number.parseInt(source[key], 10);
+    return Number.isInteger(parsed) && parsed >= 1 && parsed <= 365 ? parsed : fallback;
+  };
+  const signatureImage = text('signatureImage', 3_000_000);
+
+  return {
+    firstDemandDays: days('firstDemandDays', DEFAULT_DEMAND_CONFIG.firstDemandDays),
+    secondDemandDays: days('secondDemandDays', DEFAULT_DEMAND_CONFIG.secondDemandDays),
+    contactName: text('contactName') || DEFAULT_DEMAND_CONFIG.contactName,
+    contactPosition: text('contactPosition') || DEFAULT_DEMAND_CONFIG.contactPosition,
+    primaryContactNumber: text('primaryContactNumber') || DEFAULT_DEMAND_CONFIG.primaryContactNumber,
+    secondaryContactNumber: text('secondaryContactNumber'),
+    contactEmail: text('contactEmail'),
+    signatoryName: text('signatoryName') || DEFAULT_DEMAND_CONFIG.signatoryName,
+    signatoryPosition: text('signatoryPosition') || DEFAULT_DEMAND_CONFIG.signatoryPosition,
+    companyName: text('companyName') || DEFAULT_DEMAND_CONFIG.companyName,
+    signatureImage: signatureImage.startsWith('data:image/') ? signatureImage : '',
+  };
+};
+
+router.get('/config', authenticateToken, async (req, res) => {
+  try {
+    const saved = await dbGet(
+      'SELECT setting_value, updated_at FROM tblSystemSettings WHERE setting_key = ?',
+      [DEMAND_CONFIG_SETTING_KEY]
+    );
+    let config = DEFAULT_DEMAND_CONFIG;
+    if (saved?.setting_value) {
+      try {
+        config = normalizeDemandConfig(JSON.parse(saved.setting_value));
+      } catch (_) {
+        // A malformed legacy value must not prevent demand letters from loading.
+      }
+    }
+    res.json({ config, hasSavedConfiguration: Boolean(saved), updatedAt: saved?.updated_at || null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/config', authenticateToken, requireModuleAccess('crud'), async (req, res) => {
+  try {
+    const config = normalizeDemandConfig(req.body?.config);
+    await dbRun(`
+      INSERT INTO tblSystemSettings (setting_key, setting_value, description, updated_at)
+      VALUES (?, ?, ?, datetime('now'))
+      ON CONFLICT(setting_key) DO UPDATE SET
+        setting_value = excluded.setting_value,
+        updated_at = excluded.updated_at
+    `, [DEMAND_CONFIG_SETTING_KEY, JSON.stringify(config), 'Shared Demand Letter configuration']);
+    res.json({ message: 'Demand Letter configuration updated successfully', config });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 const normalizeDemandType = value => {
   const text = String(value || '').trim().toLowerCase();

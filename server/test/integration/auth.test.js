@@ -477,6 +477,46 @@ test('demand letter creation and deletion endpoint', async () => {
   assert.equal(checkDb, undefined);
 });
 
+test('Demand Letter configuration is stored on the server for every client PC', async () => {
+  const login = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: 'admin123' }),
+  });
+  const { token } = await login.json();
+  const headers = { 'content-type': 'application/json', authorization: `Bearer ${token}` };
+
+  const beforeSave = await fetch(`${baseUrl}/api/demand-letters/config`, { headers });
+  const beforeBody = await beforeSave.json();
+  assert.equal(beforeSave.status, 200, beforeBody.error);
+  assert.equal(beforeBody.hasSavedConfiguration, false);
+
+  const save = await fetch(`${baseUrl}/api/demand-letters/config`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({
+      config: {
+        firstDemandDays: 21,
+        secondDemandDays: 12,
+        contactName: 'Shared Contact',
+        signatoryName: 'Shared Signatory',
+      },
+    }),
+  });
+  const savedBody = await save.json();
+  assert.equal(save.status, 200, savedBody.error);
+  assert.equal(savedBody.config.firstDemandDays, 21);
+  assert.equal(savedBody.config.contactName, 'Shared Contact');
+
+  const secondClientRead = await fetch(`${baseUrl}/api/demand-letters/config`, { headers });
+  const sharedBody = await secondClientRead.json();
+  assert.equal(secondClientRead.status, 200, sharedBody.error);
+  assert.equal(sharedBody.hasSavedConfiguration, true);
+  assert.equal(sharedBody.config.firstDemandDays, 21);
+  assert.equal(sharedBody.config.secondDemandDays, 12);
+  assert.equal(sharedBody.config.signatoryName, 'Shared Signatory');
+});
+
 test('second demand is rejected when the client loan has no first demand', async () => {
   const login = await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',

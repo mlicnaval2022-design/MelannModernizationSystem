@@ -99,7 +99,9 @@ function createApp() {
     }
     next();
   });
-  app.use(express.json({ limit: '1mb' }));
+  // Demand Letter configuration may include a signature image encoded as data.
+  // Two megabyte image files expand when encoded, so allow enough room for it.
+  app.use(express.json({ limit: '4mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
   app.use('/uploads', authenticateToken, express.static(uploadsRoot, {
     dotfiles: 'deny',
