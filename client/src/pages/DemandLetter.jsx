@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import API from '../services/api'
 import letterHeadImg from '../assets/new-letter-head-logo.jpg'
 import './DemandLetter.css'
-import { ChevronDown, FileText, Printer, RefreshCw, Search, Calendar, Trash2, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, Filter, Send, ArrowRightCircle } from 'lucide-react'
+import { ChevronDown, FileText, Printer, RefreshCw, Search, Calendar, Trash2, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, Filter, Send, ArrowRightCircle, SlidersHorizontal, RotateCcw, Check } from 'lucide-react'
 
 const DEMAND_TYPES = {
   first: {
@@ -24,6 +24,47 @@ const MONITORING_TYPES = [
   { key: 'second', label: '2nd Demand' },
   { key: 'third', label: '3rd Demand Letter' },
 ]
+
+export const DEFAULT_DEMAND_CONFIG = {
+  firstDemandDays: 15,
+  secondDemandDays: 10,
+  contactName: 'Ms. Marilyn O. Reloba',
+  contactPosition: 'Branch Manager',
+  primaryContactNumber: '0917-1131000',
+  secondaryContactNumber: '(053) 520-1138',
+  contactEmail: 'melann.lic2016@gmail.com',
+  signatoryName: 'VICTORIO L. RELOBA, JR.',
+  signatoryPosition: 'Operations Manager',
+  companyName: 'Melann Lending Investor Corporation',
+}
+
+const DEMAND_CONFIG_STORAGE_KEY = 'melann_demand_letter_config'
+
+const loadDemandConfig = () => {
+  try {
+    const saved = localStorage.getItem(DEMAND_CONFIG_STORAGE_KEY)
+    if (saved) {
+      return { ...DEFAULT_DEMAND_CONFIG, ...JSON.parse(saved) }
+    }
+  } catch (e) {
+    console.error('Failed to load demand config from localStorage:', e)
+  }
+  return DEFAULT_DEMAND_CONFIG
+}
+
+const numberToWords = (num) => {
+  const n = parseInt(num, 10)
+  if (isNaN(n) || n < 0) return String(num || '')
+  if (n === 0) return 'zero'
+  const ones = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen']
+  const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety']
+  if (n < 20) return ones[n] || String(n)
+  if (n < 100) {
+    const rem = n % 10
+    return tens[Math.floor(n / 10)] + (rem ? `-${ones[rem]}` : '')
+  }
+  return String(n)
+}
 
 const parseLocalDate = (value) => {
   if (!value) return null
@@ -56,15 +97,15 @@ const toDateInputValue = (value) => {
   return local.toISOString().slice(0, 10)
 }
 
-const getDemandFollowUpDays = (demandType) => {
-  if (demandType === 'second') return 10
-  if (demandType === 'first') return 15
+const getDemandFollowUpDays = (demandType, config) => {
+  if (demandType === 'second') return Number(config?.secondDemandDays) || 10
+  if (demandType === 'first') return Number(config?.firstDemandDays) || 15
   return 0
 }
 
-const getFollowUpDate = (dateReceived, demandType) => {
+const getFollowUpDate = (dateReceived, demandType, config) => {
   const receivedDate = parseLocalDate(dateReceived)
-  const days = getDemandFollowUpDays(demandType)
+  const days = getDemandFollowUpDays(demandType, config)
   if (!receivedDate || !days) return ''
   return toDateInputValue(addDays(receivedDate, days))
 }
@@ -317,7 +358,7 @@ const formatClientName = (customer) => {
   return fullName.toUpperCase()
 }
 
-function DemandLetterSheet({ type, customer, loan, computation, previousDemand }) {
+function DemandLetterSheet({ type, customer, loan, computation, previousDemand, config = DEFAULT_DEMAND_CONFIG }) {
   const fullName = formatClientName(customer)
   const addressParts = buildAddressParts(customer)
   const today = computation?.datePrepared || new Date()
@@ -326,6 +367,33 @@ function DemandLetterSheet({ type, customer, loan, computation, previousDemand }
   const penaltyCharges = computation?.totalPenalty || 0
   const totalDue = computation?.updatedAmountDue || 0
   const previousDemandReceivedDate = previousDemand?.date_received || ''
+
+  const firstDemandDays = config?.firstDemandDays ?? 15
+  const secondDemandDays = config?.secondDemandDays ?? 10
+  const contactName = config?.contactName || 'Ms. Marilyn O. Reloba'
+  const contactPosition = config?.contactPosition || 'Branch Manager'
+  const primaryNum = String(config?.primaryContactNumber || '').trim()
+  const secondaryNum = String(config?.secondaryContactNumber || '').trim()
+  const contactEmail = String(config?.contactEmail || '').trim()
+  const signatoryName = config?.signatoryName || 'VICTORIO L. RELOBA, JR.'
+  const signatoryPosition = config?.signatoryPosition || 'Operations Manager'
+  const companyName = config?.companyName || 'Melann Lending Investor Corporation'
+
+  let contactNumbersText = ''
+  if (primaryNum && secondaryNum) {
+    contactNumbersText = `at ${primaryNum} or ${secondaryNum}`
+  } else if (primaryNum) {
+    contactNumbersText = `at ${primaryNum}`
+  } else if (secondaryNum) {
+    contactNumbersText = `at ${secondaryNum}`
+  }
+
+  let emailText = ''
+  if (contactEmail) {
+    emailText = contactNumbersText ? `or thru our email address ${contactEmail}` : `thru our email address ${contactEmail}`
+  }
+
+  const contactChannels = [contactNumbersText, emailText].filter(Boolean).join(' ')
 
   return (
     <div id="printable-area" className="demand-letter-sheet">
@@ -406,8 +474,7 @@ function DemandLetterSheet({ type, customer, loan, computation, previousDemand }
         {type === 'first' ? (
           <>
             <p>
-              Despite previous reminders, we have not received your payment. You are hereby given fifteen <strong>(15)</strong>
-              calendar days from receipt of this letter to settle the above-mentioned amount in full.
+              Despite previous reminders, we have not received your payment. You are hereby given {numberToWords(firstDemandDays)} <strong>({firstDemandDays})</strong> calendar days from receipt of this letter to settle the above-mentioned amount in full.
             </p>
 
             <p>
@@ -418,7 +485,7 @@ function DemandLetterSheet({ type, customer, loan, computation, previousDemand }
           </>
         ) : (
           <p>
-            Please settle the full amount within ten <strong>(10)</strong> calendar days from receipt of this letter. If no
+            Please settle the full amount within {numberToWords(secondDemandDays)} <strong>({secondDemandDays})</strong> calendar days from receipt of this letter. If no
             payment is made within this period, we will be forced to endorse your account for legal or collection action
             without prior notice.
           </p>
@@ -426,9 +493,7 @@ function DemandLetterSheet({ type, customer, loan, computation, previousDemand }
 
         <p>
           You may settle your payment at our office or through payment channels like Gcash. Please contact
-          <strong> Ms. Marilyn O. Reloba</strong>, Branch Manager at 0917-1131000 or
-          (053) 520-1138 or thru our email address melann.lic2016@gmail.com should you wish to discuss this matter or
-          request a detailed statement of account.
+          <strong> {contactName}</strong>{contactPosition ? `, ${contactPosition}` : ''} {contactChannels ? `${contactChannels} ` : ''}should you wish to discuss this matter or request a detailed statement of account.
         </p>
 
         <p>
@@ -441,9 +506,9 @@ function DemandLetterSheet({ type, customer, loan, computation, previousDemand }
 
         <footer className="dl-signature">
           <p>Sincerely,</p>
-          <strong>VICTORIO L. RELOBA, JR.</strong>
-          <span>Operations Manager</span>
-          <span>Melann Lending Investor Corporation</span>
+          <strong>{signatoryName}</strong>
+          <span>{signatoryPosition}</span>
+          {companyName && <span>{companyName}</span>}
         </footer>
 
         <section className="dl-received">
@@ -468,6 +533,9 @@ export default function DemandLetter() {
   const [activeTab, setActiveTab] = useState('updates')
   const [type, setType] = useState(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [demandConfig, setDemandConfig] = useState(loadDemandConfig)
+  const [configModalOpen, setConfigModalOpen] = useState(false)
+  const [configForm, setConfigForm] = useState(demandConfig)
   const [courier, setCourier] = useState('Field Personnel')
   const [asOfDate, setAsOfDate] = useState(toDateInputValue(new Date()))
   const [search, setSearch] = useState('')
@@ -827,7 +895,7 @@ export default function DemandLetter() {
       ...row,
       courier: row.courier || 'Field Personnel',
       date_received: dateReceived,
-      follow_up_date: row.follow_up_date || getFollowUpDate(dateReceived, row.demand_type),
+      follow_up_date: row.follow_up_date || getFollowUpDate(dateReceived, row.demand_type, demandConfig),
       remarks: row.remarks || '',
       saving: false,
       error: '',
@@ -839,7 +907,7 @@ export default function DemandLetter() {
       if (!prev) return prev
       const next = { ...prev, ...patch }
       if (patch.date_received !== undefined) {
-        next.follow_up_date = getFollowUpDate(patch.date_received, prev.demand_type)
+        next.follow_up_date = getFollowUpDate(patch.date_received, prev.demand_type, demandConfig)
       }
       return next
     })
@@ -1156,30 +1224,44 @@ export default function DemandLetter() {
               </div>
             </div>
 
-            <div className="demand-letter-generate">
-              <button className="btn btn-primary" onClick={() => setMenuOpen(open => !open)}>
-                <FileText size={16} /> Generate <ChevronDown size={15} />
+            <div className="demand-letter-toolbar-actions">
+              <button
+                type="button"
+                className="btn btn-secondary demand-config-toolbar-btn"
+                onClick={() => {
+                  setConfigForm(demandConfig)
+                  setConfigModalOpen(true)
+                }}
+                title="Configure Demand Letter Variables & Details"
+              >
+                <SlidersHorizontal size={15} /> Demand Configuration
               </button>
-              {menuOpen && (
-                <div className="demand-letter-menu">
-                  {Object.entries(DEMAND_TYPES).filter(([key]) => key !== 'third').map(([key, item]) => (
-                    <button
-                      key={key}
-                      onClick={() => {
-                        setType(key)
-                        setMenuOpen(false)
-                      }}
-                    >
-                      <FileText size={15} /> {item.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
 
-            <button className="btn btn-secondary" onClick={handlePrint} disabled={!type || !selectedCustomer || !selectedLoan || savingRecord}>
-              <Printer size={16} /> {savingRecord ? 'Saving...' : 'Print'}
-            </button>
+              <div className="demand-letter-generate">
+                <button className="btn btn-primary" onClick={() => setMenuOpen(open => !open)}>
+                  <FileText size={16} /> Generate <ChevronDown size={15} />
+                </button>
+                {menuOpen && (
+                  <div className="demand-letter-menu">
+                    {Object.entries(DEMAND_TYPES).filter(([key]) => key !== 'third').map(([key, item]) => (
+                      <button
+                        key={key}
+                        onClick={() => {
+                          setType(key)
+                          setMenuOpen(false)
+                        }}
+                      >
+                        <FileText size={15} /> {item.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button className="btn btn-secondary" onClick={handlePrint} disabled={!type || !selectedCustomer || !selectedLoan || savingRecord}>
+                <Printer size={16} /> {savingRecord ? 'Saving...' : 'Print'}
+              </button>
+            </div>
           </div>
 
           {error && <div className="login-error">{error}</div>}
@@ -1215,6 +1297,7 @@ export default function DemandLetter() {
                   loan={selectedLoan}
                   computation={computation}
                   previousDemand={previousDemand}
+                  config={demandConfig}
                 />
               ) : (
                 <div className="demand-letter-empty">Click Generate and choose a demand letter format.</div>
@@ -1225,9 +1308,22 @@ export default function DemandLetter() {
               {type ? (
                 <div className="card">
                   <div className="card-header">
-                    <div>
-                      <div className="card-title">{DEMAND_TYPES[type].label}</div>
-                      <div className="card-subtitle">Printable 8.5 x 13 demand letter</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', gap: 8 }}>
+                      <div>
+                        <div className="card-title">{DEMAND_TYPES[type].label}</div>
+                        <div className="card-subtitle">Printable 8.5 x 13 demand letter</div>
+                      </div>
+                      <button
+                        type="button"
+                        className="demand-config-mini-btn"
+                        onClick={() => {
+                          setConfigForm(demandConfig)
+                          setConfigModalOpen(true)
+                        }}
+                        title="Configure Demand Letter Template"
+                      >
+                        <SlidersHorizontal size={13} /> Configure
+                      </button>
                     </div>
                   </div>
                   <div className="demand-detail-list">
@@ -1670,6 +1766,192 @@ export default function DemandLetter() {
                 <button className="btn btn-primary" onClick={saveReceivedDetails} disabled={!receivedModal.date_received || receivedModal.saving}>
                   {receivedModal.saving ? 'Saving...' : 'Save Received'}
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {configModalOpen && (
+        <div className="modal-overlay demand-modal-overlay" onMouseDown={e => e.target === e.currentTarget && setConfigModalOpen(false)}>
+          <div className="modal demand-received-modal demand-config-modal-dialog">
+            <div className="modal-header">
+              <span className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#1e293b' }}>
+                <SlidersHorizontal size={20} color="#2563eb" /> Demand Configuration
+              </span>
+              <button className="modal-close" onClick={() => setConfigModalOpen(false)}>x</button>
+            </div>
+            <div className="modal-body demand-config-modal-body">
+              <p className="demand-config-intro">
+                Customize variables, notice calendar days, contact details, and the signatory section for generated demand letters.
+              </p>
+
+              <div className="demand-config-section">
+                <h4 className="demand-config-section-title">
+                  <Calendar size={15} color="#2563eb" /> Calendar Days / Notice Period
+                </h4>
+                <div className="demand-config-grid">
+                  <div className="form-group">
+                    <label className="form-label">1st Demand Notice (Days)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="365"
+                      className="form-control"
+                      value={configForm.firstDemandDays ?? ''}
+                      onChange={e => setConfigForm(prev => ({ ...prev, firstDemandDays: parseInt(e.target.value, 10) || '' }))}
+                      placeholder="e.g. 15"
+                    />
+                    <small className="form-hint">Rendered in 1st Demand Letter (e.g. fifteen (15) calendar days)</small>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">2nd Demand Notice (Days)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="365"
+                      className="form-control"
+                      value={configForm.secondDemandDays ?? ''}
+                      onChange={e => setConfigForm(prev => ({ ...prev, secondDemandDays: parseInt(e.target.value, 10) || '' }))}
+                      placeholder="e.g. 10"
+                    />
+                    <small className="form-hint">Rendered in 2nd Demand Letter (e.g. ten (10) calendar days)</small>
+                  </div>
+                </div>
+              </div>
+
+              <div className="demand-config-section">
+                <h4 className="demand-config-section-title">
+                  <FileText size={15} color="#2563eb" /> Contact Details (For Client Inquiries)
+                </h4>
+                <div className="demand-config-grid">
+                  <div className="form-group">
+                    <label className="form-label">Contact Person Name</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={configForm.contactName || ''}
+                      onChange={e => setConfigForm(prev => ({ ...prev, contactName: e.target.value }))}
+                      placeholder="e.g. Ms. Marilyn O. Reloba"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Position / Designation</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={configForm.contactPosition || ''}
+                      onChange={e => setConfigForm(prev => ({ ...prev, contactPosition: e.target.value }))}
+                      placeholder="e.g. Branch Manager"
+                    />
+                  </div>
+                </div>
+
+                <div className="demand-config-grid">
+                  <div className="form-group">
+                    <label className="form-label">Primary Contact Number (Option 1)</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={configForm.primaryContactNumber || ''}
+                      onChange={e => setConfigForm(prev => ({ ...prev, primaryContactNumber: e.target.value }))}
+                      placeholder="e.g. 0917-1131000"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Secondary Contact Number (Option 2 - Optional)</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={configForm.secondaryContactNumber || ''}
+                      onChange={e => setConfigForm(prev => ({ ...prev, secondaryContactNumber: e.target.value }))}
+                      placeholder="e.g. (053) 520-1138 (leave blank if only 1 number)"
+                    />
+                  </div>
+                </div>
+                <div className="demand-config-helper-note">
+                  💡 If only 1 contact number is provided, only that single number will appear in the letter without leaving any blank or extra text.
+                </div>
+
+                <div className="form-group" style={{ marginTop: 10 }}>
+                  <label className="form-label">Email Address (Optional)</label>
+                  <input
+                    type="email"
+                    className="form-control"
+                    value={configForm.contactEmail || ''}
+                    onChange={e => setConfigForm(prev => ({ ...prev, contactEmail: e.target.value }))}
+                    placeholder="e.g. melann.lic2016@gmail.com"
+                  />
+                </div>
+              </div>
+
+              <div className="demand-config-section">
+                <h4 className="demand-config-section-title">
+                  <Check size={15} color="#2563eb" /> Signatory Details ("Sincerely" Section)
+                </h4>
+                <div className="demand-config-grid">
+                  <div className="form-group">
+                    <label className="form-label">Signatory Full Name</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={configForm.signatoryName || ''}
+                      onChange={e => setConfigForm(prev => ({ ...prev, signatoryName: e.target.value }))}
+                      placeholder="e.g. VICTORIO L. RELOBA, JR."
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Position / Designation</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={configForm.signatoryPosition || ''}
+                      onChange={e => setConfigForm(prev => ({ ...prev, signatoryPosition: e.target.value }))}
+                      placeholder="e.g. Operations Manager"
+                    />
+                  </div>
+                </div>
+                <div className="form-group" style={{ marginTop: 10 }}>
+                  <label className="form-label">Company / Entity Name</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={configForm.companyName || ''}
+                    onChange={e => setConfigForm(prev => ({ ...prev, companyName: e.target.value }))}
+                    placeholder="e.g. Melann Lending Investor Corporation"
+                  />
+                </div>
+              </div>
+
+              <div className="demand-modal-actions demand-config-modal-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary demand-config-reset-btn"
+                  onClick={() => setConfigForm(DEFAULT_DEMAND_CONFIG)}
+                  title="Restore default configuration"
+                >
+                  <RotateCcw size={14} /> Reset Defaults
+                </button>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setConfigModalOpen(false)}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      localStorage.setItem(DEMAND_CONFIG_STORAGE_KEY, JSON.stringify(configForm))
+                      setDemandConfig(configForm)
+                      setConfigModalOpen(false)
+                      setSuccessModal({
+                        title: 'Configuration Saved',
+                        message: 'Demand Letter configuration has been successfully updated.',
+                      })
+                    }}
+                  >
+                    <Check size={16} /> Save Configuration
+                  </button>
+                </div>
               </div>
             </div>
           </div>

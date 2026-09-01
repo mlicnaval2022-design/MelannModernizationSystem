@@ -87,7 +87,12 @@ const manifest = {
 fs.writeFileSync(path.join(stagingRoot, 'BLANK_PACKAGE_MANIFEST.json'), JSON.stringify(manifest, null, 2));
 
 fs.rmSync(zipPath, { force: true });
-const result = require('node:child_process').spawnSync('tar.exe', ['-a', '-c', '-f', zipPath, '-C', stagingRoot, '.'], {
+const zipScript = path.join(__dirname, 'createWindowsZip.ps1');
+const result = require('node:child_process').spawnSync('powershell.exe', [
+  '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', zipScript,
+  '-SourcePath', stagingRoot,
+  '-DestinationPath', zipPath,
+], {
   stdio: 'inherit',
 });
 if (result.status !== 0) {

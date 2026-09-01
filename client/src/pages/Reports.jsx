@@ -10,6 +10,7 @@ import DeathCertificateModal from '../components/DeathCertificateModal'
 import { useAuth } from '../context/AuthContext'
 import { reportPermissionKey } from '../access'
 import { buildAdaptiveCollectionSheetPages } from '../utils/collectionSheetLayout'
+import marissaSignature from '../assets/marissa-entero-signature.png'
 import {
   AlertTriangle,
   ArrowUp,
@@ -1900,8 +1901,12 @@ export default function Reports() {
       .disclosure-pdf-export .ds-section:last-of-type .ds-grid-2 { gap: 0.035in 0.18in !important; }
       .disclosure-pdf-export .ds-section:last-of-type .ds-field { font-size: 7.5pt !important; min-height: 0.13in !important; }
       .disclosure-pdf-export .ds-section:last-of-type .ds-field b { min-height: 0.105in !important; }
-      .disclosure-pdf-export .ds-signatures { gap: 0.16in !important; margin: 0.36in 0 0.12in !important; }
+      .disclosure-pdf-export .ds-signatures { grid-template-columns: 2.65in !important; margin: 0.16in 0 0.08in !important; }
       .disclosure-pdf-export .ds-signature { font-size: 6.7pt !important; }
+      .disclosure-pdf-export .ds-certified-signature { padding-top: 0.45in !important; position: relative !important; }
+      .disclosure-pdf-export .ds-manager-signature-img { position: absolute !important; left: 50% !important; bottom: 0.19in !important; width: 1.55in !important; max-height: 0.58in !important; transform: translateX(-50%) !important; object-fit: contain !important; filter: drop-shadow(0.15px 0px 0px #000) drop-shadow(-0.15px 0px 0px #000) drop-shadow(0px 0.15px 0px #000) drop-shadow(0px -0.15px 0px #000) !important; }
+      .disclosure-pdf-export .ds-signer-name { letter-spacing: 0.15px !important; }
+      .disclosure-pdf-export .ds-signer-position { margin-top: 0.01in !important; }
       .disclosure-pdf-export .ds-line { border-top: 1.4px solid #253a61 !important; margin-bottom: 0.04in !important; }
       .disclosure-pdf-export .ds-ack { font-size: 7.15pt !important; line-height: 1.1 !important; margin: 0.075in 0 !important; }
       .disclosure-pdf-export .ds-clause { font-size: 6.9pt !important; line-height: 1.1 !important; }
@@ -3331,8 +3336,9 @@ export default function Reports() {
                 <div style={{ color: '#142b57', fontWeight: 900, marginTop: 22 }}>CERTIFIED CORRECT:</div>
                 <div className="ds-signatures">
                   <div className="ds-signature ds-certified-signature">
+                    <img className="ds-manager-signature-img" src={marissaSignature} alt="Marissa P. Entero signature" />
                     <div className="ds-line"></div>
-                    <div className="ds-signer-name">MARILYN O. RELOBA</div>
+                    <div className="ds-signer-name">MARISSA P. ENTERO</div>
                     <div className="ds-signer-position">Branch Manager</div>
                   </div>
                 </div>
