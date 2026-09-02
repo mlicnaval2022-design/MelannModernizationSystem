@@ -2928,18 +2928,21 @@ export default function CollectorPerformance() {
                   ) : collectionRows.length ? collectionRows.map(collector => {
                     const latestRow = collector.rows.find(row => row.date === filters.date_to) || collector.rows[collector.rows.length - 1] || {}
                     const cardEdit = collectorEdits[collector.id] || {}
-                    const includeRecon = cardEdit.includeReconInDailyTarget === true
-                    const summary = getCollectorCollectionTotals(collector.rows, includeRecon)
                     const standardDailyTarget = Number(latestRow.dailyTarget || 0)
-                    const withReconDailyTarget = standardDailyTarget + (includeRecon ? Number(latestRow.reconTarget || 0) : 0)
-                    const withReconRate = withReconDailyTarget > 0 ? (Number(latestRow.actual || 0) / withReconDailyTarget) * 100 : 0
-                    const withReconPassed = withReconRate >= 85
-                    const weeklyTarget = withReconDailyTarget * 6
-                    const remarkStyle = getRemarkStyle(summary.remark)
+                    const reconDailyTarget = Number(latestRow.reconTarget || 0)
+                    const withReconEnabled = cardEdit.includeReconInDailyTarget === true
 
-                    return (
+                    return [
+                      { key: 'standard', withRecon: false },
+                      ...(withReconEnabled ? [{ key: 'with-recon', withRecon: true }] : [])
+                    ].map(cardMode => {
+                      const dailyTarget = standardDailyTarget + (cardMode.withRecon ? reconDailyTarget : 0)
+                      const summary = getCollectorCollectionTotals(collector.rows, cardMode.withRecon)
+                      const weeklyTarget = dailyTarget * 6
+                      const remarkStyle = getRemarkStyle(summary.remark)
+                      return (
                       <div
-                        key={`collector-collection-${collector.id}`}
+                        key={`collector-collection-${collector.id}-${cardMode.key}`}
                         role="button"
                         tabIndex={0}
                         onClick={() => setSelectedCollectionId(collector.id)}
@@ -2947,10 +2950,10 @@ export default function CollectorPerformance() {
                           if (e.key === 'Enter' || e.key === ' ') setSelectedCollectionId(collector.id)
                         }}
                         style={{
-                        border: '1px solid var(--border)',
+                        border: cardMode.withRecon ? '1px solid #93c5fd' : '1px solid var(--border)',
                         borderRadius: 14,
                         overflow: 'hidden',
-                        background: '#fff',
+                        background: cardMode.withRecon ? '#f8fbff' : '#fff',
                         boxShadow: '0 12px 26px rgba(15, 23, 42, 0.08)',
                         padding: 24,
                         cursor: 'pointer'
@@ -2981,7 +2984,7 @@ export default function CollectorPerformance() {
                               ) : getCollectorInitials(cardEdit.fullName || collector.name)}
                             </div>
                             <div style={{ minWidth: 0, overflow: 'hidden' }}>
-                              <div style={{ fontSize: 20, lineHeight: 1.15, fontWeight: 900, textTransform: 'uppercase', color: '#0f172a', overflowWrap: 'anywhere' }}>{cardEdit.fullName || collector.name}</div>
+                              <div style={{ fontSize: 20, lineHeight: 1.15, fontWeight: 900, textTransform: 'uppercase', color: cardMode.withRecon ? '#1d4ed8' : '#0f172a', overflowWrap: 'anywhere' }}>{cardEdit.fullName || collector.name}{cardMode.withRecon && <div style={{ marginTop: 4, fontSize: 11, letterSpacing: 1.1 }}>WITH RECON</div>}</div>
                               <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 4, color: '#475569', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', overflowWrap: 'anywhere' }}>
                                 <MapPin size={14} /> {cardEdit.area || getCollectorArea(collector.name)}
                               </div>
@@ -3012,26 +3015,21 @@ export default function CollectorPerformance() {
                           </div>
                         </div>
 
-                        <label onClick={event => event.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, color: '#1d4ed8', fontSize: 12, fontWeight: 900, cursor: reconTargetConfigSaving[collector.id] ? 'wait' : 'pointer' }}>
+                        {!cardMode.withRecon && <label onClick={event => event.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, color: '#1d4ed8', fontSize: 12, fontWeight: 900, cursor: reconTargetConfigSaving[collector.id] ? 'wait' : 'pointer' }}>
                           <input
                             type="checkbox"
-                            checked={includeRecon}
+                            checked={withReconEnabled}
                             disabled={isWeekLocked || reconTargetConfigSaving[collector.id]}
                             onChange={event => updateCollectorReconTargetConfig(collector.id, event.target.checked)}
                           />
                           With Recon
-                        </label>
+                        </label>}
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 16, marginTop: 24 }}>
                           <div style={{ background: '#f1f5f9', borderRadius: 8, padding: '17px 18px' }}>
-                            <div style={{ color: '#334155', fontSize: 11, fontWeight: 800 }}>Standard Daily Target</div>
-                            <div style={{ marginTop: 7, color: '#0f172a', fontSize: 20, fontWeight: 900 }}>PHP {fmt(standardDailyTarget)}</div>
+                            <div style={{ color: cardMode.withRecon ? '#2563eb' : '#334155', fontSize: 11, fontWeight: 800 }}>{cardMode.withRecon ? 'With Recon Daily Target' : 'Standard Daily Target'}</div>
+                            <div style={{ marginTop: 7, color: cardMode.withRecon ? '#1d4ed8' : '#0f172a', fontSize: 20, fontWeight: 900 }}>PHP {fmt(dailyTarget)}</div>
                           </div>
-                          {includeRecon && <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '17px 18px' }}>
-                            <div style={{ color: '#2563eb', fontSize: 11, fontWeight: 900 }}>With Recon</div>
-                            <div style={{ marginTop: 7, color: '#1d4ed8', fontSize: 20, fontWeight: 900 }}>PHP {fmt(withReconDailyTarget)}</div>
-                            <div style={{ marginTop: 8, color: withReconPassed ? '#059669' : '#e11d48', fontSize: 11, fontWeight: 900 }}>{withReconPassed ? 'PASSED' : 'NEEDS IMPROVEMENT'} · {withReconRate.toFixed(0)}%</div>
-                          </div>}
                           <div style={{ background: '#f1f5f9', borderRadius: 8, padding: '17px 18px' }}>
                             <div style={{ color: '#334155', fontSize: 11, fontWeight: 800 }}>Daily Actual</div>
                             <div style={{ marginTop: 7, color: '#e11d48', fontSize: 20, fontWeight: 900 }}>PHP {fmt(Number(latestRow.actual || 0))}</div>
@@ -3060,7 +3058,8 @@ export default function CollectorPerformance() {
                           <Edit3 size={16} /> Input Daily Data
                         </button>
                       </div>
-                    )
+                      )
+                    })
                   }) : (
                     <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>No collection dates loaded.</div>
                   )}
