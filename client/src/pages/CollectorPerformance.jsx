@@ -3014,14 +3014,15 @@ export default function CollectorPerformance() {
                           With Recon
                         </label>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16, marginTop: 24 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 16, marginTop: 24 }}>
                           <div style={{ background: '#f1f5f9', borderRadius: 8, padding: '17px 18px' }}>
-                            <div style={{ color: '#334155', fontSize: 11, fontWeight: 800 }}>Daily Target</div>
-                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginTop: 7 }}>
-                              <div><div style={{ color: '#64748b', fontSize: 10, fontWeight: 800 }}>STANDARD</div><div style={{ color: '#0f172a', fontSize: 20, fontWeight: 900 }}>PHP {fmt(standardDailyTarget)}</div></div>
-                              {includeRecon && <div style={{ paddingLeft: 12, borderLeft: '1px solid #bfdbfe' }}><div style={{ color: '#2563eb', fontSize: 10, fontWeight: 900 }}>WITH RECON</div><div style={{ color: '#1d4ed8', fontSize: 20, fontWeight: 900 }}>PHP {fmt(withReconDailyTarget)}</div></div>}
-                            </div>
+                            <div style={{ color: '#334155', fontSize: 11, fontWeight: 800 }}>Standard Daily Target</div>
+                            <div style={{ marginTop: 7, color: '#0f172a', fontSize: 20, fontWeight: 900 }}>PHP {fmt(standardDailyTarget)}</div>
                           </div>
+                          {includeRecon && <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '17px 18px' }}>
+                            <div style={{ color: '#2563eb', fontSize: 11, fontWeight: 900 }}>With Recon Daily Target</div>
+                            <div style={{ marginTop: 7, color: '#1d4ed8', fontSize: 20, fontWeight: 900 }}>PHP {fmt(withReconDailyTarget)}</div>
+                          </div>}
                           <div style={{ background: '#f1f5f9', borderRadius: 8, padding: '17px 18px' }}>
                             <div style={{ color: '#334155', fontSize: 11, fontWeight: 800 }}>Daily Actual</div>
                             <div style={{ marginTop: 7, color: '#e11d48', fontSize: 20, fontWeight: 900 }}>PHP {fmt(Number(latestRow.actual || 0))}</div>
