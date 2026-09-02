@@ -2330,7 +2330,13 @@ export default function CollectorPerformance() {
                   <tr><th style={{ border: '1px solid #000', padding: 5 }}>Daily</th><th style={{ border: '1px solid #000', padding: 5 }}>Weekly</th></tr>
                 </thead>
                 <tbody>
-                  {collector.rows.map(row => <tr key={`print-row-${collector.id}-${row.date}`}><td style={{ border: '1px solid #000', padding: 4 }}>{printDate(row.date)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{printAmount(row.dailyTarget)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{printAmount(row.weeklyTarget)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{printAmount(row.actual)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{row.rate.toFixed(2)}%</td><td style={{ border: '1px solid #000', padding: 4 }}>{row.remark}</td></tr>)}
+                  {collector.rows.map(row => {
+                    const withReconTarget = Number(row.dailyTarget || 0) + Number(row.reconTarget || 0)
+                    const printTarget = edit.includeReconInDailyTarget === true ? withReconTarget : Number(row.dailyTarget || 0)
+                    const printRate = printTarget > 0 ? (Number(row.actual || 0) / printTarget) * 100 : 0
+                    const printRemark = getCollectionRemark(printRate)
+                    return <tr key={`print-row-${collector.id}-${row.date}`}><td style={{ border: '1px solid #000', padding: 4 }}>{printDate(row.date)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{edit.includeReconInDailyTarget === true ? <><div>Standard: {printAmount(row.dailyTarget)}</div><div style={{ color: '#1d4ed8', fontWeight: 800 }}>With Recon: {printAmount(withReconTarget)}</div></> : printAmount(row.dailyTarget)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{printAmount(printTarget * 6)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{printAmount(row.actual)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{printRate.toFixed(2)}%</td><td style={{ border: '1px solid #000', padding: 4 }}>{printRemark}</td></tr>
+                  })}
                   <tr><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>Total</td><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>{printAmount(summary.dailyTarget)}</td><td style={{ border: '1px solid #000', padding: 5 }}></td><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>{printAmount(summary.actual)}</td><td style={{ border: '1px solid #000', padding: 5, background: summary.rate >= 90 ? '#bbf7d0' : summary.rate >= 85 ? '#fde68a' : '#ef4444', color: summary.rate < 85 ? '#fff' : '#000', fontWeight: 800 }}>{summary.rate.toFixed(2)}%</td><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>{summary.remark}</td></tr>
                 </tbody>
               </table>
@@ -2926,6 +2932,8 @@ export default function CollectorPerformance() {
                     const summary = getCollectorCollectionTotals(collector.rows, includeRecon)
                     const standardDailyTarget = Number(latestRow.dailyTarget || 0)
                     const withReconDailyTarget = standardDailyTarget + (includeRecon ? Number(latestRow.reconTarget || 0) : 0)
+                    const withReconRate = withReconDailyTarget > 0 ? (Number(latestRow.actual || 0) / withReconDailyTarget) * 100 : 0
+                    const withReconPassed = withReconRate >= 85
                     const weeklyTarget = withReconDailyTarget * 6
                     const remarkStyle = getRemarkStyle(summary.remark)
 
@@ -3020,8 +3028,9 @@ export default function CollectorPerformance() {
                             <div style={{ marginTop: 7, color: '#0f172a', fontSize: 20, fontWeight: 900 }}>PHP {fmt(standardDailyTarget)}</div>
                           </div>
                           {includeRecon && <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '17px 18px' }}>
-                            <div style={{ color: '#2563eb', fontSize: 11, fontWeight: 900 }}>With Recon Daily Target</div>
+                            <div style={{ color: '#2563eb', fontSize: 11, fontWeight: 900 }}>With Recon</div>
                             <div style={{ marginTop: 7, color: '#1d4ed8', fontSize: 20, fontWeight: 900 }}>PHP {fmt(withReconDailyTarget)}</div>
+                            <div style={{ marginTop: 8, color: withReconPassed ? '#059669' : '#e11d48', fontSize: 11, fontWeight: 900 }}>{withReconPassed ? 'PASSED' : 'NEEDS IMPROVEMENT'} · {withReconRate.toFixed(0)}%</div>
                           </div>}
                           <div style={{ background: '#f1f5f9', borderRadius: 8, padding: '17px 18px' }}>
                             <div style={{ color: '#334155', fontSize: 11, fontWeight: 800 }}>Daily Actual</div>
