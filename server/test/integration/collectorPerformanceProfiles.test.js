@@ -98,3 +98,24 @@ test('collector photos and profile edits are stored on the server and shared by 
   assert.equal(photoResponse.status, 200);
   assert.equal(await photoResponse.text(), 'shared-photo-bytes');
 });
+
+test('daily target configuration persists whether Recon payments are included', async () => {
+  const defaultResponse = await api('/collector-performance/daily-target-config');
+  const defaultConfig = await defaultResponse.json();
+  assert.equal(defaultResponse.status, 200, defaultConfig.error);
+  assert.equal(defaultConfig.includeRecon, false);
+
+  const saveResponse = await api('/collector-performance/daily-target-config', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ includeRecon: true }),
+  });
+  const savedConfig = await saveResponse.json();
+  assert.equal(saveResponse.status, 200, savedConfig.error);
+  assert.equal(savedConfig.includeRecon, true);
+
+  const readResponse = await api('/collector-performance/daily-target-config');
+  const readConfig = await readResponse.json();
+  assert.equal(readResponse.status, 200, readConfig.error);
+  assert.equal(readConfig.includeRecon, true);
+});

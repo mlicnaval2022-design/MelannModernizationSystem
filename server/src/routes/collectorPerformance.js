@@ -18,6 +18,7 @@ const collectorProfileFields = new Set([
   'photo', 'fullName', 'teamName', 'area', 'supervisor', 'beginningActive',
   'returnClients', 'reconClients', 'comment', 'recommendation'
 ]);
+const DAILY_TARGET_INCLUDE_RECON_SETTING = 'collector_performance_daily_target_include_recon';
 
 fs.mkdirSync(collectorPhotoDir, { recursive: true });
 
@@ -76,6 +77,34 @@ const validWeekStart = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) 
 router.get('/profiles', authenticateToken, async (_req, res) => {
   try {
     res.json({ profiles: await readCollectorProfiles() });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/daily-target-config', authenticateToken, async (_req, res) => {
+  try {
+    const setting = await dbGet(
+      'SELECT setting_value FROM tblSystemSettings WHERE setting_key = ?',
+      [DAILY_TARGET_INCLUDE_RECON_SETTING]
+    );
+    res.json({ includeRecon: String(setting?.setting_value || 'false').toLowerCase() === 'true' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/daily-target-config', authenticateToken, async (req, res) => {
+  try {
+    const includeRecon = req.body?.includeRecon === true;
+    await dbRun(`
+      INSERT INTO tblSystemSettings (setting_key, setting_value, description, updated_at)
+      VALUES (?, ?, ?, datetime('now'))
+      ON CONFLICT(setting_key) DO UPDATE SET
+        setting_value = excluded.setting_value,
+        updated_at = excluded.updated_at
+    `, [
+      DAILY_TARGET_INCLUDE_RECON_SETTING,
+      String(includeRecon),
+      'Include Recon client daily payments in Collector Performance daily targets'
+    ]);
+    res.json({ includeRecon });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

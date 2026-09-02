@@ -895,6 +895,8 @@ export default function CollectorPerformance() {
   const [newCollectionDate, setNewCollectionDate] = useState(defaultRange.date_to)
   const [selectedCollectionId, setSelectedCollectionId] = useState(null)
   const [collectorEdits, setCollectorEdits] = useState({})
+  const [includeReconInDailyTarget, setIncludeReconInDailyTarget] = useState(false)
+  const [dailyTargetConfigSaving, setDailyTargetConfigSaving] = useState(false)
   const [lockedCollections, setLockedCollections] = useState(null)
   const [showSavedModal, setShowSavedModal] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -1016,6 +1018,22 @@ export default function CollectorPerformance() {
   const updatePastdueCutoff = cutoff => {
     setFilters(current => ({ ...current, pastdue_cutoff: cutoff }))
     try { localStorage.setItem(PASTDUE_CUTOFF_STORAGE_KEY, cutoff) } catch { /* Browser storage can be unavailable. */ }
+  }
+
+  const updateDailyTargetConfig = async includeRecon => {
+    const previousValue = includeReconInDailyTarget
+    setIncludeReconInDailyTarget(includeRecon)
+    setDailyTargetConfigSaving(true)
+    try {
+      const response = await API.put('/collector-performance/daily-target-config', { includeRecon })
+      setIncludeReconInDailyTarget(Boolean(response.data?.includeRecon))
+      setErrorMsg('')
+    } catch (err) {
+      setIncludeReconInDailyTarget(previousValue)
+      setErrorMsg(err.response?.data?.error || err.message || 'Could not save the daily target configuration')
+    } finally {
+      setDailyTargetConfigSaving(false)
+    }
   }
 
   const buildFallbackSummary = async () => {
@@ -1629,6 +1647,16 @@ export default function CollectorPerformance() {
 
   useEffect(() => {
     let active = true
+    API.get('/collector-performance/daily-target-config')
+      .then(response => {
+        if (active) setIncludeReconInDailyTarget(Boolean(response.data?.includeRecon))
+      })
+      .catch(() => { /* Standard targets remain the safe default if the setting cannot be loaded. */ })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    let active = true
 
     const loadCollectorProfiles = async () => {
       let legacyProfiles = {}
@@ -1674,11 +1702,14 @@ export default function CollectorPerformance() {
   const collectors = (data?.collectors || [])
     .filter(collector => !String(collector.name || '').toLowerCase().includes('melann office'))
     .sort((a, b) => getSortOrder(a.name) - getSortOrder(b.name) || String(a.name || '').localeCompare(String(b.name || '')))
+  const getConfiguredDailyTarget = collector => {
+    const standardTarget = Number(collector.regular_target ?? collector.target ?? 0)
+    return standardTarget + (includeReconInDailyTarget ? Number(collector.recon_target || 0) : 0)
+  }
   const totals = collectors.reduce((acc, collector) => {
-    const isLaude = String(collector.name || '').toLowerCase().includes('laude')
     const collectorTotal = Number(collector.active_clients || 0) + Number(collector.recon_clients || 0) + Number(collector.overdue_clients || 0) + Number(collector.pastdue_clients || 0)
-    acc.target += Number(collector.regular_target ?? collector.target ?? 0)
-    if (isLaude) acc.recon_target += Number(collector.recon_target || 0)
+    acc.target += getConfiguredDailyTarget(collector)
+    acc.recon_target += Number(collector.recon_target || 0)
     acc.collected += Number(collector.actual_collection ?? collector.collected ?? 0)
     acc.payment_count += Number(collector.payment_count || 0)
     acc.active_clients += Number(collector.active_clients || 0)
@@ -1701,7 +1732,7 @@ export default function CollectorPerformance() {
   totals.achievement_rate = totals.target > 0 ? Math.round((totals.collected / totals.target) * 100) : 0
   const totalClients = Number(totals.active_clients || 0) + Number(totals.recon_clients || 0) + Number(totals.overdue_clients || 0) + Number(totals.pastdue_clients || 0)
   const activeTotal = Number(totals.active_clients || 0) + Number(totals.overdue_clients || 0)
-  const actualTargetTotal = collectors.reduce((sum, collector) => sum + Number(collector.regular_target ?? collector.target ?? 0), 0)
+  const actualTargetTotal = collectors.reduce((sum, collector) => sum + getConfiguredDailyTarget(collector), 0)
   const pastdueTotal = Number(totals.pastdue_clients || 0)
   const reportDate = data?.target_date || filters.date_to
   const pastdueCutoff = data?.pastdue_cutoff || filters.pastdue_cutoff
@@ -2378,7 +2409,7 @@ export default function CollectorPerformance() {
                     <td className="collector-print-num">{countFmt(collector.recon_clients)}</td>
                     <td className="collector-print-num">{countFmt(Number(collector.pastdue_clients || 0))}</td>
                     <td className="collector-print-num">{countFmt(collectorTotal)}</td>
-                    <td colSpan={2} className="collector-print-money">{printAmount(collector.target)}</td>
+                    <td colSpan={2} className="collector-print-money">{printAmount(getConfiguredDailyTarget(collector))}</td>
                   </tr>
                 )
               })}
@@ -2414,7 +2445,7 @@ export default function CollectorPerformance() {
                 <tr key={`print-right-${collector.id}`}>
                   <td className="collector-print-name">{shortCollectorName(collector.name)}</td>
                   <td className="collector-print-num">{countFmt(Number(collector.active_clients || 0) + Number(collector.overdue_clients || 0))}</td>
-                  <td className="collector-print-money">{printAmount(collector.regular_target ?? collector.target)}</td>
+                  <td className="collector-print-money">{printAmount(getConfiguredDailyTarget(collector))}</td>
                   <td className="collector-print-money">{collector.actual_collection || collector.collected ? printAmount(collector.actual_collection ?? collector.collected) : ''}</td>
                 </tr>
               ))}
@@ -2529,6 +2560,26 @@ export default function CollectorPerformance() {
             {activeTab === 'targets' && (
               <div style={{ padding: 22, background: '#f8fbff' }}>
                 <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+                  flexWrap: 'wrap', marginBottom: 16, padding: '14px 18px', border: '1px solid #bfdbfe',
+                  borderRadius: 12, background: '#eff6ff'
+                }}>
+                  <div>
+                    <div style={{ color: '#1e3a8a', fontWeight: 900 }}>Daily Target Configuration</div>
+                    <div style={{ marginTop: 3, color: '#475569', fontSize: 12 }}>Choose whether the blue Recon-client daily payments are added to the standard target.</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#334155', fontSize: 13, fontWeight: 800, cursor: dailyTargetConfigSaving ? 'wait' : 'pointer' }}>
+                      <input type="checkbox" checked={!includeReconInDailyTarget} disabled={dailyTargetConfigSaving} onChange={() => updateDailyTargetConfig(false)} />
+                      Standard target only
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#1d4ed8', fontSize: 13, fontWeight: 900, cursor: dailyTargetConfigSaving ? 'wait' : 'pointer' }}>
+                      <input type="checkbox" checked={includeReconInDailyTarget} disabled={dailyTargetConfigSaving} onChange={() => updateDailyTargetConfig(true)} />
+                      With Recon
+                    </label>
+                  </div>
+                </div>
+                <div style={{
                   border: '1px solid #dbe4f0',
                   borderRadius: 14,
                   background: '#fff',
@@ -2561,7 +2612,7 @@ export default function CollectorPerformance() {
                       <div key={label} style={{ border: '1px solid #dbe4f0', borderRadius: 10, padding: '14px 16px', background: '#fff' }}>
                         <div style={{ color: '#64748b', fontSize: 11, fontWeight: 900, letterSpacing: .5, textTransform: 'uppercase' }}>{label}</div>
                         <div style={{ marginTop: 6, color, fontSize: 20, fontWeight: 900, whiteSpace: 'nowrap' }}>{value}</div>
-                        {label === 'Total Target' && totals.recon_target > 0 && <div style={{ marginTop: 4, color: '#2563eb', fontSize: 10, fontWeight: 900 }}>Laude With Recon is display-only</div>}
+                        {label === 'Total Target' && includeReconInDailyTarget && totals.recon_target > 0 && <div style={{ marginTop: 4, color: '#2563eb', fontSize: 10, fontWeight: 900 }}>Includes blue Recon-client daily payments</div>}
                       </div>
                     ))}
                   </div>
@@ -2585,10 +2636,9 @@ export default function CollectorPerformance() {
                           const collectorActive = Number(collector.active_clients || 0) + Number(collector.overdue_clients || 0)
                           const collectorPastDue = Number(collector.pastdue_clients || 0)
                           const collectorTotal = collectorActive + Number(collector.recon_clients || 0) + collectorPastDue
-                          const isLaude = String(collector.name || '').toLowerCase().includes('laude')
-                          const reconTarget = isLaude ? Number(collector.recon_target || 0) : 0
                           const regularTarget = Number(collector.regular_target ?? collector.target ?? 0)
-                          const withReconTarget = Number(collector.with_recon_target ?? (regularTarget + reconTarget))
+                          const reconTarget = Number(collector.recon_target || 0)
+                          const configuredTarget = getConfiguredDailyTarget(collector)
                           const cardEdit = collectorEdits[collector.id] || {}
                           return (
                             <tr key={collector.id}>
@@ -2601,10 +2651,10 @@ export default function CollectorPerformance() {
                               <td style={{ textAlign: 'center', color: '#1d4ed8', fontWeight: 900 }}>{countFmt(collector.recon_clients)}</td>
                               <td style={{ textAlign: 'center', color: '#dc2626', fontWeight: 900 }}>{countFmt(collectorPastDue)}</td>
                               <td style={{ textAlign: 'right', fontWeight: 900 }}>
-                                {isLaude && reconTarget > 0 ? <>
-                                  <div style={{ color: '#6d28d9' }}>Regular: PHP {fmt(regularTarget)}</div>
-                                  <div style={{ color: '#2563eb', marginTop: 5, paddingTop: 5, borderTop: '1px solid #dbe4f0' }}>With Recon: PHP {fmt(withReconTarget)}</div>
-                                </> : <span style={{ color: '#6d28d9' }}>PHP {fmt(regularTarget)}</span>}
+                                {includeReconInDailyTarget && reconTarget > 0 ? <>
+                                  <div style={{ color: '#6d28d9' }}>Standard: PHP {fmt(regularTarget)}</div>
+                                  <div style={{ color: '#2563eb', marginTop: 5, paddingTop: 5, borderTop: '1px solid #dbe4f0' }}>With Recon: PHP {fmt(configuredTarget)}</div>
+                                </> : <span style={{ color: '#6d28d9' }}>PHP {fmt(configuredTarget)}</span>}
                               </td>
                             </tr>
                           )
