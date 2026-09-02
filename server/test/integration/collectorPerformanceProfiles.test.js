@@ -99,23 +99,29 @@ test('collector photos and profile edits are stored on the server and shared by 
   assert.equal(await photoResponse.text(), 'shared-photo-bytes');
 });
 
-test('daily target configuration persists whether Recon payments are included', async () => {
-  const defaultResponse = await api('/collector-performance/daily-target-config');
-  const defaultConfig = await defaultResponse.json();
-  assert.equal(defaultResponse.status, 200, defaultConfig.error);
-  assert.equal(defaultConfig.includeRecon, false);
+test('daily target configuration is stored individually for each collector', async () => {
+  const branch = await dbGet('SELECT id FROM tblBranch ORDER BY id LIMIT 1');
+  const firstCollector = await dbRun(`
+    INSERT INTO tblCollector (collector_code, first_name, last_name, branch_id, is_active)
+    VALUES ('COL-RECON-ONE', 'Recon', 'One', ?, 1)
+  `, [branch.id]);
+  const secondCollector = await dbRun(`
+    INSERT INTO tblCollector (collector_code, first_name, last_name, branch_id, is_active)
+    VALUES ('COL-RECON-TWO', 'Recon', 'Two', ?, 1)
+  `, [branch.id]);
 
-  const saveResponse = await api('/collector-performance/daily-target-config', {
+  const saveResponse = await api(`/collector-performance/daily-target-config/${firstCollector.lastID}`, {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ includeRecon: true }),
   });
   const savedConfig = await saveResponse.json();
   assert.equal(saveResponse.status, 200, savedConfig.error);
-  assert.equal(savedConfig.includeRecon, true);
+  assert.equal(savedConfig.profile.includeReconInDailyTarget, true);
 
-  const readResponse = await api('/collector-performance/daily-target-config');
-  const readConfig = await readResponse.json();
-  assert.equal(readResponse.status, 200, readConfig.error);
-  assert.equal(readConfig.includeRecon, true);
+  const readResponse = await api('/collector-performance/profiles');
+  const profiles = await readResponse.json();
+  assert.equal(readResponse.status, 200, profiles.error);
+  assert.equal(profiles.profiles[firstCollector.lastID].includeReconInDailyTarget, true);
+  assert.equal(profiles.profiles[secondCollector.lastID], undefined);
 });

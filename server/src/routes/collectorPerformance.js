@@ -16,9 +16,8 @@ const uploadsRoot = process.env.UPLOADS_PATH || path.join(__dirname, '../../../u
 const collectorPhotoDir = path.join(uploadsRoot, 'collectors');
 const collectorProfileFields = new Set([
   'photo', 'fullName', 'teamName', 'area', 'supervisor', 'beginningActive',
-  'returnClients', 'reconClients', 'comment', 'recommendation'
+  'returnClients', 'reconClients', 'includeReconInDailyTarget', 'comment', 'recommendation'
 ]);
-const DAILY_TARGET_INCLUDE_RECON_SETTING = 'collector_performance_daily_target_include_recon';
 
 fs.mkdirSync(collectorPhotoDir, { recursive: true });
 
@@ -52,6 +51,8 @@ function sanitizeCollectorProfile(profile) {
         throw error;
       }
       sanitized.photo = photo;
+    } else if (field === 'includeReconInDailyTarget') {
+      sanitized[field] = value === true;
     } else if (['beginningActive', 'returnClients', 'reconClients'].includes(field)) {
       sanitized[field] = value === '' || value == null ? '' : Number(value);
     } else {
@@ -80,31 +81,28 @@ router.get('/profiles', authenticateToken, async (_req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.get('/daily-target-config', authenticateToken, async (_req, res) => {
+router.put('/daily-target-config/:collectorId', authenticateToken, async (req, res) => {
   try {
-    const setting = await dbGet(
-      'SELECT setting_value FROM tblSystemSettings WHERE setting_key = ?',
-      [DAILY_TARGET_INCLUDE_RECON_SETTING]
-    );
-    res.json({ includeRecon: String(setting?.setting_value || 'false').toLowerCase() === 'true' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
+    const collectorId = Number.parseInt(req.params.collectorId, 10);
+    if (!Number.isInteger(collectorId) || collectorId <= 0) {
+      return res.status(400).json({ error: 'A valid collector is required.' });
+    }
+    const collector = await dbGet('SELECT id FROM tblCollector WHERE id = ?', [collectorId]);
+    if (!collector) return res.status(404).json({ error: 'Collector not found.' });
 
-router.put('/daily-target-config', authenticateToken, async (req, res) => {
-  try {
-    const includeRecon = req.body?.includeRecon === true;
+    const existing = await dbGet('SELECT profile_json FROM tblCollectorPerformanceProfile WHERE collector_id = ?', [collectorId]);
+    let profile = {};
+    try { profile = JSON.parse(existing?.profile_json || '{}'); } catch { /* Replace an invalid legacy profile with a valid one. */ }
+    profile.includeReconInDailyTarget = req.body?.includeRecon === true;
     await dbRun(`
-      INSERT INTO tblSystemSettings (setting_key, setting_value, description, updated_at)
-      VALUES (?, ?, ?, datetime('now'))
-      ON CONFLICT(setting_key) DO UPDATE SET
-        setting_value = excluded.setting_value,
+      INSERT INTO tblCollectorPerformanceProfile (collector_id, profile_json, updated_by)
+      VALUES (?, ?, ?)
+      ON CONFLICT(collector_id) DO UPDATE SET
+        profile_json = excluded.profile_json,
+        updated_by = excluded.updated_by,
         updated_at = excluded.updated_at
-    `, [
-      DAILY_TARGET_INCLUDE_RECON_SETTING,
-      String(includeRecon),
-      'Include Recon client daily payments in Collector Performance daily targets'
-    ]);
-    res.json({ includeRecon });
+    `, [collectorId, JSON.stringify(profile), req.user.id]);
+    res.json({ collectorId, profile });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
