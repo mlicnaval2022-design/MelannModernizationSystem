@@ -125,3 +125,28 @@ test('daily target configuration is stored individually for each collector', asy
   assert.equal(profiles.profiles[firstCollector.lastID].includeReconInDailyTarget, true);
   assert.equal(profiles.profiles[secondCollector.lastID], undefined);
 });
+
+test('performance print configuration is shared and persistent', async () => {
+  const saveResponse = await api('/collector-performance/performance-print-config', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ config: {
+      preparedBy: 'Prepared Person',
+      preparedByPosition: 'Prepared Role',
+      branchManager: 'Review Person',
+      branchManagerPosition: 'Review Role',
+      coachName: 'Coach Person',
+      coachPosition: 'Coach Role',
+      approvedBy: 'Approval Person',
+      approvedByPosition: 'Approval Role',
+    } }),
+  });
+  const saved = await saveResponse.json();
+  assert.equal(saveResponse.status, 200, saved.error);
+  assert.equal(saved.config.coachName, 'Coach Person');
+
+  const readResponse = await api('/collector-performance/performance-print-config');
+  const read = await readResponse.json();
+  assert.equal(readResponse.status, 200, read.error);
+  assert.equal(read.config.approvedBy, 'Approval Person');
+});

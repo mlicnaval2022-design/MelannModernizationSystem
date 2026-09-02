@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, BarChart3, Building2, CalendarDays, CheckCircle2, ChevronRight, ChevronsUpDown, Download, Edit3, FileText, Grid2X2, Info, List, Lock, MapPin, Plus, Printer, RefreshCw, Save, Search, Sparkles, Trash2, TrendingDown, TrendingUp, Trophy, Unlock, User, Users, X } from 'lucide-react'
+import { ArrowLeft, BarChart3, Building2, CalendarDays, CheckCircle2, ChevronRight, ChevronsUpDown, Download, Edit3, FileText, Grid2X2, Info, List, Lock, MapPin, Plus, Printer, RefreshCw, Save, Search, Settings, Sparkles, Trash2, TrendingDown, TrendingUp, Trophy, Unlock, User, Users, X } from 'lucide-react'
 import API from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import ConfirmModal from '../components/ConfirmModal'
@@ -30,6 +30,16 @@ const printAmount = value => Number(value || 0).toLocaleString('en-PH', { minimu
 const COLLECTOR_EDITS_STORAGE_KEY = 'collectorPerformanceEdits'
 const PASTDUE_CUTOFF_STORAGE_KEY = 'collectorPerformancePastdueCutoff'
 const MAX_PROFILE_PHOTO_DIMENSION = 320
+const DEFAULT_PERFORMANCE_PRINT_CONFIG = {
+  preparedBy: 'MIA S. YBAÑEZ',
+  preparedByPosition: 'IT/ Acctg. Clerk',
+  branchManager: 'MARILYN O. RELOBA',
+  branchManagerPosition: 'Branch Manager',
+  coachName: 'VICTORIO L. RELOBA, JR.',
+  coachPosition: 'Position of Coach',
+  approvedBy: 'VICTORIO L. RELOBA, JR.',
+  approvedByPosition: 'Operations Manager'
+}
 const COMPANY_PERIOD_PRESETS = [
   { label: 'Jan 01 – Feb 15', start: '-01-01', end: '-02-15' },
   { label: 'Feb 16 – Mar 31', start: '-02-16', end: '-03-31' },
@@ -900,6 +910,9 @@ export default function CollectorPerformance() {
   const [showSavedModal, setShowSavedModal] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [showPerformancePreview, setShowPerformancePreview] = useState(false)
+  const [showPerformancePrintSettings, setShowPerformancePrintSettings] = useState(false)
+  const [performancePrintConfig, setPerformancePrintConfig] = useState(DEFAULT_PERFORMANCE_PRINT_CONFIG)
+  const [performancePrintConfigSaving, setPerformancePrintConfigSaving] = useState(false)
   const [collectionsLoading, setCollectionsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [fortyFiveDayLoading, setFortyFiveDayLoading] = useState(false)
@@ -1640,9 +1653,31 @@ export default function CollectorPerformance() {
     }
   }
 
+  const savePerformancePrintConfig = async () => {
+    setPerformancePrintConfigSaving(true)
+    try {
+      const response = await API.put('/collector-performance/performance-print-config', { config: performancePrintConfig })
+      setPerformancePrintConfig(response.data?.config || performancePrintConfig)
+      setShowPerformancePrintSettings(false)
+      setErrorMsg('')
+    } catch (err) {
+      setErrorMsg(err.response?.data?.error || err.message || 'Could not save performance print settings')
+    } finally {
+      setPerformancePrintConfigSaving(false)
+    }
+  }
+
   useEffect(() => {
     loadData()
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    API.get('/collector-performance/performance-print-config')
+      .then(response => { if (active) setPerformancePrintConfig({ ...DEFAULT_PERFORMANCE_PRINT_CONFIG, ...(response.data?.config || {}) }) })
+      .catch(() => { /* The print form remains usable with its built-in defaults. */ })
+    return () => { active = false }
   }, [])
 
   useEffect(() => {
@@ -2350,8 +2385,8 @@ export default function CollectorPerformance() {
                       <table style={{ width: '100%', height: 220, borderCollapse: 'collapse', fontSize: 11, tableLayout: 'fixed' }}>
                         <tbody>
                           <tr><td colSpan={2} style={{ borderBottom: '1px solid #000', padding: 8, height: 82, verticalAlign: 'top' }}><b><u>Legend:</u></b><div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: 8, marginTop: 6 }}><div><div style={{ background: '#bbf7d0', border: '1px solid #000', textAlign: 'center', fontWeight: 800 }}>Passed</div><div style={{ background: '#fde68a', border: '1px solid #000', borderTop: 0, textAlign: 'center', fontWeight: 800 }}>Warning</div><div style={{ background: '#fecaca', border: '1px solid #000', borderTop: 0, textAlign: 'center', fontWeight: 800 }}>Needs Improvement</div></div><div style={{ lineHeight: 1.45 }}>90.00% and above<br />85% - 89.99%<br />84.99% and below</div></div></td></tr>
-                          <tr><td style={{ borderRight: '1px solid #000', borderBottom: '1px solid #000', padding: 8, height: 70, verticalAlign: 'bottom', width: '50%' }}><i>Prepared by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>MIA S. YBAÑEZ</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', width: '90%', paddingTop: 2 }}>IT/ Acctg. Clerk</span></div></td><td style={{ borderBottom: '1px solid #000', padding: 8, height: 70, verticalAlign: 'bottom', width: '50%' }}><i>Acknowledged by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>{String(edit.fullName || collector.name).toUpperCase()}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', width: '90%', paddingTop: 2 }}>CI/Collector</span></div></td></tr>
-                          <tr><td style={{ borderRight: '1px solid #000', padding: 8, height: 70, verticalAlign: 'bottom' }}><i>Reviewed by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>MARILYN O. RELOBA</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', width: '90%', paddingTop: 2 }}>Branch Manager</span></div></td><td style={{ padding: 8, height: 70, verticalAlign: 'bottom' }}><i>Approved by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>VICTORIO L. RELOBA, JR.</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', width: '90%', paddingTop: 2 }}>Operations Manager</span></div></td></tr>
+                          <tr><td style={{ borderRight: '1px solid #000', borderBottom: '1px solid #000', padding: 8, height: 70, verticalAlign: 'bottom', width: '50%' }}><i>Prepared by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>{performancePrintConfig.preparedBy}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', width: '90%', paddingTop: 2 }}>{performancePrintConfig.preparedByPosition}</span></div></td><td style={{ borderBottom: '1px solid #000', padding: 8, height: 70, verticalAlign: 'bottom', width: '50%' }}><i>Acknowledged by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>{String(edit.fullName || collector.name).toUpperCase()}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', width: '90%', paddingTop: 2 }}>CI/Collector</span></div></td></tr>
+                          <tr><td style={{ borderRight: '1px solid #000', padding: 8, height: 70, verticalAlign: 'bottom' }}><i>Reviewed by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>{performancePrintConfig.branchManager}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', width: '90%', paddingTop: 2 }}>{performancePrintConfig.branchManagerPosition}</span></div></td><td style={{ padding: 8, height: 70, verticalAlign: 'bottom' }}><i>Approved by:</i><br /><br /><div style={{ textAlign: 'center' }}><b>{performancePrintConfig.approvedBy}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', width: '90%', paddingTop: 2 }}>{performancePrintConfig.approvedByPosition}</span></div></td></tr>
                         </tbody>
                       </table>
                     </td>
@@ -2360,7 +2395,7 @@ export default function CollectorPerformance() {
                         <tbody>
                           <tr><td colSpan={2} style={{ borderBottom: '1px solid #000', padding: 6, textAlign: 'center', height: 24 }}><u>Coaching Details:</u></td></tr>
                           <tr><td style={{ borderRight: '1px dotted #000', borderBottom: '1px solid #000', padding: 6, width: '32%', height: 36, verticalAlign: 'middle' }}>Date</td><td style={{ borderBottom: '1px solid #000', padding: 6 }}></td></tr>
-                          <tr><td style={{ borderRight: '1px dotted #000', borderBottom: '1px solid #000', padding: 6, height: 82, verticalAlign: 'middle' }}>Name and<br />Signature of<br />Coach</td><td style={{ borderBottom: '1px solid #000', padding: 6, textAlign: 'center', verticalAlign: 'bottom' }}><b>VICTORIO L. RELOBA, JR.</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', width: '88%', paddingTop: 2 }}>Position of Coach</span></td></tr>
+                          <tr><td style={{ borderRight: '1px dotted #000', borderBottom: '1px solid #000', padding: 6, height: 82, verticalAlign: 'middle' }}>Name and<br />Signature of<br />Coach</td><td style={{ borderBottom: '1px solid #000', padding: 6, textAlign: 'center', verticalAlign: 'bottom' }}><b>{performancePrintConfig.coachName}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', width: '88%', paddingTop: 2 }}>{performancePrintConfig.coachPosition}</span></td></tr>
                           <tr><td style={{ borderRight: '1px dotted #000', padding: 6, height: 80, verticalAlign: 'middle' }}>Collector</td><td style={{ padding: 6, textAlign: 'center', verticalAlign: 'bottom' }}><b>{String(edit.fullName || collector.name).toUpperCase()}</b><br /><span style={{ borderTop: '1px solid #000', display: 'inline-block', width: '88%', paddingTop: 2 }}>Name of Collector</span></td></tr>
                         </tbody>
                       </table>
@@ -2694,6 +2729,9 @@ export default function CollectorPerformance() {
                     <button className="btn btn-secondary" type="button" onClick={previewLockedPerformance} disabled={collectionsLoading || !collectionRows.length}>
                       Preview Performance
                     </button>
+                    <button className="btn btn-secondary" type="button" onClick={() => setShowPerformancePrintSettings(current => !current)}>
+                      <Settings size={16} /> Print Settings
+                    </button>
                     <button className="btn btn-primary" type="button" onClick={printLockedPerformance} disabled={collectionsLoading || !collectionRows.length}>
                       <Printer size={16} /> Print Performance
                     </button>
@@ -2718,6 +2756,26 @@ export default function CollectorPerformance() {
 
                 {isWeekLocked && <div style={{ margin: '16px 24px 0', padding: '12px 16px', borderRadius: 8, background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857', fontWeight: 800 }}>
                   <Lock size={16} style={{ verticalAlign: 'text-bottom', marginRight: 8 }} /> Week locked for preview and printing. Unlock it to change dates or collection entries.
+                </div>}
+
+                {showPerformancePrintSettings && <div style={{ margin: '16px 24px 0', padding: 20, border: '1px solid #bfdbfe', borderRadius: 10, background: '#f8fbff' }}>
+                  <div style={{ fontWeight: 900, color: '#1e3a8a', marginBottom: 4 }}>Performance Print Settings</div>
+                  <div style={{ color: '#64748b', fontSize: 12, marginBottom: 16 }}>The collector acknowledgement is filled automatically from the selected collector.</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 14 }}>
+                    {[
+                      ['preparedBy', 'Prepared by'], ['preparedByPosition', 'Prepared by position'],
+                      ['branchManager', 'Branch manager / reviewed by'], ['branchManagerPosition', 'Branch manager position'],
+                      ['coachName', 'Coach name'], ['coachPosition', 'Coach position'],
+                      ['approvedBy', 'Approved by'], ['approvedByPosition', 'Approved by position']
+                    ].map(([field, label]) => <div key={field}>
+                      <label className="form-label">{label}</label>
+                      <input className="form-control" value={performancePrintConfig[field] || ''} onChange={event => setPerformancePrintConfig(current => ({ ...current, [field]: event.target.value }))} />
+                    </div>)}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
+                    <button className="btn btn-secondary" type="button" onClick={() => setShowPerformancePrintSettings(false)} disabled={performancePrintConfigSaving}>Cancel</button>
+                    <button className="btn btn-primary" type="button" onClick={savePerformancePrintConfig} disabled={performancePrintConfigSaving}>{performancePrintConfigSaving ? 'Saving...' : 'Save Print Settings'}</button>
+                  </div>
                 </div>}
 
                 {selectedCollection && selectedSummary && selectedLatestRow ? (

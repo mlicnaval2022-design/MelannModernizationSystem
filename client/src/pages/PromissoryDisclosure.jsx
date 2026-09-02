@@ -685,8 +685,17 @@ function IndexPreview({ data }) {
     loanPeriod ? `${loanPeriod}D` : '-',
     Number.isFinite(interestRate) ? `${interestRate}%` : '-',
   ].join('  ')
+  const loanType = String(loan.loan_type || '').toUpperCase()
+  const isRecon = loanType.includes('RECON')
+  const isNew = loanType.includes('NEW')
+  const previousBalance = Number(loan.previous_balance || 0)
+  const penalty = Number(loan.penalty || 0)
+  const headerDetails = [
+    isRecon ? 'RECON' : isNew ? 'NEW' : '',
+    previousBalance > 0 ? `Bal. ${indexAmount(previousBalance)}` : '',
+    penalty > 0 ? `Pen. ${indexAmount(penalty)}` : ''
+  ].filter(Boolean)
   const values = [
-    ['index-left', loan.customer_code || '-'],
     ['index-middle', loanTerms],
     ['index-right', loan.collector_index_card_name || firstGivenName(loan.collector_name) || 'Unassigned'],
     ['index-left', borrowerName],
@@ -713,6 +722,10 @@ function IndexPreview({ data }) {
         .index-card-fields { box-sizing: border-box; display: grid; grid-template-columns: 4.1in 2.5in 1in; grid-template-rows: repeat(3, 0.278in); padding: 0.35in 0.2in 0; }
         .index-card-field { align-self: end; overflow: hidden; white-space: nowrap; font-family: Arial, Helvetica, sans-serif; font-weight: 600; line-height: 1; text-overflow: clip; }
         .index-left { text-align: left; padding-right: 0.08in; }
+        .index-header { display: flex; align-items: baseline; min-width: 0; }
+        .index-header-code { flex: 0 0 auto; }
+        .index-header-details { display: inline-flex; gap: 0.1in; margin-left: 0.5in; min-width: 0; font-size: 8pt; font-weight: 700; }
+        .index-header-recon { color: #dc2626; }
         .index-middle { text-align: center; padding: 0 0.04in; }
         .index-right { text-align: center; padding-left: 0.02in; }
         @media print {
@@ -727,6 +740,12 @@ function IndexPreview({ data }) {
       <p className="index-preview-note"><b>5 × 8 in landscape index card.</b> Page margins are set to none; print at <b>Actual size / 100%</b>.</p>
       <div id="index-printable" className="index-card-print" aria-label="Lending index card print preview">
         <div className="index-card-fields">
+          <div className="index-card-field index-left index-header" style={{ fontSize: fontSize(loan.customer_code || '-') }}>
+            <span className="index-header-code">{loan.customer_code || '-'}</span>
+            {headerDetails.length > 0 && <span className="index-header-details">
+              {headerDetails.map(detail => <span key={detail} className={['RECON', 'NEW'].includes(detail) ? 'index-header-recon' : ''}>{detail}</span>)}
+            </span>}
+          </div>
           {values.map(([position, value], index) => (
             <div key={`${position}-${index}`} className={`index-card-field ${position}`} style={{ fontSize: fontSize(value) }}>
               {value}

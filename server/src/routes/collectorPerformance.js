@@ -18,6 +18,17 @@ const collectorProfileFields = new Set([
   'photo', 'fullName', 'teamName', 'area', 'supervisor', 'beginningActive',
   'returnClients', 'reconClients', 'includeReconInDailyTarget', 'comment', 'recommendation'
 ]);
+const PERFORMANCE_PRINT_CONFIG_SETTING = 'collector_performance_print_config';
+const defaultPerformancePrintConfig = {
+  preparedBy: 'MIA S. YBAÑEZ',
+  preparedByPosition: 'IT/ Acctg. Clerk',
+  branchManager: 'MARILYN O. RELOBA',
+  branchManagerPosition: 'Branch Manager',
+  coachName: 'VICTORIO L. RELOBA, JR.',
+  coachPosition: 'Position of Coach',
+  approvedBy: 'VICTORIO L. RELOBA, JR.',
+  approvedByPosition: 'Operations Manager'
+};
 
 fs.mkdirSync(collectorPhotoDir, { recursive: true });
 
@@ -78,6 +89,30 @@ const validWeekStart = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) 
 router.get('/profiles', authenticateToken, async (_req, res) => {
   try {
     res.json({ profiles: await readCollectorProfiles() });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/performance-print-config', authenticateToken, async (_req, res) => {
+  try {
+    const setting = await dbGet('SELECT setting_value FROM tblSystemSettings WHERE setting_key = ?', [PERFORMANCE_PRINT_CONFIG_SETTING]);
+    let savedConfig = {};
+    try { savedConfig = JSON.parse(setting?.setting_value || '{}'); } catch { /* Use defaults for invalid legacy data. */ }
+    res.json({ config: { ...defaultPerformancePrintConfig, ...savedConfig } });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/performance-print-config', authenticateToken, async (req, res) => {
+  try {
+    const config = Object.fromEntries(Object.keys(defaultPerformancePrintConfig).map(key => [
+      key,
+      String(req.body?.config?.[key] ?? defaultPerformancePrintConfig[key]).trim().slice(0, 120)
+    ]));
+    await dbRun(`
+      INSERT INTO tblSystemSettings (setting_key, setting_value, description, updated_at)
+      VALUES (?, ?, ?, datetime('now'))
+      ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = excluded.updated_at
+    `, [PERFORMANCE_PRINT_CONFIG_SETTING, JSON.stringify(config), 'Collector Performance print configuration']);
+    res.json({ config });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
