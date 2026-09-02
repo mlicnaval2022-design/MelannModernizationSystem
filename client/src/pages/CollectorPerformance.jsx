@@ -1631,10 +1631,8 @@ export default function CollectorPerformance() {
 
   const unlockWeek = async () => {
     const weekStart = getOperationWeek(filters.date_to)[0]
-    const reason = window.prompt('Reason for unlocking this finalized week:')
-    if (!reason?.trim()) return
     try {
-      await API.post(`/collector-performance/week-lock/${weekStart}/unlock`, { reason: reason.trim() })
+      await API.post(`/collector-performance/week-lock/${weekStart}/unlock`)
       setLockedCollections(null)
       await loadCollections()
     } catch (err) {

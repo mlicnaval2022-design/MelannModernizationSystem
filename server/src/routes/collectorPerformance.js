@@ -185,10 +185,9 @@ router.post('/week-lock', authenticateToken, requireRole('admin', 'manager', 'ac
 router.post('/week-lock/:weekStart/unlock', authenticateToken, requireRole('admin', 'manager', 'accounting', 'it', 'it_accounting_clerk'), async (req, res) => {
   try {
     const reason = String(req.body?.reason || '').trim();
-    if (!reason) return res.status(400).json({ error: 'An unlock reason is required.' });
     const lock = await dbGet(`SELECT id FROM tblCollectorPerformanceWeekLock WHERE week_start=? AND status='Locked'`, [req.params.weekStart]);
     if (!lock) return res.status(404).json({ error: 'Locked week not found.' });
-    await dbRun(`UPDATE tblCollectorPerformanceWeekLock SET status='Unlocked', unlocked_by=?, unlocked_at=datetime('now'), unlock_reason=? WHERE id=?`, [req.user.id, reason, lock.id]);
+    await dbRun(`UPDATE tblCollectorPerformanceWeekLock SET status='Unlocked', unlocked_by=?, unlocked_at=datetime('now'), unlock_reason=? WHERE id=?`, [req.user.id, reason || null, lock.id]);
     await dbRun(`INSERT INTO tblCollectorPerformanceWeekLockAudit (week_lock_id, action, reason, changed_by) VALUES (?, 'Unlock', ?, ?)`, [lock.id, reason, req.user.id]);
     res.json({ locked: false });
   } catch (err) { res.status(500).json({ error: err.message }); }
