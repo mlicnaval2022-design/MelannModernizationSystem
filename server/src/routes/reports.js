@@ -1790,6 +1790,11 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
     // Get collector info
     const collector = await dbGet(`SELECT id, collector_code, first_name, last_name FROM tblCollector WHERE id = ?`, [collectorId]);
     const collectorName = collector ? `${collector.last_name}, ${collector.first_name}`.toUpperCase() : 'UNASSIGNED';
+    const collectorProfile = await dbGet('SELECT profile_json FROM tblCollectorPerformanceProfile WHERE collector_id = ?', [collectorId]);
+    let includeReconInDailyTarget = false;
+    try {
+      includeReconInDailyTarget = JSON.parse(collectorProfile?.profile_json || '{}').includeReconInDailyTarget === true;
+    } catch { /* An invalid legacy profile simply uses the standard target. */ }
 
     // Get active/pastdue loans with collected amounts for the date
     const loans = await dbAll(`
@@ -1907,6 +1912,7 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
     res.json({
       loans: collectionLoans,
       collector_id: collectorId,
+      include_recon_in_daily_target: includeReconInDailyTarget,
       date: targetDate,
       collector: { id: collector?.id, name: collectorName },
       summary: {

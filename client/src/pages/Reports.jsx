@@ -1429,7 +1429,7 @@ export default function Reports() {
       }
     }
 
-    const { loans = [], collector: apiCollector, signatures: sigs = {}, summary = {} } = reportData
+    const { loans = [], collector: apiCollector, signatures: sigs = {}, summary = {}, include_recon_in_daily_target: includeReconInDailyTarget = false } = reportData
     const collName = collectors.find(c => c.id == params.collector_id)
     const collectorDisplayName = apiCollector?.name || (collName ? `${collName.last_name}, ${collName.first_name}`.toUpperCase() : 'UNASSIGNED')
     const collectionDate = params.date || toDateInputValue(new Date())
@@ -1453,7 +1453,7 @@ export default function Reports() {
 
     const baseClientsCount = groups.active.length + groups.recon.length + groups.overdue.length + groups.pastdue.length
     const totalClientsCount = params.manual_clients ? Number(params.manual_clients) : baseClientsCount
-    const baseTarget = [...groups.active, ...groups.overdue.filter(c => !isReconLoan(c))].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
+    const baseTarget = [...groups.active, ...groups.overdue.filter(c => !isReconLoan(c)), ...(includeReconInDailyTarget ? groups.recon : [])].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
     const targetAmount = params.manual_target ? Number(params.manual_target) : baseTarget
 
     // Currency formatter using standard ASCII 'P' to avoid \u20B1 () encoding corruption in WinAnsi pdf fonts
@@ -5864,7 +5864,7 @@ export default function Reports() {
         )
       }
       const rawLoans = Array.isArray(data.loans) ? data.loans : []
-      const { collector: apiCollector, signatures = {}, summary = {} } = data
+      const { collector: apiCollector, signatures = {}, summary = {}, include_recon_in_daily_target: includeReconInDailyTarget = false } = data
       const loans = rawLoans
       const collName = collectors.find(c => c.id == params.collector_id)
       const collectorDisplayName = apiCollector?.name || (collName ? `${collName.last_name}, ${collName.first_name}`.toUpperCase() : 'UNASSIGNED')
@@ -5892,7 +5892,7 @@ export default function Reports() {
 
       const baseClientsCount = groups.active.length + groups.recon.length + groups.overdue.length + groups.pastdue.length
       const totalClientsCount = params.manual_clients ? Number(params.manual_clients) : baseClientsCount
-      const baseTarget = [...groups.active, ...groups.overdue.filter(c => !isReconLoan(c))].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
+      const baseTarget = [...groups.active, ...groups.overdue.filter(c => !isReconLoan(c)), ...(includeReconInDailyTarget ? groups.recon : [])].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
       const targetAmount = params.manual_target ? Number(params.manual_target) : baseTarget
 
       /*  Color constants  */
