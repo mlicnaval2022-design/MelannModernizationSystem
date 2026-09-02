@@ -2254,7 +2254,6 @@ export default function CollectorPerformance() {
         )}
         {(lockedCollections?.collectors || collectionRows).map(collector => {
           const edit = collectorEdits[collector.id] || {}
-          const summary = getCollectorCollectionTotals(collector.rows, edit.includeReconInDailyTarget === true)
           const mondayRow = collector.rows.find(row => row.date === performanceWeekDates[0]) || collector.rows[0] || {}
           const newClients = collector.rows.reduce((sum, row) => sum + Number(row.newClients || 0), 0)
           const newPrincipal = collector.rows.reduce((sum, row) => sum + Number(row.newClientPrincipal || 0), 0)
@@ -2264,8 +2263,13 @@ export default function CollectorPerformance() {
           const beginningActive = Number(mondayRow.activeClients || 0) + Number(mondayRow.overdueClients || 0)
           const endingBalance = Math.max(0, beginningActive - reconClients)
           const lacking = Math.max(0, activeTarget - endingBalance)
-          return (
-            <Fragment key={`print-performance-${collector.id}`}>
+          return [
+            { key: 'standard', withRecon: false },
+            ...(edit.includeReconInDailyTarget === true ? [{ key: 'with-recon', withRecon: true }] : [])
+          ].map(printMode => {
+            const summary = getCollectorCollectionTotals(collector.rows, printMode.withRecon)
+            return (
+            <Fragment key={`print-performance-${collector.id}-${printMode.key}`}>
             <div className="performance-print-page">
               <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', alignItems: 'center', gap: 12, marginBottom: 10 }}>
                 <img src={logo} alt="" style={{ width: 122, justifySelf: 'end' }} />
@@ -2277,7 +2281,7 @@ export default function CollectorPerformance() {
                   <div>https://www.facebook.com/MelannInvestorCorp</div>
                 </div>
               </div>
-              <div style={{ textAlign: 'center', color: '#2563eb', fontWeight: 900, letterSpacing: 2, textDecoration: 'underline', margin: '6px 0 10px' }}>WEEKLY PERFORMANCE RATING</div>
+              <div style={{ textAlign: 'center', color: '#2563eb', fontWeight: 900, letterSpacing: 2, textDecoration: 'underline', margin: '6px 0 10px' }}>WEEKLY PERFORMANCE RATING{printMode.withRecon ? ' — WITH RECON' : ' — STANDARD'}</div>
               <div style={{ fontSize: 12, marginBottom: 8 }}>Rating Period: <span style={{ color: '#ef4444', textDecoration: 'underline' }}>{ratingPeriod(performanceWeekDates)}</span></div>
 
               <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: 11.5, marginBottom: 10 }}>
@@ -2331,11 +2335,10 @@ export default function CollectorPerformance() {
                 </thead>
                 <tbody>
                   {collector.rows.map(row => {
-                    const withReconTarget = Number(row.dailyTarget || 0) + Number(row.reconTarget || 0)
-                    const printTarget = edit.includeReconInDailyTarget === true ? withReconTarget : Number(row.dailyTarget || 0)
+                    const printTarget = Number(row.dailyTarget || 0) + (printMode.withRecon ? Number(row.reconTarget || 0) : 0)
                     const printRate = printTarget > 0 ? (Number(row.actual || 0) / printTarget) * 100 : 0
                     const printRemark = getCollectionRemark(printRate)
-                    return <tr key={`print-row-${collector.id}-${row.date}`}><td style={{ border: '1px solid #000', padding: 4 }}>{printDate(row.date)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{edit.includeReconInDailyTarget === true ? <><div>Standard: {printAmount(row.dailyTarget)}</div><div style={{ color: '#1d4ed8', fontWeight: 800 }}>With Recon: {printAmount(withReconTarget)}</div></> : printAmount(row.dailyTarget)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{printAmount(printTarget * 6)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{printAmount(row.actual)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{printRate.toFixed(2)}%</td><td style={{ border: '1px solid #000', padding: 4 }}>{printRemark}</td></tr>
+                    return <tr key={`print-row-${collector.id}-${printMode.key}-${row.date}`}><td style={{ border: '1px solid #000', padding: 4 }}>{printDate(row.date)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{printAmount(printTarget)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{printAmount(printTarget * 6)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{printAmount(row.actual)}</td><td style={{ border: '1px solid #000', padding: 4 }}>{printRate.toFixed(2)}%</td><td style={{ border: '1px solid #000', padding: 4 }}>{printRemark}</td></tr>
                   })}
                   <tr><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>Total</td><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>{printAmount(summary.dailyTarget)}</td><td style={{ border: '1px solid #000', padding: 5 }}></td><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>{printAmount(summary.actual)}</td><td style={{ border: '1px solid #000', padding: 5, background: summary.rate >= 90 ? '#bbf7d0' : summary.rate >= 85 ? '#fde68a' : '#ef4444', color: summary.rate < 85 ? '#fff' : '#000', fontWeight: 800 }}>{summary.rate.toFixed(2)}%</td><td style={{ border: '1px solid #000', padding: 5, fontWeight: 800 }}>{summary.remark}</td></tr>
                 </tbody>
@@ -2377,7 +2380,8 @@ export default function CollectorPerformance() {
               </table>
             </div>
             </Fragment>
-          )
+            )
+          })
         })}
       </div>
 
