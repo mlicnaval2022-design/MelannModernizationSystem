@@ -1454,7 +1454,7 @@ export default function Reports() {
     const baseClientsCount = groups.active.length + groups.recon.length + groups.overdue.length + groups.pastdue.length
     const totalClientsCount = params.manual_clients ? Number(params.manual_clients) : baseClientsCount
     const baseTarget = [...groups.active, ...groups.overdue.filter(c => !isReconLoan(c)), ...(includeReconInDailyTarget ? groups.recon : [])].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
-    const targetAmount = params.manual_target ? Number(params.manual_target) : baseTarget
+    const targetAmount = params.manual_target ? Number(params.manual_target) : (Number.isFinite(Number(summary.dailyTarget)) ? Number(summary.dailyTarget) : baseTarget)
 
     // Currency formatter using standard ASCII 'P' to avoid \u20B1 () encoding corruption in WinAnsi pdf fonts
     const pesoFmtPdf = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-P${f}` : `P${f}` }
@@ -5893,7 +5893,7 @@ export default function Reports() {
       const baseClientsCount = groups.active.length + groups.recon.length + groups.overdue.length + groups.pastdue.length
       const totalClientsCount = params.manual_clients ? Number(params.manual_clients) : baseClientsCount
       const baseTarget = [...groups.active, ...groups.overdue.filter(c => !isReconLoan(c)), ...(includeReconInDailyTarget ? groups.recon : [])].reduce((sum, c) => sum + Number(c.amortization || 0), 0)
-      const targetAmount = params.manual_target ? Number(params.manual_target) : baseTarget
+      const targetAmount = params.manual_target ? Number(params.manual_target) : (Number.isFinite(Number(summary.dailyTarget)) ? Number(summary.dailyTarget) : baseTarget)
 
       /*  Color constants  */
       const peso = n => { const v = Number(n || 0); const f = Math.abs(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? `-PHP ${f}` : `PHP ${f}` }

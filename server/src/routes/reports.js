@@ -1885,6 +1885,15 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
       ));
     });
 
+    const targetBreakdown = collectionLoans.reduce((totals, loan) => {
+      if (Number(loan.days_past_due || 0) >= 45) return totals;
+      const amount = Number(loan.amortization || 0);
+      if (String(loan.loan_type || '').toLowerCase().includes('recon')) totals.recon += amount;
+      else totals.standard += amount;
+      return totals;
+    }, { standard: 0, recon: 0 });
+    const dailyTarget = targetBreakdown.standard + (includeReconInDailyTarget ? targetBreakdown.recon : 0);
+
     const pbInsDst = await dbGet(`
       SELECT COALESCE(SUM(passbook), 0) as total
       FROM tblLoan
@@ -1921,7 +1930,10 @@ router.get('/collection-sheet', authenticateToken, async (req, res) => {
         passbookTotal: pbInsDstTotal,
         fieldRelease: fieldReleaseTotal,
         totalExpense: 0,
-        grandTotal: totalCollection + pbInsDstTotal - fieldReleaseTotal
+        grandTotal: totalCollection + pbInsDstTotal - fieldReleaseTotal,
+        dailyTarget,
+        standardDailyTarget: targetBreakdown.standard,
+        reconDailyTarget: targetBreakdown.recon
       },
       signatures: {
         checkedBy: csMap.cs_checked_by || 'MARILYN O. RELOBA',
